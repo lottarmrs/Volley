@@ -1,0 +1,41 @@
+{
+  "id": "felipe",
+  "nome": "Felipe",
+  "apelido": "Lipe",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "central",
+  "posicoesSecundarias": [],
+  "alturaCm": 192,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 4,
+    "recepcao": 3,
+    "levantamento": 2,
+    "ataque": 7,
+    "bloqueio": 9,
+    "defesa": 3,
+    "velocidade": 4,
+    "resistencia": 5,
+    "leituraDeJogo": 6,
+    "regularidade": 5,
+    "controleEmocional": 6
+  },
+  "perfil": {
+    "nivel": 6,
+    "classe": "Central",
+    "arquetipo": "Torre de Bloqueio",
+    "especialidade": "Presença de rede",
+    "fraqueza": "Fundamentos básicos"
+  },
+  "formaAtual": {
+    "valor": 0,
+    "observacao": "Normal",
+    "ultimasPartidas": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

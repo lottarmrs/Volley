@@ -1,0 +1,43 @@
+{
+  "id": "carla",
+  "nome": "Carla",
+  "apelido": "Carla",
+  "genero": "F",
+  "ativo": true,
+  "posicaoPrincipal": "levantador",
+  "posicoesSecundarias": [
+    "ponteiro"
+  ],
+  "alturaCm": 170,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 7,
+    "recepcao": 6,
+    "levantamento": 7,
+    "ataque": 5,
+    "bloqueio": 4,
+    "defesa": 7,
+    "velocidade": 6,
+    "resistencia": 7,
+    "leituraDeJogo": 8,
+    "regularidade": 7,
+    "controleEmocional": 8
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Levantadora",
+    "arquetipo": "Mente Tática",
+    "especialidade": "Distribuição inteligente",
+    "fraqueza": "Bloqueio baixo"
+  },
+  "formaAtual": {
+    "valor": 3,
+    "observacao": "Fase boa",
+    "ultimasPartidas": [
+      3,
+      2,
+      4,
+      3
+    ]
+  }
+}

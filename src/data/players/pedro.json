@@ -1,0 +1,43 @@
+{
+  "id": "pedro",
+  "nome": "Pedro",
+  "apelido": "Pe",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "central",
+  "posicoesSecundarias": [
+    "oposto"
+  ],
+  "alturaCm": 190,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 4,
+    "levantamento": 3,
+    "ataque": 7,
+    "bloqueio": 8,
+    "defesa": 4,
+    "velocidade": 5,
+    "resistencia": 6,
+    "leituraDeJogo": 7,
+    "regularidade": 6,
+    "controleEmocional": 6
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Central",
+    "arquetipo": "Bloqueador de Rede",
+    "especialidade": "Bloqueio de leitura",
+    "fraqueza": "Recepção lenta"
+  },
+  "formaAtual": {
+    "valor": 0,
+    "observacao": "Estável",
+    "ultimasPartidas": [
+      0,
+      1,
+      0,
+      0
+    ]
+  }
+}

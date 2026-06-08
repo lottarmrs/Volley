@@ -1,0 +1,43 @@
+{
+  "id": "carlos",
+  "nome": "Carlos",
+  "apelido": "Cadu",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "levantador",
+  "posicoesSecundarias": [
+    "libero"
+  ],
+  "alturaCm": 174,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 7,
+    "levantamento": 7,
+    "ataque": 4,
+    "bloqueio": 4,
+    "defesa": 7,
+    "velocidade": 7,
+    "resistencia": 6,
+    "leituraDeJogo": 7,
+    "regularidade": 8,
+    "controleEmocional": 7
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Levantador",
+    "arquetipo": "Garçom do Time",
+    "especialidade": "Passe preciso",
+    "fraqueza": "Ataque"
+  },
+  "formaAtual": {
+    "valor": 1,
+    "observacao": "Dando pro gasto",
+    "ultimasPartidas": [
+      1,
+      1,
+      2,
+      1
+    ]
+  }
+}

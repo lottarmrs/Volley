@@ -1,0 +1,43 @@
+{
+  "id": "thiago",
+  "nome": "Thiago",
+  "apelido": "Thi",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "ponteiro",
+  "posicoesSecundarias": [
+    "central"
+  ],
+  "alturaCm": 178,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 7,
+    "recepcao": 6,
+    "levantamento": 4,
+    "ataque": 7,
+    "bloqueio": 6,
+    "defesa": 6,
+    "velocidade": 7,
+    "resistencia": 7,
+    "leituraDeJogo": 7,
+    "regularidade": 6,
+    "controleEmocional": 6
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Ponteiro",
+    "arquetipo": "Equilibrado",
+    "especialidade": "Versatilidade",
+    "fraqueza": "Nenhuma extrema"
+  },
+  "formaAtual": {
+    "valor": 1,
+    "observacao": "Ok",
+    "ultimasPartidas": [
+      1,
+      2,
+      0,
+      1
+    ]
+  }
+}

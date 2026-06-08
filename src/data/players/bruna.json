@@ -1,0 +1,43 @@
+{
+  "id": "bruna",
+  "nome": "Bruna",
+  "apelido": "Bru",
+  "genero": "F",
+  "ativo": true,
+  "posicaoPrincipal": "libero",
+  "posicoesSecundarias": [
+    "ponteiro"
+  ],
+  "alturaCm": 160,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 5,
+    "recepcao": 9,
+    "levantamento": 4,
+    "ataque": 4,
+    "bloqueio": 3,
+    "defesa": 9,
+    "velocidade": 8,
+    "resistencia": 8,
+    "leituraDeJogo": 8,
+    "regularidade": 9,
+    "controleEmocional": 8
+  },
+  "perfil": {
+    "nivel": 8,
+    "classe": "Defensiva",
+    "arquetipo": "Muralha de Fundo",
+    "especialidade": "Defesa impossível",
+    "fraqueza": "Ataque fraco"
+  },
+  "formaAtual": {
+    "valor": 2,
+    "observacao": "Bem",
+    "ultimasPartidas": [
+      2,
+      2,
+      3,
+      2
+    ]
+  }
+}

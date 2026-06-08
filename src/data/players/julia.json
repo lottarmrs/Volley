@@ -1,0 +1,43 @@
+{
+  "id": "julia",
+  "nome": "Júlia",
+  "apelido": "Ju",
+  "genero": "F",
+  "ativo": true,
+  "posicaoPrincipal": "libero",
+  "posicoesSecundarias": [
+    "ponteiro"
+  ],
+  "alturaCm": 162,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 8,
+    "levantamento": 5,
+    "ataque": 5,
+    "bloqueio": 3,
+    "defesa": 9,
+    "velocidade": 8,
+    "resistencia": 8,
+    "leituraDeJogo": 8,
+    "regularidade": 8,
+    "controleEmocional": 7
+  },
+  "perfil": {
+    "nivel": 8,
+    "classe": "Líbero",
+    "arquetipo": "Defensora Ágil",
+    "especialidade": "Cobertura rápida",
+    "fraqueza": "Bloqueio"
+  },
+  "formaAtual": {
+    "valor": 3,
+    "observacao": "Excelente",
+    "ultimasPartidas": [
+      3,
+      3,
+      3,
+      4
+    ]
+  }
+}

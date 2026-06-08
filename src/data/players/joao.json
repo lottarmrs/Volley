@@ -1,0 +1,43 @@
+{
+  "id": "joao",
+  "nome": "João",
+  "apelido": "João",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "levantador",
+  "posicoesSecundarias": [
+    "oposto"
+  ],
+  "alturaCm": 175,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 6,
+    "levantamento": 8,
+    "ataque": 5,
+    "bloqueio": 5,
+    "defesa": 6,
+    "velocidade": 6,
+    "resistencia": 7,
+    "leituraDeJogo": 8,
+    "regularidade": 7,
+    "controleEmocional": 7
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Levantador",
+    "arquetipo": "Levantador Criativo",
+    "especialidade": "Levantamento limpo",
+    "fraqueza": "Bloqueio baixo"
+  },
+  "formaAtual": {
+    "valor": 1,
+    "observacao": "Normal",
+    "ultimasPartidas": [
+      1,
+      1,
+      2,
+      0
+    ]
+  }
+}

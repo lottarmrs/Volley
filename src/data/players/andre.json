@@ -1,0 +1,43 @@
+{
+  "id": "andre",
+  "nome": "André",
+  "apelido": "André",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "central",
+  "posicoesSecundarias": [
+    "libero"
+  ],
+  "alturaCm": 188,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 5,
+    "recepcao": 5,
+    "levantamento": 3,
+    "ataque": 7,
+    "bloqueio": 8,
+    "defesa": 5,
+    "velocidade": 5,
+    "resistencia": 6,
+    "leituraDeJogo": 7,
+    "regularidade": 7,
+    "controleEmocional": 6
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Central",
+    "arquetipo": "Parede de Aço",
+    "especialidade": "Tempo de bloqueio",
+    "fraqueza": "Baixa velocidade"
+  },
+  "formaAtual": {
+    "valor": 1,
+    "observacao": "Consistente",
+    "ultimasPartidas": [
+      1,
+      1,
+      2,
+      1
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "matheus",
+  "nome": "Matheus",
+  "apelido": "Math",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "oposto",
+  "posicoesSecundarias": [
+    "ponteiro",
+    "central"
+  ],
+  "alturaCm": 180,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 7,
+    "recepcao": 5,
+    "levantamento": 3,
+    "ataque": 8,
+    "bloqueio": 7,
+    "defesa": 5,
+    "velocidade": 6,
+    "resistencia": 7,
+    "leituraDeJogo": 6,
+    "regularidade": 5,
+    "controleEmocional": 6
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Oposto",
+    "arquetipo": "Atacante de Potência",
+    "especialidade": "Ataque na diagonal",
+    "fraqueza": "Recepção instável"
+  },
+  "formaAtual": {
+    "valor": 2,
+    "observacao": "Jogando bem",
+    "ultimasPartidas": [
+      2,
+      3,
+      1,
+      2
+    ]
+  },
+  "status": {
+    "lesionado": false,
+    "limitacaoFisica": null,
+    "presencaFrequente": true
+  },
+  "metadata": {
+    "criadoEm": "2026-04-28",
+    "atualizadoEm": "2026-04-30"
+  }
+}

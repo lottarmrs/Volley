@@ -1,0 +1,43 @@
+{
+  "id": "bianca",
+  "nome": "Bianca",
+  "apelido": "Bia",
+  "genero": "F",
+  "ativo": true,
+  "posicaoPrincipal": "ponteiro",
+  "posicoesSecundarias": [
+    "central"
+  ],
+  "alturaCm": 172,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 7,
+    "recepcao": 6,
+    "levantamento": 4,
+    "ataque": 7,
+    "bloqueio": 5,
+    "defesa": 6,
+    "velocidade": 6,
+    "resistencia": 7,
+    "leituraDeJogo": 6,
+    "regularidade": 6,
+    "controleEmocional": 7
+  },
+  "perfil": {
+    "nivel": 6,
+    "classe": "Ponteira",
+    "arquetipo": "Atacante em Evolução",
+    "especialidade": "Saque agressivo",
+    "fraqueza": "Passe sob pressão"
+  },
+  "formaAtual": {
+    "valor": 2,
+    "observacao": "Evoluindo",
+    "ultimasPartidas": [
+      2,
+      1,
+      2,
+      3
+    ]
+  }
+}

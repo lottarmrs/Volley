@@ -1,0 +1,43 @@
+{
+  "id": "lucas",
+  "nome": "Lucas",
+  "apelido": "Lucas",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "oposto",
+  "posicoesSecundarias": [
+    "central"
+  ],
+  "alturaCm": 185,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 8,
+    "recepcao": 4,
+    "levantamento": 3,
+    "ataque": 9,
+    "bloqueio": 7,
+    "defesa": 4,
+    "velocidade": 6,
+    "resistencia": 6,
+    "leituraDeJogo": 6,
+    "regularidade": 5,
+    "controleEmocional": 7
+  },
+  "perfil": {
+    "nivel": 8,
+    "classe": "Oposto",
+    "arquetipo": "Finalizador Nato",
+    "especialidade": "Ataque na paralela",
+    "fraqueza": "Recepção irregular"
+  },
+  "formaAtual": {
+    "valor": 2,
+    "observacao": "Forte",
+    "ultimasPartidas": [
+      2,
+      2,
+      3,
+      1
+    ]
+  }
+}

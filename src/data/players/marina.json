@@ -1,0 +1,43 @@
+{
+  "id": "marina",
+  "nome": "Marina",
+  "apelido": "Mari",
+  "genero": "F",
+  "ativo": true,
+  "posicaoPrincipal": "ponteiro",
+  "posicoesSecundarias": [
+    "libero"
+  ],
+  "alturaCm": 168,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 7,
+    "levantamento": 4,
+    "ataque": 7,
+    "bloqueio": 4,
+    "defesa": 7,
+    "velocidade": 7,
+    "resistencia": 7,
+    "leituraDeJogo": 6,
+    "regularidade": 7,
+    "controleEmocional": 6
+  },
+  "perfil": {
+    "nivel": 6,
+    "classe": "Ponteira",
+    "arquetipo": "Atacante Técnica",
+    "especialidade": "Largada inteligente",
+    "fraqueza": "Resistência média"
+  },
+  "formaAtual": {
+    "valor": 1,
+    "observacao": "Normal",
+    "ultimasPartidas": [
+      1,
+      1,
+      2,
+      1
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "id": "rafael",
+  "nome": "Rafael",
+  "apelido": "Rafa",
+  "genero": "M",
+  "ativo": true,
+  "posicaoPrincipal": "all-rounder",
+  "posicoesSecundarias": [
+    "levantador",
+    "ponteiro"
+  ],
+  "alturaCm": 180,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 6,
+    "levantamento": 6,
+    "ataque": 6,
+    "bloqueio": 6,
+    "defesa": 6,
+    "velocidade": 6,
+    "resistencia": 7,
+    "leituraDeJogo": 7,
+    "regularidade": 7,
+    "controleEmocional": 8
+  },
+  "perfil": {
+    "nivel": 6,
+    "classe": "Multifuncional",
+    "arquetipo": "Sexto Homem",
+    "especialidade": "Adaptação rápida",
+    "fraqueza": "Pico de potência"
+  },
+  "formaAtual": {
+    "valor": 2,
+    "observacao": "Útil",
+    "ultimasPartidas": [
+      2,
+      2,
+      2,
+      3
+    ]
+  }
+}

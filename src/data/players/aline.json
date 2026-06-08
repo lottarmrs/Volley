@@ -1,0 +1,44 @@
+{
+  "id": "aline",
+  "nome": "Aline",
+  "apelido": "Line",
+  "genero": "F",
+  "ativo": true,
+  "posicaoPrincipal": "ponteiro",
+  "posicoesSecundarias": [
+    "libero",
+    "levantador"
+  ],
+  "alturaCm": 165,
+  "maoDominante": "direita",
+  "atributos": {
+    "saque": 6,
+    "recepcao": 8,
+    "levantamento": 5,
+    "ataque": 6,
+    "bloqueio": 4,
+    "defesa": 8,
+    "velocidade": 7,
+    "resistencia": 7,
+    "leituraDeJogo": 7,
+    "regularidade": 8,
+    "controleEmocional": 7
+  },
+  "perfil": {
+    "nivel": 7,
+    "classe": "Ponteira",
+    "arquetipo": "Passadora Segura",
+    "especialidade": "Recepção consistente",
+    "fraqueza": "Bloqueio baixo"
+  },
+  "formaAtual": {
+    "valor": 3,
+    "observacao": "Regularidade recente",
+    "ultimasPartidas": [
+      3,
+      3,
+      2,
+      4
+    ]
+  }
+}

@@ -55,6 +55,11 @@ export interface Player {
   };
   communityIds?: string[];
   isGuest?: boolean;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
 }
 
 export interface TeamStrengthSnapshot {
@@ -452,6 +457,10 @@ export interface Community {
   archived?: boolean;
   createdAt: string;
   updatedAt: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
 }
 
 export type CommunityPresenceStatus =
@@ -500,6 +509,10 @@ export interface WhatsAppListTemplate {
   extraText?: string;
   createdAt: string;
   updatedAt: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
 }
 
 export interface WhatsAppListSlot {
@@ -551,6 +564,10 @@ export interface CommunityRules {
   defaultTeamNames?: string[];
   defaultTeamColors?: string[];
   updatedAt: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
 }
 
 export interface CommunitySummary {
@@ -593,4 +610,22 @@ export interface ShareBlock {
   id: string;
   label: string;
   text: string;
+}
+
+export type CloudSyncStatus =
+  | 'local'
+  | 'pending'
+  | 'synced'
+  | 'conflict'
+  | 'error';
+
+export type AuthRole = 'admin' | 'organizer';
+
+export interface UserProfile {
+  id: string;
+  name: string | null;
+  email: string;
+  role: AuthRole;
+  createdAt: string;
+  updatedAt: string;
 }

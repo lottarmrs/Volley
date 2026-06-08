@@ -20,7 +20,8 @@ import {
   Upload,
   RefreshCw,
   Search,
-  UserCheck
+  UserCheck,
+  Cloud
 } from 'lucide-react';
 
 import { usePlayers }       from './hooks/usePlayers';
@@ -30,6 +31,7 @@ import { useCommunities }   from './hooks/useCommunities';
 import { useCommunityPresence } from './hooks/useCommunityPresence';
 import { useCommunityRules } from './hooks/useCommunityRules';
 import { useWhatsAppListTemplates } from './hooks/useWhatsAppListTemplates';
+import { useAuth } from './hooks/useAuth';
 
 import { Dashboard }         from './components/dashboard/Dashboard';
 import { PlayersView }       from './components/player/PlayersView';
@@ -38,7 +40,9 @@ import { SessionWizard }     from './components/session/SessionWizard';
 import { SessionActiveView } from './components/live/SessionActiveView';
 import { HistoryView }       from './components/history/HistoryView';
 import { CommunitiesView }   from './components/community/CommunitiesView';
+import { AccountSyncView }   from './components/account/AccountSyncView';
 
+import { syncService } from './services/supabase/syncService';
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { generateSessionReport } from './logic/reports';
 import { Community, CommunityRules, FreePlayConfig, Game, Player, Session, Team, TournamentConfig } from './types';
@@ -48,7 +52,7 @@ import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
 
 type Page = 'dashboard' | 'players' | 'player-edit' | 'session-wizard' | 'session-active' | 'history' | 'communities';
-type Module = 'dashboard' | 'torneios' | 'players' | 'ranking' | 'historico' | 'configuracoes';
+type Module = 'dashboard' | 'torneios' | 'players' | 'ranking' | 'historico' | 'configuracoes' | 'conta';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -56,6 +60,13 @@ export default function App() {
   const [selectedHistorySessionId, setSelectedHistorySessionId] = useState<string | null>(null);
   const [sessionDraft, setSessionDraft] = useState(() => loadSessionDraft());
   
+  // Auth state
+  const auth = useAuth();
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => 
+    loadFromStorage<string | null>('vpg_last_synced_at', null)
+  );
+
   // Search & Filters for custom sub-views
   const [matchesSearch, setMatchesSearch] = useState('');
   const [matchesFilter, setMatchesFilter] = useState<'all' | 'active' | 'finished' | 'scheduled'>('all');
@@ -155,6 +166,72 @@ export default function App() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleUploadToCloud = async () => {
+    if (!auth.user) throw new Error('Usuário não autenticado.');
+    setSyncLoading(true);
+    try {
+      const result = await syncService.uploadLocalDataToCloud({
+        communities: comm.rawCommunities,
+        players: play.rawPlayers,
+        rules: communityRules.rawRules,
+        templates: whatsAppLists.rawTemplates
+      }, auth.user.id);
+      
+      comm.setCommunities(result.communities);
+      play.setPlayers(result.players);
+      communityRules.setRules(result.rules);
+      whatsAppLists.setTemplates(result.templates);
+      
+      const nowStr = new Date().toISOString();
+      setLastSyncedAt(nowStr);
+      saveToStorage('vpg_last_synced_at', nowStr);
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleDownloadFromCloud = async () => {
+    if (!auth.user) throw new Error('Usuário não autenticado.');
+    setSyncLoading(true);
+    try {
+      const result = await syncService.downloadCloudDataToLocal();
+      comm.setCommunities(result.communities);
+      play.setPlayers(result.players);
+      communityRules.setRules(result.rules);
+      whatsAppLists.setTemplates(result.templates);
+      
+      const nowStr = new Date().toISOString();
+      setLastSyncedAt(nowStr);
+      saveToStorage('vpg_last_synced_at', nowStr);
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!auth.user) throw new Error('Usuário não autenticado.');
+    setSyncLoading(true);
+    try {
+      const result = await syncService.syncNow({
+        communities: comm.rawCommunities,
+        players: play.rawPlayers,
+        rules: communityRules.rawRules,
+        templates: whatsAppLists.rawTemplates
+      }, auth.user.id);
+      
+      comm.setCommunities(result.communities);
+      play.setPlayers(result.players);
+      communityRules.setRules(result.rules);
+      whatsAppLists.setTemplates(result.templates);
+      
+      const nowStr = new Date().toISOString();
+      setLastSyncedAt(nowStr);
+      saveToStorage('vpg_last_synced_at', nowStr);
+    } finally {
+      setSyncLoading(false);
+    }
   };
 
   const wizard = useSessionWizard({
@@ -362,6 +439,8 @@ export default function App() {
         return 'Histórico & Estatísticas';
       case 'configuracoes':
         return 'Configurações do Sistema';
+      case 'conta':
+        return 'Sincronização & Backup Nuvem';
       default:
         return 'Panelinha';
     }
@@ -636,6 +715,24 @@ export default function App() {
 
       case 'configuracoes':
         return renderSettingsModule();
+
+      case 'conta':
+        return (
+          <AccountSyncView
+            user={auth.user}
+            profile={auth.profile}
+            loading={auth.loading}
+            isSupabaseConfigured={auth.isSupabaseConfigured}
+            onSignIn={auth.signIn}
+            onSignUp={auth.signUp}
+            onSignOut={auth.signOut}
+            onUpload={handleUploadToCloud}
+            onDownload={handleDownloadFromCloud}
+            onSync={handleSync}
+            lastSyncedAt={lastSyncedAt}
+            syncLoading={syncLoading}
+          />
+        );
 
       default:
         return null;
@@ -934,6 +1031,7 @@ export default function App() {
     { id: 'players', label: 'Jogadores', icon: <Users className="w-5 h-5" /> },
     { id: 'ranking', label: 'Ranking', icon: <Medal className="w-5 h-5" /> },
     { id: 'historico', label: 'Histórico', icon: <BarChart3 className="w-5 h-5" /> },
+    { id: 'conta', label: 'Nuvem & Conta', icon: <Cloud className="w-5 h-5" /> },
     { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" /> }
   ] as const;
 
@@ -973,9 +1071,15 @@ export default function App() {
             <div className="h-4 w-px bg-base-300" />
             
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-base-content uppercase hidden sm:inline">Administrador</span>
+              <span className="text-xs font-bold text-base-content uppercase hidden sm:inline">
+                {auth.profile?.name || auth.user?.email?.split('@')[0] || 'Administrador'}
+              </span>
               <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black uppercase text-xs">
-                AD
+                {auth.profile?.name 
+                  ? auth.profile.name.slice(0, 2).toUpperCase() 
+                  : auth.user?.email 
+                    ? auth.user.email.slice(0, 2).toUpperCase() 
+                    : 'AD'}
               </div>
             </div>
           </div>
@@ -1041,10 +1145,16 @@ export default function App() {
           {/* Sidebar Footer */}
           <div className="p-6 border-t border-base-300 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center text-xs font-bold uppercase">
-              PL
+              {auth.profile?.name 
+                ? auth.profile.name.slice(0, 2).toUpperCase() 
+                : auth.user?.email 
+                  ? auth.user.email.slice(0, 2).toUpperCase() 
+                  : 'PL'}
             </div>
             <div>
-              <p className="text-xs font-bold text-base-content uppercase leading-none">Panelinha</p>
+              <p className="text-xs font-bold text-base-content uppercase leading-none">
+                {auth.profile?.name || auth.user?.email?.split('@')[0] || 'Panelinha'}
+              </p>
               <span className="text-[9px] text-base-content/40 uppercase">v1.0.0</span>
             </div>
           </div>

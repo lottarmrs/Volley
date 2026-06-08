@@ -48,9 +48,10 @@ export function useCommunityRules() {
   }, [rules]);
 
   const saveRules = useCallback((next: CommunityRules) => {
+    const now = new Date().toISOString();
     setRules(prev => prev.some(rule => rule.communityId === next.communityId)
-      ? prev.map(rule => rule.communityId === next.communityId ? { ...next, updatedAt: new Date().toISOString() } : rule)
-      : [...prev, { ...next, updatedAt: new Date().toISOString() }]
+      ? prev.map(rule => rule.communityId === next.communityId ? { ...next, syncStatus: 'pending', updatedAt: now } : rule)
+      : [...prev, { ...next, syncStatus: 'local', updatedAt: now }]
     );
   }, []);
 
@@ -58,5 +59,12 @@ export function useCommunityRules() {
     setRules(prev => prev.filter(rule => rule.communityId !== communityId));
   }, []);
 
-  return useMemo(() => ({ rules, setRules, getRules, saveRules, removeRules }), [rules, getRules, saveRules, removeRules]);
+  return useMemo(() => ({ 
+    rules: rules.filter(r => !r.deletedAt), 
+    rawRules: rules, // Expose full list for syncService
+    setRules, 
+    getRules, 
+    saveRules, 
+    removeRules 
+  }), [rules, getRules, saveRules, removeRules]);
 }

@@ -14,9 +14,10 @@ export function useWhatsAppListTemplates() {
   useEffect(() => saveToStorage(STORAGE_KEYS.whatsAppListDrafts, drafts), [drafts]);
 
   const saveTemplate = useCallback((template: WhatsAppListTemplate) => {
+    const now = new Date().toISOString();
     setTemplates(prev => prev.some(item => item.id === template.id)
-      ? prev.map(item => item.id === template.id ? { ...template, updatedAt: new Date().toISOString() } : item)
-      : [...prev, template]
+      ? prev.map(item => item.id === template.id ? { ...template, syncStatus: 'pending', updatedAt: now } : item)
+      : [...prev, { ...template, syncStatus: 'local', createdAt: now, updatedAt: now }]
     );
   }, []);
 
@@ -28,7 +29,7 @@ export function useWhatsAppListTemplates() {
   }, []);
 
   const getCommunityTemplates = useCallback((communityId: string) => {
-    return templates.filter(template => template.communityId === communityId);
+    return templates.filter(template => template.communityId === communityId && !template.deletedAt);
   }, [templates]);
 
   const getLatestDraft = useCallback((communityId: string) => {
@@ -38,7 +39,8 @@ export function useWhatsAppListTemplates() {
   }, [drafts]);
 
   return useMemo(() => ({
-    templates,
+    templates: templates.filter(t => !t.deletedAt),
+    rawTemplates: templates, // Expose full list for syncService
     drafts,
     setTemplates,
     setDrafts,

@@ -90,18 +90,21 @@ export function usePlayers(
 
     if (Object.keys(errors).length > 0) { setValidationErrors(errors); return false; }
 
+    const now = new Date().toISOString();
     const savedPlayer: Player = {
       ...editingPlayer,
       perfil: {
         ...editingPlayer.perfil,
         especialidade: getAutoSpecialty(editingPlayer),
         fraqueza: getAutoWeakness(editingPlayer)
-      }
+      },
+      syncStatus: 'pending',
+      updatedAt: now
     };
 
     const exists = players.some(p => p.id === savedPlayer.id);
     const updated = exists
-      ? players.map(p => p.id === savedPlayer.id ? { ...savedPlayer, metadata: { ...savedPlayer.metadata, atualizadoEm: new Date().toISOString() } } : p)
+      ? players.map(p => p.id === savedPlayer.id ? { ...savedPlayer, metadata: { ...savedPlayer.metadata, atualizadoEm: now } } : p)
       : [...players, savedPlayer];
 
     setPlayers(updated);
@@ -113,11 +116,21 @@ export function usePlayers(
   const handleDeletePlayer = useCallback(() => {
     if (!editingPlayer) return;
     const usage = getPlayerHistoryUsage(editingPlayer.id);
-    const updated = usage.hasHistory
-      ? players.map(p => p.id === editingPlayer.id
-          ? { ...p, ativo: false, metadata: { ...p.metadata, atualizadoEm: new Date().toISOString() } }
-          : p)
-      : players.filter(p => p.id !== editingPlayer.id);
+    const hasCloud = !!editingPlayer.cloudId;
+
+    let updated: Player[];
+    if (hasCloud) {
+      updated = players.map(p => p.id === editingPlayer.id
+        ? { ...p, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
+        : p
+      );
+    } else if (usage.hasHistory) {
+      updated = players.map(p => p.id === editingPlayer.id
+        ? { ...p, ativo: false, syncStatus: 'pending' as const, metadata: { ...p.metadata, atualizadoEm: new Date().toISOString() } }
+        : p);
+    } else {
+      updated = players.filter(p => p.id !== editingPlayer.id);
+    }
 
     setPlayers(updated);
     setEditingPlayer(null);
@@ -131,6 +144,7 @@ export function usePlayers(
   }, []);
 
   const handleAddPlayer = useCallback(() => {
+    const now = new Date().toISOString();
     const newPlayer: Player = {
       id: `player-${Date.now()}`,
       nome: '',
@@ -148,8 +162,10 @@ export function usePlayers(
       perfil: { nivel: 1, classe: 'Recruta', arquetipo: 'Versátil', especialidade: 'Novato', fraqueza: 'Inexperiência' },
       formaAtual: { valor: 0, observacao: 'Em treinamento', ultimasPartidas: [] },
       status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
-      metadata: { criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString() },
-      communityIds: []
+      metadata: { criadoEm: now, atualizadoEm: now },
+      communityIds: [],
+      syncStatus: 'local',
+      updatedAt: now
     };
     setEditingPlayer(newPlayer);
     setValidationErrors({});
@@ -164,7 +180,8 @@ export function usePlayers(
   }, []);
 
   return {
-    players,
+    players: players.filter(p => !p.deletedAt),
+    rawPlayers: players, // Expose full list (with soft deletes) for syncService
     setPlayers,
     editingPlayer,
     setEditingPlayer,

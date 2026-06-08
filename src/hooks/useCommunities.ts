@@ -29,14 +29,21 @@ export function useCommunities() {
       return false;
     }
 
-    const exists = communities.some(c => c.id === editingCommunity.id);
+    const now = new Date().toISOString();
+    const savedCommunity: Community = {
+      ...editingCommunity,
+      syncStatus: 'pending',
+      updatedAt: now
+    };
+
+    const exists = communities.some(c => c.id === savedCommunity.id);
     const updated = exists
       ? communities.map(c => 
-          c.id === editingCommunity.id 
-            ? { ...editingCommunity, updatedAt: new Date().toISOString() } 
+          c.id === savedCommunity.id 
+            ? savedCommunity
             : c
         )
-      : [...communities, editingCommunity];
+      : [...communities, savedCommunity];
 
     setCommunities(updated);
     setEditingCommunity(null);
@@ -47,7 +54,16 @@ export function useCommunities() {
   const handleDeleteCommunity = useCallback((onCascadeDelete?: (communityId: string) => void) => {
     if (!editingCommunity) return;
 
-    const updated = communities.filter(c => c.id !== editingCommunity.id);
+    const hasCloud = !!editingCommunity.cloudId;
+    let updated: Community[];
+    if (hasCloud) {
+      updated = communities.map(c => c.id === editingCommunity.id
+        ? { ...c, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
+        : c
+      );
+    } else {
+      updated = communities.filter(c => c.id !== editingCommunity.id);
+    }
     setCommunities(updated);
 
     // Run cascade delete to clean up references in player models
@@ -66,6 +82,7 @@ export function useCommunities() {
   }, []);
 
   const handleAddCommunity = useCallback(() => {
+    const now = new Date().toISOString();
     const newCommunity: Community = {
       id: `community-${Date.now()}`,
       name: '',
@@ -78,8 +95,9 @@ export function useCommunities() {
       color: 'primary',
       icon: 'volleyball',
       archived: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 'local'
     };
     setEditingCommunity(newCommunity);
     setValidationErrors({});
@@ -88,7 +106,7 @@ export function useCommunities() {
 
   const updateCommunity = useCallback((communityId: string, patch: Partial<Community>) => {
     setCommunities(prev => prev.map(community => community.id === communityId
-      ? { ...community, ...patch, updatedAt: new Date().toISOString() }
+      ? { ...community, ...patch, syncStatus: 'pending', updatedAt: new Date().toISOString() }
       : community
     ));
   }, []);
@@ -109,6 +127,7 @@ export function useCommunities() {
       archived: Boolean(input.archived),
       createdAt: input.createdAt || now,
       updatedAt: now,
+      syncStatus: 'local'
     };
     setCommunities(prev => [...prev, community]);
     return community;
@@ -125,13 +144,16 @@ export function useCommunities() {
       archived: false,
       createdAt: now,
       updatedAt: now,
+      cloudId: undefined, // Clear cloud ID for duplicated community
+      syncStatus: 'local'
     };
     setCommunities(prev => [...prev, duplicate]);
     return { duplicate, includeAthletes };
   }, [communities]);
 
   return {
-    communities,
+    communities: communities.filter(c => !c.deletedAt),
+    rawCommunities: communities, // Expose full list with soft deletes for syncService
     setCommunities,
     editingCommunity,
     setEditingCommunity,

@@ -144,70 +144,70 @@ alter table public.modification_logs enable row level security;
 
 -- Create Policies for Profiles
 create policy "Users can read own profile" on public.profiles
-  for select to authenticated using (id = auth.uid());
+  for select to authenticated using (id = (select auth.uid()));
 create policy "Users can update own profile" on public.profiles
-  for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+  for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
 
 -- Create Policies for Communities
 create policy "Users can read own communities" on public.communities
-  for select to authenticated using (owner_id = auth.uid());
+  for select to authenticated using (owner_id = (select auth.uid()));
 create policy "Users can insert own communities" on public.communities
-  for insert to authenticated with check (owner_id = auth.uid());
+  for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Users can update own communities" on public.communities
-  for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own communities" on public.communities
-  for delete to authenticated using (owner_id = auth.uid());
+  for delete to authenticated using (owner_id = (select auth.uid()));
 
 -- Create Policies for Players
 create policy "Users can read own players" on public.players
-  for select to authenticated using (owner_id = auth.uid());
+  for select to authenticated using (owner_id = (select auth.uid()));
 create policy "Users can insert own players" on public.players
-  for insert to authenticated with check (owner_id = auth.uid());
+  for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Users can update own players" on public.players
-  for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own players" on public.players
-  for delete to authenticated using (owner_id = auth.uid());
+  for delete to authenticated using (owner_id = (select auth.uid()));
 
 -- Create Policies for Community Players
 create policy "Users can read own community players" on public.community_players
-  for select to authenticated using (owner_id = auth.uid());
+  for select to authenticated using (owner_id = (select auth.uid()));
 create policy "Users can insert own community players" on public.community_players
-  for insert to authenticated with check (owner_id = auth.uid());
+  for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Users can update own community players" on public.community_players
-  for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own community players" on public.community_players
-  for delete to authenticated using (owner_id = auth.uid());
+  for delete to authenticated using (owner_id = (select auth.uid()));
 
 -- Create Policies for Community Rules
 create policy "Users can read own community rules" on public.community_rules
-  for select to authenticated using (owner_id = auth.uid());
+  for select to authenticated using (owner_id = (select auth.uid()));
 create policy "Users can insert own community rules" on public.community_rules
-  for insert to authenticated with check (owner_id = auth.uid());
+  for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Users can update own community rules" on public.community_rules
-  for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own community rules" on public.community_rules
-  for delete to authenticated using (owner_id = auth.uid());
+  for delete to authenticated using (owner_id = (select auth.uid()));
 
 -- Create Policies for WhatsApp List Templates
 create policy "Users can read own whatsapp templates" on public.whatsapp_list_templates
-  for select to authenticated using (owner_id = auth.uid());
+  for select to authenticated using (owner_id = (select auth.uid()));
 create policy "Users can insert own whatsapp templates" on public.whatsapp_list_templates
-  for insert to authenticated with check (owner_id = auth.uid());
+  for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Users can update own whatsapp templates" on public.whatsapp_list_templates
-  for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own whatsapp templates" on public.whatsapp_list_templates
-  for delete to authenticated using (owner_id = auth.uid());
+  for delete to authenticated using (owner_id = (select auth.uid()));
 
 -- Create Policies for Modification Logs
 create policy "Users can read own logs" on public.modification_logs
-  for select to authenticated using (owner_id = auth.uid());
+  for select to authenticated using (owner_id = (select auth.uid()));
 -- Note: modification_logs has no insert/update/delete policies since it is populated via triggers running under SECURITY DEFINER
 
 -- Trigger function for audit logging of table changes
 create or replace function public.log_table_changes()
 returns trigger
 language plpgsql
-security definer
+security definer set search_path = public
 as $$
 declare
   record_owner uuid;
@@ -321,3 +321,7 @@ $$;
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Revoke execution from PUBLIC, anon, and authenticated to secure SECURITY DEFINER trigger functions
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.log_table_changes() from public, anon, authenticated;

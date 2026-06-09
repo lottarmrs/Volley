@@ -1,1 +1,6 @@
-{"name":"Panelinha","description":"App de balanceamento de times para vôlei misto com estética e lógica de RPG.","requestFramePermissions":[],"majorCapabilities":[]}
+{
+  "name": "Panelinha Team Balancer",
+  "description": "App de balanceamento de times para vôlei misto com sessões, torneios, ranking e sincronização em nuvem.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

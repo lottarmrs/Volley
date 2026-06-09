@@ -1,13 +1,14 @@
 {
-  "name": "react-example",
+  "name": "panelinha-team-balancer",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "App para balancear times de vôlei misto e registrar partidas semanais.",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -104,6 +104,7 @@ export function AuthForm({ onSignIn, onSignUp, loading }: AuthFormProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input input-bordered pl-10 w-full"
+                autoComplete="email"
                 disabled={loading}
                 required
               />
@@ -122,6 +123,7 @@ export function AuthForm({ onSignIn, onSignUp, loading }: AuthFormProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input input-bordered pl-10 w-full"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 disabled={loading}
                 required
               />

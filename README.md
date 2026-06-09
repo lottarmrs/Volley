@@ -1,80 +1,83 @@
 # Panelinha Team Balancer
 
-## O que é
+## Getting Started
 
-App para balancear times de vôlei misto, registrar partidas semanais, organizar torneios e acompanhar estatísticas com uma temática inspirada em RPGs clássicos.
+### Prerequisites
 
-## Funcionalidades
-
-- **Recrutamento**: Cadastro de jogadores com atributos detalhados (Saque, Ataque, Defesa, etc.).
-- **Atributos de Elite**: Cálculos de Overall baseados em pesos de posição (Ponteiro, Levantador, etc.).
-- **Balanceamento Inteligente**: Algoritmo que busca igualar Overall médio, distribuição de gêneros e fundamentos específicos.
-- **Comunidades**: Organização de grupos, presença e regras personalizadas.
-- **Modo Jogo Livre**:
-  - Sistema de rotação "Ganhou Fica".
-  - Regra de "3 partidas e sai" (limite de permanência em quadra).
-  - Placar ao vivo com registro de proezas individuais.
-- **Torneios**: Configuração de formato, tabela, final, disputa de terceiro lugar e critérios de classificação.
-- **Crônicas do Confronto**: Histórico de pontos detalhado e ranking de pontuadores (MVP).
-- **Persistência e Nuvem**: Dados salvos localmente com sincronização opcional via Supabase.
-
-## Regras de Jogo (Configuráveis)
-
-- **Pontuação**: 12, 15, 21 ou 25 pontos.
-- **Desempate**: "3 Direto" (cap +2) ou "Vai a 2".
-- **Rotação**: Limite de partidas consecutivas para garantir que todos joguem.
-
-## Como rodar
-
-### Pré-requisitos
-
-- **Node.js 18.x** ou superior
-- **Git**
-- **nvm** recomendado
-
-### Instalação
+- Node.js 18.x or higher
+- Git
+- `nvm` (recommended)
+- Supabase project (optional, required for cloud sync)
 
 ```bash
+# Clone the repository
 git clone https://github.com/lottarmrs/Volley.git
 cd Volley
+```
+
+## 1. Database
+
+The database is hosted on Supabase. To create the required tables, triggers, and RLS policies, run the SQL migration in the Supabase SQL Editor:
+
+```text
+supabase/migrations/schema.sql
+```
+
+## 2. Frontend
+
+```bash
+# Install dependencies
 npm install
+
+# Copy and configure environment variables
 cp .env.example .env
+# edit VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
+
+# Start the development server (port 3000)
 npm run dev
 ```
 
-O servidor de desenvolvimento roda na porta `3000`.
+## Environment Variables
 
-### Variáveis de ambiente
-
-Configure o `.env` com as chaves públicas do seu projeto Supabase para ativar login e sincronização em nuvem:
+### Frontend (`.env`)
 
 ```env
-VITE_SUPABASE_URL="https://sua-url-do-projeto.supabase.co"
-VITE_SUPABASE_PUBLISHABLE_KEY="sua-chave-publica"
+# Supabase
+VITE_SUPABASE_URL="https://your-project.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
+
+# Legacy fallback, if your project still uses an anon key.
+# VITE_SUPABASE_ANON_KEY="your-anon-key"
 ```
 
-## Banco de Dados
+## Database Schema
 
-O banco de dados é hospedado no Supabase. Para aplicar a estrutura com tabelas, triggers e RLS, execute o conteúdo de [`supabase/migrations/schema.sql`](supabase/migrations/schema.sql) no **Supabase > SQL Editor**.
-
-### Modelos principais
+### Main Models
 
 ```text
-profiles (Usuários)
-  └── communities (Grupos)
-        ├── players (Atletas)
-        │     └── community_players (Relação)
-        ├── community_rules (Pesos e regras de jogo)
-        └── whatsapp_list_templates (Modelos de lista para WhatsApp)
+profiles (Users)
+  └── communities (Groups)
+        ├── players (Athletes)
+        │     └── community_players (Relation)
+        ├── community_rules (Weights and game settings)
+        └── whatsapp_list_templates (WhatsApp message templates)
 
-modification_logs (Auditoria de inserts, updates e deletes)
+modification_logs (Audit trail for inserts, updates, and deletes)
 ```
 
-## Estrutura Técnica
+## Features
 
-- **React + Vite + TypeScript**
-- **Tailwind CSS**: Estilização temática dark/RPG.
-- **daisyUI**: Componentes e tema visual.
-- **Motion (Framer Motion)**: Animações e transições fluidas.
-- **Lucide React**: Iconografia.
-- **Supabase**: Autenticação e sincronização em nuvem.
+- Player registry with detailed volleyball attributes.
+- Team balancing by overall, gender distribution, and fundamentals.
+- Free play mode with winner-stays rotation and live scoring.
+- Tournament setup with standings, finals, and third-place match.
+- Communities with custom rules and attendance tracking.
+- Local persistence with optional Supabase cloud sync.
+
+## Tech Stack
+
+- React + Vite + TypeScript
+- Tailwind CSS + daisyUI
+- Motion
+- Lucide React
+- Supabase

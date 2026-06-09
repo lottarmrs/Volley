@@ -12,7 +12,7 @@ export function mapTemplateToDb(local: WhatsAppListTemplate, ownerId: string, co
     default_location: local.defaultLocation || null,
     default_start_time: local.defaultStartTime || null,
     default_end_time: local.defaultEndTime || null,
-    default_value: local.defaultValue || null,
+    default_value: local.defaultValue ?? null,
     pix_key: local.pixKey || null,
     pix_holder: local.pixHolder || null,
     pix_bank: local.pixBank || null,
@@ -42,7 +42,9 @@ export function mapDbToTemplate(db: any, communityLocalId: string): WhatsAppList
     defaultLocation: db.default_location || undefined,
     defaultStartTime: db.default_start_time || undefined,
     defaultEndTime: db.default_end_time || undefined,
-    defaultValue: db.default_value ? Number(db.default_value) : undefined,
+    defaultValue: db.default_value !== null && db.default_value !== undefined
+      ? Number(db.default_value)
+      : undefined,
     pixKey: db.pix_key || undefined,
     pixHolder: db.pix_holder || undefined,
     pixBank: db.pix_bank || undefined,

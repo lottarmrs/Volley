@@ -93,7 +93,6 @@ export const HistoryView = ({
           <button 
             type="button"
             onClick={() => {
-              console.log('HistoryView: onBackToDashboard clicked');
               onBackToDashboard();
             }} 
             className="flex items-center gap-2 text-text-muted hover:text-white transition-colors"
@@ -459,7 +458,6 @@ function SessionDetailView({ session, games, pointEvents, teams, players, sessio
         <button 
           type="button"
           onClick={() => {
-            console.log('SessionDetailView: onBack clicked');
             onBack();
           }} 
           className="flex items-center gap-2 text-text-muted hover:text-white transition-colors"

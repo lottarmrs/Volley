@@ -325,7 +325,6 @@ export function SessionWizard({
               <button 
                 type="button"
                 onClick={() => {
-                  console.log('SessionWizard Step 0: Cancel clicked');
                   onCancel();
                 }}
                 className="btn btn-ghost flex-1"
@@ -528,7 +527,6 @@ export function SessionWizard({
               <button 
                 type="button"
                 onClick={() => {
-                  console.log('SessionWizard Step 1: onPrev clicked');
                   onPrev();
                 }}
                 className="btn btn-ghost flex-1"
@@ -635,7 +633,6 @@ export function SessionWizard({
              <button 
                type="button"
                onClick={() => {
-                 console.log('SessionWizard Step 2: onPrev clicked');
                  onPrev();
                }} 
                className="btn btn-ghost btn-sm w-full"
@@ -906,7 +903,6 @@ export function SessionWizard({
               <button 
                 type="button"
                 onClick={() => {
-                  console.log('SessionWizard Step 3: onPrev clicked');
                   onPrev();
                 }}
                 className="btn btn-ghost flex-1 text-xs"
@@ -1067,7 +1063,6 @@ export function SessionWizard({
                <button 
                  type="button"
                  onClick={() => {
-                   console.log('SessionWizard Step 4: onPrev clicked');
                    onPrev();
                  }}
                  className="btn btn-ghost flex-1 text-xs"
@@ -1404,7 +1399,6 @@ export function SessionWizard({
               <button 
                 type="button"
                 onClick={() => {
-                  console.log('SessionWizard Step 5: onPrev clicked');
                   onPrev();
                 }} 
                 className="btn btn-ghost flex-1 text-xs"
@@ -1560,7 +1554,6 @@ export function SessionWizard({
          <button 
            type="button"
            onClick={() => {
-             console.log('SessionWizard Header: onCancel clicked');
              onCancel();
            }} 
            className="btn btn-ghost btn-sm"

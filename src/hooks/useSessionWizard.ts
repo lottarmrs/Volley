@@ -60,7 +60,17 @@ export function useSessionWizard({
 
   const useLastSelection = () => {
     const last = localStorage.getItem('vpg_last_selected_player_ids');
-    if (last) updateSession({ selectedPlayerIds: JSON.parse(last) });
+    if (!last) return;
+
+    try {
+      const selectedPlayerIds = JSON.parse(last);
+      if (Array.isArray(selectedPlayerIds)) {
+        updateSession({ selectedPlayerIds });
+      }
+    } catch (err) {
+      console.warn('Ignoring invalid last player selection from storage:', err);
+      localStorage.removeItem('vpg_last_selected_player_ids');
+    }
   };
 
   const validateCurrentStep = () => {

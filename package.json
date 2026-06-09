@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --import tsx --test src/logic/balancing.test.ts src/logic/tournament.test.ts src/logic/migrations.test.ts src/services/supabase/mappers.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",

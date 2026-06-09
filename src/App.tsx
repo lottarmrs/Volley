@@ -176,13 +176,29 @@ export default function App() {
         communities: comm.rawCommunities,
         players: play.rawPlayers,
         rules: communityRules.rawRules,
-        templates: whatsAppLists.rawTemplates
+        templates: whatsAppLists.rawTemplates,
+        sessions: sess.sessions,
+        teams: sess.teams,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        gameReports: sess.gameReports,
+        sessionReports: sess.sessionReports,
+        presenceRecords: communityPresence.presenceRecords,
+        drafts: whatsAppLists.drafts,
       }, auth.user.id);
       
       comm.setCommunities(result.communities);
       play.setPlayers(result.players);
       communityRules.setRules(result.rules);
       whatsAppLists.setTemplates(result.templates);
+      sess.setSessions(normalizeSessions(result.sessions));
+      sess.setTeams(result.teams);
+      sess.setGames(normalizeGames(result.games));
+      sess.setPointEvents(result.pointEvents);
+      sess.setGameReports(result.gameReports);
+      sess.setSessionReports(result.sessionReports);
+      communityPresence.setPresenceRecords(result.presenceRecords);
+      whatsAppLists.setDrafts(result.drafts);
       
       const nowStr = new Date().toISOString();
       setLastSyncedAt(nowStr);
@@ -201,6 +217,14 @@ export default function App() {
       play.setPlayers(result.players);
       communityRules.setRules(result.rules);
       whatsAppLists.setTemplates(result.templates);
+      sess.setSessions(normalizeSessions(result.sessions));
+      sess.setTeams(result.teams);
+      sess.setGames(normalizeGames(result.games));
+      sess.setPointEvents(result.pointEvents);
+      sess.setGameReports(result.gameReports);
+      sess.setSessionReports(result.sessionReports);
+      communityPresence.setPresenceRecords(result.presenceRecords);
+      whatsAppLists.setDrafts(result.drafts);
       
       const nowStr = new Date().toISOString();
       setLastSyncedAt(nowStr);
@@ -218,13 +242,29 @@ export default function App() {
         communities: comm.rawCommunities,
         players: play.rawPlayers,
         rules: communityRules.rawRules,
-        templates: whatsAppLists.rawTemplates
+        templates: whatsAppLists.rawTemplates,
+        sessions: sess.sessions,
+        teams: sess.teams,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        gameReports: sess.gameReports,
+        sessionReports: sess.sessionReports,
+        presenceRecords: communityPresence.presenceRecords,
+        drafts: whatsAppLists.drafts,
       }, auth.user.id);
       
       comm.setCommunities(result.communities);
       play.setPlayers(result.players);
       communityRules.setRules(result.rules);
       whatsAppLists.setTemplates(result.templates);
+      sess.setSessions(normalizeSessions(result.sessions));
+      sess.setTeams(result.teams);
+      sess.setGames(normalizeGames(result.games));
+      sess.setPointEvents(result.pointEvents);
+      sess.setGameReports(result.gameReports);
+      sess.setSessionReports(result.sessionReports);
+      communityPresence.setPresenceRecords(result.presenceRecords);
+      whatsAppLists.setDrafts(result.drafts);
       
       const nowStr = new Date().toISOString();
       setLastSyncedAt(nowStr);

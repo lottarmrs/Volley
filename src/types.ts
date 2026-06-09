@@ -124,6 +124,11 @@ export interface GameReport {
     tips: number;
     counterAttacks: number;
   }[];
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
 }
 
 export interface SessionReport {
@@ -168,6 +173,11 @@ export interface SessionReport {
   }[];
 
   games: GameReport[];
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
 }
 
 export type OverallMetric = keyof Attributes | 'altura';
@@ -182,6 +192,11 @@ export interface Team {
   generatedByAlgorithm: boolean;
   locked: boolean;
   strengthSnapshot: TeamStrengthSnapshot;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
 }
 
 export type StandingRule =
@@ -273,6 +288,10 @@ export interface Session {
   config?: TournamentConfig | FreePlayConfig;
   createdAt: string;
   updatedAt: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
 }
 
 export type GameStatus = "scheduled" | "active" | "paused" | "finished" | "cancelled" | "walkover";
@@ -302,6 +321,11 @@ export interface Game {
     originalTeamAId?: string | null;
     originalTeamBId?: string | null;
   };
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
 }
 
 export type PointReason =
@@ -333,6 +357,11 @@ export interface PointEvent {
     teamB: number;
   };
   timestamp: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
 }
 
 export interface BalanceWeights {
@@ -482,6 +511,10 @@ export interface CommunityPresence {
   date: string;
   items: CommunityPresenceItem[];
   updatedAt: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
 }
 
 export interface WhatsAppListTemplate {
@@ -548,6 +581,10 @@ export interface WhatsAppListDraft {
   extraText?: string;
   createdAt: string;
   updatedAt: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
 }
 
 export interface CommunityRules {
@@ -626,6 +663,19 @@ export interface UserProfile {
   name: string | null;
   email: string;
   role: AuthRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CommunityMemberRole = 'owner' | 'admin' | 'organizer';
+
+export interface CommunityMember {
+  id: string;
+  communityId: string;
+  userId: string;
+  role: CommunityMemberRole;
+  name?: string | null;
+  email?: string | null;
   createdAt: string;
   updatedAt: string;
 }

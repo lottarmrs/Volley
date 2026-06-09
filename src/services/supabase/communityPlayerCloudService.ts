@@ -37,12 +37,11 @@ export const communityPlayerCloudService = {
     if (error) throw error;
   },
 
-  async clearAllForUser(): Promise<void> {
-    // RLS will ensure we only delete our own rows anyway, but this is a clean helper
+  async clearAllForUser(ownerId: string): Promise<void> {
     const { error } = await supabase
       .from('community_players')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete everything we have access to
+      .eq('owner_id', ownerId);
 
     if (error) throw error;
   }

@@ -3,54 +3,237 @@ import { playerCloudService } from './playerCloudService';
 import { communityPlayerCloudService, CommunityPlayerDb } from './communityPlayerCloudService';
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
-import { Community, Player, CommunityRules, WhatsAppListTemplate } from '../../types';
+import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
+import {
+  CloudSyncStatus,
+  Community,
+  CommunityPresence,
+  CommunityRules,
+  Game,
+  GameReport,
+  Player,
+  PointEvent,
+  Session,
+  SessionReport,
+  Team,
+  WhatsAppListDraft,
+  WhatsAppListTemplate,
+} from '../../types';
 
-export interface LocalSyncPayload {
+export interface LocalSyncPayload extends OperationalSyncPayload {
   communities: Community[];
   players: Player[];
   rules: CommunityRules[];
   templates: WhatsAppListTemplate[];
 }
 
-export const syncService = {
-  /**
-   * Pushes all local data to the cloud, creating or updating records.
-   * Assumes local-first data is the source of truth for this operation.
-   */
-  async uploadLocalDataToCloud(
-    local: LocalSyncPayload,
-    ownerId: string
-  ): Promise<LocalSyncPayload> {
-    const nowStr = new Date().toISOString();
+type Syncable = {
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  [key: string]: any;
+};
 
-    // 1. Upload Communities
-    const updatedCommunities: Community[] = [];
-    const communityLocalToCloudIdMap: Record<string, string> = {};
+interface MergeOptions<T> {
+  getId: (entity: T) => string;
+  getUpdatedAt?: (entity: T) => string | undefined;
+}
 
-    for (const comm of local.communities) {
-      if (comm.deletedAt) {
-        if (comm.cloudId) {
-          await communityCloudService.softDelete(comm.cloudId);
-        }
-        updatedCommunities.push({
-          ...comm,
-          syncStatus: 'synced',
-          lastSyncedAt: nowStr,
+const nowIso = () => new Date().toISOString();
+
+export function getSyncTimestamp(entity: any): string | undefined {
+  return (
+    entity?.updatedAt ||
+    entity?.metadata?.atualizadoEm ||
+    entity?.generatedAt ||
+    entity?.timestamp ||
+    entity?.createdAt ||
+    entity?.date
+  );
+}
+
+function timestampMs(value: string | undefined) {
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function preserveLocalIdentity<T extends Syncable>(cloudEntity: T, localEntity: T): T {
+  const merged = { ...cloudEntity } as any;
+  for (const key of ['id', 'communityId', 'sessionId']) {
+    if (localEntity[key] !== undefined && merged[key] !== undefined) {
+      merged[key] = localEntity[key];
+    }
+  }
+  return merged;
+}
+
+export function mergeEntityLists<T extends Syncable>(
+  localEntities: T[],
+  cloudEntities: T[],
+  options: MergeOptions<T>,
+): T[] {
+  const getUpdatedAt = options.getUpdatedAt || getSyncTimestamp;
+  const processedCloudKeys = new Set<string>();
+  const merged: T[] = [];
+
+  for (const localEntity of localEntities) {
+    const localCloudId = localEntity.cloudId;
+    const localId = options.getId(localEntity);
+    const cloudEntity = cloudEntities.find(cloud =>
+      (!!localCloudId && cloud.cloudId === localCloudId) || options.getId(cloud) === localId
+    );
+
+    if (cloudEntity) {
+      processedCloudKeys.add(cloudEntity.cloudId || options.getId(cloudEntity));
+
+      if (localEntity.deletedAt || cloudEntity.deletedAt) {
+        merged.push({
+          ...localEntity,
+          cloudId: cloudEntity.cloudId || localEntity.cloudId,
+          deletedAt: localEntity.deletedAt || cloudEntity.deletedAt,
+          syncStatus: 'pending',
         });
         continue;
       }
 
-      const uploaded = await communityCloudService.upsert(comm, ownerId);
-      communityLocalToCloudIdMap[comm.id] = uploaded.cloudId!;
-      updatedCommunities.push({
-        ...comm,
-        cloudId: uploaded.cloudId,
-        syncStatus: 'synced',
-        lastSyncedAt: nowStr,
-      });
+      const localTime = timestampMs(getUpdatedAt(localEntity));
+      const cloudTime = timestampMs(getUpdatedAt(cloudEntity));
+
+      if (localTime >= cloudTime) {
+        merged.push({
+          ...localEntity,
+          cloudId: cloudEntity.cloudId || localEntity.cloudId,
+          syncStatus: 'pending',
+        });
+      } else {
+        merged.push({
+          ...preserveLocalIdentity(cloudEntity, localEntity),
+          syncStatus: 'synced',
+        });
+      }
+      continue;
     }
 
-    // 2. Upload Players
+    if (localEntity.cloudId) {
+      merged.push({
+        ...localEntity,
+        deletedAt: localEntity.deletedAt || nowIso(),
+        syncStatus: 'synced',
+      });
+    } else {
+      merged.push({
+        ...localEntity,
+        syncStatus: 'pending',
+      });
+    }
+  }
+
+  for (const cloudEntity of cloudEntities) {
+    const cloudKey = cloudEntity.cloudId || options.getId(cloudEntity);
+    if (!processedCloudKeys.has(cloudKey)) {
+      merged.push(cloudEntity);
+    }
+  }
+
+  return merged;
+}
+
+function markSynced<T extends Syncable>(local: T, cloudId: string | undefined, lastSyncedAt: string): T {
+  return {
+    ...local,
+    cloudId: cloudId || local.cloudId,
+    syncStatus: 'synced',
+    lastSyncedAt,
+  };
+}
+
+function visible<T extends Syncable>(items: T[]) {
+  return items.filter(item => !item.deletedAt);
+}
+
+function createCommunityCloudIdResolver(
+  local: LocalSyncPayload,
+  uploadedMap: Record<string, string>,
+) {
+  return (communityLocalId?: string | null) => {
+    if (!communityLocalId) return null;
+    return uploadedMap[communityLocalId] ||
+      local.communities.find(community => community.id === communityLocalId)?.cloudId ||
+      null;
+  };
+}
+
+function getSessionCommunityCloudId(
+  session: Session | undefined,
+  resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+) {
+  return session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+}
+
+async function uploadSessionChildren<T extends Syncable>(
+  items: T[],
+  sessionsById: Map<string, Session>,
+  sessionCloudIds: Record<string, string>,
+  resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+  softDeleteTable: Parameters<typeof operationalCloudService.softDelete>[0],
+  upsert: (item: T, sessionCloudId: string, communityCloudId?: string | null) => Promise<T>,
+) {
+  const syncedAt = nowIso();
+  const updated: T[] = [];
+
+  for (const item of items) {
+    if (item.deletedAt) {
+      if (item.cloudId) {
+        await operationalCloudService.softDelete(softDeleteTable, item.cloudId);
+      }
+      updated.push(markSynced(item, item.cloudId, syncedAt));
+      continue;
+    }
+
+    const sessionId = item.sessionId;
+    const session = sessionsById.get(sessionId);
+    const sessionCloudId = sessionCloudIds[sessionId] || session?.cloudId;
+    if (!sessionCloudId) {
+      updated.push(item);
+      continue;
+    }
+
+    const uploaded = await upsert(item, sessionCloudId, getSessionCommunityCloudId(session, resolveCommunityCloudId));
+    updated.push(markSynced(item, uploaded.cloudId, syncedAt));
+  }
+
+  return visible(updated);
+}
+
+export const syncService = {
+  async uploadLocalDataToCloud(
+    local: LocalSyncPayload,
+    ownerId: string,
+  ): Promise<LocalSyncPayload> {
+    const syncedAt = nowIso();
+
+    const updatedCommunities: Community[] = [];
+    const communityLocalToCloudIdMap: Record<string, string> = {};
+
+    for (const community of local.communities) {
+      if (community.deletedAt) {
+        if (community.cloudId) {
+          await communityCloudService.softDelete(community.cloudId);
+        }
+        updatedCommunities.push(markSynced(community, community.cloudId, syncedAt));
+        continue;
+      }
+
+      const uploaded = await communityCloudService.upsert(community, ownerId);
+      if (uploaded.cloudId) {
+        communityLocalToCloudIdMap[community.id] = uploaded.cloudId;
+      }
+      updatedCommunities.push(markSynced(community, uploaded.cloudId, syncedAt));
+    }
+
+    const resolveCommunityCloudId = createCommunityCloudIdResolver(local, communityLocalToCloudIdMap);
+
     const updatedPlayers: Player[] = [];
     const playerLocalToCloudIdMap: Record<string, string> = {};
 
@@ -59,152 +242,241 @@ export const syncService = {
         if (player.cloudId) {
           await playerCloudService.softDelete(player.cloudId);
         }
-        updatedPlayers.push({
-          ...player,
-          syncStatus: 'synced',
-          lastSyncedAt: nowStr,
-        });
+        updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
         continue;
       }
 
       const uploaded = await playerCloudService.upsert(player, ownerId);
-      playerLocalToCloudIdMap[player.id] = uploaded.cloudId!;
-      updatedPlayers.push({
-        ...player,
-        cloudId: uploaded.cloudId,
-        syncStatus: 'synced',
-        lastSyncedAt: nowStr,
-      });
+      if (uploaded.cloudId) {
+        playerLocalToCloudIdMap[player.id] = uploaded.cloudId;
+      }
+      updatedPlayers.push(markSynced(player, uploaded.cloudId, syncedAt));
     }
 
-    // 3. Upload Community Rules
     const updatedRules: CommunityRules[] = [];
     for (const rule of local.rules) {
-      const commCloudId = communityLocalToCloudIdMap[rule.communityId] || rule.cloudId;
-      if (!commCloudId) {
-        // Can't sync rules for a community that doesn't exist in cloud
+      const communityCloudId = resolveCommunityCloudId(rule.communityId);
+      if (!communityCloudId) {
         updatedRules.push(rule);
         continue;
       }
 
-      const uploaded = await communityRulesCloudService.upsert(rule, ownerId, commCloudId);
-      updatedRules.push({
-        ...rule,
-        cloudId: uploaded.cloudId,
-        syncStatus: 'synced',
-        lastSyncedAt: nowStr,
-      });
+      const uploaded = await communityRulesCloudService.upsert(rule, ownerId, communityCloudId);
+      updatedRules.push(markSynced(rule, uploaded.cloudId, syncedAt));
     }
 
-    // 4. Upload WhatsApp List Templates
     const updatedTemplates: WhatsAppListTemplate[] = [];
-    for (const t of local.templates) {
-      const commCloudId = communityLocalToCloudIdMap[t.communityId] || t.cloudId;
-      if (t.deletedAt) {
-        if (t.cloudId) {
-          await whatsappTemplateCloudService.softDelete(t.cloudId);
+    for (const template of local.templates) {
+      if (template.deletedAt) {
+        if (template.cloudId) {
+          await whatsappTemplateCloudService.softDelete(template.cloudId);
         }
-        updatedTemplates.push({
-          ...t,
-          syncStatus: 'synced',
-          lastSyncedAt: nowStr,
-        });
+        updatedTemplates.push(markSynced(template, template.cloudId, syncedAt));
         continue;
       }
 
-      if (!commCloudId) {
-        updatedTemplates.push(t);
+      const communityCloudId = resolveCommunityCloudId(template.communityId);
+      if (!communityCloudId) {
+        updatedTemplates.push(template);
         continue;
       }
 
-      const uploaded = await whatsappTemplateCloudService.upsert(t, ownerId, commCloudId);
-      updatedTemplates.push({
-        ...t,
-        cloudId: uploaded.cloudId,
-        syncStatus: 'synced',
-        lastSyncedAt: nowStr,
-      });
+      const uploaded = await whatsappTemplateCloudService.upsert(template, ownerId, communityCloudId);
+      updatedTemplates.push(markSynced(template, uploaded.cloudId, syncedAt));
     }
 
-    // 5. Upload Community-Player Relations
+    const updatedSessions: Session[] = [];
+    const sessionLocalToCloudIdMap: Record<string, string> = {};
+    for (const session of local.sessions) {
+      if (session.deletedAt) {
+        if (session.cloudId) {
+          await operationalCloudService.softDelete('sessions', session.cloudId);
+        }
+        updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
+        continue;
+      }
+
+      const uploaded = await operationalCloudService.upsertSession(
+        session,
+        ownerId,
+        resolveCommunityCloudId(session.communityId),
+      );
+      if (uploaded.cloudId) {
+        sessionLocalToCloudIdMap[session.id] = uploaded.cloudId;
+      }
+      updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
+    }
+
+    const sessionsById = new Map(updatedSessions.map(session => [session.id, session]));
+
+    const updatedTeams = await uploadSessionChildren<Team>(
+      local.teams,
+      sessionsById,
+      sessionLocalToCloudIdMap,
+      resolveCommunityCloudId,
+      'teams',
+      (item, sessionCloudId, communityCloudId) =>
+        operationalCloudService.upsertTeam(item, ownerId, sessionCloudId, communityCloudId),
+    );
+
+    const updatedGames = await uploadSessionChildren<Game>(
+      local.games,
+      sessionsById,
+      sessionLocalToCloudIdMap,
+      resolveCommunityCloudId,
+      'games',
+      (item, sessionCloudId, communityCloudId) =>
+        operationalCloudService.upsertGame(item, ownerId, sessionCloudId, communityCloudId),
+    );
+
+    const updatedPointEvents = await uploadSessionChildren<PointEvent>(
+      local.pointEvents,
+      sessionsById,
+      sessionLocalToCloudIdMap,
+      resolveCommunityCloudId,
+      'point_events',
+      (item, sessionCloudId, communityCloudId) =>
+        operationalCloudService.upsertPointEvent(item, ownerId, sessionCloudId, communityCloudId),
+    );
+
+    const updatedGameReports = await uploadSessionChildren<GameReport>(
+      local.gameReports,
+      sessionsById,
+      sessionLocalToCloudIdMap,
+      resolveCommunityCloudId,
+      'game_reports',
+      (item, sessionCloudId, communityCloudId) =>
+        operationalCloudService.upsertGameReport(item, ownerId, sessionCloudId, communityCloudId),
+    );
+
+    const updatedSessionReports = await uploadSessionChildren<SessionReport>(
+      local.sessionReports,
+      sessionsById,
+      sessionLocalToCloudIdMap,
+      resolveCommunityCloudId,
+      'session_reports',
+      (item, sessionCloudId, communityCloudId) =>
+        operationalCloudService.upsertSessionReport(item, ownerId, sessionCloudId, communityCloudId),
+    );
+
+    const updatedPresenceRecords: CommunityPresence[] = [];
+    for (const presence of local.presenceRecords) {
+      if (presence.deletedAt) {
+        if (presence.cloudId) {
+          await operationalCloudService.softDelete('community_presence', presence.cloudId);
+        }
+        updatedPresenceRecords.push(markSynced(presence, presence.cloudId, syncedAt));
+        continue;
+      }
+
+      const communityCloudId = resolveCommunityCloudId(presence.communityId);
+      if (!communityCloudId) {
+        updatedPresenceRecords.push(presence);
+        continue;
+      }
+
+      const uploaded = await operationalCloudService.upsertPresence(presence, ownerId, communityCloudId);
+      updatedPresenceRecords.push(markSynced(presence, uploaded.cloudId, syncedAt));
+    }
+
+    const updatedDrafts: WhatsAppListDraft[] = [];
+    for (const draft of local.drafts) {
+      if (draft.deletedAt) {
+        if (draft.cloudId) {
+          await operationalCloudService.softDelete('whatsapp_list_drafts', draft.cloudId);
+        }
+        updatedDrafts.push(markSynced(draft, draft.cloudId, syncedAt));
+        continue;
+      }
+
+      const communityCloudId = resolveCommunityCloudId(draft.communityId);
+      if (!communityCloudId) {
+        updatedDrafts.push(draft);
+        continue;
+      }
+
+      const uploaded = await operationalCloudService.upsertDraft(draft, ownerId, communityCloudId);
+      updatedDrafts.push(markSynced(draft, uploaded.cloudId, syncedAt));
+    }
+
     const relationsToUpload: Omit<CommunityPlayerDb, 'id'>[] = [];
     for (const player of local.players) {
       if (player.deletedAt) continue;
       const playerCloudId = playerLocalToCloudIdMap[player.id] || player.cloudId;
       if (!playerCloudId) continue;
 
-      const commIds = player.communityIds || [];
-      for (const localCommId of commIds) {
-        const commCloudId = communityLocalToCloudIdMap[localCommId] || local.communities.find(c => c.id === localCommId)?.cloudId;
-        if (!commCloudId) continue;
+      for (const localCommunityId of player.communityIds || []) {
+        const communityCloudId = resolveCommunityCloudId(localCommunityId);
+        if (!communityCloudId) continue;
 
         relationsToUpload.push({
           owner_id: ownerId,
-          community_id: commCloudId,
+          community_id: communityCloudId,
           player_id: playerCloudId,
           active: true,
         });
       }
     }
 
-    // Clear old relations and insert new ones
     if (relationsToUpload.length > 0) {
-      await communityPlayerCloudService.clearAllForUser();
+      await communityPlayerCloudService.clearAllForUser(ownerId);
       await communityPlayerCloudService.bulkUpsert(relationsToUpload);
     }
 
     return {
-      communities: updatedCommunities.filter(c => !c.deletedAt),
-      players: updatedPlayers.filter(p => !p.deletedAt),
-      rules: updatedRules,
-      templates: updatedTemplates.filter(t => !t.deletedAt),
+      communities: visible(updatedCommunities),
+      players: visible(updatedPlayers),
+      rules: visible(updatedRules),
+      templates: visible(updatedTemplates),
+      sessions: visible(updatedSessions),
+      teams: updatedTeams,
+      games: updatedGames,
+      pointEvents: updatedPointEvents,
+      gameReports: updatedGameReports,
+      sessionReports: updatedSessionReports,
+      presenceRecords: visible(updatedPresenceRecords),
+      drafts: visible(updatedDrafts),
     };
   },
 
-  /**
-   * Downloads all data from the cloud and maps it to local entities,
-   * completely replacing the current local database state.
-   */
   async downloadCloudDataToLocal(): Promise<LocalSyncPayload> {
-    // 1. Fetch communities and players
     const cloudCommunities = await communityCloudService.fetchAll();
     const cloudPlayers = await playerCloudService.fetchAll();
 
-    // Build ID lookup maps: cloudId -> localId
     const communityCloudToLocalIdMap: Record<string, string> = {};
-    cloudCommunities.forEach(c => {
-      communityCloudToLocalIdMap[c.cloudId!] = c.id;
+    cloudCommunities.forEach(community => {
+      if (community.cloudId) {
+        communityCloudToLocalIdMap[community.cloudId] = community.id;
+      }
     });
 
     const playerCloudToLocalIdMap: Record<string, string> = {};
-    cloudPlayers.forEach(p => {
-      playerCloudToLocalIdMap[p.cloudId!] = p.id;
+    cloudPlayers.forEach(player => {
+      if (player.cloudId) {
+        playerCloudToLocalIdMap[player.cloudId] = player.id;
+      }
     });
 
-    // 2. Fetch Rules and Templates
-    const cloudRules = await communityRulesCloudService.fetchAll(communityCloudToLocalIdMap);
-    const cloudTemplates = await whatsappTemplateCloudService.fetchAll(communityCloudToLocalIdMap);
+    const [cloudRules, cloudTemplates, cloudRelations, operational] = await Promise.all([
+      communityRulesCloudService.fetchAll(communityCloudToLocalIdMap),
+      whatsappTemplateCloudService.fetchAll(communityCloudToLocalIdMap),
+      communityPlayerCloudService.fetchAll(),
+      operationalCloudService.fetchAll(communityCloudToLocalIdMap),
+    ]);
 
-    // 3. Fetch Relations and map them to players
-    const cloudRelations = await communityPlayerCloudService.fetchAll();
-    
-    // Group communityIds by local player ID
     const playerMemberships: Record<string, string[]> = {};
-    for (const rel of cloudRelations) {
-      const localPlayerId = playerCloudToLocalIdMap[rel.player_id];
-      const localCommId = communityCloudToLocalIdMap[rel.community_id];
-      if (localPlayerId && localCommId && rel.active) {
-        if (!playerMemberships[localPlayerId]) {
-          playerMemberships[localPlayerId] = [];
-        }
-        playerMemberships[localPlayerId].push(localCommId);
+    for (const relation of cloudRelations) {
+      const localPlayerId = playerCloudToLocalIdMap[relation.player_id];
+      const localCommunityId = communityCloudToLocalIdMap[relation.community_id];
+      if (localPlayerId && localCommunityId && relation.active) {
+        playerMemberships[localPlayerId] = playerMemberships[localPlayerId] || [];
+        playerMemberships[localPlayerId].push(localCommunityId);
       }
     }
 
-    // Assign mapped communityIds to the players
-    const mappedPlayers = cloudPlayers.map(p => ({
-      ...p,
-      communityIds: playerMemberships[p.id] || [],
+    const mappedPlayers = cloudPlayers.map(player => ({
+      ...player,
+      communityIds: playerMemberships[player.id] || [],
     }));
 
     return {
@@ -212,250 +484,33 @@ export const syncService = {
       players: mappedPlayers,
       rules: cloudRules,
       templates: cloudTemplates,
+      ...operational,
     };
   },
 
-  /**
-   * Performs a bi-directional synchronization between local and cloud databases.
-   * Compares each entity using last-write-wins based on updatedAt.
-   */
   async syncNow(local: LocalSyncPayload, ownerId: string): Promise<LocalSyncPayload> {
     const cloud = await this.downloadCloudDataToLocal();
 
-    const mergedCommunities: Community[] = [];
-    const mergedPlayers: Player[] = [];
-    const mergedRules: CommunityRules[] = [];
-    const mergedTemplates: WhatsAppListTemplate[] = [];
-
-    // --- Sync Communities ---
-    // Track processed cloud IDs
-    const processedCloudCommIds = new Set<string>();
-
-    for (const localComm of local.communities) {
-      const cloudComm = cloud.communities.find(
-        c => c.cloudId === localComm.cloudId || c.id === localComm.id
-      );
-
-      if (cloudComm) {
-        processedCloudCommIds.add(cloudComm.cloudId!);
-
-        if (localComm.deletedAt || cloudComm.deletedAt) {
-          // If either deleted, mark soft-delete
-          mergedCommunities.push({
-            ...localComm,
-            deletedAt: localComm.deletedAt || cloudComm.deletedAt,
-            syncStatus: 'pending',
-          });
-        } else {
-          const localTime = new Date(localComm.updatedAt).getTime();
-          const cloudTime = new Date(cloudComm.updatedAt).getTime();
-
-          if (localTime >= cloudTime) {
-            mergedCommunities.push({
-              ...localComm,
-              cloudId: cloudComm.cloudId,
-              syncStatus: 'pending',
-            });
-          } else {
-            mergedCommunities.push({
-              ...cloudComm,
-              id: localComm.id, // Keep local ID
-              syncStatus: 'synced',
-            });
-          }
-        }
-      } else {
-        // Exists locally but not on cloud (new or deleted on cloud)
-        if (localComm.cloudId) {
-          // It had a cloudId previously, so it was deleted from cloud by another client
-          // We apply the delete locally
-          mergedCommunities.push({
-            ...localComm,
-            deletedAt: new Date().toISOString(),
-            syncStatus: 'synced',
-          });
-        } else {
-          // Truly new local community
-          mergedCommunities.push({
-            ...localComm,
-            syncStatus: 'pending',
-          });
-        }
-      }
-    }
-
-    // Add communities that exist in cloud but not locally
-    for (const cloudComm of cloud.communities) {
-      if (!processedCloudCommIds.has(cloudComm.cloudId!)) {
-        mergedCommunities.push(cloudComm);
-      }
-    }
-
-    // --- Sync Players ---
-    const processedCloudPlayerIds = new Set<string>();
-
-    for (const localPlayer of local.players) {
-      const cloudPlayer = cloud.players.find(
-        p => p.cloudId === localPlayer.cloudId || p.id === localPlayer.id
-      );
-
-      if (cloudPlayer) {
-        processedCloudPlayerIds.add(cloudPlayer.cloudId!);
-
-        if (localPlayer.deletedAt || cloudPlayer.deletedAt) {
-          mergedPlayers.push({
-            ...localPlayer,
-            deletedAt: localPlayer.deletedAt || cloudPlayer.deletedAt,
-            syncStatus: 'pending',
-          });
-        } else {
-          const localTime = new Date(localPlayer.updatedAt || localPlayer.metadata.atualizadoEm).getTime();
-          const cloudTime = new Date(cloudPlayer.updatedAt || cloudPlayer.metadata.atualizadoEm).getTime();
-
-          if (localTime >= cloudTime) {
-            mergedPlayers.push({
-              ...localPlayer,
-              cloudId: cloudPlayer.cloudId,
-              syncStatus: 'pending',
-            });
-          } else {
-            // Keep community IDs from local player if we want to merge, or use cloud
-            // Let's use cloud communityIds but map them back to local ids if needed.
-            // Since cloud.players already resolved them, we use cloudPlayer.
-            mergedPlayers.push({
-              ...cloudPlayer,
-              id: localPlayer.id, // Keep local ID
-              syncStatus: 'synced',
-            });
-          }
-        }
-      } else {
-        if (localPlayer.cloudId) {
-          // Deleted from cloud
-          mergedPlayers.push({
-            ...localPlayer,
-            deletedAt: new Date().toISOString(),
-            syncStatus: 'synced',
-          });
-        } else {
-          mergedPlayers.push({
-            ...localPlayer,
-            syncStatus: 'pending',
-          });
-        }
-      }
-    }
-
-    for (const cloudPlayer of cloud.players) {
-      if (!processedCloudPlayerIds.has(cloudPlayer.cloudId!)) {
-        mergedPlayers.push(cloudPlayer);
-      }
-    }
-
-    // --- Sync Community Rules ---
-    for (const localRule of local.rules) {
-      const cloudRule = cloud.rules.find(
-        r => r.communityId === localRule.communityId || r.cloudId === localRule.cloudId
-      );
-
-      if (cloudRule) {
-        const localTime = new Date(localRule.updatedAt).getTime();
-        const cloudTime = new Date(cloudRule.updatedAt).getTime();
-
-        if (localTime >= cloudTime) {
-          mergedRules.push({
-            ...localRule,
-            cloudId: cloudRule.cloudId,
-            syncStatus: 'pending',
-          });
-        } else {
-          mergedRules.push({
-            ...cloudRule,
-            communityId: localRule.communityId, // Keep local community ID mapping
-            syncStatus: 'synced',
-          });
-        }
-      } else {
-        mergedRules.push({
-          ...localRule,
-          syncStatus: 'pending',
-        });
-      }
-    }
-
-    // Add rules from cloud that aren't local yet
-    for (const cloudRule of cloud.rules) {
-      if (!mergedRules.some(r => r.cloudId === cloudRule.cloudId)) {
-        mergedRules.push(cloudRule);
-      }
-    }
-
-    // --- Sync Templates ---
-    const processedCloudTemplateIds = new Set<string>();
-
-    for (const localTemplate of local.templates) {
-      const cloudTemplate = cloud.templates.find(
-        t => t.cloudId === localTemplate.cloudId || t.id === localTemplate.id
-      );
-
-      if (cloudTemplate) {
-        processedCloudTemplateIds.add(cloudTemplate.cloudId!);
-
-        if (localTemplate.deletedAt || cloudTemplate.deletedAt) {
-          mergedTemplates.push({
-            ...localTemplate,
-            deletedAt: localTemplate.deletedAt || cloudTemplate.deletedAt,
-            syncStatus: 'pending',
-          });
-        } else {
-          const localTime = new Date(localTemplate.updatedAt).getTime();
-          const cloudTime = new Date(cloudTemplate.updatedAt).getTime();
-
-          if (localTime >= cloudTime) {
-            mergedTemplates.push({
-              ...localTemplate,
-              cloudId: cloudTemplate.cloudId,
-              syncStatus: 'pending',
-            });
-          } else {
-            mergedTemplates.push({
-              ...cloudTemplate,
-              id: localTemplate.id,
-              communityId: localTemplate.communityId,
-              syncStatus: 'synced',
-            });
-          }
-        }
-      } else {
-        if (localTemplate.cloudId) {
-          mergedTemplates.push({
-            ...localTemplate,
-            deletedAt: new Date().toISOString(),
-            syncStatus: 'synced',
-          });
-        } else {
-          mergedTemplates.push({
-            ...localTemplate,
-            syncStatus: 'pending',
-          });
-        }
-      }
-    }
-
-    for (const cloudTemplate of cloud.templates) {
-      if (!processedCloudTemplateIds.has(cloudTemplate.cloudId!)) {
-        mergedTemplates.push(cloudTemplate);
-      }
-    }
-
-    // Finally, run upload on the merged local state to update the cloud with any new/newer local data
-    const finalPayload = {
-      communities: mergedCommunities,
-      players: mergedPlayers,
-      rules: mergedRules,
-      templates: mergedTemplates,
+    const merged: LocalSyncPayload = {
+      communities: mergeEntityLists(local.communities, cloud.communities, { getId: item => item.id }),
+      players: mergeEntityLists(local.players, cloud.players, {
+        getId: item => item.id,
+        getUpdatedAt: item => item.updatedAt || item.metadata?.atualizadoEm,
+      }),
+      rules: mergeEntityLists(local.rules, cloud.rules, { getId: item => item.communityId }),
+      templates: mergeEntityLists(local.templates, cloud.templates, { getId: item => item.id }),
+      sessions: mergeEntityLists(local.sessions, cloud.sessions, { getId: item => item.id }),
+      teams: mergeEntityLists(local.teams, cloud.teams, { getId: item => item.id }),
+      games: mergeEntityLists(local.games, cloud.games, { getId: item => item.id }),
+      pointEvents: mergeEntityLists(local.pointEvents, cloud.pointEvents, { getId: item => item.id }),
+      gameReports: mergeEntityLists(local.gameReports, cloud.gameReports, { getId: item => item.id }),
+      sessionReports: mergeEntityLists(local.sessionReports, cloud.sessionReports, { getId: item => item.id }),
+      presenceRecords: mergeEntityLists(local.presenceRecords, cloud.presenceRecords, {
+        getId: item => `${item.communityId}:${item.date}`,
+      }),
+      drafts: mergeEntityLists(local.drafts, cloud.drafts, { getId: item => item.id }),
     };
 
-    return await this.uploadLocalDataToCloud(finalPayload, ownerId);
-  }
+    return this.uploadLocalDataToCloud(merged, ownerId);
+  },
 };

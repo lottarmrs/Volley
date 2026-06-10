@@ -17,7 +17,7 @@
     "lint:eslint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --import tsx --test src/logic/balancing.test.ts src/logic/tournament.test.ts src/logic/migrations.test.ts src/services/supabase/mappers.test.ts src/services/supabase/schema.test.ts src/services/supabase/syncService.test.ts"
+    "test": "node --import tsx --test src/logic/balancing.test.ts src/logic/tournament.test.ts src/logic/migrations.test.ts src/services/supabase/mappers.test.ts src/services/supabase/schema.test.ts src/services/supabase/syncService.test.ts src/services/supabase/upsertConflict.test.ts src/logic/syncStatus.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",

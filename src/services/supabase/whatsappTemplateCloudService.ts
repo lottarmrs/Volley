@@ -94,7 +94,7 @@ export const whatsappTemplateCloudService = {
     const dbRecord = mapTemplateToDb(local, ownerId, communityCloudId);
     const { data, error } = await supabase
       .from('whatsapp_list_templates')
-      .upsert(dbRecord)
+      .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
       .select()
       .single();
 

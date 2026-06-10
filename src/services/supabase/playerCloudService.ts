@@ -60,7 +60,11 @@ export const playerCloudService = {
 
   async upsert(local: Player, ownerId: string): Promise<Player> {
     const dbRecord = mapPlayerToDb(local, ownerId);
-    const { data, error } = await supabase.from('players').upsert(dbRecord).select().single();
+    const { data, error } = await supabase
+      .from('players')
+      .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
+      .select()
+      .single();
 
     if (error) throw error;
     return mapDbToPlayer(data);

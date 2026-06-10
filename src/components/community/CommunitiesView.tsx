@@ -74,6 +74,7 @@ import {
 } from '../../logic/shareFormatters';
 import { createDefaultCommunityRules } from '../../hooks/useCommunityRules';
 import { ShareActions } from '../share/ShareActions';
+import { CommunityMembersPanel } from './CommunityMembersPanel';
 
 type CommunityTab =
   | 'summary'
@@ -82,6 +83,7 @@ type CommunityTab =
   | 'whatsapp'
   | 'sessions'
   | 'ranking'
+  | 'members'
   | 'rules'
   | 'data';
 type PlayerFilter =
@@ -144,6 +146,8 @@ interface CommunitiesViewProps {
   onCreateSession: (community: Community, playerIds: string[], rules: CommunityRules) => void;
   onViewSession: (sessionId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;
+  currentUserId: string | null;
+  isSupabaseConfigured: boolean;
 }
 
 const TAB_ITEMS: Array<{ id: CommunityTab; label: string }> = [
@@ -153,6 +157,7 @@ const TAB_ITEMS: Array<{ id: CommunityTab; label: string }> = [
   { id: 'whatsapp', label: 'Lista WhatsApp' },
   { id: 'sessions', label: 'Sessoes' },
   { id: 'ranking', label: 'Ranking' },
+  { id: 'members', label: 'Membros' },
   { id: 'rules', label: 'Regras' },
   { id: 'data', label: 'Dados' },
 ];
@@ -216,6 +221,8 @@ export function CommunitiesView({
   onCreateSession,
   onViewSession,
   onClearCommunityHistory,
+  currentUserId,
+  isSupabaseConfigured,
 }: CommunitiesViewProps) {
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -257,6 +264,8 @@ export function CommunitiesView({
         onCreateSession={onCreateSession}
         onViewSession={onViewSession}
         onClearCommunityHistory={onClearCommunityHistory}
+        currentUserId={currentUserId}
+        isSupabaseConfigured={isSupabaseConfigured}
       />
     );
   }
@@ -492,6 +501,8 @@ function CommunityDetailView({
   onCreateSession,
   onViewSession,
   onClearCommunityHistory,
+  currentUserId,
+  isSupabaseConfigured,
 }: Omit<CommunitiesViewProps, 'communities' | 'onAddCommunity'> & {
   community: Community;
 }) {
@@ -661,6 +672,13 @@ function CommunityDetailView({
           pointEvents={pointEvents}
           teams={teams}
           sessionReports={sessionReports}
+        />
+      )}
+      {activeTab === 'members' && (
+        <CommunityMembersPanel
+          community={community}
+          currentUserId={currentUserId}
+          isSupabaseConfigured={isSupabaseConfigured}
         />
       )}
       {activeTab === 'rules' && (

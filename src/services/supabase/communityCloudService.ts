@@ -53,7 +53,11 @@ export const communityCloudService = {
 
   async upsert(local: Community, ownerId: string): Promise<Community> {
     const dbRecord = mapCommunityToDb(local, ownerId);
-    const { data, error } = await supabase.from('communities').upsert(dbRecord).select().single();
+    const { data, error } = await supabase
+      .from('communities')
+      .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
+      .select()
+      .single();
 
     if (error) throw error;
     return mapDbToCommunity(data);

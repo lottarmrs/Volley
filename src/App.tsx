@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   LayoutDashboard,
@@ -32,6 +32,8 @@ import { useCommunityPresence } from './hooks/useCommunityPresence';
 import { useCommunityRules } from './hooks/useCommunityRules';
 import { useWhatsAppListTemplates } from './hooks/useWhatsAppListTemplates';
 import { useAuth } from './hooks/useAuth';
+import { useCloudSync } from './hooks/useCloudSync';
+import { useToasts } from './hooks/useToasts';
 
 import { Dashboard } from './components/dashboard/Dashboard';
 import { PlayersView } from './components/player/PlayersView';
@@ -41,8 +43,8 @@ import { SessionActiveView } from './components/live/SessionActiveView';
 import { HistoryView } from './components/history/HistoryView';
 import { CommunitiesView } from './components/community/CommunitiesView';
 import { AccountSyncView } from './components/account/AccountSyncView';
+import { ToastViewport } from './components/common/ToastViewport';
 
-import { syncService } from './services/supabase/syncService';
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { generateSessionReport } from './logic/reports';
 import {
@@ -59,6 +61,7 @@ import { normalizeCommunities, normalizeGames, normalizeSessions } from './logic
 import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
+import { countPendingChanges } from './logic/syncStatus';
 
 type Page =
   | 'dashboard'
@@ -85,10 +88,7 @@ export default function App() {
 
   // Auth state
   const auth = useAuth();
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() =>
-    loadFromStorage<string | null>('vpg_last_synced_at', null),
-  );
+  const toasts = useToasts();
 
   // Search & Filters for custom sub-views
   const [matchesSearch, setMatchesSearch] = useState('');
@@ -106,6 +106,69 @@ export default function App() {
   const communityPresence = useCommunityPresence();
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
+
+  // ── Cloud sync ────────────────────────────────────────────────────────────
+
+  const cloudSync = useCloudSync({
+    userId: auth.user?.id ?? null,
+    communities: comm.rawCommunities,
+    setCommunities: comm.setCommunities,
+    players: play.rawPlayers,
+    setPlayers: play.setPlayers,
+    rules: communityRules.rawRules,
+    setRules: communityRules.setRules,
+    templates: whatsAppLists.rawTemplates,
+    setTemplates: whatsAppLists.setTemplates,
+    drafts: whatsAppLists.drafts,
+    setDrafts: whatsAppLists.setDrafts,
+    sessions: sess.sessions,
+    setSessions: sess.setSessions,
+    teams: sess.teams,
+    setTeams: sess.setTeams,
+    games: sess.games,
+    setGames: sess.setGames,
+    pointEvents: sess.pointEvents,
+    setPointEvents: sess.setPointEvents,
+    gameReports: sess.gameReports,
+    setGameReports: sess.setGameReports,
+    sessionReports: sess.sessionReports,
+    setSessionReports: sess.setSessionReports,
+    presenceRecords: communityPresence.presenceRecords,
+    setPresenceRecords: communityPresence.setPresenceRecords,
+    onToast: toasts.push,
+  });
+
+  const pendingChanges = useMemo(() => {
+    if (!auth.user) return 0;
+    return countPendingChanges([
+      comm.rawCommunities,
+      play.rawPlayers,
+      communityRules.rawRules,
+      whatsAppLists.rawTemplates,
+      whatsAppLists.drafts,
+      sess.sessions,
+      sess.teams,
+      sess.games,
+      sess.pointEvents,
+      sess.gameReports,
+      sess.sessionReports,
+      communityPresence.presenceRecords,
+    ]);
+  }, [
+    auth.user,
+    comm.rawCommunities,
+    play.rawPlayers,
+    communityRules.rawRules,
+    whatsAppLists.rawTemplates,
+    whatsAppLists.drafts,
+    sess.sessions,
+    sess.teams,
+    sess.games,
+    sess.pointEvents,
+    sess.gameReports,
+    sess.sessionReports,
+    communityPresence.presenceRecords,
+  ]);
 
   // ── Backup actions ────────────────────────────────────────────────────────
 
@@ -194,118 +257,6 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-  };
-
-  const handleUploadToCloud = async () => {
-    if (!auth.user) throw new Error('Usuário não autenticado.');
-    setSyncLoading(true);
-    try {
-      const result = await syncService.uploadLocalDataToCloud(
-        {
-          communities: comm.rawCommunities,
-          players: play.rawPlayers,
-          rules: communityRules.rawRules,
-          templates: whatsAppLists.rawTemplates,
-          sessions: sess.sessions,
-          teams: sess.teams,
-          games: sess.games,
-          pointEvents: sess.pointEvents,
-          gameReports: sess.gameReports,
-          sessionReports: sess.sessionReports,
-          presenceRecords: communityPresence.presenceRecords,
-          drafts: whatsAppLists.drafts,
-        },
-        auth.user.id,
-      );
-
-      comm.setCommunities(result.communities);
-      play.setPlayers(result.players);
-      communityRules.setRules(result.rules);
-      whatsAppLists.setTemplates(result.templates);
-      sess.setSessions(normalizeSessions(result.sessions));
-      sess.setTeams(result.teams);
-      sess.setGames(normalizeGames(result.games));
-      sess.setPointEvents(result.pointEvents);
-      sess.setGameReports(result.gameReports);
-      sess.setSessionReports(result.sessionReports);
-      communityPresence.setPresenceRecords(result.presenceRecords);
-      whatsAppLists.setDrafts(result.drafts);
-
-      const nowStr = new Date().toISOString();
-      setLastSyncedAt(nowStr);
-      saveToStorage('vpg_last_synced_at', nowStr);
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
-  const handleDownloadFromCloud = async () => {
-    if (!auth.user) throw new Error('Usuário não autenticado.');
-    setSyncLoading(true);
-    try {
-      const result = await syncService.downloadCloudDataToLocal();
-      comm.setCommunities(result.communities);
-      play.setPlayers(result.players);
-      communityRules.setRules(result.rules);
-      whatsAppLists.setTemplates(result.templates);
-      sess.setSessions(normalizeSessions(result.sessions));
-      sess.setTeams(result.teams);
-      sess.setGames(normalizeGames(result.games));
-      sess.setPointEvents(result.pointEvents);
-      sess.setGameReports(result.gameReports);
-      sess.setSessionReports(result.sessionReports);
-      communityPresence.setPresenceRecords(result.presenceRecords);
-      whatsAppLists.setDrafts(result.drafts);
-
-      const nowStr = new Date().toISOString();
-      setLastSyncedAt(nowStr);
-      saveToStorage('vpg_last_synced_at', nowStr);
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
-  const handleSync = async () => {
-    if (!auth.user) throw new Error('Usuário não autenticado.');
-    setSyncLoading(true);
-    try {
-      const result = await syncService.syncNow(
-        {
-          communities: comm.rawCommunities,
-          players: play.rawPlayers,
-          rules: communityRules.rawRules,
-          templates: whatsAppLists.rawTemplates,
-          sessions: sess.sessions,
-          teams: sess.teams,
-          games: sess.games,
-          pointEvents: sess.pointEvents,
-          gameReports: sess.gameReports,
-          sessionReports: sess.sessionReports,
-          presenceRecords: communityPresence.presenceRecords,
-          drafts: whatsAppLists.drafts,
-        },
-        auth.user.id,
-      );
-
-      comm.setCommunities(result.communities);
-      play.setPlayers(result.players);
-      communityRules.setRules(result.rules);
-      whatsAppLists.setTemplates(result.templates);
-      sess.setSessions(normalizeSessions(result.sessions));
-      sess.setTeams(result.teams);
-      sess.setGames(normalizeGames(result.games));
-      sess.setPointEvents(result.pointEvents);
-      sess.setGameReports(result.gameReports);
-      sess.setSessionReports(result.sessionReports);
-      communityPresence.setPresenceRecords(result.presenceRecords);
-      whatsAppLists.setDrafts(result.drafts);
-
-      const nowStr = new Date().toISOString();
-      setLastSyncedAt(nowStr);
-      saveToStorage('vpg_last_synced_at', nowStr);
-    } finally {
-      setSyncLoading(false);
-    }
   };
 
   const wizard = useSessionWizard({
@@ -843,6 +794,8 @@ export default function App() {
                   ),
                 );
               }}
+              currentUserId={auth.user?.id ?? null}
+              isSupabaseConfigured={auth.isSupabaseConfigured}
             />
           );
         }
@@ -923,11 +876,11 @@ export default function App() {
             onSignIn={auth.signIn}
             onSignUp={auth.signUp}
             onSignOut={auth.signOut}
-            onUpload={handleUploadToCloud}
-            onDownload={handleDownloadFromCloud}
-            onSync={handleSync}
-            lastSyncedAt={lastSyncedAt}
-            syncLoading={syncLoading}
+            onUpload={cloudSync.uploadToCloud}
+            onDownload={cloudSync.downloadFromCloud}
+            onSync={cloudSync.sync}
+            lastSyncedAt={cloudSync.lastSyncedAt}
+            syncLoading={cloudSync.syncLoading}
           />
         );
 
@@ -1284,18 +1237,24 @@ export default function App() {
     );
   };
 
-  const navItems = [
+  const navItems: Array<{ id: Module; label: string; icon: ReactNode; badge?: number }> = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'torneios', label: 'Torneios', icon: <Trophy className="w-5 h-5" /> },
     { id: 'players', label: 'Jogadores', icon: <Users className="w-5 h-5" /> },
     { id: 'ranking', label: 'Ranking', icon: <Medal className="w-5 h-5" /> },
     { id: 'historico', label: 'Histórico', icon: <BarChart3 className="w-5 h-5" /> },
-    { id: 'conta', label: 'Nuvem & Conta', icon: <Cloud className="w-5 h-5" /> },
+    {
+      id: 'conta',
+      label: 'Nuvem & Conta',
+      icon: <Cloud className="w-5 h-5" />,
+      badge: pendingChanges,
+    },
     { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" /> },
-  ] as const;
+  ];
 
   return (
     <div className="drawer lg:drawer-open">
+      <ToastViewport toasts={toasts.toasts} onDismiss={toasts.dismiss} />
       <input id="sidebar-drawer" type="checkbox" className="drawer-toggle" />
 
       <div className="drawer-content flex flex-col min-h-screen min-w-0 bg-base-100 text-base-content">
@@ -1412,7 +1371,15 @@ export default function App() {
                       }`}
                     >
                       {item.icon}
-                      {item.label}
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {!!item.badge && item.badge > 0 && (
+                        <span
+                          className="badge badge-sm badge-warning font-black"
+                          title={`${item.badge} alteração(ões) pendente(s) de sincronização`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}

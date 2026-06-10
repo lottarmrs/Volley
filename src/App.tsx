@@ -62,6 +62,7 @@ import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localSto
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
 import { countPendingChanges } from './logic/syncStatus';
+import { resolveUsername } from './logic/username';
 
 type Page =
   | 'dashboard'
@@ -356,8 +357,13 @@ export default function App() {
     const trimmed = name.trim();
     if (!trimmed) return;
     const now = new Date().toISOString();
+    const username = resolveUsername(
+      { nome: trimmed, isGuest: false },
+      play.rawPlayers.filter((p) => p.username).map((p) => p.username as string),
+    );
     const player: Player = {
       id: `player-${Date.now()}`,
+      username,
       nome: trimmed,
       apelido: trimmed,
       genero: 'M',

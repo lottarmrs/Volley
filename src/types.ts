@@ -23,6 +23,8 @@ export type Position = 'levantador' | 'oposto' | 'ponteiro' | 'central' | 'liber
 
 export interface Player {
   id: string;
+  /** Globally unique, human-readable handle for the athlete (slug of the name). */
+  username?: string;
   nome: string;
   apelido: string;
   genero: Gender;

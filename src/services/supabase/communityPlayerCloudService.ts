@@ -27,6 +27,16 @@ export const communityPlayerCloudService = {
     if (error) throw error;
   },
 
+  async linkPlayer(
+    communityCloudId: string,
+    playerCloudId: string,
+    ownerId: string,
+  ): Promise<void> {
+    await this.bulkUpsert([
+      { owner_id: ownerId, community_id: communityCloudId, player_id: playerCloudId, active: true },
+    ]);
+  },
+
   async removeRelation(communityId: string, playerId: string): Promise<void> {
     const { error } = await supabase
       .from('community_players')

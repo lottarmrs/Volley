@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import {
   AlertTriangle,
   BarChart3,
@@ -75,6 +76,7 @@ import {
 import { createDefaultCommunityRules } from '../../hooks/useCommunityRules';
 import { ShareActions } from '../share/ShareActions';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
+import { AthleteUsernameSearch } from './AthleteUsernameSearch';
 
 type CommunityTab =
   | 'summary'
@@ -224,7 +226,14 @@ export function CommunitiesView({
   currentUserId,
   isSupabaseConfigured,
 }: CommunitiesViewProps) {
-  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const selectedCommunityId = useMemo(() => {
+    const parts = location.pathname.split('/players/communities/');
+    return parts[1] || null;
+  }, [location.pathname]);
+
   const [showArchived, setShowArchived] = useState(false);
   const selectedCommunity =
     communities.find((community) => community.id === selectedCommunityId) || null;
@@ -236,7 +245,7 @@ export function CommunitiesView({
 
   const handleAdd = () => {
     const community = onAddCommunity(emptyCommunityInput());
-    setSelectedCommunityId(community.id);
+    navigate(`/players/communities/${community.id}`);
   };
 
   if (selectedCommunity) {
@@ -252,11 +261,11 @@ export function CommunitiesView({
         presenceApi={presenceApi}
         whatsAppApi={whatsAppApi}
         rulesApi={rulesApi}
-        onBack={() => setSelectedCommunityId(null)}
+        onBack={() => navigate('/players/communities')}
         onUpdateCommunity={onUpdateCommunity}
         onDeleteCommunity={(communityId) => {
           onDeleteCommunity(communityId);
-          setSelectedCommunityId(null);
+          navigate('/players/communities');
         }}
         onDuplicateCommunity={onDuplicateCommunity}
         onUpdatePlayerCommunities={onUpdatePlayerCommunities}
@@ -309,7 +318,7 @@ export function CommunitiesView({
               games={games}
               pointEvents={pointEvents}
               sessionReports={sessionReports}
-              onOpen={() => setSelectedCommunityId(community.id)}
+              onOpen={() => navigate(`/players/communities/${community.id}`)}
               onCreateSession={() =>
                 onCreateSession(
                   community,
@@ -621,6 +630,8 @@ function CommunityDetailView({
       {activeTab === 'players' && (
         <CommunityPlayersTab
           community={community}
+          currentUserId={currentUserId}
+          isSupabaseConfigured={isSupabaseConfigured}
           players={players}
           sessions={sessions}
           onUpdatePlayerCommunities={onUpdatePlayerCommunities}
@@ -823,12 +834,16 @@ function CommunityPlayersTab({
   sessions,
   onUpdatePlayerCommunities,
   onCreatePlayer,
+  currentUserId,
+  isSupabaseConfigured,
 }: {
   community: Community;
   players: Player[];
   sessions: Session[];
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
   onCreatePlayer: (name: string, communityId: string) => void;
+  currentUserId: string | null;
+  isSupabaseConfigured: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PlayerFilter>('all');
@@ -930,6 +945,12 @@ function CommunityPlayersTab({
               <Plus className="w-4 h-4" />
             </button>
           </div>
+
+          <AthleteUsernameSearch
+            community={community}
+            currentUserId={currentUserId}
+            isSupabaseConfigured={isSupabaseConfigured}
+          />
 
           <ShareActions
             title={`Atletas - ${community.name}`}

@@ -5,6 +5,9 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
+    // Only send the handle when we have one, so an upload from a device whose
+    // local copy still lacks a username never clobbers an existing cloud handle.
+    ...(local.username ? { username: local.username } : {}),
     name: local.nome,
     nickname: local.apelido || null,
     gender: local.genero,
@@ -26,6 +29,7 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
 export function mapDbToPlayer(db: any): Player {
   return {
     id: db.local_id || db.id,
+    username: db.username || undefined,
     nome: db.name,
     apelido: db.nickname || '',
     genero: db.gender,
@@ -77,5 +81,19 @@ export const playerCloudService = {
       .eq('id', cloudId);
 
     if (error) throw error;
+  },
+
+  /** Look up a global athlete by its unique handle (authenticated-only RPC). */
+  async findByUsername(
+    username: string,
+  ): Promise<{ cloudId: string; username: string; name: string } | null> {
+    const { data, error } = await supabase.rpc('find_player_by_username', {
+      target_username: username.trim(),
+    });
+
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
+    return { cloudId: row.id, username: row.username, name: row.name };
   },
 };

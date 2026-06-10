@@ -8,10 +8,16 @@ import {
   calculatePositionOverall,
   getAutoSpecialty,
   getAutoWeakness,
-  getAttributeLabel
+  getAttributeLabel,
 } from '../../logic/calculations';
 
-export const AttributeEditor = ({ attributes, onChange }: { attributes: Attributes, onChange: (key: keyof Attributes, value: number) => void }) => {
+export const AttributeEditor = ({
+  attributes,
+  onChange,
+}: {
+  attributes: Attributes;
+  onChange: (key: keyof Attributes, value: number) => void;
+}) => {
   const attributeTooltips: Record<keyof Attributes, string> = {
     saque: 'Força, precisão e regularidade do serviço.',
     recepcao: 'Qualidade do passe após o saque adversário.',
@@ -23,7 +29,7 @@ export const AttributeEditor = ({ attributes, onChange }: { attributes: Attribut
     resistencia: 'Capacidade de manter o nível durante partidas longas.',
     leituraDeJogo: 'Visão tática e antecipação de jogadas.',
     regularidade: 'Consistência técnica e baixo índice de erros.',
-    controleEmocional: 'Estabilidade mental em pontos decisivos.'
+    controleEmocional: 'Estabilidade mental em pontos decisivos.',
   };
 
   const attributeLabels: Record<keyof Attributes, string> = {
@@ -37,16 +43,21 @@ export const AttributeEditor = ({ attributes, onChange }: { attributes: Attribut
     resistencia: 'Resistência',
     leituraDeJogo: 'Visão de Jogo',
     regularidade: 'Consistência',
-    controleEmocional: 'Estabilidade Mental'
+    controleEmocional: 'Estabilidade Mental',
   };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {(Object.keys(attributeLabels) as Array<keyof Attributes>).map((key) => (
-        <div key={key} className="bg-base-300 p-3.5 rounded-xl border border-base-300 hover:border-base-content/20 transition-colors group">
+        <div
+          key={key}
+          className="bg-base-300 p-3.5 rounded-xl border border-base-300 hover:border-base-content/20 transition-colors group"
+        >
           <div className="flex justify-between items-center mb-1.5">
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] font-bold uppercase text-base-content/70 tracking-widest">{attributeLabels[key]}</label>
+              <label className="text-[10px] font-bold uppercase text-base-content/70 tracking-widest">
+                {attributeLabels[key]}
+              </label>
               <div className="group/tip relative">
                 <Info className="w-3.5 h-3.5 text-base-content/50 cursor-help" />
                 <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-base-200 border border-base-300 rounded text-[9px] text-base-content opacity-0 group-hover/tip:opacity-100 transition-opacity z-50 pointer-events-none uppercase tracking-tighter leading-relaxed">
@@ -54,9 +65,11 @@ export const AttributeEditor = ({ attributes, onChange }: { attributes: Attribut
                 </div>
               </div>
             </div>
-            <span className="text-[10px] font-bold text-accent uppercase">{attributes[key]} · {getAttributeLabel(attributes[key])}</span>
+            <span className="text-[10px] font-bold text-accent uppercase">
+              {attributes[key]} · {getAttributeLabel(attributes[key])}
+            </span>
           </div>
-          <input 
+          <input
             type="range"
             min="0"
             max="10"
@@ -71,19 +84,27 @@ export const AttributeEditor = ({ attributes, onChange }: { attributes: Attribut
   );
 };
 
-export const StatBar = ({ label, value, max = 10, color = "progress-primary" }: { label: string, value: number, max?: number, color?: string }) => {
+export const StatBar = ({
+  label,
+  value,
+  max = 10,
+  color = 'progress-primary',
+}: {
+  label: string;
+  value: number;
+  max?: number;
+  color?: string;
+}) => {
   const progressColor = color.replace('bg-', 'progress-');
   return (
     <div className="mb-2.5">
       <div className="flex justify-between items-center mb-1">
-        <span className="text-[10px] uppercase tracking-wider text-base-content/50 font-mono">{label}</span>
+        <span className="text-[10px] uppercase tracking-wider text-base-content/50 font-mono">
+          {label}
+        </span>
         <span className="text-xs font-bold font-mono">{value}</span>
       </div>
-      <progress 
-        className={`progress ${progressColor} w-full`} 
-        value={value} 
-        max={max}
-      />
+      <progress className={`progress ${progressColor} w-full`} value={value} max={max} />
     </div>
   );
 };
@@ -91,31 +112,47 @@ export const StatBar = ({ label, value, max = 10, color = "progress-primary" }: 
 /* Compact mini stat cell used inside the PlayerItem card */
 const MiniStat = ({ label, value }: { label: string; value: number }) => {
   const color =
-    value >= 8 ? 'text-accent' :
-    value >= 6 ? 'text-primary' :
-    value >= 4 ? 'text-base-content/70' :
-    'text-base-content/40';
+    value >= 8
+      ? 'text-accent'
+      : value >= 6
+        ? 'text-primary'
+        : value >= 4
+          ? 'text-base-content/70'
+          : 'text-base-content/40';
 
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span className={`text-[11px] font-black font-mono leading-none ${color}`}>{value}</span>
-      <span className="text-[7px] uppercase font-bold text-base-content/40 tracking-wide leading-none">{label}</span>
+      <span className="text-[7px] uppercase font-bold text-base-content/40 tracking-wide leading-none">
+        {label}
+      </span>
     </div>
   );
 };
 
-export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onToggle?: () => void }> = ({ player, isSelected, onToggle }) => {
+export const PlayerItem: React.FC<{
+  player: Player;
+  isSelected?: boolean;
+  onToggle?: () => void;
+}> = ({ player, isSelected, onToggle }) => {
   const overall = calculatePositionOverall(player, player.posicaoPrincipal);
   const rawOverall = calculatePositionOverall(
     { ...player, formaAtual: { ...player.formaAtual, valor: 0 } },
-    player.posicaoPrincipal
+    player.posicaoPrincipal,
   );
   const balancingRole = getBalancingRole(player.atributos);
 
   // Best positional overalls (top 2)
-  const positions = ['levantador', 'oposto', 'ponteiro', 'central', 'libero', 'all-rounder'] as const;
+  const positions = [
+    'levantador',
+    'oposto',
+    'ponteiro',
+    'central',
+    'libero',
+    'all-rounder',
+  ] as const;
   const positionOveralls = positions
-    .map(pos => ({ pos, rating: calculatePositionOverall(player, pos) }))
+    .map((pos) => ({ pos, rating: calculatePositionOverall(player, pos) }))
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 2);
 
@@ -125,7 +162,7 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
     ponteiro: 'Ponteiro',
     central: 'Central',
     libero: 'Líbero',
-    'all-rounder': 'Coringa'
+    'all-rounder': 'Coringa',
   };
 
   const positionAbbreviations: Record<string, string> = {
@@ -134,14 +171,22 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
     ponteiro: 'PON',
     central: 'CEN',
     libero: 'LIB',
-    'all-rounder': 'COR'
+    'all-rounder': 'COR',
   };
 
   const initials = player.nome ? player.nome.substring(0, 2).toUpperCase() : 'AT';
   const formPct = Math.round(((player.formaAtual.valor + 5) / 10) * 100);
   const formDelta = overall - rawOverall;
-  const tierLabel = overall > 75 ? 'ELITE' : overall > 60 ? 'COMP' : overall > 45 ? 'SOCIAL' : 'BASE';
-  const tierColor = overall > 75 ? 'badge-warning' : overall > 60 ? 'badge-primary' : overall > 45 ? 'badge-secondary' : 'badge-ghost';
+  const tierLabel =
+    overall > 75 ? 'ELITE' : overall > 60 ? 'COMP' : overall > 45 ? 'SOCIAL' : 'BASE';
+  const tierColor =
+    overall > 75
+      ? 'badge-warning'
+      : overall > 60
+        ? 'badge-primary'
+        : overall > 45
+          ? 'badge-secondary'
+          : 'badge-ghost';
 
   return (
     <motion.div
@@ -154,10 +199,11 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
       } ${!player.ativo ? 'opacity-50 grayscale' : ''}`}
     >
       <div className="card-body p-4 gap-3">
-
         {/* ── Top Row: Avatar + Name + Overall ───────────────────────── */}
         <div className="flex gap-3 items-center">
-          <div className={`avatar avatar-placeholder ${player.ativo ? 'avatar-online' : 'avatar-offline'}`}>
+          <div
+            className={`avatar avatar-placeholder ${player.ativo ? 'avatar-online' : 'avatar-offline'}`}
+          >
             <div className="w-12 rounded-full bg-base-300 text-accent font-black ring-2 ring-primary/40 ring-offset-2 ring-offset-base-200">
               <span className="text-xs">{initials}</span>
             </div>
@@ -167,7 +213,9 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
             <h3 className="font-bold text-sm leading-tight uppercase tracking-tight truncate text-base-content">
               {player.nome}
               {player.apelido && player.apelido !== player.nome && (
-                <span className="text-accent font-semibold lowercase italic text-xs ml-1">"{player.apelido}"</span>
+                <span className="text-accent font-semibold lowercase italic text-xs ml-1">
+                  "{player.apelido}"
+                </span>
               )}
             </h3>
             <p className="text-[9px] uppercase text-base-content/50 font-bold tracking-wider mt-0.5">
@@ -180,14 +228,21 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
           {/* Overall + forma delta */}
           <div className="text-right shrink-0">
             <div className="flex items-baseline gap-0.5 justify-end">
-              <span className="text-xl font-black font-mono text-accent leading-none">{overall}</span>
+              <span className="text-xl font-black font-mono text-accent leading-none">
+                {overall}
+              </span>
               {formDelta !== 0 && (
-                <span className={`text-[9px] font-black font-mono ${formDelta > 0 ? 'text-success' : 'text-error'}`}>
-                  {formDelta > 0 ? '+' : ''}{formDelta}
+                <span
+                  className={`text-[9px] font-black font-mono ${formDelta > 0 ? 'text-success' : 'text-error'}`}
+                >
+                  {formDelta > 0 ? '+' : ''}
+                  {formDelta}
                 </span>
               )}
             </div>
-            <p className="text-[7px] uppercase text-base-content/40 font-bold tracking-wider">OVERALL</p>
+            <p className="text-[7px] uppercase text-base-content/40 font-bold tracking-wider">
+              OVERALL
+            </p>
             {/* Forma influence note */}
             {formDelta !== 0 && (
               <p className="text-[7px] uppercase text-base-content/30 font-mono">
@@ -200,17 +255,24 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
         {/* ── Badge Row ───────────────────────────────────────────────── */}
         <div className="flex flex-wrap gap-1.5">
           {player.isGuest && (
-            <span className="badge badge-accent badge-xs font-bold uppercase font-mono">CONVIDADO</span>
+            <span className="badge badge-accent badge-xs font-bold uppercase font-mono">
+              CONVIDADO
+            </span>
           )}
           {/* Tier */}
-          <span className={`badge ${tierColor} badge-xs font-bold uppercase font-mono`}>{tierLabel}</span>
+          <span className={`badge ${tierColor} badge-xs font-bold uppercase font-mono`}>
+            {tierLabel}
+          </span>
 
           {/* Position badges */}
           <span className="badge badge-neutral badge-xs font-bold uppercase font-mono">
             {positionAbbreviations[player.posicaoPrincipal] || player.posicaoPrincipal}
           </span>
-          {player.posicoesSecundarias.map(p => (
-            <span key={p} className="badge badge-ghost badge-xs font-bold uppercase font-mono opacity-70">
+          {player.posicoesSecundarias.map((p) => (
+            <span
+              key={p}
+              className="badge badge-ghost badge-xs font-bold uppercase font-mono opacity-70"
+            >
               {positionAbbreviations[p] || p}
             </span>
           ))}
@@ -224,17 +286,23 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
         <div className="bg-base-300 p-2 rounded-lg border border-base-300 text-[10px] space-y-1">
           <div className="flex justify-between items-center text-success">
             <span className="font-bold uppercase tracking-tight">★</span>
-            <span className="font-semibold truncate max-w-[170px] text-right">{getAutoSpecialty(player)}</span>
+            <span className="font-semibold truncate max-w-[170px] text-right">
+              {getAutoSpecialty(player)}
+            </span>
           </div>
           <div className="flex justify-between items-center text-error">
             <span className="font-bold uppercase tracking-tight">⚠</span>
-            <span className="font-semibold truncate max-w-[170px] text-right">{getAutoWeakness(player)}</span>
+            <span className="font-semibold truncate max-w-[170px] text-right">
+              {getAutoWeakness(player)}
+            </span>
           </div>
         </div>
 
         {/* ── All 11 Stats Grid ───────────────────────────────────────── */}
         <div className="bg-base-300/60 rounded-xl border border-base-300 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-widest text-base-content/35 mb-2">Atributos Técnicos</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest text-base-content/35 mb-2">
+            Atributos Técnicos
+          </p>
           <div className="grid grid-cols-4 gap-y-2 gap-x-1">
             <MiniStat label="ATQ" value={player.atributos.ataque} />
             <MiniStat label="DEF" value={player.atributos.defesa} />
@@ -249,10 +317,14 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
             <MiniStat label="MNT" value={player.atributos.controleEmocional} />
             {/* Forma Atual as percentage */}
             <div className="flex flex-col items-center gap-0.5">
-              <span className={`text-[11px] font-black font-mono leading-none ${formPct >= 70 ? 'text-success' : formPct >= 40 ? 'text-warning' : 'text-error'}`}>
+              <span
+                className={`text-[11px] font-black font-mono leading-none ${formPct >= 70 ? 'text-success' : formPct >= 40 ? 'text-warning' : 'text-error'}`}
+              >
                 {formPct}%
               </span>
-              <span className="text-[7px] uppercase font-bold text-base-content/40 tracking-wide leading-none">FORMA</span>
+              <span className="text-[7px] uppercase font-bold text-base-content/40 tracking-wide leading-none">
+                FORMA
+              </span>
             </div>
           </div>
         </div>
@@ -260,9 +332,16 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
         {/* ── Overall by top positions ─────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-2">
           {positionOveralls.map(({ pos, rating }) => (
-            <div key={pos} className="bg-base-300/40 rounded-lg px-2 py-1.5 flex items-center justify-between border border-base-300/60">
-              <span className="text-[8px] font-bold uppercase tracking-wide text-base-content/50 font-mono">{positionAbbreviations[pos]}</span>
-              <span className={`text-[11px] font-black font-mono ${pos === player.posicaoPrincipal ? 'text-accent' : 'text-base-content/60'}`}>
+            <div
+              key={pos}
+              className="bg-base-300/40 rounded-lg px-2 py-1.5 flex items-center justify-between border border-base-300/60"
+            >
+              <span className="text-[8px] font-bold uppercase tracking-wide text-base-content/50 font-mono">
+                {positionAbbreviations[pos]}
+              </span>
+              <span
+                className={`text-[11px] font-black font-mono ${pos === player.posicaoPrincipal ? 'text-accent' : 'text-base-content/60'}`}
+              >
                 {rating}
               </span>
             </div>
@@ -279,7 +358,9 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
         {/* ── Bottom Row: Gender + Injury + Height ────────────────────── */}
         <div className="flex items-center justify-between pt-1 border-t border-base-300 text-[9px] font-mono text-base-content/40">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`w-2 h-2 rounded-full ${player.genero === 'M' ? 'bg-info' : 'bg-secondary'}`} />
+            <span
+              className={`w-2 h-2 rounded-full ${player.genero === 'M' ? 'bg-info' : 'bg-secondary'}`}
+            />
             <span className="uppercase">{player.genero === 'M' ? 'Masculino' : 'Feminino'}</span>
             {player.status.lesionado && (
               <span className="badge badge-error badge-soft badge-xs font-bold uppercase rounded-md scale-90">
@@ -290,14 +371,13 @@ export const PlayerItem: React.FC<{ player: Player, isSelected?: boolean, onTogg
               </span>
             )}
             {player.status.presencaFrequente && (
-              <span className="badge badge-success badge-soft badge-xs font-bold uppercase rounded-md scale-90">✓ Frequente</span>
+              <span className="badge badge-success badge-soft badge-xs font-bold uppercase rounded-md scale-90">
+                ✓ Frequente
+              </span>
             )}
           </div>
-          {player.alturaCm && (
-            <span>{player.alturaCm} CM</span>
-          )}
+          {player.alturaCm && <span>{player.alturaCm} CM</span>}
         </div>
-
       </div>
     </motion.div>
   );

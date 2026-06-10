@@ -38,11 +38,8 @@ export const communityPlayerCloudService = {
   },
 
   async clearAllForUser(ownerId: string): Promise<void> {
-    const { error } = await supabase
-      .from('community_players')
-      .delete()
-      .eq('owner_id', ownerId);
+    const { error } = await supabase.from('community_players').delete().eq('owner_id', ownerId);
 
     if (error) throw error;
-  }
+  },
 };

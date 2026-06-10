@@ -4,8 +4,8 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localSt
 import { normalizeCommunities } from '../logic/migrations';
 
 export function useCommunities() {
-  const [communities, setCommunities] = useState<Community[]>(() => 
-    normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, []))
+  const [communities, setCommunities] = useState<Community[]>(() =>
+    normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, [])),
   );
 
   const [editingCommunity, setEditingCommunity] = useState<Community | null>(null);
@@ -33,16 +33,12 @@ export function useCommunities() {
     const savedCommunity: Community = {
       ...editingCommunity,
       syncStatus: 'pending',
-      updatedAt: now
+      updatedAt: now,
     };
 
-    const exists = communities.some(c => c.id === savedCommunity.id);
+    const exists = communities.some((c) => c.id === savedCommunity.id);
     const updated = exists
-      ? communities.map(c => 
-          c.id === savedCommunity.id 
-            ? savedCommunity
-            : c
-        )
+      ? communities.map((c) => (c.id === savedCommunity.id ? savedCommunity : c))
       : [...communities, savedCommunity];
 
     setCommunities(updated);
@@ -51,29 +47,33 @@ export function useCommunities() {
     return true;
   }, [editingCommunity, communities]);
 
-  const handleDeleteCommunity = useCallback((onCascadeDelete?: (communityId: string) => void) => {
-    if (!editingCommunity) return;
+  const handleDeleteCommunity = useCallback(
+    (onCascadeDelete?: (communityId: string) => void) => {
+      if (!editingCommunity) return;
 
-    const hasCloud = !!editingCommunity.cloudId;
-    let updated: Community[];
-    if (hasCloud) {
-      updated = communities.map(c => c.id === editingCommunity.id
-        ? { ...c, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
-        : c
-      );
-    } else {
-      updated = communities.filter(c => c.id !== editingCommunity.id);
-    }
-    setCommunities(updated);
+      const hasCloud = !!editingCommunity.cloudId;
+      let updated: Community[];
+      if (hasCloud) {
+        updated = communities.map((c) =>
+          c.id === editingCommunity.id
+            ? { ...c, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
+            : c,
+        );
+      } else {
+        updated = communities.filter((c) => c.id !== editingCommunity.id);
+      }
+      setCommunities(updated);
 
-    // Run cascade delete to clean up references in player models
-    if (onCascadeDelete) {
-      onCascadeDelete(editingCommunity.id);
-    }
+      // Run cascade delete to clean up references in player models
+      if (onCascadeDelete) {
+        onCascadeDelete(editingCommunity.id);
+      }
 
-    setEditingCommunity(null);
-    setShowDeleteConfirm(false);
-  }, [editingCommunity, communities]);
+      setEditingCommunity(null);
+      setShowDeleteConfirm(false);
+    },
+    [editingCommunity, communities],
+  );
 
   const handleEditCommunity = useCallback((community: Community) => {
     setEditingCommunity({ ...community });
@@ -97,7 +97,7 @@ export function useCommunities() {
       archived: false,
       createdAt: now,
       updatedAt: now,
-      syncStatus: 'local'
+      syncStatus: 'local',
     };
     setEditingCommunity(newCommunity);
     setValidationErrors({});
@@ -105,10 +105,13 @@ export function useCommunities() {
   }, []);
 
   const updateCommunity = useCallback((communityId: string, patch: Partial<Community>) => {
-    setCommunities(prev => prev.map(community => community.id === communityId
-      ? { ...community, ...patch, syncStatus: 'pending', updatedAt: new Date().toISOString() }
-      : community
-    ));
+    setCommunities((prev) =>
+      prev.map((community) =>
+        community.id === communityId
+          ? { ...community, ...patch, syncStatus: 'pending', updatedAt: new Date().toISOString() }
+          : community,
+      ),
+    );
   }, []);
 
   const addCommunity = useCallback((input: Partial<Community>) => {
@@ -127,32 +130,35 @@ export function useCommunities() {
       archived: Boolean(input.archived),
       createdAt: input.createdAt || now,
       updatedAt: now,
-      syncStatus: 'local'
+      syncStatus: 'local',
     };
-    setCommunities(prev => [...prev, community]);
+    setCommunities((prev) => [...prev, community]);
     return community;
   }, []);
 
-  const duplicateCommunity = useCallback((communityId: string, includeAthletes: boolean) => {
-    const source = communities.find(community => community.id === communityId);
-    if (!source) return null;
-    const now = new Date().toISOString();
-    const duplicate: Community = {
-      ...source,
-      id: `community-${Date.now()}`,
-      name: `${source.name} (copia)`,
-      archived: false,
-      createdAt: now,
-      updatedAt: now,
-      cloudId: undefined, // Clear cloud ID for duplicated community
-      syncStatus: 'local'
-    };
-    setCommunities(prev => [...prev, duplicate]);
-    return { duplicate, includeAthletes };
-  }, [communities]);
+  const duplicateCommunity = useCallback(
+    (communityId: string, includeAthletes: boolean) => {
+      const source = communities.find((community) => community.id === communityId);
+      if (!source) return null;
+      const now = new Date().toISOString();
+      const duplicate: Community = {
+        ...source,
+        id: `community-${Date.now()}`,
+        name: `${source.name} (copia)`,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+        cloudId: undefined, // Clear cloud ID for duplicated community
+        syncStatus: 'local',
+      };
+      setCommunities((prev) => [...prev, duplicate]);
+      return { duplicate, includeAthletes };
+    },
+    [communities],
+  );
 
   return {
-    communities: communities.filter(c => !c.deletedAt),
+    communities: communities.filter((c) => !c.deletedAt),
     rawCommunities: communities, // Expose full list with soft deletes for syncService
     setCommunities,
     editingCommunity,
@@ -167,6 +173,6 @@ export function useCommunities() {
     handleAddCommunity,
     updateCommunity,
     addCommunity,
-    duplicateCommunity
+    duplicateCommunity,
   };
 }

@@ -33,14 +33,14 @@ npm run dev
 
 ## Scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Development server on port **3000** (host 0.0.0.0) |
-| `npm run build` | Production build → `dist/` |
-| `npm run preview` | Serve the production build locally |
-| `npm run lint` | Type check (`tsc --noEmit`) |
-| `npm test` | Unit tests (Node test runner + tsx) |
-| `npm run clean` | Remove `dist/` |
+| Command           | Description                                        |
+| ----------------- | -------------------------------------------------- |
+| `npm run dev`     | Development server on port **3000** (host 0.0.0.0) |
+| `npm run build`   | Production build → `dist/`                         |
+| `npm run preview` | Serve the production build locally                 |
+| `npm run lint`    | Type check (`tsc --noEmit`)                        |
+| `npm test`        | Unit tests (Node test runner + tsx)                |
+| `npm run clean`   | Remove `dist/`                                     |
 
 ## Environment Variables (optional)
 
@@ -72,7 +72,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 > ⚠️ Running only `schema.sql` leaves the sync of sessions, teams, games and point events broken — the second migration creates the operational tables and the community membership model.
 
 3. Fill in `.env` with your project URL and publishable key.
-4. In the app, open **Nuvem & Conta**, create an account and use *Enviar para nuvem* / *Baixar da nuvem* / *Sincronizar*.
+4. In the app, open **Nuvem & Conta**, create an account and use _Enviar para nuvem_ / _Baixar da nuvem_ / _Sincronizar_.
 
 ### Database Schema
 
@@ -92,13 +92,13 @@ modification_logs (Audit trail for inserts, updates, and deletes)
 
 ## Troubleshooting
 
-| Problem | Cause / Fix |
-|---|---|
-| `node: bad option: --import` when running `npm test` | Node < 20.6. Run `nvm use` (or `nvm install 22`). |
-| `npm run dev` fails or Vite errors on startup | Node < 20. Run `nvm use`. |
-| "Supabase environment variables are missing" in console | Expected without `.env`. Harmless in local mode; create `.env` to enable cloud sync. |
-| Cloud sync fails for sessions/games | The second migration was not applied. Run `20260609120000_backend_operational_sync.sql`. |
-| Data disappeared after clearing browser data | Local data lives in `localStorage`. Use **Configurações → Exportar Backup (JSON)** regularly, or create an account and sync to the cloud. |
+| Problem                                                 | Cause / Fix                                                                                                                               |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `node: bad option: --import` when running `npm test`    | Node < 20.6. Run `nvm use` (or `nvm install 22`).                                                                                         |
+| `npm run dev` fails or Vite errors on startup           | Node < 20. Run `nvm use`.                                                                                                                 |
+| "Supabase environment variables are missing" in console | Expected without `.env`. Harmless in local mode; create `.env` to enable cloud sync.                                                      |
+| Cloud sync fails for sessions/games                     | The second migration was not applied. Run `20260609120000_backend_operational_sync.sql`.                                                  |
+| Data disappeared after clearing browser data            | Local data lives in `localStorage`. Use **Configurações → Exportar Backup (JSON)** regularly, or create an account and sync to the cloud. |
 
 ## Features
 

@@ -1,7 +1,11 @@
 import { supabase } from '../../lib/supabaseClient';
 import { WhatsAppListTemplate } from '../../types';
 
-export function mapTemplateToDb(local: WhatsAppListTemplate, ownerId: string, communityCloudId: string) {
+export function mapTemplateToDb(
+  local: WhatsAppListTemplate,
+  ownerId: string,
+  communityCloudId: string,
+) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
@@ -42,9 +46,10 @@ export function mapDbToTemplate(db: any, communityLocalId: string): WhatsAppList
     defaultLocation: db.default_location || undefined,
     defaultStartTime: db.default_start_time || undefined,
     defaultEndTime: db.default_end_time || undefined,
-    defaultValue: db.default_value !== null && db.default_value !== undefined
-      ? Number(db.default_value)
-      : undefined,
+    defaultValue:
+      db.default_value !== null && db.default_value !== undefined
+        ? Number(db.default_value)
+        : undefined,
     pixKey: db.pix_key || undefined,
     pixHolder: db.pix_holder || undefined,
     pixBank: db.pix_bank || undefined,
@@ -75,13 +80,17 @@ export const whatsappTemplateCloudService = {
       .is('deleted_at', null);
 
     if (error) throw error;
-    
+
     return (data || [])
-      .filter(db => communityLocalIdMap[db.community_id])
-      .map(db => mapDbToTemplate(db, communityLocalIdMap[db.community_id]));
+      .filter((db) => communityLocalIdMap[db.community_id])
+      .map((db) => mapDbToTemplate(db, communityLocalIdMap[db.community_id]));
   },
 
-  async upsert(local: WhatsAppListTemplate, ownerId: string, communityCloudId: string): Promise<WhatsAppListTemplate> {
+  async upsert(
+    local: WhatsAppListTemplate,
+    ownerId: string,
+    communityCloudId: string,
+  ): Promise<WhatsAppListTemplate> {
     const dbRecord = mapTemplateToDb(local, ownerId, communityCloudId);
     const { data, error } = await supabase
       .from('whatsapp_list_templates')
@@ -100,5 +109,5 @@ export const whatsappTemplateCloudService = {
       .eq('id', cloudId);
 
     if (error) throw error;
-  }
+  },
 };

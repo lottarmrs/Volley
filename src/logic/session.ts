@@ -1,33 +1,37 @@
 import { FreePlayConfig, Game, PointEvent, GameWinner } from '../types';
 
-export const getGameWinner = (scoreA: number, scoreB: number, rules: { maxPoints: number, tieBreakMethod: string, hardPointCap?: number | null }): GameWinner => {
+export const getGameWinner = (
+  scoreA: number,
+  scoreB: number,
+  rules: { maxPoints: number; tieBreakMethod: string; hardPointCap?: number | null },
+): GameWinner => {
   const { maxPoints, tieBreakMethod, hardPointCap } = rules;
 
   const high = Math.max(scoreA, scoreB);
   const low = Math.min(scoreA, scoreB);
   const diff = high - low;
 
-  if (tieBreakMethod === "direct_3") {
+  if (tieBreakMethod === 'direct_3') {
     const directCap = maxPoints + 2;
 
     if (high >= maxPoints && low <= maxPoints - 2 && diff >= 2) {
-      return scoreA > scoreB ? "A" : "B";
+      return scoreA > scoreB ? 'A' : 'B';
     }
 
     if (scoreA === directCap || scoreB === directCap) {
-      return scoreA > scoreB ? "A" : "B";
+      return scoreA > scoreB ? 'A' : 'B';
     }
 
     return null;
   }
 
-  if (tieBreakMethod === "win_by_2") {
+  if (tieBreakMethod === 'win_by_2') {
     if (hardPointCap && high >= hardPointCap) {
-      return scoreA > scoreB ? "A" : "B";
+      return scoreA > scoreB ? 'A' : 'B';
     }
 
     if (high >= maxPoints && diff >= 2) {
-      return scoreA > scoreB ? "A" : "B";
+      return scoreA > scoreB ? 'A' : 'B';
     }
 
     return null;
@@ -41,7 +45,7 @@ export interface RotateInput {
   queue: string[];
   winnerId: string;
   loserId: string;
-  rotationSystem: "winner_stays" | "max_consecutive_games";
+  rotationSystem: 'winner_stays' | 'max_consecutive_games';
   consecutiveGamesByTeam: Record<string, number>;
   maxConsecutiveGames?: number | null;
 }
@@ -53,26 +57,34 @@ export interface RotateOutput {
 }
 
 export const rotateTeams = (input: RotateInput): RotateOutput => {
-  const { courtTeams, queue = [], winnerId, loserId, rotationSystem, consecutiveGamesByTeam, maxConsecutiveGames } = input;
-  
+  const {
+    courtTeams,
+    queue = [],
+    winnerId,
+    loserId,
+    rotationSystem,
+    consecutiveGamesByTeam,
+    maxConsecutiveGames,
+  } = input;
+
   // Track how many games each team has played consecutively on court
   const winnerConsecutive = (consecutiveGamesByTeam[winnerId] || 0) + 1;
   const loserConsecutive = (consecutiveGamesByTeam[loserId] || 0) + 1;
   const nextQueue = [...(queue || [])];
 
   // Logic: A team MUST leave if it has reached the maxConsecutiveGames limit
-  const winnerMustLeave = 
-    rotationSystem === "max_consecutive_games" && 
-    !!maxConsecutiveGames && 
+  const winnerMustLeave =
+    rotationSystem === 'max_consecutive_games' &&
+    !!maxConsecutiveGames &&
     winnerConsecutive >= maxConsecutiveGames;
   const loserMustLeave = true; // Traditionally losers always leave in winner_stays
 
   if (winnerMustLeave) {
     // Winner leaves because of limit, loser stays
     nextQueue.push(winnerId);
-    
+
     const nextIn = nextQueue.shift();
-    
+
     // If no one is in the queue, the winner has to stay anyway (safety)
     const finalIn = nextIn || winnerId;
 
@@ -83,16 +95,16 @@ export const rotateTeams = (input: RotateInput): RotateOutput => {
         ...consecutiveGamesByTeam,
         [winnerId]: 0,
         [loserId]: loserConsecutive,
-        [finalIn]: 0
-      }
+        [finalIn]: 0,
+      },
     };
   }
 
   // Standard Winner Stays logic
-  if (rotationSystem === "winner_stays" || !rotationSystem) {
+  if (rotationSystem === 'winner_stays' || !rotationSystem) {
     nextQueue.push(loserId);
     const nextIn = nextQueue.shift();
-    let finalIn = nextIn || loserId; 
+    let finalIn = nextIn || loserId;
 
     // Safety: ensure nextIn isn't the winner (who is staying)
     if (finalIn === winnerId) {
@@ -106,8 +118,8 @@ export const rotateTeams = (input: RotateInput): RotateOutput => {
         ...consecutiveGamesByTeam,
         [winnerId]: winnerConsecutive,
         [loserId]: 0,
-        [finalIn]: 0
-      }
+        [finalIn]: 0,
+      },
     };
   }
 
@@ -117,6 +129,6 @@ export const rotateTeams = (input: RotateInput): RotateOutput => {
   return {
     nextCourtTeams: [winnerId, nextIn],
     nextQueue,
-    nextConsecutiveGamesByTeam: { [winnerId]: winnerConsecutive, [loserId]: 0, [nextIn]: 0 }
+    nextConsecutiveGamesByTeam: { [winnerId]: winnerConsecutive, [loserId]: 0, [nextIn]: 0 },
   };
 };

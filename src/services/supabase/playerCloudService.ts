@@ -52,10 +52,7 @@ export function mapDbToPlayer(db: any): Player {
 
 export const playerCloudService = {
   async fetchAll(): Promise<Player[]> {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .is('deleted_at', null);
+    const { data, error } = await supabase.from('players').select('*').is('deleted_at', null);
 
     if (error) throw error;
     return (data || []).map(mapDbToPlayer);
@@ -63,11 +60,7 @@ export const playerCloudService = {
 
   async upsert(local: Player, ownerId: string): Promise<Player> {
     const dbRecord = mapPlayerToDb(local, ownerId);
-    const { data, error } = await supabase
-      .from('players')
-      .upsert(dbRecord)
-      .select()
-      .single();
+    const { data, error } = await supabase.from('players').upsert(dbRecord).select().single();
 
     if (error) throw error;
     return mapDbToPlayer(data);
@@ -80,5 +73,5 @@ export const playerCloudService = {
       .eq('id', cloudId);
 
     if (error) throw error;
-  }
+  },
 };

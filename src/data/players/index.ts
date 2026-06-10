@@ -15,22 +15,36 @@ import carlos from './carlos.json';
 import bianca from './bianca.json';
 
 export const players = [
-  matheus, joao, aline, bruna, pedro, carla, lucas, marina, andre, julia, thiago, rafael, felipe, carlos, bianca
-].map(p => ({
+  matheus,
+  joao,
+  aline,
+  bruna,
+  pedro,
+  carla,
+  lucas,
+  marina,
+  andre,
+  julia,
+  thiago,
+  rafael,
+  felipe,
+  carlos,
+  bianca,
+].map((p) => ({
   ...p,
   posicoesSecundarias: (p as any).posicoesSecundarias || [],
   formaAtual: (p as any).formaAtual || {
     valor: 0,
-    observacao: "Forma padrão",
-    ultimasPartidas: []
+    observacao: 'Forma padrão',
+    ultimasPartidas: [],
   },
   status: (p as any).status || {
     lesionado: false,
     limitacaoFisica: null,
-    presencaFrequente: true
+    presencaFrequente: true,
   },
   metadata: (p as any).metadata || {
-    criadoEm: "2026-04-28",
-    atualizadoEm: "2026-04-30"
-  }
+    criadoEm: '2026-04-28',
+    atualizadoEm: '2026-04-30',
+  },
 }));

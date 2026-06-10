@@ -1,4 +1,11 @@
-import { Player, Attributes, Position, TeamStrengthSnapshot, PositionWeights, OverallMetric } from '../types';
+import {
+  Player,
+  Attributes,
+  Position,
+  TeamStrengthSnapshot,
+  PositionWeights,
+  OverallMetric,
+} from '../types';
 import { POSITION_WEIGHTS } from '../constants';
 
 export function clamp(value: number, min: number, max: number) {
@@ -20,19 +27,17 @@ export const calculatePositionOverall = (player: Player, position: Position): nu
   const weights = POSITION_WEIGHTS[position];
   const { atributos, formaAtual, alturaCm } = player;
   const heightScore = calculateHeightScore(alturaCm);
-  
+
   let overall = 0;
-  
+
   Object.entries(weights).forEach(([metric, weight]) => {
     if (!weight) return;
-    
-    const value = metric === 'altura' 
-      ? heightScore 
-      : (atributos[metric as keyof Attributes] || 0);
-      
+
+    const value = metric === 'altura' ? heightScore : atributos[metric as keyof Attributes] || 0;
+
     overall += value * weight;
   });
-  
+
   const baseRating = Math.round(overall * 10);
   const adjustedRating = Math.round(baseRating + formaAtual.valor * 0.5);
   return adjustedRating;
@@ -43,11 +48,11 @@ export const calculateGeneralOverall = (player: Player): number => {
   const values = Object.values(atributos);
   const sum = values.reduce((acc, val) => acc + val, 0);
   const baseAttrAvg = sum / values.length;
-  
+
   // Overall general: height weighs 5%
   const heightScore = calculateHeightScore(alturaCm);
-  const overall = (baseAttrAvg * 0.95) + (heightScore * 0.05);
-  
+  const overall = baseAttrAvg * 0.95 + heightScore * 0.05;
+
   const baseRating = Math.round(overall * 10);
   const adjustedRating = Math.round(baseRating + formaAtual.valor * 0.5);
   return adjustedRating;
@@ -56,12 +61,10 @@ export const calculateGeneralOverall = (player: Player): number => {
 export const calculateNetPresence = (players: Player[]): number => {
   if (players.length === 0) return 0;
 
-  const values = players.map(player => {
+  const values = players.map((player) => {
     const altura = calculateHeightScore(player.alturaCm);
     return (
-      (player.atributos.bloqueio || 5) * 0.45 +
-      (player.atributos.ataque || 5) * 0.35 +
-      altura * 0.20
+      (player.atributos.bloqueio || 5) * 0.45 + (player.atributos.ataque || 5) * 0.35 + altura * 0.2
     );
   });
 
@@ -77,13 +80,13 @@ export const getBalancingRole = (atributos: Attributes): string => {
   if (levantamento >= 7.5) return 'Arquiteto do Jogo';
   if (bloqueio >= 7.5 && ataque >= 7) return 'Parede de Ataque';
   if (defesa >= 8) return 'Muralha Defensiva';
-  
+
   const values = [ataque, recepcao, defesa, levantamento, bloqueio];
-  const allMedian = values.every(v => v >= 5 && v <= 7.5);
+  const allMedian = values.every((v) => v >= 5 && v <= 7.5);
   if (allMedian) return 'Coringa';
-  
-  if (values.every(v => v < 5)) return 'Recruta (Em Evolução)';
-  
+
+  if (values.every((v) => v < 5)) return 'Recruta (Em Evolução)';
+
   return 'Jogador de Suporte';
 };
 
@@ -131,8 +134,9 @@ export const getAutoSpecialty = (player: Player): string => {
   if (formaAtual.valor >= 4.5) return 'Pico Absoluto de Forma';
   if (formaAtual.valor >= 3.5) return 'Em Grande Fase';
 
-  const sorted = (Object.entries(atributos) as [keyof Attributes, number][])
-    .sort(([, a], [, b]) => b - a);
+  const sorted = (Object.entries(atributos) as [keyof Attributes, number][]).sort(
+    ([, a], [, b]) => b - a,
+  );
 
   const [topKey, topVal] = sorted[0];
   if (topVal < 4) return 'Em Desenvolvimento';
@@ -154,8 +158,9 @@ export const getAutoWeakness = (player: Player): string => {
 
   if (formaAtual.valor <= -2.5) return 'Fora de Forma';
 
-  const sorted = (Object.entries(atributos) as [keyof Attributes, number][])
-    .sort(([, a], [, b]) => a - b);
+  const sorted = (Object.entries(atributos) as [keyof Attributes, number][]).sort(
+    ([, a], [, b]) => a - b,
+  );
 
   const [bottomKey, bottomVal] = sorted[0];
   if (bottomVal >= 7.5) return 'Sem fraqueza evidente';
@@ -163,26 +168,46 @@ export const getAutoWeakness = (player: Player): string => {
   return WEAKNESS_PHRASES[bottomKey];
 };
 
-export const getPlayerRecommendation = (player: Player): { bestPosition: Position, allPositions: { position: Position, rating: number }[] } => {
-  const positions: Position[] = ['levantador', 'oposto', 'ponteiro', 'central', 'libero', 'all-rounder'];
-  const ratings = positions.map(pos => ({
-    position: pos,
-    rating: calculatePositionOverall(player, pos)
-  })).sort((a, b) => b.rating - a.rating);
+export const getPlayerRecommendation = (
+  player: Player,
+): { bestPosition: Position; allPositions: { position: Position; rating: number }[] } => {
+  const positions: Position[] = [
+    'levantador',
+    'oposto',
+    'ponteiro',
+    'central',
+    'libero',
+    'all-rounder',
+  ];
+  const ratings = positions
+    .map((pos) => ({
+      position: pos,
+      rating: calculatePositionOverall(player, pos),
+    }))
+    .sort((a, b) => b.rating - a.rating);
 
   return {
     bestPosition: ratings[0].position,
-    allPositions: ratings
+    allPositions: ratings,
   };
 };
 
 export const calculateTeamStrength = (players: Player[]): TeamStrengthSnapshot => {
   if (players.length === 0) {
     return {
-      overall: 0, attack: 0, reception: 0, setting: 0, defense: 0,
-      block: 0, serve: 0, regularity: 0, stamina: 0, gameReading: 0,
+      overall: 0,
+      attack: 0,
+      reception: 0,
+      setting: 0,
+      defense: 0,
+      block: 0,
+      serve: 0,
+      regularity: 0,
+      stamina: 0,
+      gameReading: 0,
       netPresence: 0,
-      maleCount: 0, femaleCount: 0
+      maleCount: 0,
+      femaleCount: 0,
     };
   }
 
@@ -192,16 +217,26 @@ export const calculateTeamStrength = (players: Player[]): TeamStrengthSnapshot =
     return Math.max(0, Math.min(10, base + bonus));
   };
 
-  const avgEffective = (attr: keyof Attributes) => players.length > 0 ? players.reduce((acc, p) => acc + getEffectiveAttr(p, attr), 0) / players.length : 0;
-  
+  const avgEffective = (attr: keyof Attributes) =>
+    players.length > 0
+      ? players.reduce((acc, p) => acc + getEffectiveAttr(p, attr), 0) / players.length
+      : 0;
+
   // Special logic for setting as per spec: best + 50% of second best
-  const settingValues = players.map(p => getEffectiveAttr(p, 'levantamento')).sort((a, b) => b - a);
-  const settingStrength = settingValues.length > 0 
-    ? settingValues[0] + (settingValues[1] ? settingValues[1] * 0.5 : 0)
-    : 0;
+  const settingValues = players
+    .map((p) => getEffectiveAttr(p, 'levantamento'))
+    .sort((a, b) => b - a);
+  const settingStrength =
+    settingValues.length > 0
+      ? settingValues[0] + (settingValues[1] ? settingValues[1] * 0.5 : 0)
+      : 0;
 
   return {
-    overall: Number((players.reduce((acc, p) => acc + calculateGeneralOverall(p), 0) / (players.length || 1)).toFixed(1)),
+    overall: Number(
+      (
+        players.reduce((acc, p) => acc + calculateGeneralOverall(p), 0) / (players.length || 1)
+      ).toFixed(1),
+    ),
     attack: Number(avgEffective('ataque').toFixed(1)),
     reception: Number(avgEffective('recepcao').toFixed(1)),
     setting: Number(settingStrength.toFixed(1)),
@@ -211,16 +246,22 @@ export const calculateTeamStrength = (players: Player[]): TeamStrengthSnapshot =
     regularity: Number(avgEffective('regularidade').toFixed(1)),
     stamina: Number(avgEffective('resistencia').toFixed(1)),
     gameReading: Number(avgEffective('leituraDeJogo').toFixed(1)),
-    averageHeight: players.some(p => p.alturaCm) 
-      ? Math.round(players.reduce((acc, p) => acc + (p.alturaCm || 0), 0) / (players.filter(p => p.alturaCm).length || 1)) 
+    averageHeight: players.some((p) => p.alturaCm)
+      ? Math.round(
+          players.reduce((acc, p) => acc + (p.alturaCm || 0), 0) /
+            (players.filter((p) => p.alturaCm).length || 1),
+        )
       : null,
     netPresence: calculateNetPresence(players),
-    maleCount: players.filter(p => p.genero === 'M').length,
-    femaleCount: players.filter(p => p.genero === 'F').length,
+    maleCount: players.filter((p) => p.genero === 'M').length,
+    femaleCount: players.filter((p) => p.genero === 'F').length,
   };
 };
 
-export const calculateGenderDistribution = (totalMulheres: number, numeroTimes: number): number[] => {
+export const calculateGenderDistribution = (
+  totalMulheres: number,
+  numeroTimes: number,
+): number[] => {
   const base = Math.floor(totalMulheres / numeroTimes);
   const sobra = totalMulheres % numeroTimes;
 
@@ -252,4 +293,3 @@ export const getAttributeLabel = (val: number): string => {
   if (val < 10) return 'Federado';
   return 'Profissional';
 };
-

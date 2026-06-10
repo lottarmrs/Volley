@@ -9,7 +9,8 @@ function formatDate(date: string) {
 
 function formatTimeRange(draft: WhatsAppListDraft) {
   if (!draft.startTime && !draft.endTime) return '';
-  if (draft.startTime && draft.endTime) return `${draft.startTime} AS ${draft.endTime}`.toUpperCase();
+  if (draft.startTime && draft.endTime)
+    return `${draft.startTime} AS ${draft.endTime}`.toUpperCase();
   return (draft.startTime || draft.endTime || '').toUpperCase();
 }
 
@@ -29,7 +30,10 @@ function createSlots(count: number): WhatsAppListSlot[] {
   return Array.from({ length: count }, (_, index) => ({ index: index + 1 }));
 }
 
-export function createDraftFromTemplate(template: WhatsAppListTemplate, date: string): WhatsAppListDraft {
+export function createDraftFromTemplate(
+  template: WhatsAppListTemplate,
+  date: string,
+): WhatsAppListDraft {
   const now = new Date().toISOString();
   return {
     id: `wa-list-${Date.now()}`,
@@ -59,7 +63,10 @@ export function createDraftFromTemplate(template: WhatsAppListTemplate, date: st
   };
 }
 
-export function createDefaultTemplate(communityId: string, communityName: string): WhatsAppListTemplate {
+export function createDefaultTemplate(
+  communityId: string,
+  communityName: string,
+): WhatsAppListTemplate {
   const now = new Date().toISOString();
   return {
     id: `wa-template-${Date.now()}`,
@@ -95,16 +102,22 @@ export function formatWhatsAppHeader(draft: WhatsAppListDraft) {
     draft.location ? `*LOCAL: ${draft.location.toUpperCase()}*` : '',
     formatTimeRange(draft) ? `*HORARIO: ${formatTimeRange(draft)}*` : '',
     formatMoney(draft.value) ? `*VALOR: ${formatMoney(draft.value)}*` : '',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function formatPaymentInfo(draft: WhatsAppListDraft) {
   const keyLine = draft.pixKey
     ? `CHAVE: ${draft.pixKey}${draft.pixHolder ? ` - ( ${draft.pixHolder}${draft.pixBank ? ` - ${draft.pixBank}` : ''} )` : ''}`
     : '';
-  const deadline = draft.paymentDeadline ? `_PRAZO PARA PAGAMENTO ATE ${draft.paymentDeadline}_` : '';
+  const deadline = draft.paymentDeadline
+    ? `_PRAZO PARA PAGAMENTO ATE ${draft.paymentDeadline}_`
+    : '';
   const note = draft.paymentNote ? `*(${draft.paymentNote})*` : '';
-  return [keyLine, deadline && note ? `${deadline} ${note}` : deadline || note].filter(Boolean).join('\n\n');
+  return [keyLine, deadline && note ? `${deadline} ${note}` : deadline || note]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 export function formatSettersSection(draft: WhatsAppListDraft) {
@@ -118,7 +131,10 @@ export function formatMainListSection(draft: WhatsAppListDraft) {
 }
 
 export function formatReserveSection(draft: WhatsAppListDraft) {
-  return [`*${draft.reserveSectionTitle || 'CONVIDADOS/RESERVAS'}*`, draft.reserveSlots.map(formatSlot).join('\n')].join('\n');
+  return [
+    `*${draft.reserveSectionTitle || 'CONVIDADOS/RESERVAS'}*`,
+    draft.reserveSlots.map(formatSlot).join('\n'),
+  ].join('\n');
 }
 
 export function formatShortCallMessage(draft: WhatsAppListDraft) {
@@ -127,7 +143,9 @@ export function formatShortCallMessage(draft: WhatsAppListDraft) {
     `${formatDate(draft.date)}${draft.location ? ` - ${draft.location}` : ''}`,
     formatTimeRange(draft) ? `Horario: ${formatTimeRange(draft)}` : '',
     `Vagas: ${draft.mainSlots.length}`,
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function formatPaymentReminder(draft: WhatsAppListDraft) {
@@ -136,13 +154,15 @@ export function formatPaymentReminder(draft: WhatsAppListDraft) {
     draft.paymentDeadline ? `Prazo: ${draft.paymentDeadline}` : '',
     draft.pixKey ? `Pix: ${draft.pixKey}` : '',
     draft.pixHolder ? `Responsavel: ${draft.pixHolder}` : '',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function formatOpenSlotsMessage(draft: WhatsAppListDraft) {
-  const openMain = draft.mainSlots.filter(slot => !slot.displayName).length;
-  const openSetters = draft.setters.filter(slot => !slot.displayName).length;
-  const openReserve = draft.reserveSlots.filter(slot => !slot.displayName).length;
+  const openMain = draft.mainSlots.filter((slot) => !slot.displayName).length;
+  const openSetters = draft.setters.filter((slot) => !slot.displayName).length;
+  const openReserve = draft.reserveSlots.filter((slot) => !slot.displayName).length;
   return [
     `Vagas abertas - ${draft.title}`,
     `Levantadores: ${openSetters}`,
@@ -159,5 +179,7 @@ export function formatWhatsAppList(draft: WhatsAppListDraft) {
     formatMainListSection(draft),
     formatReserveSection(draft),
     draft.extraText || '',
-  ].filter(Boolean).join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }

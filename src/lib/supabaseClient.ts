@@ -6,15 +6,13 @@ type ViteImportMeta = ImportMeta & {
 
 const env: Record<string, string | undefined> = (import.meta as ViteImportMeta).env ?? {};
 const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabaseKey =
-  env.VITE_SUPABASE_PUBLISHABLE_KEY ??
-  env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 
 if (!isSupabaseConfigured && typeof window !== 'undefined') {
   console.warn(
-    'Supabase environment variables are missing (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY). Cloud sync features will be disabled.'
+    'Supabase environment variables are missing (VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY). Cloud sync features will be disabled.',
   );
 }
 

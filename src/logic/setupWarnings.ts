@@ -1,4 +1,4 @@
-import { Session, Player } from "../types";
+import { Session, Player } from '../types';
 
 export function getSessionSetupWarnings(session: Session, selectedPlayers: Player[]): string[] {
   const warnings: string[] = [];
@@ -10,21 +10,25 @@ export function getSessionSetupWarnings(session: Session, selectedPlayers: Playe
     }
   }
 
-  const females = selectedPlayers.filter(p => p.genero === 'F').length;
+  const females = selectedPlayers.filter((p) => p.genero === 'F').length;
   if (teamCount > 0 && females > 0 && females % teamCount !== 0) {
-    warnings.push('A distribuição de gênero ficará desigual, mas será balanceada dentro do possível.');
+    warnings.push(
+      'A distribuição de gênero ficará desigual, mas será balanceada dentro do possível.',
+    );
   }
 
-  const setters = selectedPlayers.filter(p => p.atributos.levantamento >= 6).length;
+  const setters = selectedPlayers.filter((p) => p.atributos.levantamento >= 6).length;
   if (teamCount > 1 && setters < teamCount) {
     if (setters === 0) {
       warnings.push('Nenhum levantador forte (nível 6+) foi selecionado.');
     } else {
-      warnings.push('Há menos bons levantadores do que times. Algum time pode ficar sem levantador forte.');
+      warnings.push(
+        'Há menos bons levantadores do que times. Algum time pode ficar sem levantador forte.',
+      );
     }
   }
 
-  const injured = selectedPlayers.filter(p => p.status?.lesionado).length;
+  const injured = selectedPlayers.filter((p) => p.status?.lesionado).length;
   if (injured > 0) {
     warnings.push(`${injured} atleta(s) marcado(s) como lesionado(s) foram selecionados.`);
   }

@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Session, Player, Team, Division, SessionStatus, FreePlayConfig, TournamentConfig } from '../types';
+import {
+  Session,
+  Player,
+  Team,
+  Division,
+  SessionStatus,
+  FreePlayConfig,
+  TournamentConfig,
+} from '../types';
 import { balanceTeams } from '../logic/balancing';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
@@ -23,14 +31,20 @@ export function useSessionWizard({
   setGames,
   setPage,
 }: UseSessionWizardProps) {
-  const [wizardStep, setWizardStep]                     = useState(0);
-  const [validationErrors, setValidationErrors]         = useState<Record<string, string>>({});
-  const [bestDivisions, setBestDivisions]               = useState<Division[]>([]);
+  const [wizardStep, setWizardStep] = useState(0);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [bestDivisions, setBestDivisions] = useState<Division[]>([]);
   const [selectedDivisionIndex, setSelectedDivisionIndex] = useState(0);
 
   useEffect(() => {
     if (activeSession && activeSession.status === 'draft') {
-      saveSessionDraft({ session: activeSession, wizardStep, bestDivisions, selectedDivisionIndex, updatedAt: new Date().toISOString() });
+      saveSessionDraft({
+        session: activeSession,
+        wizardStep,
+        bestDivisions,
+        selectedDivisionIndex,
+        updatedAt: new Date().toISOString(),
+      });
     }
   }, [activeSession, wizardStep, bestDivisions, selectedDivisionIndex]);
 
@@ -39,20 +53,22 @@ export function useSessionWizard({
     setActiveSession({ ...activeSession, ...patch, updatedAt: new Date().toISOString() });
   };
 
-  const nextStep = () => setWizardStep(prev => prev + 1);
-  const prevStep = () => setWizardStep(prev => prev - 1);
+  const nextStep = () => setWizardStep((prev) => prev + 1);
+  const prevStep = () => setWizardStep((prev) => prev - 1);
   const goToStep = (step: number) => setWizardStep(step);
 
   const togglePlayer = (playerId: string) => {
     if (!activeSession) return;
     const current = activeSession.selectedPlayerIds;
-    const next = current.includes(playerId) ? current.filter(id => id !== playerId) : [...current, playerId];
+    const next = current.includes(playerId)
+      ? current.filter((id) => id !== playerId)
+      : [...current, playerId];
     updateSession({ selectedPlayerIds: next });
-    if (validationErrors.players) setValidationErrors(prev => ({ ...prev, players: '' }));
+    if (validationErrors.players) setValidationErrors((prev) => ({ ...prev, players: '' }));
   };
 
   const selectAllActivePlayers = () => {
-    const activeIds = players.filter(p => p.ativo && !p.status.lesionado).map(p => p.id);
+    const activeIds = players.filter((p) => p.ativo && !p.status.lesionado).map((p) => p.id);
     updateSession({ selectedPlayerIds: activeIds });
   };
 
@@ -80,7 +96,8 @@ export function useSessionWizard({
       if (!activeSession.name.trim()) errors.name = 'O nome da sessão é obrigatório.';
       if (!activeSession.date) errors.date = 'A data é obrigatória.';
     } else if (wizardStep === 1) {
-      if (activeSession.selectedPlayerIds.length < 4) errors.players = 'Selecione pelo menos 4 atletas.';
+      if (activeSession.selectedPlayerIds.length < 4)
+        errors.players = 'Selecione pelo menos 4 atletas.';
     } else if (wizardStep === 3) {
       const teamCount = activeSession.config?.teamCount ?? 0;
       const minPlayers = activeSession.type === 'tournament' ? 3 : 3;
@@ -106,12 +123,12 @@ export function useSessionWizard({
 
   const generateDivisions = (advanceStep = true) => {
     if (!activeSession || !activeSession.config) return;
-    const sessionPlayers = players.filter(p => activeSession.selectedPlayerIds.includes(p.id));
+    const sessionPlayers = players.filter((p) => activeSession.selectedPlayerIds.includes(p.id));
     const divisions = balanceTeams(
-      sessionPlayers, 
-      activeSession.config.teamCount, 
-      activeSession.id, 
-      activeSession.config
+      sessionPlayers,
+      activeSession.config.teamCount,
+      activeSession.id,
+      activeSession.config,
     );
     setBestDivisions(divisions);
     setSelectedDivisionIndex(0);
@@ -135,8 +152,8 @@ export function useSessionWizard({
       ...activeSession.config,
       balanceConstraints: {
         ...currentConstraints,
-        lockedPlayerIdxs
-      }
+        lockedPlayerIdxs,
+      },
     };
     updateSession({ config: nextConfig });
   };
@@ -144,7 +161,7 @@ export function useSessionWizard({
   const addPairConstraint = (p1: string, p2: string, type: 'together' | 'separated') => {
     if (!activeSession || !activeSession.config) return;
     const currentConstraints = activeSession.config.balanceConstraints || {};
-    
+
     if (type === 'together') {
       const pairsTogether = [...(currentConstraints.pairsTogether || [])];
       if (!pairsTogether.some(([a, b]) => (a === p1 && b === p2) || (a === p2 && b === p1))) {
@@ -154,8 +171,8 @@ export function useSessionWizard({
         ...activeSession.config,
         balanceConstraints: {
           ...currentConstraints,
-          pairsTogether
-        }
+          pairsTogether,
+        },
       };
       updateSession({ config: nextConfig });
     } else {
@@ -167,8 +184,8 @@ export function useSessionWizard({
         ...activeSession.config,
         balanceConstraints: {
           ...currentConstraints,
-          pairsSeparated
-        }
+          pairsSeparated,
+        },
       };
       updateSession({ config: nextConfig });
     }
@@ -180,26 +197,26 @@ export function useSessionWizard({
 
     if (type === 'together') {
       const pairsTogether = (currentConstraints.pairsTogether || []).filter(
-        ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1))
+        ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1)),
       );
       const nextConfig = {
         ...activeSession.config,
         balanceConstraints: {
           ...currentConstraints,
-          pairsTogether
-        }
+          pairsTogether,
+        },
       };
       updateSession({ config: nextConfig });
     } else {
       const pairsSeparated = (currentConstraints.pairsSeparated || []).filter(
-        ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1))
+        ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1)),
       );
       const nextConfig = {
         ...activeSession.config,
         balanceConstraints: {
           ...currentConstraints,
-          pairsSeparated
-        }
+          pairsSeparated,
+        },
       };
       updateSession({ config: nextConfig });
     }
@@ -215,18 +232,22 @@ export function useSessionWizard({
       const cfg = activeSession.config as TournamentConfig;
       let updatedConfig = { ...cfg };
       if (cfg.format === 'groups_knockout' || cfg.format === 'group_stage') {
-        const groupATeamIds = currentDiv.teams.filter((_, idx) => idx % 2 === 0).map(t => t.id);
-        const groupBTeamIds = currentDiv.teams.filter((_, idx) => idx % 2 === 1).map(t => t.id);
+        const groupATeamIds = currentDiv.teams.filter((_, idx) => idx % 2 === 0).map((t) => t.id);
+        const groupBTeamIds = currentDiv.teams.filter((_, idx) => idx % 2 === 1).map((t) => t.id);
         updatedConfig = {
           ...cfg,
           groups: [
             { id: 'A', name: 'Grupo A', teamIds: groupATeamIds },
-            { id: 'B', name: 'Grupo B', teamIds: groupBTeamIds }
-          ]
+            { id: 'B', name: 'Grupo B', teamIds: groupBTeamIds },
+          ],
         };
       }
 
-      const schedule = generateTournamentSchedule(currentDiv.teams.map(t => t.id), cfg.format, cfg);
+      const schedule = generateTournamentSchedule(
+        currentDiv.teams.map((t) => t.id),
+        cfg.format,
+        cfg,
+      );
       const scheduledGames = schedule.map((match, idx) => ({
         id: `game-${activeSession.id}-${idx}-${Date.now()}`,
         sessionId: activeSession.id,
@@ -245,14 +266,17 @@ export function useSessionWizard({
         metadata: {
           originalTeamAId: match.teamAId,
           originalTeamBId: match.teamBId,
-        }
+        },
       }));
-      setGames((prev: any[]) => [...prev.filter(g => g.sessionId !== activeSession.id), ...scheduledGames]);
+      setGames((prev: any[]) => [
+        ...prev.filter((g) => g.sessionId !== activeSession.id),
+        ...scheduledGames,
+      ]);
 
       finalSession = {
         ...activeSession,
         status: 'teams_generated' as SessionStatus,
-        teamIds: currentDiv.teams.map(t => t.id),
+        teamIds: currentDiv.teams.map((t) => t.id),
         config: updatedConfig,
         updatedAt: new Date().toISOString(),
       };
@@ -260,21 +284,27 @@ export function useSessionWizard({
       finalSession = {
         ...activeSession,
         status: 'active' as SessionStatus,
-        teamIds: currentDiv.teams.map(t => t.id),
+        teamIds: currentDiv.teams.map((t) => t.id),
         updatedAt: new Date().toISOString(),
         config: {
-          ...activeSession.config as FreePlayConfig,
+          ...(activeSession.config as FreePlayConfig),
           initialCourtTeams: [currentDiv.teams[0].id, currentDiv.teams[1].id] as [string, string],
-          initialQueue: currentDiv.teams.slice(2).map(t => t.id),
+          initialQueue: currentDiv.teams.slice(2).map((t) => t.id),
         },
       };
     }
 
     setActiveSession(finalSession);
-    setSessions(prev => [...prev.filter(s => s.id !== finalSession.id), finalSession]);
-    setTeams(prev => [...prev.filter(t => t.sessionId !== finalSession.id), ...currentDiv.teams]);
+    setSessions((prev) => [...prev.filter((s) => s.id !== finalSession.id), finalSession]);
+    setTeams((prev) => [
+      ...prev.filter((t) => t.sessionId !== finalSession.id),
+      ...currentDiv.teams,
+    ]);
 
-    localStorage.setItem('vpg_last_selected_player_ids', JSON.stringify(finalSession.selectedPlayerIds));
+    localStorage.setItem(
+      'vpg_last_selected_player_ids',
+      JSON.stringify(finalSession.selectedPlayerIds),
+    );
     localStorage.setItem('vpg_last_session_config', JSON.stringify(finalSession.config));
 
     clearSessionDraft();
@@ -293,15 +323,16 @@ export function useSessionWizard({
       updatedAt: new Date().toISOString(),
     };
     setActiveSession(startedSession);
-    setSessions(prev => prev.map(s => s.id === startedSession.id ? startedSession : s));
+    setSessions((prev) => prev.map((s) => (s.id === startedSession.id ? startedSession : s)));
     setGames((prev: any[]) => {
       const sessionGames = prev
-        .filter(g => g.sessionId === activeSession.id)
+        .filter((g) => g.sessionId === activeSession.id)
         .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0));
-      const firstScheduled = sessionGames.find(g => g.status === 'scheduled');
-      return prev.map(g => g.id === firstScheduled?.id
-        ? { ...g, status: 'active', startedAt: new Date().toISOString() }
-        : g
+      const firstScheduled = sessionGames.find((g) => g.status === 'scheduled');
+      return prev.map((g) =>
+        g.id === firstScheduled?.id
+          ? { ...g, status: 'active', startedAt: new Date().toISOString() }
+          : g,
       );
     });
     setPage('session-active');
@@ -324,13 +355,21 @@ export function useSessionWizard({
   };
 
   return {
-    wizardStep, setWizardStep,
+    wizardStep,
+    setWizardStep,
     validationErrors,
-    bestDivisions, setBestDivisions,
-    selectedDivisionIndex, setSelectedDivisionIndex,
-    nextStep, prevStep, goToStep,
+    bestDivisions,
+    setBestDivisions,
+    selectedDivisionIndex,
+    setSelectedDivisionIndex,
+    nextStep,
+    prevStep,
+    goToStep,
     updateSession,
-    togglePlayer, selectAllActivePlayers, clearSelectedPlayers, useLastSelection,
+    togglePlayer,
+    selectAllActivePlayers,
+    clearSelectedPlayers,
+    useLastSelection,
     validateCurrentStep,
     generateDivisions,
     confirmDivision,

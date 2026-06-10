@@ -200,19 +200,19 @@ export interface Team {
 }
 
 export type StandingRule =
-  | "wins"
-  | "classificationPoints"
-  | "pointDifference"
-  | "pointsFor"
-  | "headToHead"
-  | "pointsAgainst";
+  | 'wins'
+  | 'classificationPoints'
+  | 'pointDifference'
+  | 'pointsFor'
+  | 'headToHead'
+  | 'pointsAgainst';
 
 export type TournamentFormat =
-  | "round_robin"
-  | "double_round_robin"
-  | "knockout"
-  | "group_stage"
-  | "groups_knockout";
+  | 'round_robin'
+  | 'double_round_robin'
+  | 'knockout'
+  | 'group_stage'
+  | 'groups_knockout';
 
 export interface TournamentGroup {
   id: string;
@@ -221,7 +221,7 @@ export interface TournamentGroup {
 }
 
 export interface TournamentConfig {
-  type: "tournament";
+  type: 'tournament';
   format: TournamentFormat;
   teamCount: number;
   useGroupStage: boolean;
@@ -229,8 +229,8 @@ export interface TournamentConfig {
   qualifiedPerGroup?: number;
   roundTrip: boolean;
   maxPoints: number;
-  tieBreakMethod: "direct_3" | "win_by_2";
-  victoryRule?: "direct_3" | "win_by_2";
+  tieBreakMethod: 'direct_3' | 'win_by_2';
+  victoryRule?: 'direct_3' | 'win_by_2';
   hardPointCap?: number | null;
   hasFinal: boolean;
   hasThirdPlaceMatch: boolean;
@@ -241,38 +241,38 @@ export interface TournamentConfig {
     walkoverLoss?: number;
   };
   standingsRules: StandingRule[];
-  balanceMode?: "balanced" | "competitive" | "social" | "mixed";
-  balanceSpeed?: "fast" | "normal" | "advanced";
+  balanceMode?: 'balanced' | 'competitive' | 'social' | 'mixed';
+  balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
 }
 
 export interface FreePlayConfig {
-  type: "free_play";
+  type: 'free_play';
   teamCount: number;
   maxPoints: number;
-  tieBreakMethod: "direct_3" | "win_by_2";
+  tieBreakMethod: 'direct_3' | 'win_by_2';
   hardPointCap?: number | null;
-  rotationSystem: "winner_stays" | "max_consecutive_games";
+  rotationSystem: 'winner_stays' | 'max_consecutive_games';
   maxConsecutiveGames?: number | null;
   initialCourtTeams: [string, string];
   initialQueue: string[];
-  queuePolicy: "fifo";
-  balanceMode?: "balanced" | "competitive" | "social" | "mixed";
-  balanceSpeed?: "fast" | "normal" | "advanced";
+  queuePolicy: 'fifo';
+  balanceMode?: 'balanced' | 'competitive' | 'social' | 'mixed';
+  balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
 }
 
 export type SessionStatus =
-  | "draft"
-  | "players_selected"
-  | "configured"
-  | "teams_generated"
-  | "active"
-  | "paused"
-  | "finished"
-  | "cancelled";
+  | 'draft'
+  | 'players_selected'
+  | 'configured'
+  | 'teams_generated'
+  | 'active'
+  | 'paused'
+  | 'finished'
+  | 'cancelled';
 
-export type SessionType = "tournament" | "free_play";
+export type SessionType = 'tournament' | 'free_play';
 
 export interface Session {
   id: string;
@@ -294,7 +294,7 @@ export interface Session {
   deletedAt?: string;
 }
 
-export type GameStatus = "scheduled" | "active" | "paused" | "finished" | "cancelled" | "walkover";
+export type GameStatus = 'scheduled' | 'active' | 'paused' | 'finished' | 'cancelled' | 'walkover';
 
 export interface Game {
   id: string;
@@ -302,7 +302,7 @@ export interface Game {
   type: SessionType;
   sequenceNumber: number;
   round?: number;
-  stage?: "group" | "semifinal" | "final" | "third_place" | "free_play";
+  stage?: 'group' | 'semifinal' | 'final' | 'third_place' | 'free_play';
   groupId?: string | null;
   teamAId: string;
   teamBId: string;
@@ -313,7 +313,7 @@ export interface Game {
   status: GameStatus;
   startedAt?: string | null;
   finishedAt?: string | null;
-  finishReason?: "auto" | "manual" | "walkover" | null;
+  finishReason?: 'auto' | 'manual' | 'walkover' | null;
   pointIds: string[];
   metadata?: {
     court?: string | null;
@@ -329,15 +329,15 @@ export interface Game {
 }
 
 export type PointReason =
-  | "attack"
-  | "block"
-  | "serve_ace"
-  | "opponent_error"
-  | "defense_counterattack"
-  | "tip"
-  | "unknown";
+  | 'attack'
+  | 'block'
+  | 'serve_ace'
+  | 'opponent_error'
+  | 'defense_counterattack'
+  | 'tip'
+  | 'unknown';
 
-export type GameWinner = "A" | "B" | null;
+export type GameWinner = 'A' | 'B' | null;
 
 export interface PointEvent {
   id: string;
@@ -384,8 +384,8 @@ export interface BalanceWeights {
 
 export interface BalanceConstraints {
   lockedPlayerIdxs?: Record<string, number>; // playerId -> teamIndex (0-indexed)
-  pairsTogether?: [string, string][];        // pairs of playerIds that must be in the same team
-  pairsSeparated?: [string, string][];       // pairs of playerIds that must be in different teams
+  pairsTogether?: [string, string][]; // pairs of playerIds that must be in the same team
+  pairsSeparated?: [string, string][]; // pairs of playerIds that must be in different teams
 }
 
 export interface AthleteVector {
@@ -492,12 +492,7 @@ export interface Community {
   deletedAt?: string;
 }
 
-export type CommunityPresenceStatus =
-  | "present"
-  | "absent"
-  | "maybe"
-  | "unmarked"
-  | "guest";
+export type CommunityPresenceStatus = 'present' | 'absent' | 'maybe' | 'unmarked' | 'guest';
 
 export interface CommunityPresenceItem {
   playerId?: string;
@@ -619,7 +614,7 @@ export interface CommunitySummary {
   mostUsedFormat?: SessionType;
 }
 
-export type CommunityRankingFilter = "all" | "month" | "last5" | "last10" | "season";
+export type CommunityRankingFilter = 'all' | 'month' | 'last5' | 'last10' | 'season';
 
 export interface CommunityRankingRow {
   playerId: string;
@@ -649,12 +644,7 @@ export interface ShareBlock {
   text: string;
 }
 
-export type CloudSyncStatus =
-  | 'local'
-  | 'pending'
-  | 'synced'
-  | 'conflict'
-  | 'error';
+export type CloudSyncStatus = 'local' | 'pending' | 'synced' | 'conflict' | 'error';
 
 export type AuthRole = 'admin' | 'organizer';
 

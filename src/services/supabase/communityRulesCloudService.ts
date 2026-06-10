@@ -43,18 +43,20 @@ export function mapDbToRules(db: any, communityLocalId: string): CommunityRules 
 export const communityRulesCloudService = {
   async fetchAll(communityLocalIdMap: Record<string, string>): Promise<CommunityRules[]> {
     // communityLocalIdMap maps communityCloudId -> communityLocalId
-    const { data, error } = await supabase
-      .from('community_rules')
-      .select('*');
+    const { data, error } = await supabase.from('community_rules').select('*');
 
     if (error) throw error;
-    
+
     return (data || [])
-      .filter(db => communityLocalIdMap[db.community_id])
-      .map(db => mapDbToRules(db, communityLocalIdMap[db.community_id]));
+      .filter((db) => communityLocalIdMap[db.community_id])
+      .map((db) => mapDbToRules(db, communityLocalIdMap[db.community_id]));
   },
 
-  async upsert(local: CommunityRules, ownerId: string, communityCloudId: string): Promise<CommunityRules> {
+  async upsert(
+    local: CommunityRules,
+    ownerId: string,
+    communityCloudId: string,
+  ): Promise<CommunityRules> {
     const dbRecord = mapRulesToDb(local, ownerId, communityCloudId);
     const { data, error } = await supabase
       .from('community_rules')
@@ -64,5 +66,5 @@ export const communityRulesCloudService = {
 
     if (error) throw error;
     return mapDbToRules(data, local.communityId);
-  }
+  },
 };

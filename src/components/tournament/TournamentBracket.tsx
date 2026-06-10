@@ -9,15 +9,7 @@ interface TournamentBracketProps {
 }
 
 /* ── tiny match card ── */
-function MatchCard({
-  game,
-  teams,
-  highlight,
-}: {
-  game: Game;
-  teams: Team[];
-  highlight?: boolean;
-}) {
+function MatchCard({ game, teams, highlight }: { game: Game; teams: Team[]; highlight?: boolean }) {
   const teamAName = getTeamDisplayName(game.teamAId, teams);
   const teamBName = getTeamDisplayName(game.teamBId, teams);
   const isFinished = game.status === 'finished' || game.status === 'walkover';
@@ -111,7 +103,7 @@ function MergeConnector({
       <line key={`top-h-${i}`} x1={x0} y1={topY} x2={x1} y2={topY} />,
       <line key={`bot-h-${i}`} x1={x0} y1={botY} x2={x1} y2={botY} />,
       <line key={`vert-${i}`} x1={x1} y1={topY} x2={x1} y2={botY} />,
-      <line key={`out-${i}`} x1={x1} y1={midY} x2={x2} y2={midY} />
+      <line key={`out-${i}`} x1={x1} y1={midY} x2={x2} y2={midY} />,
     );
   }
 
@@ -129,7 +121,15 @@ function SimpleConnector({ gapWidth, height }: { gapWidth: number; height: numbe
   const midY = height / 2;
   return (
     <svg width={gapWidth} height={height} className="shrink-0 block">
-      <line x1={0} y1={midY} x2={gapWidth} y2={midY} stroke="currentColor" className="text-base-content/25" strokeWidth="2" />
+      <line
+        x1={0}
+        y1={midY}
+        x2={gapWidth}
+        y2={midY}
+        stroke="currentColor"
+        className="text-base-content/25"
+        strokeWidth="2"
+      />
     </svg>
   );
 }
@@ -198,15 +198,15 @@ const TITLE_OFFSET = 20;
 
 export function TournamentBracket({ games, teams }: TournamentBracketProps) {
   const knockoutGroupGames = games
-    .filter(g => g.stage === 'group' && !g.groupId)
+    .filter((g) => g.stage === 'group' && !g.groupId)
     .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0));
 
   const semis = games
-    .filter(g => g.stage === 'semifinal')
+    .filter((g) => g.stage === 'semifinal')
     .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0));
 
-  const finalGame = games.find(g => g.stage === 'final');
-  const thirdPlaceGame = games.find(g => g.stage === 'third_place');
+  const finalGame = games.find((g) => g.stage === 'final');
+  const thirdPlaceGame = games.find((g) => g.stage === 'third_place');
 
   if (semis.length === 0 && !finalGame && knockoutGroupGames.length === 0) {
     return null;
@@ -242,7 +242,8 @@ export function TournamentBracket({ games, teams }: TournamentBracketProps) {
             <React.Fragment key={round.title + rIdx}>
               {rIdx > 0 && (
                 <div style={{ paddingTop: TITLE_OFFSET }}>
-                  {rounds[rIdx - 1].games.length >= 2 && round.games.length < rounds[rIdx - 1].games.length ? (
+                  {rounds[rIdx - 1].games.length >= 2 &&
+                  round.games.length < rounds[rIdx - 1].games.length ? (
                     <MergeConnector
                       sourceCount={rounds[rIdx - 1].games.length}
                       gapWidth={GAP_WIDTH}
@@ -269,7 +270,12 @@ export function TournamentBracket({ games, teams }: TournamentBracketProps) {
       {/* 3rd place: offset below the bracket */}
       {thirdPlaceGame && (
         <div className="mt-4 pt-3 border-t border-base-300/50">
-          <div className="flex items-start gap-2" style={{ paddingLeft: rounds.length > 1 ? (COL_WIDTH + GAP_WIDTH) * (rounds.length - 1) : 0 }}>
+          <div
+            className="flex items-start gap-2"
+            style={{
+              paddingLeft: rounds.length > 1 ? (COL_WIDTH + GAP_WIDTH) * (rounds.length - 1) : 0,
+            }}
+          >
             <div style={{ width: COL_WIDTH }}>
               <div className="text-[8px] font-black uppercase tracking-wider text-center mb-2 text-base-content/50">
                 Disputa de 3º Lugar

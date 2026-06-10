@@ -12,7 +12,14 @@ const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
   hasFinal: false,
   hasThirdPlaceMatch: false,
   classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
-  standingsRules: ['classificationPoints', 'wins', 'pointDifference', 'pointsFor', 'headToHead', 'pointsAgainst'],
+  standingsRules: [
+    'classificationPoints',
+    'wins',
+    'pointDifference',
+    'pointsFor',
+    'headToHead',
+    'pointsAgainst',
+  ],
 };
 
 export function normalizeTournamentConfig(config: any): TournamentConfig {
@@ -21,8 +28,10 @@ export function normalizeTournamentConfig(config: any): TournamentConfig {
     ...config,
     type: 'tournament',
     format: config?.format || (config?.roundTrip ? 'double_round_robin' : 'round_robin'),
-    victoryRule: config?.victoryRule || config?.tieBreakMethod || DEFAULT_TOURNAMENT_CONFIG.tieBreakMethod,
-    tieBreakMethod: config?.tieBreakMethod || config?.victoryRule || DEFAULT_TOURNAMENT_CONFIG.tieBreakMethod,
+    victoryRule:
+      config?.victoryRule || config?.tieBreakMethod || DEFAULT_TOURNAMENT_CONFIG.tieBreakMethod,
+    tieBreakMethod:
+      config?.tieBreakMethod || config?.victoryRule || DEFAULT_TOURNAMENT_CONFIG.tieBreakMethod,
     classificationPoints: {
       ...DEFAULT_TOURNAMENT_CONFIG.classificationPoints,
       ...(config?.classificationPoints || {}),
@@ -35,7 +44,11 @@ export function normalizeTournamentConfig(config: any): TournamentConfig {
 
 export function normalizeSession(session: any): Session {
   if (!session) return session;
-  const isTournament = session.type === 'championship' || session.type === 'tournament' || session.config?.type === 'championship' || session.config?.type === 'tournament';
+  const isTournament =
+    session.type === 'championship' ||
+    session.type === 'tournament' ||
+    session.config?.type === 'championship' ||
+    session.config?.type === 'tournament';
 
   if (!isTournament) {
     return {

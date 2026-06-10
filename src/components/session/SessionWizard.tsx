@@ -342,8 +342,8 @@ export function SessionWizard({
           </div>
         );
 
-      case 1: // Player Selection
-        const avgOverall = selectedPlayers.length > 0 
+      case 1: { // Player Selection
+        const avgOverall = selectedPlayers.length > 0
           ? Math.round(selectedPlayers.reduce((acc, p) => acc + calculateGeneralOverall(p), 0) / selectedPlayers.length) 
           : 0;
         const avgHeight = selectedPlayers.length > 0
@@ -542,6 +542,7 @@ export function SessionWizard({
             </div>
           </div>
         );
+      }
 
       case 2: // Mode Selection
         return (
@@ -642,7 +643,7 @@ export function SessionWizard({
           </div>
         );
 
-      case 3: // Config
+      case 3: { // Config
         const config = activeSession.config;
         if (!config) return null;
 
@@ -918,8 +919,9 @@ export function SessionWizard({
             </div>
           </div>
         );
+      }
 
-      case 4: // Review
+      case 4: { // Review
         const warnings = getSessionSetupWarnings(activeSession, selectedPlayers);
         
         return (
@@ -1078,8 +1080,9 @@ export function SessionWizard({
             </div>
           </div>
         );
+      }
 
-      case 5: // Results
+      case 5: { // Results
         if (bestDivisions.length === 0) return null;
         const currentDiv = bestDivisions[selectedDivisionIndex];
         
@@ -1414,8 +1417,9 @@ export function SessionWizard({
             </div>
           </div>
         );
+      }
 
-      case 6: // Generated schedule
+      case 6: { // Generated schedule
         if (bestDivisions.length === 0) return null;
         const selectedDivision = bestDivisions[selectedDivisionIndex];
         const schedule = generateTournamentSchedule(
@@ -1543,6 +1547,7 @@ export function SessionWizard({
             </div>
           </div>
         );
+      }
 
       default: return null;
     }

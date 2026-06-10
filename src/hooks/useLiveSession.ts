@@ -244,9 +244,6 @@ export function useLiveSession(
 
       if (!nextScheduled) return; // All games played
 
-      teamAId = nextScheduled.teamAId;
-      teamBId = nextScheduled.teamBId;
-
       // Activate the scheduled game instead of creating a new one
       setGames(prev => prev.map(g =>
         g.id === nextScheduled.id

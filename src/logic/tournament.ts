@@ -56,7 +56,7 @@ export function generateTournamentSchedule(
   format: TournamentFormat = 'round_robin',
   config?: TournamentConfig
 ): ScheduledTournamentMatch[] {
-  let matches: ScheduledTournamentMatch[] = [];
+  let matches: ScheduledTournamentMatch[];
 
   if (format === 'double_round_robin') {
     const firstLeg = generateRoundRobinSchedule(teamIds).map(m => ({

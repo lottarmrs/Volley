@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "App para balancear times de vôlei misto e registrar partidas semanais.",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",

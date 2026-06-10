@@ -3,6 +3,7 @@ import { Player, Attributes, Game, PointEvent, Team } from '../types';
 import { INITIAL_PLAYERS } from '../constants';
 import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
 import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
+import { resolveUsername } from '../logic/username';
 
 function normalizePlayer(p: any): Player {
   return {
@@ -108,8 +109,15 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     }
 
     const now = new Date().toISOString();
+    const username = resolveUsername(
+      editingPlayer,
+      players
+        .filter((p) => p.id !== editingPlayer.id && p.username)
+        .map((p) => p.username as string),
+    );
     const savedPlayer: Player = {
       ...editingPlayer,
+      username,
       perfil: {
         ...editingPlayer.perfil,
         especialidade: getAutoSpecialty(editingPlayer),

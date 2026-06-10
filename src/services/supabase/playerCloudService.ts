@@ -5,6 +5,7 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
+    username: local.username || null,
     name: local.nome,
     nickname: local.apelido || null,
     gender: local.genero,
@@ -26,6 +27,7 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
 export function mapDbToPlayer(db: any): Player {
   return {
     id: db.local_id || db.id,
+    username: db.username || undefined,
     nome: db.name,
     apelido: db.nickname || '',
     genero: db.gender,

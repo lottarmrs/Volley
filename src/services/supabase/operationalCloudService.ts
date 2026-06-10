@@ -410,7 +410,11 @@ async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
 }
 
 async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbRecord> {
-  const { data, error } = await supabase.from(table).upsert(record).select().single();
+  const { data, error } = await supabase
+    .from(table)
+    .upsert(record, { onConflict: 'owner_id,local_id' })
+    .select()
+    .single();
 
   if (error) throw error;
   return data;

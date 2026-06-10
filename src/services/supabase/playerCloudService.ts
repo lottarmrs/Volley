@@ -5,7 +5,9 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
-    username: local.username || null,
+    // Only send the handle when we have one, so an upload from a device whose
+    // local copy still lacks a username never clobbers an existing cloud handle.
+    ...(local.username ? { username: local.username } : {}),
     name: local.nome,
     nickname: local.apelido || null,
     gender: local.genero,

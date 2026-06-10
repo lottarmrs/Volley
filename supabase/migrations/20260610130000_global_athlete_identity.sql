@@ -74,4 +74,5 @@ as $$
   limit 1;
 $$;
 
+revoke execute on function public.find_player_by_username(text) from public, anon;
 grant execute on function public.find_player_by_username(text) to authenticated;

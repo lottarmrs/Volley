@@ -5,9 +5,7 @@
   "genero": "M",
   "ativo": true,
   "posicaoPrincipal": "central",
-  "posicoesSecundarias": [
-    "oposto"
-  ],
+  "posicoesSecundarias": ["oposto"],
   "alturaCm": 190,
   "maoDominante": "direita",
   "atributos": {
@@ -33,11 +31,6 @@
   "formaAtual": {
     "valor": 0,
     "observacao": "Estável",
-    "ultimasPartidas": [
-      0,
-      1,
-      0,
-      0
-    ]
+    "ultimasPartidas": [0, 1, 0, 0]
   }
 }

@@ -34,17 +34,10 @@ type OperationalTable =
   | 'whatsapp_list_drafts';
 
 const syncedAt = () => new Date().toISOString();
-const arrayOrEmpty = <T>(value: T[] | null | undefined): T[] => Array.isArray(value) ? value : [];
+const arrayOrEmpty = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
 
 function withoutCloudMeta<T extends DbRecord>(entity: T) {
-  const {
-    cloudId,
-    syncStatus,
-    lastSyncedAt,
-    deletedAt,
-    updatedAt,
-    ...rest
-  } = entity;
+  const { cloudId, syncStatus, lastSyncedAt, deletedAt, updatedAt, ...rest } = entity;
   return rest;
 }
 
@@ -344,11 +337,7 @@ export function mapDbToPresence(db: DbRecord, communityLocalId: string): Communi
   };
 }
 
-export function mapDraftToDb(
-  local: WhatsAppListDraft,
-  ownerId: string,
-  communityCloudId: string,
-) {
+export function mapDraftToDb(local: WhatsAppListDraft, ownerId: string, communityCloudId: string) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
@@ -414,30 +403,27 @@ export function mapDbToDraft(db: DbRecord, communityLocalId: string): WhatsAppLi
 }
 
 async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
-  const { data, error } = await supabase
-    .from(table)
-    .select('*')
-    .is('deleted_at', null);
+  const { data, error } = await supabase.from(table).select('*').is('deleted_at', null);
 
   if (error) throw error;
   return data || [];
 }
 
 async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbRecord> {
-  const { data, error } = await supabase
-    .from(table)
-    .upsert(record)
-    .select()
-    .single();
+  const { data, error } = await supabase.from(table).upsert(record).select().single();
 
   if (error) throw error;
   return data;
 }
 
 export const operationalCloudService = {
-  async fetchAll(communityCloudToLocalIdMap: Record<string, string>): Promise<OperationalSyncPayload> {
+  async fetchAll(
+    communityCloudToLocalIdMap: Record<string, string>,
+  ): Promise<OperationalSyncPayload> {
     const sessionRows = await fetchRows('sessions');
-    const sessions = sessionRows.map(row => mapDbToSession(row, row.community_id ? communityCloudToLocalIdMap[row.community_id] : null));
+    const sessions = sessionRows.map((row) =>
+      mapDbToSession(row, row.community_id ? communityCloudToLocalIdMap[row.community_id] : null),
+    );
 
     const sessionCloudToLocalIdMap: Record<string, string> = {};
     const sessionCommunityCloudIds: Record<string, string | null> = {};
@@ -448,12 +434,23 @@ export const operationalCloudService = {
       sessionCommunityCloudIds[cloudId] = sessionRows[index]?.community_id || null;
     });
 
-    const mapSessionChild = <T>(rows: DbRecord[], mapper: (row: DbRecord, sessionLocalId: string) => T) =>
+    const mapSessionChild = <T>(
+      rows: DbRecord[],
+      mapper: (row: DbRecord, sessionLocalId: string) => T,
+    ) =>
       rows
-        .filter(row => sessionCloudToLocalIdMap[row.session_id])
-        .map(row => mapper(row, sessionCloudToLocalIdMap[row.session_id]));
+        .filter((row) => sessionCloudToLocalIdMap[row.session_id])
+        .map((row) => mapper(row, sessionCloudToLocalIdMap[row.session_id]));
 
-    const [teamRows, gameRows, pointRows, gameReportRows, sessionReportRows, presenceRows, draftRows] = await Promise.all([
+    const [
+      teamRows,
+      gameRows,
+      pointRows,
+      gameReportRows,
+      sessionReportRows,
+      presenceRows,
+      draftRows,
+    ] = await Promise.all([
       fetchRows('teams'),
       fetchRows('games'),
       fetchRows('point_events'),
@@ -471,51 +468,109 @@ export const operationalCloudService = {
       gameReports: mapSessionChild(gameReportRows, mapDbToGameReport),
       sessionReports: mapSessionChild(sessionReportRows, mapDbToSessionReport),
       presenceRecords: presenceRows
-        .filter(row => communityCloudToLocalIdMap[row.community_id])
-        .map(row => mapDbToPresence(row, communityCloudToLocalIdMap[row.community_id])),
+        .filter((row) => communityCloudToLocalIdMap[row.community_id])
+        .map((row) => mapDbToPresence(row, communityCloudToLocalIdMap[row.community_id])),
       drafts: draftRows
-        .filter(row => communityCloudToLocalIdMap[row.community_id])
-        .map(row => mapDbToDraft(row, communityCloudToLocalIdMap[row.community_id])),
+        .filter((row) => communityCloudToLocalIdMap[row.community_id])
+        .map((row) => mapDbToDraft(row, communityCloudToLocalIdMap[row.community_id])),
     };
   },
 
-  async upsertSession(local: Session, ownerId: string, communityCloudId?: string | null): Promise<Session> {
+  async upsertSession(
+    local: Session,
+    ownerId: string,
+    communityCloudId?: string | null,
+  ): Promise<Session> {
     const data = await upsertRow('sessions', mapSessionToDb(local, ownerId, communityCloudId));
     return mapDbToSession(data, local.communityId ?? null);
   },
 
-  async upsertTeam(local: Team, ownerId: string, sessionCloudId: string, communityCloudId?: string | null): Promise<Team> {
-    const data = await upsertRow('teams', mapTeamToDb(local, ownerId, sessionCloudId, communityCloudId));
+  async upsertTeam(
+    local: Team,
+    ownerId: string,
+    sessionCloudId: string,
+    communityCloudId?: string | null,
+  ): Promise<Team> {
+    const data = await upsertRow(
+      'teams',
+      mapTeamToDb(local, ownerId, sessionCloudId, communityCloudId),
+    );
     return mapDbToTeam(data, local.sessionId);
   },
 
-  async upsertGame(local: Game, ownerId: string, sessionCloudId: string, communityCloudId?: string | null): Promise<Game> {
-    const data = await upsertRow('games', mapGameToDb(local, ownerId, sessionCloudId, communityCloudId));
+  async upsertGame(
+    local: Game,
+    ownerId: string,
+    sessionCloudId: string,
+    communityCloudId?: string | null,
+  ): Promise<Game> {
+    const data = await upsertRow(
+      'games',
+      mapGameToDb(local, ownerId, sessionCloudId, communityCloudId),
+    );
     return mapDbToGame(data, local.sessionId);
   },
 
-  async upsertPointEvent(local: PointEvent, ownerId: string, sessionCloudId: string, communityCloudId?: string | null): Promise<PointEvent> {
-    const data = await upsertRow('point_events', mapPointEventToDb(local, ownerId, sessionCloudId, communityCloudId));
+  async upsertPointEvent(
+    local: PointEvent,
+    ownerId: string,
+    sessionCloudId: string,
+    communityCloudId?: string | null,
+  ): Promise<PointEvent> {
+    const data = await upsertRow(
+      'point_events',
+      mapPointEventToDb(local, ownerId, sessionCloudId, communityCloudId),
+    );
     return mapDbToPointEvent(data, local.sessionId);
   },
 
-  async upsertGameReport(local: GameReport, ownerId: string, sessionCloudId: string, communityCloudId?: string | null): Promise<GameReport> {
-    const data = await upsertRow('game_reports', mapGameReportToDb(local, ownerId, sessionCloudId, communityCloudId));
+  async upsertGameReport(
+    local: GameReport,
+    ownerId: string,
+    sessionCloudId: string,
+    communityCloudId?: string | null,
+  ): Promise<GameReport> {
+    const data = await upsertRow(
+      'game_reports',
+      mapGameReportToDb(local, ownerId, sessionCloudId, communityCloudId),
+    );
     return mapDbToGameReport(data, local.sessionId);
   },
 
-  async upsertSessionReport(local: SessionReport, ownerId: string, sessionCloudId: string, communityCloudId?: string | null): Promise<SessionReport> {
-    const data = await upsertRow('session_reports', mapSessionReportToDb(local, ownerId, sessionCloudId, communityCloudId));
+  async upsertSessionReport(
+    local: SessionReport,
+    ownerId: string,
+    sessionCloudId: string,
+    communityCloudId?: string | null,
+  ): Promise<SessionReport> {
+    const data = await upsertRow(
+      'session_reports',
+      mapSessionReportToDb(local, ownerId, sessionCloudId, communityCloudId),
+    );
     return mapDbToSessionReport(data, local.sessionId);
   },
 
-  async upsertPresence(local: CommunityPresence, ownerId: string, communityCloudId: string): Promise<CommunityPresence> {
-    const data = await upsertRow('community_presence', mapPresenceToDb(local, ownerId, communityCloudId));
+  async upsertPresence(
+    local: CommunityPresence,
+    ownerId: string,
+    communityCloudId: string,
+  ): Promise<CommunityPresence> {
+    const data = await upsertRow(
+      'community_presence',
+      mapPresenceToDb(local, ownerId, communityCloudId),
+    );
     return mapDbToPresence(data, local.communityId);
   },
 
-  async upsertDraft(local: WhatsAppListDraft, ownerId: string, communityCloudId: string): Promise<WhatsAppListDraft> {
-    const data = await upsertRow('whatsapp_list_drafts', mapDraftToDb(local, ownerId, communityCloudId));
+  async upsertDraft(
+    local: WhatsAppListDraft,
+    ownerId: string,
+    communityCloudId: string,
+  ): Promise<WhatsAppListDraft> {
+    const data = await upsertRow(
+      'whatsapp_list_drafts',
+      mapDraftToDb(local, ownerId, communityCloudId),
+    );
     return mapDbToDraft(data, local.communityId);
   },
 

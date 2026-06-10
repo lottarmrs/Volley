@@ -22,7 +22,14 @@ const config: TournamentConfig = {
   hasFinal: true,
   hasThirdPlaceMatch: true,
   classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
-  standingsRules: ['classificationPoints', 'wins', 'pointDifference', 'pointsFor', 'headToHead', 'pointsAgainst'],
+  standingsRules: [
+    'classificationPoints',
+    'wins',
+    'pointDifference',
+    'pointsFor',
+    'headToHead',
+    'pointsAgainst',
+  ],
 };
 
 function game(input: Partial<Game> & Pick<Game, 'id' | 'teamAId' | 'teamBId'>): Game {
@@ -54,7 +61,10 @@ test('generateTournamentSchedule creates expected match counts and no self match
     });
 
     assert.equal(schedule.length, expectedCount, format);
-    assert.ok(schedule.every((match) => match.teamAId !== match.teamBId), format);
+    assert.ok(
+      schedule.every((match) => match.teamAId !== match.teamBId),
+      format,
+    );
   }
 });
 

@@ -15,13 +15,13 @@ interface PlayersViewProps {
   onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
 }
 
-export const PlayersView = ({ 
-  players, 
+export const PlayersView = ({
+  players,
   communities,
   onBack,
   onAddPlayer,
   onEditPlayer,
-  onAddGuestPlayer
+  onAddGuestPlayer,
 }: PlayersViewProps) => {
   const [showInactive, setShowInactive] = React.useState(false);
   const [selectedCommunityId, setSelectedCommunityId] = React.useState<string>('all');
@@ -29,11 +29,18 @@ export const PlayersView = ({
   const [showGuestModal, setShowGuestModal] = React.useState(false);
 
   const visiblePlayers = players
-    .filter(player => showInactive ? true : player.ativo)
-    .filter(player => selectedCommunityId === 'all' ? true : (player.communityIds ?? []).includes(selectedCommunityId))
-    .filter(player => {
+    .filter((player) => (showInactive ? true : player.ativo))
+    .filter((player) =>
+      selectedCommunityId === 'all'
+        ? true
+        : (player.communityIds ?? []).includes(selectedCommunityId),
+    )
+    .filter((player) => {
       const query = searchQuery.toLowerCase();
-      return player.nome.toLowerCase().includes(query) || (player.apelido ?? '').toLowerCase().includes(query);
+      return (
+        player.nome.toLowerCase().includes(query) ||
+        (player.apelido ?? '').toLowerCase().includes(query)
+      );
     });
 
   return (
@@ -41,33 +48,30 @@ export const PlayersView = ({
       {/* Header and Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-base-200 p-4 rounded-xl border border-base-300 shadow-sm">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             type="button"
-            onClick={onBack} 
+            onClick={onBack}
             className="btn btn-ghost btn-sm gap-2 text-xs font-bold uppercase tracking-wider"
           >
             <ChevronLeft className="w-4 h-4" /> Voltar
           </button>
           <button
-            onClick={() => setShowInactive(prev => !prev)}
+            onClick={() => setShowInactive((prev) => !prev)}
             className="btn btn-outline btn-sm text-xs font-bold uppercase"
           >
             {showInactive ? 'Ocultar inativos' : 'Mostrar inativos'}
           </button>
         </div>
-        
+
         <div className="flex items-center justify-between sm:justify-end gap-3">
-          <button 
+          <button
             type="button"
             onClick={() => setShowGuestModal(true)}
             className="btn btn-outline btn-accent btn-sm"
           >
             <Plus className="w-4 h-4" /> Convidado Rápido
           </button>
-          <button 
-            onClick={onAddPlayer}
-            className="btn btn-primary btn-sm"
-          >
+          <button onClick={onAddPlayer} className="btn btn-primary btn-sm">
             <Plus className="w-4 h-4" /> Cadastrar Atleta
           </button>
         </div>
@@ -77,8 +81,8 @@ export const PlayersView = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-base-200 p-4 rounded-xl border border-base-300 shadow-sm">
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50" />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Pesquisar atleta por nome..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -88,15 +92,19 @@ export const PlayersView = ({
 
         {communities.length > 0 && (
           <div className="flex items-center gap-2.5">
-            <span className="text-xs font-bold uppercase text-base-content/70 tracking-wider shrink-0">Comunidade:</span>
-            <select 
+            <span className="text-xs font-bold uppercase text-base-content/70 tracking-wider shrink-0">
+              Comunidade:
+            </span>
+            <select
               value={selectedCommunityId}
               onChange={(e) => setSelectedCommunityId(e.target.value)}
               className="select select-bordered select-sm w-full font-bold uppercase"
             >
               <option value="all">Todas as Comunidades</option>
-              {communities.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {communities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </div>
@@ -105,16 +113,14 @@ export const PlayersView = ({
 
       {/* Players List Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {visiblePlayers.map(player => (
-          <PlayerItem 
-            key={player.id} 
-            player={player} 
-            onToggle={() => onEditPlayer(player)} 
-          />
+        {visiblePlayers.map((player) => (
+          <PlayerItem key={player.id} player={player} onToggle={() => onEditPlayer(player)} />
         ))}
         {visiblePlayers.length === 0 && (
           <div className="col-span-full py-20 text-center card bg-base-200 border border-base-300 border-dashed shadow-md">
-            <p className="text-base-content/50 uppercase text-xs font-bold italic">Nenhum atleta encontrado nesta lista.</p>
+            <p className="text-base-content/50 uppercase text-xs font-bold italic">
+              Nenhum atleta encontrado nesta lista.
+            </p>
           </div>
         )}
       </div>

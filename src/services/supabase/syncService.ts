@@ -80,8 +80,9 @@ export function mergeEntityLists<T extends Syncable>(
   for (const localEntity of localEntities) {
     const localCloudId = localEntity.cloudId;
     const localId = options.getId(localEntity);
-    const cloudEntity = cloudEntities.find(cloud =>
-      (!!localCloudId && cloud.cloudId === localCloudId) || options.getId(cloud) === localId
+    const cloudEntity = cloudEntities.find(
+      (cloud) =>
+        (!!localCloudId && cloud.cloudId === localCloudId) || options.getId(cloud) === localId,
     );
 
     if (cloudEntity) {
@@ -139,7 +140,11 @@ export function mergeEntityLists<T extends Syncable>(
   return merged;
 }
 
-function markSynced<T extends Syncable>(local: T, cloudId: string | undefined, lastSyncedAt: string): T {
+function markSynced<T extends Syncable>(
+  local: T,
+  cloudId: string | undefined,
+  lastSyncedAt: string,
+): T {
   return {
     ...local,
     cloudId: cloudId || local.cloudId,
@@ -149,7 +154,7 @@ function markSynced<T extends Syncable>(local: T, cloudId: string | undefined, l
 }
 
 function visible<T extends Syncable>(items: T[]) {
-  return items.filter(item => !item.deletedAt);
+  return items.filter((item) => !item.deletedAt);
 }
 
 function createCommunityCloudIdResolver(
@@ -158,9 +163,11 @@ function createCommunityCloudIdResolver(
 ) {
   return (communityLocalId?: string | null) => {
     if (!communityLocalId) return null;
-    return uploadedMap[communityLocalId] ||
-      local.communities.find(community => community.id === communityLocalId)?.cloudId ||
-      null;
+    return (
+      uploadedMap[communityLocalId] ||
+      local.communities.find((community) => community.id === communityLocalId)?.cloudId ||
+      null
+    );
   };
 }
 
@@ -199,7 +206,11 @@ async function uploadSessionChildren<T extends Syncable>(
       continue;
     }
 
-    const uploaded = await upsert(item, sessionCloudId, getSessionCommunityCloudId(session, resolveCommunityCloudId));
+    const uploaded = await upsert(
+      item,
+      sessionCloudId,
+      getSessionCommunityCloudId(session, resolveCommunityCloudId),
+    );
     updated.push(markSynced(item, uploaded.cloudId, syncedAt));
   }
 
@@ -232,7 +243,10 @@ export const syncService = {
       updatedCommunities.push(markSynced(community, uploaded.cloudId, syncedAt));
     }
 
-    const resolveCommunityCloudId = createCommunityCloudIdResolver(local, communityLocalToCloudIdMap);
+    const resolveCommunityCloudId = createCommunityCloudIdResolver(
+      local,
+      communityLocalToCloudIdMap,
+    );
 
     const updatedPlayers: Player[] = [];
     const playerLocalToCloudIdMap: Record<string, string> = {};
@@ -281,7 +295,11 @@ export const syncService = {
         continue;
       }
 
-      const uploaded = await whatsappTemplateCloudService.upsert(template, ownerId, communityCloudId);
+      const uploaded = await whatsappTemplateCloudService.upsert(
+        template,
+        ownerId,
+        communityCloudId,
+      );
       updatedTemplates.push(markSynced(template, uploaded.cloudId, syncedAt));
     }
 
@@ -307,7 +325,7 @@ export const syncService = {
       updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
     }
 
-    const sessionsById = new Map(updatedSessions.map(session => [session.id, session]));
+    const sessionsById = new Map(updatedSessions.map((session) => [session.id, session]));
 
     const updatedTeams = await uploadSessionChildren<Team>(
       local.teams,
@@ -356,7 +374,12 @@ export const syncService = {
       resolveCommunityCloudId,
       'session_reports',
       (item, sessionCloudId, communityCloudId) =>
-        operationalCloudService.upsertSessionReport(item, ownerId, sessionCloudId, communityCloudId),
+        operationalCloudService.upsertSessionReport(
+          item,
+          ownerId,
+          sessionCloudId,
+          communityCloudId,
+        ),
     );
 
     const updatedPresenceRecords: CommunityPresence[] = [];
@@ -375,7 +398,11 @@ export const syncService = {
         continue;
       }
 
-      const uploaded = await operationalCloudService.upsertPresence(presence, ownerId, communityCloudId);
+      const uploaded = await operationalCloudService.upsertPresence(
+        presence,
+        ownerId,
+        communityCloudId,
+      );
       updatedPresenceRecords.push(markSynced(presence, uploaded.cloudId, syncedAt));
     }
 
@@ -444,14 +471,14 @@ export const syncService = {
     const cloudPlayers = await playerCloudService.fetchAll();
 
     const communityCloudToLocalIdMap: Record<string, string> = {};
-    cloudCommunities.forEach(community => {
+    cloudCommunities.forEach((community) => {
       if (community.cloudId) {
         communityCloudToLocalIdMap[community.cloudId] = community.id;
       }
     });
 
     const playerCloudToLocalIdMap: Record<string, string> = {};
-    cloudPlayers.forEach(player => {
+    cloudPlayers.forEach((player) => {
       if (player.cloudId) {
         playerCloudToLocalIdMap[player.cloudId] = player.id;
       }
@@ -474,7 +501,7 @@ export const syncService = {
       }
     }
 
-    const mappedPlayers = cloudPlayers.map(player => ({
+    const mappedPlayers = cloudPlayers.map((player) => ({
       ...player,
       communityIds: playerMemberships[player.id] || [],
     }));
@@ -492,23 +519,31 @@ export const syncService = {
     const cloud = await this.downloadCloudDataToLocal();
 
     const merged: LocalSyncPayload = {
-      communities: mergeEntityLists(local.communities, cloud.communities, { getId: item => item.id }),
+      communities: mergeEntityLists(local.communities, cloud.communities, {
+        getId: (item) => item.id,
+      }),
       players: mergeEntityLists(local.players, cloud.players, {
-        getId: item => item.id,
-        getUpdatedAt: item => item.updatedAt || item.metadata?.atualizadoEm,
+        getId: (item) => item.id,
+        getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
       }),
-      rules: mergeEntityLists(local.rules, cloud.rules, { getId: item => item.communityId }),
-      templates: mergeEntityLists(local.templates, cloud.templates, { getId: item => item.id }),
-      sessions: mergeEntityLists(local.sessions, cloud.sessions, { getId: item => item.id }),
-      teams: mergeEntityLists(local.teams, cloud.teams, { getId: item => item.id }),
-      games: mergeEntityLists(local.games, cloud.games, { getId: item => item.id }),
-      pointEvents: mergeEntityLists(local.pointEvents, cloud.pointEvents, { getId: item => item.id }),
-      gameReports: mergeEntityLists(local.gameReports, cloud.gameReports, { getId: item => item.id }),
-      sessionReports: mergeEntityLists(local.sessionReports, cloud.sessionReports, { getId: item => item.id }),
+      rules: mergeEntityLists(local.rules, cloud.rules, { getId: (item) => item.communityId }),
+      templates: mergeEntityLists(local.templates, cloud.templates, { getId: (item) => item.id }),
+      sessions: mergeEntityLists(local.sessions, cloud.sessions, { getId: (item) => item.id }),
+      teams: mergeEntityLists(local.teams, cloud.teams, { getId: (item) => item.id }),
+      games: mergeEntityLists(local.games, cloud.games, { getId: (item) => item.id }),
+      pointEvents: mergeEntityLists(local.pointEvents, cloud.pointEvents, {
+        getId: (item) => item.id,
+      }),
+      gameReports: mergeEntityLists(local.gameReports, cloud.gameReports, {
+        getId: (item) => item.id,
+      }),
+      sessionReports: mergeEntityLists(local.sessionReports, cloud.sessionReports, {
+        getId: (item) => item.id,
+      }),
       presenceRecords: mergeEntityLists(local.presenceRecords, cloud.presenceRecords, {
-        getId: item => `${item.communityId}:${item.date}`,
+        getId: (item) => `${item.communityId}:${item.date}`,
       }),
-      drafts: mergeEntityLists(local.drafts, cloud.drafts, { getId: item => item.id }),
+      drafts: mergeEntityLists(local.drafts, cloud.drafts, { getId: (item) => item.id }),
     };
 
     return this.uploadLocalDataToCloud(merged, ownerId);

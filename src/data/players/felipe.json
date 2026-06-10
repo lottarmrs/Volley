@@ -31,11 +31,6 @@
   "formaAtual": {
     "valor": 0,
     "observacao": "Normal",
-    "ultimasPartidas": [
-      0,
-      0,
-      0,
-      0
-    ]
+    "ultimasPartidas": [0, 0, 0, 0]
   }
 }

@@ -5,9 +5,7 @@
   "genero": "M",
   "ativo": true,
   "posicaoPrincipal": "levantador",
-  "posicoesSecundarias": [
-    "libero"
-  ],
+  "posicoesSecundarias": ["libero"],
   "alturaCm": 174,
   "maoDominante": "direita",
   "atributos": {
@@ -33,11 +31,6 @@
   "formaAtual": {
     "valor": 1,
     "observacao": "Dando pro gasto",
-    "ultimasPartidas": [
-      1,
-      1,
-      2,
-      1
-    ]
+    "ultimasPartidas": [1, 1, 2, 1]
   }
 }

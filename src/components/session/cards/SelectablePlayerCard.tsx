@@ -11,11 +11,11 @@ interface SelectablePlayerCardProps {
   communities?: Community[];
 }
 
-export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({ 
-  player, 
-  isSelected, 
+export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
+  player,
+  isSelected,
   onToggle,
-  communities = [] 
+  communities = [],
 }) => {
   const overall = calculateGeneralOverall(player);
   const balancingRole = getBalancingRole(player.atributos);
@@ -23,19 +23,17 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
   const playerCommunities = React.useMemo(() => {
     if (!player.communityIds || player.communityIds.length === 0) return [];
     return player.communityIds
-      .map(id => communities.find(c => c.id === id))
+      .map((id) => communities.find((c) => c.id === id))
       .filter((c): c is Community => !!c);
   }, [player.communityIds, communities]);
 
   return (
-    <motion.div 
+    <motion.div
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onToggle}
       className={`card bg-base-200 border border-base-300 shadow-md p-3 rounded-xl cursor-pointer transition-all relative overflow-hidden h-full ${
-        isSelected 
-          ? 'border-accent bg-accent/5' 
-          : 'hover:border-base-content/20'
+        isSelected ? 'border-accent bg-accent/5' : 'hover:border-base-content/20'
       }`}
     >
       {isSelected && (
@@ -54,10 +52,14 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
               </span>
             )}
           </h4>
-          <p className="text-[8px] font-black uppercase text-accent tracking-wider mt-0.5 truncate">{balancingRole}</p>
-          
+          <p className="text-[8px] font-black uppercase text-accent tracking-wider mt-0.5 truncate">
+            {balancingRole}
+          </p>
+
           <div className="flex items-center gap-1.5 mt-1 text-[8px] font-medium text-base-content/50 uppercase">
-            <span className={`w-1 h-1 rounded-full ${player.genero === 'M' ? 'bg-info' : 'bg-secondary'}`} />
+            <span
+              className={`w-1 h-1 rounded-full ${player.genero === 'M' ? 'bg-info' : 'bg-secondary'}`}
+            />
             <span>{player.genero === 'M' ? 'Masc' : 'Fem'}</span>
             {player.alturaCm && (
               <>
@@ -75,8 +77,11 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
 
           {playerCommunities.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {playerCommunities.map(c => (
-                <span key={c.id} className="badge badge-neutral badge-xs font-bold uppercase truncate max-w-[80px] text-[7px] h-3.5 px-1.5">
+              {playerCommunities.map((c) => (
+                <span
+                  key={c.id}
+                  className="badge badge-neutral badge-xs font-bold uppercase truncate max-w-[80px] text-[7px] h-3.5 px-1.5"
+                >
                   {c.name}
                 </span>
               ))}
@@ -90,5 +95,4 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
       </div>
     </motion.div>
   );
-}
-
+};

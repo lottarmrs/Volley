@@ -5,10 +5,7 @@
   "genero": "M",
   "ativo": true,
   "posicaoPrincipal": "all-rounder",
-  "posicoesSecundarias": [
-    "levantador",
-    "ponteiro"
-  ],
+  "posicoesSecundarias": ["levantador", "ponteiro"],
   "alturaCm": 180,
   "maoDominante": "direita",
   "atributos": {
@@ -34,11 +31,6 @@
   "formaAtual": {
     "valor": 2,
     "observacao": "Útil",
-    "ultimasPartidas": [
-      2,
-      2,
-      2,
-      3
-    ]
+    "ultimasPartidas": [2, 2, 2, 3]
   }
 }

@@ -15,7 +15,10 @@ export async function copyToClipboard(text: string): Promise<void> {
   document.body.removeChild(textarea);
 }
 
-export async function shareText(params: { title: string; text: string }): Promise<'shared' | 'copied'> {
+export async function shareText(params: {
+  title: string;
+  text: string;
+}): Promise<'shared' | 'copied'> {
   if (navigator.share) {
     try {
       await navigator.share(params);

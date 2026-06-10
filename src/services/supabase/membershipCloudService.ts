@@ -18,7 +18,10 @@ export function mapDbToCommunityMember(db: DbRecord, communityLocalId?: string):
 }
 
 export const membershipCloudService = {
-  async fetchByCommunity(communityCloudId: string, communityLocalId?: string): Promise<CommunityMember[]> {
+  async fetchByCommunity(
+    communityCloudId: string,
+    communityLocalId?: string,
+  ): Promise<CommunityMember[]> {
     const { data, error } = await supabase
       .from('community_members')
       .select('id, community_id, user_id, role, created_at, updated_at, profiles(name, email)')
@@ -26,7 +29,7 @@ export const membershipCloudService = {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return (data || []).map(row => mapDbToCommunityMember(row, communityLocalId));
+    return (data || []).map((row) => mapDbToCommunityMember(row, communityLocalId));
   },
 
   async addOrganizerByEmail(
@@ -58,10 +61,7 @@ export const membershipCloudService = {
   },
 
   async removeMember(memberId: string): Promise<void> {
-    const { error } = await supabase
-      .from('community_members')
-      .delete()
-      .eq('id', memberId);
+    const { error } = await supabase.from('community_members').delete().eq('id', memberId);
 
     if (error) throw error;
   },

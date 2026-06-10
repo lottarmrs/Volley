@@ -53,8 +53,8 @@ export function AuthForm({ onSignIn, onSignUp, loading }: AuthFormProps) {
             {isSignUp ? 'Criar Nova Conta' : 'Entrar no Sistema'}
           </h2>
           <p className="text-xs text-base-content/60 mt-1">
-            {isSignUp 
-              ? 'Cadastre-se para sincronizar seus dados na nuvem.' 
+            {isSignUp
+              ? 'Cadastre-se para sincronizar seus dados na nuvem.'
               : 'Faça login para acessar seus dados sincronizados.'}
           </p>
         </div>
@@ -162,9 +162,7 @@ export function AuthForm({ onSignIn, onSignUp, loading }: AuthFormProps) {
             }}
             disabled={loading}
           >
-            {isSignUp 
-              ? 'Já possui uma conta? Faça login' 
-              : 'Não tem conta? Cadastre-se grátis'}
+            {isSignUp ? 'Já possui uma conta? Faça login' : 'Não tem conta? Cadastre-se grátis'}
           </button>
         </div>
       </div>

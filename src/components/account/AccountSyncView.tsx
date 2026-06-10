@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../../types';
-import { 
-  Cloud, 
-  CloudUpload, 
-  CloudDownload, 
-  RefreshCw, 
-  LogOut, 
-  User, 
-  Shield, 
+import {
+  Cloud,
+  CloudUpload,
+  CloudDownload,
+  RefreshCw,
+  LogOut,
+  User,
+  Shield,
   Calendar,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 
@@ -22,7 +22,7 @@ interface AccountSyncViewProps {
   onSignIn: (email: string, password: string) => Promise<any>;
   onSignUp: (email: string, password: string, name?: string) => Promise<any>;
   onSignOut: () => Promise<void>;
-  
+
   // Sync actions
   onUpload: () => Promise<void>;
   onDownload: () => Promise<void>;
@@ -43,7 +43,7 @@ export function AccountSyncView({
   onDownload,
   onSync,
   lastSyncedAt,
-  syncLoading
+  syncLoading,
 }: AccountSyncViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -77,7 +77,8 @@ export function AccountSyncView({
             O aplicativo está funcionando no modo <strong>100% local</strong>.
           </p>
           <p className="text-xs text-base-content/50 italic border-t border-base-300 pt-4 w-full">
-            Para ativar o backup em nuvem, configure <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> no seu arquivo <code>.env</code>.
+            Para ativar o backup em nuvem, configure <code>VITE_SUPABASE_URL</code> e{' '}
+            <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> no seu arquivo <code>.env</code>.
           </p>
         </div>
       </div>
@@ -102,7 +103,8 @@ export function AccountSyncView({
           <Cloud className="w-12 h-12 text-primary mx-auto opacity-70 mb-2" />
           <h2 className="text-2xl font-black uppercase tracking-tight">Sincronização em Nuvem</h2>
           <p className="text-xs text-base-content/60 mt-1">
-            Faça backup dos seus atletas, comunidades e regras diretamente na nuvem para nunca perder o progresso.
+            Faça backup dos seus atletas, comunidades e regras diretamente na nuvem para nunca
+            perder o progresso.
           </p>
         </div>
         <AuthForm onSignIn={onSignIn} onSignUp={onSignUp} loading={loading} />
@@ -129,7 +131,7 @@ export function AccountSyncView({
                 <p className="text-[10px] text-base-content/60 font-mono">{user.email}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <span className="badge badge-accent badge-soft uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 py-3 px-3">
                 <Shield className="w-3.5 h-3.5" />
@@ -153,8 +155,8 @@ export function AccountSyncView({
                 Último Backup
               </div>
               <div className="stat-value text-base mt-1 text-base-content font-black">
-                {lastSyncedAt 
-                  ? new Date(lastSyncedAt).toLocaleString('pt-BR') 
+                {lastSyncedAt
+                  ? new Date(lastSyncedAt).toLocaleString('pt-BR')
                   : 'Nunca sincronizado'}
               </div>
               <div className="stat-desc text-[9px] font-medium text-base-content/40 flex items-center gap-1 mt-1">
@@ -184,7 +186,7 @@ export function AccountSyncView({
             <h4 className="text-xs font-black uppercase tracking-widest text-base-content/50">
               Operações de Sincronização
             </h4>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => handleAction('Enviar dados para nuvem', onUpload)}
@@ -194,7 +196,9 @@ export function AccountSyncView({
                 <CloudUpload className="w-5 h-5 text-primary" />
                 <div>
                   <div className="font-bold">Enviar para a Nuvem</div>
-                  <div className="text-[9px] opacity-60 lowercase font-normal mt-0.5">Envia dados locais (sobrescreve a nuvem)</div>
+                  <div className="text-[9px] opacity-60 lowercase font-normal mt-0.5">
+                    Envia dados locais (sobrescreve a nuvem)
+                  </div>
                 </div>
               </button>
 
@@ -206,7 +210,9 @@ export function AccountSyncView({
                 <CloudDownload className="w-5 h-5 text-secondary" />
                 <div>
                   <div className="font-bold">Baixar da Nuvem</div>
-                  <div className="text-[9px] opacity-60 lowercase font-normal mt-0.5">Substitui os dados locais pelos da nuvem</div>
+                  <div className="text-[9px] opacity-60 lowercase font-normal mt-0.5">
+                    Substitui os dados locais pelos da nuvem
+                  </div>
                 </div>
               </button>
             </div>
@@ -222,7 +228,8 @@ export function AccountSyncView({
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar Dados)
+                  <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar
+                  Dados)
                 </>
               )}
             </button>

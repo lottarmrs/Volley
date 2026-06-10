@@ -5,9 +5,7 @@
   "genero": "F",
   "ativo": true,
   "posicaoPrincipal": "levantador",
-  "posicoesSecundarias": [
-    "ponteiro"
-  ],
+  "posicoesSecundarias": ["ponteiro"],
   "alturaCm": 170,
   "maoDominante": "direita",
   "atributos": {
@@ -33,11 +31,6 @@
   "formaAtual": {
     "valor": 3,
     "observacao": "Fase boa",
-    "ultimasPartidas": [
-      3,
-      2,
-      4,
-      3
-    ]
+    "ultimasPartidas": [3, 2, 4, 3]
   }
 }

@@ -1,102 +1,105 @@
-import { 
-  Player, 
-  Division, 
-  Team, 
-  TournamentConfig, 
-  FreePlayConfig, 
-  BalanceWeights, 
-  BalanceConstraints, 
-  AthleteVector, 
-  TeamMetrics, 
-  TeamSolution, 
-  BalanceQuality, 
+import {
+  Player,
+  Division,
+  Team,
+  TournamentConfig,
+  FreePlayConfig,
+  BalanceWeights,
+  BalanceConstraints,
+  AthleteVector,
+  TeamMetrics,
+  TeamSolution,
+  BalanceQuality,
   BalanceDiagnostics,
-  TeamStrengthSnapshot
+  TeamStrengthSnapshot,
 } from '../types';
-import { 
-  calculateTeamStrength, 
-  calculateGenderDistribution, 
-  calculateTeamSizes, 
-  calculateGeneralOverall 
+import {
+  calculateTeamStrength,
+  calculateGenderDistribution,
+  calculateTeamSizes,
+  calculateGeneralOverall,
 } from './calculations';
 
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
 const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', BalanceWeights> = {
   balanced: {
-    overall: 1.40,
+    overall: 1.4,
     attack: 1.15,
-    defense: 1.10,
+    defense: 1.1,
     setting: 1.25,
-    block: 0.90,
+    block: 0.9,
     reception: 0.95,
     serve: 0.65,
     height: 0.55,
     gender: 0.75,
-    injured: 1.20,
-    teamSize: 2.00,
-    roleCoverage: 1.50,
-    consistency: 0.70,
-    emotionalControl: 0.50,
-    netPresence: 1.00
+    injured: 1.2,
+    teamSize: 2.0,
+    roleCoverage: 1.5,
+    consistency: 0.7,
+    emotionalControl: 0.5,
+    netPresence: 1.0,
   },
   competitive: {
-    overall: 2.00,
-    attack: 1.80,
-    defense: 1.70,
-    setting: 1.90,
-    block: 1.50,
-    reception: 1.60,
-    serve: 1.00,
-    height: 0.80,
-    gender: 0.20,
-    injured: 0.50,
-    teamSize: 2.00,
-    roleCoverage: 2.00,
-    consistency: 1.20,
-    emotionalControl: 1.00,
-    netPresence: 1.50
+    overall: 2.0,
+    attack: 1.8,
+    defense: 1.7,
+    setting: 1.9,
+    block: 1.5,
+    reception: 1.6,
+    serve: 1.0,
+    height: 0.8,
+    gender: 0.2,
+    injured: 0.5,
+    teamSize: 2.0,
+    roleCoverage: 2.0,
+    consistency: 1.2,
+    emotionalControl: 1.0,
+    netPresence: 1.5,
   },
   social: {
-    overall: 1.00,
-    attack: 0.50,
-    defense: 0.50,
-    setting: 0.60,
-    block: 0.30,
-    reception: 0.40,
-    serve: 0.30,
-    height: 0.20,
-    gender: 1.50,
-    injured: 1.80,
-    teamSize: 3.00,
-    roleCoverage: 0.50,
-    consistency: 0.40,
-    emotionalControl: 0.30,
-    netPresence: 0.40
+    overall: 1.0,
+    attack: 0.5,
+    defense: 0.5,
+    setting: 0.6,
+    block: 0.3,
+    reception: 0.4,
+    serve: 0.3,
+    height: 0.2,
+    gender: 1.5,
+    injured: 1.8,
+    teamSize: 3.0,
+    roleCoverage: 0.5,
+    consistency: 0.4,
+    emotionalControl: 0.3,
+    netPresence: 0.4,
   },
   mixed: {
-    overall: 1.20,
-    attack: 0.80,
-    defense: 0.80,
-    setting: 1.00,
-    block: 0.60,
-    reception: 0.70,
-    serve: 0.50,
-    height: 0.40,
-    gender: 3.00,
-    injured: 1.00,
-    teamSize: 2.50,
-    roleCoverage: 1.00,
-    consistency: 0.60,
-    emotionalControl: 0.50,
-    netPresence: 0.60
-  }
+    overall: 1.2,
+    attack: 0.8,
+    defense: 0.8,
+    setting: 1.0,
+    block: 0.6,
+    reception: 0.7,
+    serve: 0.5,
+    height: 0.4,
+    gender: 3.0,
+    injured: 1.0,
+    teamSize: 2.5,
+    roleCoverage: 1.0,
+    consistency: 0.6,
+    emotionalControl: 0.5,
+    netPresence: 0.6,
+  },
 };
 
-const SPEED_CONFIG: Record<'fast' | 'normal' | 'advanced', { maxIterations: number; timeLimitMillis: number }> = {
+const SPEED_CONFIG: Record<
+  'fast' | 'normal' | 'advanced',
+  { maxIterations: number; timeLimitMillis: number }
+> = {
   fast: { maxIterations: 3000, timeLimitMillis: 500 },
   normal: { maxIterations: 8000, timeLimitMillis: 1500 },
-  advanced: { maxIterations: 25000, timeLimitMillis: 3000 }
+  advanced: { maxIterations: 25000, timeLimitMillis: 3000 },
 };
 
 // ─── Player Mapping & Technical Vectors ──────────────────────────────────────
@@ -122,7 +125,7 @@ export function mapPlayerToAthleteVector(p: Player): AthleteVector {
     position: p.posicaoPrincipal,
     secondaryPositions: p.posicoesSecundarias || [],
     isInjured: p.status.lesionado,
-    currentForm: p.formaAtual.valor
+    currentForm: p.formaAtual.valor,
   };
 }
 
@@ -146,7 +149,7 @@ export function netPresence(a: AthleteVector): number {
   const blockWeight = a.block * 0.45;
   const attackWeight = a.attack * 0.35;
   const positionBonus = a.position === 'central' || a.position === 'oposto' ? 0.75 : 0.0;
-  return blockWeight + attackWeight + (heightFactor * 2.0) + positionBonus;
+  return blockWeight + attackWeight + heightFactor * 2.0 + positionBonus;
 }
 
 // ─── Team Metrics ────────────────────────────────────────────────────────────
@@ -176,50 +179,60 @@ export function calculateTeamMetrics(teamIndex: number, athletes: AthleteVector[
       hasSetter: false,
       hasStrongAttacker: false,
       hasDefensiveReference: false,
-      netPresence: 0
+      netPresence: 0,
     };
   }
 
   const sum = (fn: (a: AthleteVector) => number) => athletes.reduce((acc, a) => acc + fn(a), 0);
   const avg = (fn: (a: AthleteVector) => number) => sum(fn) / size;
 
-  const maleCount = athletes.filter(a => a.gender === 'M').length;
-  const femaleCount = athletes.filter(a => a.gender === 'F').length;
-  const injuredCount = athletes.filter(a => a.isInjured).length;
+  const maleCount = athletes.filter((a) => a.gender === 'M').length;
+  const femaleCount = athletes.filter((a) => a.gender === 'F').length;
+  const injuredCount = athletes.filter((a) => a.isInjured).length;
 
-  const hasSetter = athletes.some(a => a.setting >= 7.0 || a.position === 'levantador' || a.secondaryPositions?.includes('levantador'));
-  const hasStrongAttacker = athletes.some(a => a.attack >= 7.0);
-  const hasDefensiveReference = athletes.some(a => a.defense >= 7.0 || a.reception >= 7.0 || a.position === 'libero');
+  const hasSetter = athletes.some(
+    (a) =>
+      a.setting >= 7.0 ||
+      a.position === 'levantador' ||
+      a.secondaryPositions?.includes('levantador'),
+  );
+  const hasStrongAttacker = athletes.some((a) => a.attack >= 7.0);
+  const hasDefensiveReference = athletes.some(
+    (a) => a.defense >= 7.0 || a.reception >= 7.0 || a.position === 'libero',
+  );
 
   return {
     teamIndex,
     size,
     overall: avg(adjustedOverall),
-    attack: avg(a => a.attack),
-    defense: avg(a => a.defense),
-    serve: avg(a => a.serve),
-    reception: avg(a => a.reception),
-    setting: avg(a => a.setting),
-    block: avg(a => a.block),
-    speed: avg(a => a.speed),
-    stamina: avg(a => a.stamina),
-    gameVision: avg(a => a.gameVision),
-    consistency: avg(a => a.consistency),
-    emotionalControl: avg(a => a.emotionalControl),
-    averageHeight: avg(a => a.heightCm || 175),
+    attack: avg((a) => a.attack),
+    defense: avg((a) => a.defense),
+    serve: avg((a) => a.serve),
+    reception: avg((a) => a.reception),
+    setting: avg((a) => a.setting),
+    block: avg((a) => a.block),
+    speed: avg((a) => a.speed),
+    stamina: avg((a) => a.stamina),
+    gameVision: avg((a) => a.gameVision),
+    consistency: avg((a) => a.consistency),
+    emotionalControl: avg((a) => a.emotionalControl),
+    averageHeight: avg((a) => a.heightCm || 175),
     maleCount,
     femaleCount,
     injuredCount,
     hasSetter,
     hasStrongAttacker,
     hasDefensiveReference,
-    netPresence: avg(netPresence)
+    netPresence: avg(netPresence),
   };
 }
 
 function getSolutionFingerprint(solution: TeamSolution): string {
-  const teamFingerprints = solution.teams.map(team => 
-    team.map(player => player.id).sort().join(',')
+  const teamFingerprints = solution.teams.map((team) =>
+    team
+      .map((player) => player.id)
+      .sort()
+      .join(','),
   );
   return teamFingerprints.sort().join('|');
 }
@@ -230,14 +243,18 @@ export class ObjectiveScorer {
   public previousFingerprints: string[] = [];
 
   constructor(
-    public weights: BalanceWeights, 
-    public totalFemales: number, 
-    public totalMales: number, 
-    public totalInjured: number, 
-    public numTeams: number
+    public weights: BalanceWeights,
+    public totalFemales: number,
+    public totalMales: number,
+    public totalInjured: number,
+    public numTeams: number,
   ) {}
 
-  score(solution: TeamSolution, constraints?: BalanceConstraints, ignoreDuplicates = false): number {
+  score(
+    solution: TeamSolution,
+    constraints?: BalanceConstraints,
+    ignoreDuplicates = false,
+  ): number {
     const teamsMetrics = solution.teams.map((t, idx) => calculateTeamMetrics(idx, t));
     let penalty = 0;
 
@@ -245,7 +262,7 @@ export class ObjectiveScorer {
     if (constraints?.pairsSeparated) {
       for (const [p1, p2] of constraints.pairsSeparated) {
         for (const t of solution.teams) {
-          const ids = t.map(a => a.id);
+          const ids = t.map((a) => a.id);
           if (ids.includes(p1) && ids.includes(p2)) {
             penalty += 10000;
           }
@@ -258,7 +275,7 @@ export class ObjectiveScorer {
       for (const [p1, p2] of constraints.pairsTogether) {
         let sameTeam = false;
         for (const t of solution.teams) {
-          const ids = t.map(a => a.id);
+          const ids = t.map((a) => a.id);
           if (ids.includes(p1) && ids.includes(p2)) {
             sameTeam = true;
             break;
@@ -273,7 +290,7 @@ export class ObjectiveScorer {
     // 3. Hard Constraints: Locked Assignments
     if (constraints?.lockedPlayerIdxs) {
       for (const [pid, targetIdx] of Object.entries(constraints.lockedPlayerIdxs)) {
-        const currentIdx = solution.teams.findIndex(t => t.some(a => a.id === pid));
+        const currentIdx = solution.teams.findIndex((t) => t.some((a) => a.id === pid));
         if (currentIdx !== -1 && currentIdx !== targetIdx) {
           penalty += 10000;
         }
@@ -281,7 +298,7 @@ export class ObjectiveScorer {
     }
 
     // 4. Hard Constraints: Team Size Limit Difference
-    const teamSizes = teamsMetrics.map(m => m.size);
+    const teamSizes = teamsMetrics.map((m) => m.size);
     const minSize = Math.min(...teamSizes);
     const maxSize = Math.max(...teamSizes);
     if (maxSize - minSize > 1) {
@@ -294,17 +311,50 @@ export class ObjectiveScorer {
       return (Math.max(...values) - Math.min(...values)) * weight;
     };
 
-    const overallSpread = weightedSpread(teamsMetrics.map(m => m.overall), this.weights.overall);
-    const attackSpread = weightedSpread(teamsMetrics.map(m => m.attack), this.weights.attack);
-    const defenseSpread = weightedSpread(teamsMetrics.map(m => m.defense), this.weights.defense);
-    const settingSpread = weightedSpread(teamsMetrics.map(m => m.setting), this.weights.setting);
-    const blockSpread = weightedSpread(teamsMetrics.map(m => m.block), this.weights.block);
-    const receptionSpread = weightedSpread(teamsMetrics.map(m => m.reception), this.weights.reception);
-    const serveSpread = weightedSpread(teamsMetrics.map(m => m.serve), this.weights.serve);
-    const heightSpread = weightedSpread(teamsMetrics.map(m => m.averageHeight), this.weights.height);
-    const consistencySpread = weightedSpread(teamsMetrics.map(m => m.consistency), this.weights.consistency);
-    const emotionalSpread = weightedSpread(teamsMetrics.map(m => m.emotionalControl), this.weights.emotionalControl);
-    const netPresenceSpread = weightedSpread(teamsMetrics.map(m => m.netPresence), this.weights.netPresence);
+    const overallSpread = weightedSpread(
+      teamsMetrics.map((m) => m.overall),
+      this.weights.overall,
+    );
+    const attackSpread = weightedSpread(
+      teamsMetrics.map((m) => m.attack),
+      this.weights.attack,
+    );
+    const defenseSpread = weightedSpread(
+      teamsMetrics.map((m) => m.defense),
+      this.weights.defense,
+    );
+    const settingSpread = weightedSpread(
+      teamsMetrics.map((m) => m.setting),
+      this.weights.setting,
+    );
+    const blockSpread = weightedSpread(
+      teamsMetrics.map((m) => m.block),
+      this.weights.block,
+    );
+    const receptionSpread = weightedSpread(
+      teamsMetrics.map((m) => m.reception),
+      this.weights.reception,
+    );
+    const serveSpread = weightedSpread(
+      teamsMetrics.map((m) => m.serve),
+      this.weights.serve,
+    );
+    const heightSpread = weightedSpread(
+      teamsMetrics.map((m) => m.averageHeight),
+      this.weights.height,
+    );
+    const consistencySpread = weightedSpread(
+      teamsMetrics.map((m) => m.consistency),
+      this.weights.consistency,
+    );
+    const emotionalSpread = weightedSpread(
+      teamsMetrics.map((m) => m.emotionalControl),
+      this.weights.emotionalControl,
+    );
+    const netPresenceSpread = weightedSpread(
+      teamsMetrics.map((m) => m.netPresence),
+      this.weights.netPresence,
+    );
 
     // Gender balance penalty
     const expectedFemalePerTeam = calculateGenderDistribution(this.totalFemales, this.numTeams);
@@ -318,15 +368,18 @@ export class ObjectiveScorer {
     // Injured penalty
     const maxExpectedInjured = Math.ceil(this.totalInjured / this.numTeams);
     let injuredPenalty = 0;
-    teamsMetrics.forEach(m => {
+    teamsMetrics.forEach((m) => {
       if (m.injuredCount > maxExpectedInjured) {
-        injuredPenalty += (m.injuredCount - maxExpectedInjured);
+        injuredPenalty += m.injuredCount - maxExpectedInjured;
       }
     });
     injuredPenalty *= this.weights.injured * 5.0;
 
     // Size penalty
-    const expectedSizes = calculateTeamSizes(solution.teams.reduce((acc, t) => acc + t.length, 0), this.numTeams);
+    const expectedSizes = calculateTeamSizes(
+      solution.teams.reduce((acc, t) => acc + t.length, 0),
+      this.numTeams,
+    );
     let teamSizePenalty = 0;
     teamsMetrics.forEach((m, idx) => {
       const expected = expectedSizes[idx] || 0;
@@ -336,20 +389,23 @@ export class ObjectiveScorer {
 
     // Setter distribution penalty (considering primary and secondary)
     const totalPrimarySetters = solution.teams.reduce(
-      (acc, t) => acc + t.filter(a => a.position === 'levantador').length,
-      0
+      (acc, t) => acc + t.filter((a) => a.position === 'levantador').length,
+      0,
     );
     const totalSecondarySetters = solution.teams.reduce(
-      (acc, t) => acc + t.filter(a => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador')).length,
-      0
+      (acc, t) =>
+        acc +
+        t.filter((a) => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'))
+          .length,
+      0,
     );
 
     if (totalPrimarySetters >= this.numTeams) {
       const minP = Math.floor(totalPrimarySetters / this.numTeams);
       const maxP = Math.ceil(totalPrimarySetters / this.numTeams);
 
-      solution.teams.forEach(t => {
-        const pCount = t.filter(a => a.position === 'levantador').length;
+      solution.teams.forEach((t) => {
+        const pCount = t.filter((a) => a.position === 'levantador').length;
         if (pCount < minP) {
           penalty += (minP - pCount) * 8000;
         } else if (pCount > maxP) {
@@ -360,8 +416,8 @@ export class ObjectiveScorer {
         }
       });
     } else {
-      solution.teams.forEach(t => {
-        const pCount = t.filter(a => a.position === 'levantador').length;
+      solution.teams.forEach((t) => {
+        const pCount = t.filter((a) => a.position === 'levantador').length;
         if (pCount > 1) {
           penalty += (pCount - 1) * 8000;
         }
@@ -372,9 +428,11 @@ export class ObjectiveScorer {
         const minT = Math.floor(totalSetters / this.numTeams);
         const maxT = Math.ceil(totalSetters / this.numTeams);
 
-        solution.teams.forEach(t => {
-          const pCount = t.filter(a => a.position === 'levantador').length;
-          const sCount = t.filter(a => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador')).length;
+        solution.teams.forEach((t) => {
+          const pCount = t.filter((a) => a.position === 'levantador').length;
+          const sCount = t.filter(
+            (a) => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'),
+          ).length;
           const tCount = pCount + sCount;
 
           if (tCount < minT) {
@@ -392,7 +450,7 @@ export class ObjectiveScorer {
 
     // Role coverage penalty
     let roleCoveragePenalty = 0;
-    teamsMetrics.forEach(m => {
+    teamsMetrics.forEach((m) => {
       if (!m.hasSetter) roleCoveragePenalty += 15.0;
       if (!m.hasStrongAttacker) roleCoveragePenalty += 10.0;
       if (!m.hasDefensiveReference) roleCoveragePenalty += 10.0;
@@ -407,22 +465,24 @@ export class ObjectiveScorer {
       }
     }
 
-    return penalty +
-           overallSpread +
-           attackSpread +
-           defenseSpread +
-           settingSpread +
-           blockSpread +
-           receptionSpread +
-           serveSpread +
-           heightSpread +
-           consistencySpread +
-           emotionalSpread +
-           netPresenceSpread +
-           genderBalancePenalty +
-           injuredPenalty +
-           teamSizePenalty +
-           roleCoveragePenalty;
+    return (
+      penalty +
+      overallSpread +
+      attackSpread +
+      defenseSpread +
+      settingSpread +
+      blockSpread +
+      receptionSpread +
+      serveSpread +
+      heightSpread +
+      consistencySpread +
+      emotionalSpread +
+      netPresenceSpread +
+      genderBalancePenalty +
+      injuredPenalty +
+      teamSizePenalty +
+      roleCoveragePenalty
+    );
   }
 }
 
@@ -439,7 +499,7 @@ export class InitialTeamBuilder {
     if (constraints?.lockedPlayerIdxs) {
       for (const [pid, targetIdx] of Object.entries(constraints.lockedPlayerIdxs)) {
         if (targetIdx >= 0 && targetIdx < this.numTeams) {
-          const athlete = athletes.find(a => a.id === pid);
+          const athlete = athletes.find((a) => a.id === pid);
           if (athlete) {
             teams[targetIdx].push(athlete);
             lockedPlayerIds.add(pid);
@@ -450,23 +510,31 @@ export class InitialTeamBuilder {
 
     // 2. Sort remaining athletes by overall
     const remaining = athletes
-      .filter(a => !lockedPlayerIds.has(a.id))
+      .filter((a) => !lockedPlayerIds.has(a.id))
       .sort((a, b) => adjustedOverall(b) - adjustedOverall(a));
 
-    const remainingPrimarySetters = remaining.filter(a => a.position === 'levantador');
-    const remainingSecondarySetters = remaining.filter(a => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'));
-    const remainingOthers = remaining.filter(a => a.position !== 'levantador' && !a.secondaryPositions?.includes('levantador'));
+    const remainingPrimarySetters = remaining.filter((a) => a.position === 'levantador');
+    const remainingSecondarySetters = remaining.filter(
+      (a) => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'),
+    );
+    const remainingOthers = remaining.filter(
+      (a) => a.position !== 'levantador' && !a.secondaryPositions?.includes('levantador'),
+    );
 
-    const remainingPrimarySettersFemales = remainingPrimarySetters.filter(a => a.gender === 'F');
-    const remainingPrimarySettersMales = remainingPrimarySetters.filter(a => a.gender === 'M');
+    const remainingPrimarySettersFemales = remainingPrimarySetters.filter((a) => a.gender === 'F');
+    const remainingPrimarySettersMales = remainingPrimarySetters.filter((a) => a.gender === 'M');
 
-    const remainingSecondarySettersFemales = remainingSecondarySetters.filter(a => a.gender === 'F');
-    const remainingSecondarySettersMales = remainingSecondarySetters.filter(a => a.gender === 'M');
+    const remainingSecondarySettersFemales = remainingSecondarySetters.filter(
+      (a) => a.gender === 'F',
+    );
+    const remainingSecondarySettersMales = remainingSecondarySetters.filter(
+      (a) => a.gender === 'M',
+    );
 
-    const remainingOthersFemales = remainingOthers.filter(a => a.gender === 'F');
-    const remainingOthersMales = remainingOthers.filter(a => a.gender === 'M');
+    const remainingOthersFemales = remainingOthers.filter((a) => a.gender === 'F');
+    const remainingOthersMales = remainingOthers.filter((a) => a.gender === 'M');
 
-    const totalFemales = athletes.filter(a => a.gender === 'F').length;
+    const totalFemales = athletes.filter((a) => a.gender === 'F').length;
     const expectedFemalesPerTeam = calculateGenderDistribution(totalFemales, this.numTeams);
     const expectedSizes = calculateTeamSizes(athletes.length, this.numTeams);
 
@@ -481,9 +549,11 @@ export class InitialTeamBuilder {
         const limitSize = expectedSizes[i] || 0;
         if (team.length >= limitSize) continue;
 
-        const pCount = team.filter(a => a.position === 'levantador').length;
-        const sCount = team.filter(a => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador')).length;
-        const countToCompare = isPrimary ? pCount : (pCount + sCount);
+        const pCount = team.filter((a) => a.position === 'levantador').length;
+        const sCount = team.filter(
+          (a) => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'),
+        ).length;
+        const countToCompare = isPrimary ? pCount : pCount + sCount;
 
         const teamOverallSum = team.reduce((acc, a) => acc + adjustedOverall(a), 0);
 
@@ -525,7 +595,7 @@ export class InitialTeamBuilder {
 
         if (isFemale) {
           const femaleLimit = expectedFemalesPerTeam[i] || 0;
-          const currentFemales = team.filter(a => a.gender === 'F').length;
+          const currentFemales = team.filter((a) => a.gender === 'F').length;
           // Try to preserve gender quotas
           if (currentFemales >= femaleLimit && team.length >= limitSize - 1) {
             // Deprioritized
@@ -555,16 +625,16 @@ export class InitialTeamBuilder {
     };
 
     // Place primary setters (females then males)
-    remainingPrimarySettersFemales.forEach(f => placeSetterGreedy(f, true));
-    remainingPrimarySettersMales.forEach(m => placeSetterGreedy(m, true));
+    remainingPrimarySettersFemales.forEach((f) => placeSetterGreedy(f, true));
+    remainingPrimarySettersMales.forEach((m) => placeSetterGreedy(m, true));
 
     // Place secondary setters (females then males)
-    remainingSecondarySettersFemales.forEach(f => placeSetterGreedy(f, false));
-    remainingSecondarySettersMales.forEach(m => placeSetterGreedy(m, false));
+    remainingSecondarySettersFemales.forEach((f) => placeSetterGreedy(f, false));
+    remainingSecondarySettersMales.forEach((m) => placeSetterGreedy(m, false));
 
     // Place others (females then males)
-    remainingOthersFemales.forEach(f => placeGreedy(f, true));
-    remainingOthersMales.forEach(m => placeGreedy(m, false));
+    remainingOthersFemales.forEach((f) => placeGreedy(f, true));
+    remainingOthersMales.forEach((m) => placeGreedy(m, false));
 
     return { teams };
   }
@@ -575,20 +645,20 @@ export class InitialTeamBuilder {
 function generateNeighbor(
   current: TeamSolution,
   constraints: BalanceConstraints | undefined,
-  random: () => number
+  random: () => number,
 ): TeamSolution {
   const numTeams = current.teams.length;
-  const teams = current.teams.map(t => [...t]);
+  const teams = current.teams.map((t) => [...t]);
   const moveVal = random();
 
   const getNonLocked = (tIdx: number) => {
-    return teams[tIdx].filter(a => {
+    return teams[tIdx].filter((a) => {
       if (!constraints?.lockedPlayerIdxs) return true;
       return constraints.lockedPlayerIdxs[a.id] === undefined;
     });
   };
 
-  if (moveVal < 0.80) {
+  if (moveVal < 0.8) {
     // Swap 1x1
     const t1 = Math.floor(random() * numTeams);
     const t2 = (t1 + Math.floor(random() * (numTeams - 1)) + 1) % numTeams;
@@ -600,12 +670,12 @@ function generateNeighbor(
       const p1 = p1List[Math.floor(random() * p1List.length)];
       const p2 = p2List[Math.floor(random() * p2List.length)];
 
-      teams[t1] = teams[t1].map(a => a.id === p1.id ? p2 : a);
-      teams[t2] = teams[t2].map(a => a.id === p2.id ? p1 : a);
+      teams[t1] = teams[t1].map((a) => (a.id === p1.id ? p2 : a));
+      teams[t2] = teams[t2].map((a) => (a.id === p2.id ? p1 : a));
     }
   } else if (moveVal < 0.95) {
     // Move one player
-    const teamSizes = teams.map(t => t.length);
+    const teamSizes = teams.map((t) => t.length);
     const minSize = Math.min(...teamSizes);
     const maxSize = Math.max(...teamSizes);
 
@@ -624,13 +694,19 @@ function generateNeighbor(
       const pList = getNonLocked(t1);
       if (pList.length > 0) {
         const p = pList[Math.floor(random() * pList.length)];
-        teams[t1] = teams[t1].filter(a => a.id !== p.id);
+        teams[t1] = teams[t1].filter((a) => a.id !== p.id);
         teams[t2].push(p);
       }
     }
   } else {
     // Weakness-targeted swap
-    const categories: (keyof AthleteVector)[] = ['setting', 'reception', 'attack', 'defense', 'block'];
+    const categories: (keyof AthleteVector)[] = [
+      'setting',
+      'reception',
+      'attack',
+      'defense',
+      'block',
+    ];
     const cat = categories[Math.floor(random() * categories.length)];
 
     let tWeak = 0;
@@ -639,7 +715,8 @@ function generateNeighbor(
     let maxCatVal = -Infinity;
 
     for (let i = 0; i < numTeams; i++) {
-      const avgVal = teams[i].reduce((acc, a) => acc + (a[cat] as number), 0) / (teams[i].length || 1);
+      const avgVal =
+        teams[i].reduce((acc, a) => acc + (a[cat] as number), 0) / (teams[i].length || 1);
       if (avgVal < minCatVal) {
         minCatVal = avgVal;
         tWeak = i;
@@ -652,14 +729,16 @@ function generateNeighbor(
 
     if (tWeak !== tStrong) {
       const pWeakList = getNonLocked(tWeak).sort((a, b) => (a[cat] as number) - (b[cat] as number));
-      const pStrongList = getNonLocked(tStrong).sort((a, b) => (b[cat] as number) - (a[cat] as number));
+      const pStrongList = getNonLocked(tStrong).sort(
+        (a, b) => (b[cat] as number) - (a[cat] as number),
+      );
 
       if (pWeakList.length > 0 && pStrongList.length > 0) {
         const pWeak = pWeakList[0];
         const pStrong = pStrongList[0];
 
-        teams[tWeak] = teams[tWeak].map(a => a.id === pWeak.id ? pStrong : a);
-        teams[tStrong] = teams[tStrong].map(a => a.id === pStrong.id ? pWeak : a);
+        teams[tWeak] = teams[tWeak].map((a) => (a.id === pWeak.id ? pStrong : a));
+        teams[tStrong] = teams[tStrong].map((a) => (a.id === pStrong.id ? pWeak : a));
       }
     }
   }
@@ -668,16 +747,16 @@ function generateNeighbor(
 }
 
 function isFeasible(solution: TeamSolution, constraints: BalanceConstraints | undefined): boolean {
-  if (solution.teams.some(t => t.length === 0)) return false;
+  if (solution.teams.some((t) => t.length === 0)) return false;
 
   if (constraints?.lockedPlayerIdxs) {
     for (const [pid, targetIdx] of Object.entries(constraints.lockedPlayerIdxs)) {
-      const currentIdx = solution.teams.findIndex(t => t.some(a => a.id === pid));
+      const currentIdx = solution.teams.findIndex((t) => t.some((a) => a.id === pid));
       if (currentIdx !== -1 && currentIdx !== targetIdx) return false;
     }
   }
 
-  const sizes = solution.teams.map(t => t.length);
+  const sizes = solution.teams.map((t) => t.length);
   if (Math.max(...sizes) - Math.min(...sizes) > 1) return false;
 
   return true;
@@ -710,7 +789,7 @@ function buildBalanceDiagnostics(
   totalMales: number,
   totalInjured: number,
   numTeams: number,
-  constraints: BalanceConstraints | undefined
+  constraints: BalanceConstraints | undefined,
 ): BalanceDiagnostics {
   const metrics = solution.teams.map((t, idx) => calculateTeamMetrics(idx, t));
   const getSpread = (values: number[]) => {
@@ -718,13 +797,13 @@ function buildBalanceDiagnostics(
     return Math.max(...values) - Math.min(...values);
   };
 
-  const overallSpread = getSpread(metrics.map(m => m.overall));
-  const attackSpread = getSpread(metrics.map(m => m.attack));
-  const defenseSpread = getSpread(metrics.map(m => m.defense));
-  const settingSpread = getSpread(metrics.map(m => m.setting));
-  const blockSpread = getSpread(metrics.map(m => m.block));
-  const receptionSpread = getSpread(metrics.map(m => m.reception));
-  const heightSpread = getSpread(metrics.map(m => m.averageHeight));
+  const overallSpread = getSpread(metrics.map((m) => m.overall));
+  const attackSpread = getSpread(metrics.map((m) => m.attack));
+  const defenseSpread = getSpread(metrics.map((m) => m.defense));
+  const settingSpread = getSpread(metrics.map((m) => m.setting));
+  const blockSpread = getSpread(metrics.map((m) => m.block));
+  const receptionSpread = getSpread(metrics.map((m) => m.reception));
+  const heightSpread = getSpread(metrics.map((m) => m.averageHeight));
 
   const expectedFemalePerTeam = calculateGenderDistribution(totalFemales, numTeams);
   let genderBalancePenalty = 0;
@@ -736,22 +815,25 @@ function buildBalanceDiagnostics(
 
   const maxExpectedInjured = Math.ceil(totalInjured / numTeams);
   let injuredPenalty = 0;
-  metrics.forEach(m => {
+  metrics.forEach((m) => {
     if (m.injuredCount > maxExpectedInjured) {
-      injuredPenalty += (m.injuredCount - maxExpectedInjured);
+      injuredPenalty += m.injuredCount - maxExpectedInjured;
     }
   });
   injuredPenalty *= weights.injured * 5.0;
 
   let roleCoveragePenalty = 0;
-  metrics.forEach(m => {
+  metrics.forEach((m) => {
     if (!m.hasSetter) roleCoveragePenalty += 15.0;
     if (!m.hasStrongAttacker) roleCoveragePenalty += 10.0;
     if (!m.hasDefensiveReference) roleCoveragePenalty += 10.0;
   });
   roleCoveragePenalty *= weights.roleCoverage;
 
-  const expectedSizes = calculateTeamSizes(solution.teams.reduce((acc, t) => acc + t.length, 0), numTeams);
+  const expectedSizes = calculateTeamSizes(
+    solution.teams.reduce((acc, t) => acc + t.length, 0),
+    numTeams,
+  );
   let teamSizePenalty = 0;
   metrics.forEach((m, idx) => {
     const expected = expectedSizes[idx] || 0;
@@ -761,13 +843,24 @@ function buildBalanceDiagnostics(
 
   const warnings: string[] = [];
 
-  const totalPrimary = solution.teams.reduce((acc, t) => acc + t.filter(a => a.position === 'levantador').length, 0);
-  const totalSecondary = solution.teams.reduce((acc, t) => acc + t.filter(a => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador')).length, 0);
+  const totalPrimary = solution.teams.reduce(
+    (acc, t) => acc + t.filter((a) => a.position === 'levantador').length,
+    0,
+  );
+  const totalSecondary = solution.teams.reduce(
+    (acc, t) =>
+      acc +
+      t.filter((a) => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'))
+        .length,
+    0,
+  );
 
   metrics.forEach((m, idx) => {
     const teamAthletes = solution.teams[idx] || [];
-    const mainSetterCount = teamAthletes.filter(a => a.position === 'levantador').length;
-    const secondarySetterCount = teamAthletes.filter(a => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador')).length;
+    const mainSetterCount = teamAthletes.filter((a) => a.position === 'levantador').length;
+    const secondarySetterCount = teamAthletes.filter(
+      (a) => a.position !== 'levantador' && a.secondaryPositions?.includes('levantador'),
+    ).length;
     const totalSetterCountForTeam = mainSetterCount + secondarySetterCount;
 
     if (totalPrimary >= numTeams) {
@@ -775,7 +868,7 @@ function buildBalanceDiagnostics(
         warnings.push(`Time ${idx + 1} sem jogador cuja posição principal é Levantador.`);
       }
     } else {
-      if (totalSetterCountForTeam === 0 && (totalPrimary + totalSecondary) >= numTeams) {
+      if (totalSetterCountForTeam === 0 && totalPrimary + totalSecondary >= numTeams) {
         warnings.push(`Time ${idx + 1} sem levantador (principal ou secundário).`);
       }
     }
@@ -787,7 +880,9 @@ function buildBalanceDiagnostics(
       warnings.push(`Time ${idx + 1} sem atacante de referência (ataque >= 7.0).`);
     }
     if (!m.hasDefensiveReference) {
-      warnings.push(`Time ${idx + 1} com vulnerabilidade defensiva (sem referência com defesa/recepção >= 7.0).`);
+      warnings.push(
+        `Time ${idx + 1} com vulnerabilidade defensiva (sem referência com defesa/recepção >= 7.0).`,
+      );
     }
     if (m.injuredCount > 1) {
       warnings.push(`Time ${idx + 1} possui múltiplos jogadores lesionados (${m.injuredCount}).`);
@@ -795,11 +890,15 @@ function buildBalanceDiagnostics(
   });
 
   if (overallSpread > 3.0) {
-    warnings.push(`Desequilíbrio de nível geral elevado (${overallSpread.toFixed(1)} pts de diferença máxima).`);
+    warnings.push(
+      `Desequilíbrio de nível geral elevado (${overallSpread.toFixed(1)} pts de diferença máxima).`,
+    );
   }
 
   if (objectiveScore > 5000) {
-    warnings.push("Não foi possível atender a todas as restrições obrigatórias com equilíbrio perfeito.");
+    warnings.push(
+      'Não foi possível atender a todas as restrições obrigatórias com equilíbrio perfeito.',
+    );
   }
 
   return {
@@ -816,7 +915,7 @@ function buildBalanceDiagnostics(
     injuredPenalty,
     roleCoveragePenalty,
     teamSizePenalty,
-    warnings
+    warnings,
   };
 }
 
@@ -825,7 +924,7 @@ function buildBalanceDiagnostics(
 export class SimulatedAnnealingBalancer {
   constructor(
     private initialBuilder: InitialTeamBuilder,
-    private scorer: ObjectiveScorer
+    private scorer: ObjectiveScorer,
   ) {}
 
   balance(
@@ -833,7 +932,7 @@ export class SimulatedAnnealingBalancer {
     constraints: BalanceConstraints | undefined,
     maxIterations: number,
     timeLimitMillis: number,
-    seed: number
+    seed: number,
   ): { solution: TeamSolution; score: number; iterations: number } {
     const random = createSeededRandom(seed);
     const startTime = Date.now();
@@ -853,7 +952,7 @@ export class SimulatedAnnealingBalancer {
 
     while (
       iterations < maxIterations &&
-      (Date.now() - startTime) < timeLimitMillis &&
+      Date.now() - startTime < timeLimitMillis &&
       iterationsWithoutImprovement < maxNoImprovement
     ) {
       const candidate = generateNeighbor(current, constraints, random);
@@ -898,10 +997,10 @@ export class SimulatedAnnealingBalancer {
 
 function assignLabelsToDivisions(divisions: Division[]): void {
   if (divisions.length !== 3) return;
-  
+
   let bestOverallIdx = 0;
   let minOverall = Infinity;
-  
+
   let bestFundIdx = 0;
   let minFund = Infinity;
 
@@ -911,12 +1010,12 @@ function assignLabelsToDivisions(divisions: Division[]): void {
   divisions.forEach((div, idx) => {
     const diag = div.diagnostics;
     if (!diag) return;
-    
+
     if (diag.overallSpread < minOverall) {
       minOverall = diag.overallSpread;
       bestOverallIdx = idx;
     }
-    
+
     const fundSpread = diag.attackSpread + diag.defenseSpread;
     if (fundSpread < minFund) {
       minFund = fundSpread;
@@ -930,11 +1029,13 @@ function assignLabelsToDivisions(divisions: Division[]): void {
   });
 
   const assigned = new Set<string>();
-  
+
   // 1. Overall
   divisions[bestOverallIdx].explanation = divisions[bestOverallIdx].explanation || [];
-  divisions[bestOverallIdx].explanation.unshift("Divisão com menor variação de força geral entre as equipes.");
-  divisions[bestOverallIdx].qualityLabel = "Melhor Equilíbrio Geral";
+  divisions[bestOverallIdx].explanation.unshift(
+    'Divisão com menor variação de força geral entre as equipes.',
+  );
+  divisions[bestOverallIdx].qualityLabel = 'Melhor Equilíbrio Geral';
   assigned.add(bestOverallIdx.toString());
 
   // 2. Fundamentals
@@ -953,8 +1054,10 @@ function assignLabelsToDivisions(divisions: Division[]): void {
     });
   }
   divisions[fundTargetIdx].explanation = divisions[fundTargetIdx].explanation || [];
-  divisions[fundTargetIdx].explanation.unshift("Divisão focada no equilíbrio perfeito de fundamentos (ataque e defesa).");
-  divisions[fundTargetIdx].qualityLabel = "Melhor Equilíbrio Técnico";
+  divisions[fundTargetIdx].explanation.unshift(
+    'Divisão focada no equilíbrio perfeito de fundamentos (ataque e defesa).',
+  );
+  divisions[fundTargetIdx].qualityLabel = 'Melhor Equilíbrio Técnico';
   assigned.add(fundTargetIdx.toString());
 
   // 3. Physical
@@ -968,8 +1071,10 @@ function assignLabelsToDivisions(divisions: Division[]): void {
     }
   }
   divisions[heightTargetIdx].explanation = divisions[heightTargetIdx].explanation || [];
-  divisions[heightTargetIdx].explanation.unshift("Divisão com melhor balanceamento de altura média e presença de rede.");
-  divisions[heightTargetIdx].qualityLabel = "Melhor Distribuição Física";
+  divisions[heightTargetIdx].explanation.unshift(
+    'Divisão com melhor balanceamento de altura média e presença de rede.',
+  );
+  divisions[heightTargetIdx].qualityLabel = 'Melhor Distribuição Física';
 }
 
 // ─── Entry Point Wrapper ─────────────────────────────────────────────────────
@@ -978,7 +1083,7 @@ export const balanceTeams = (
   players: Player[],
   numTeams: number,
   sessionId: string,
-  config?: TournamentConfig | FreePlayConfig
+  config?: TournamentConfig | FreePlayConfig,
 ): Division[] => {
   const startTime = Date.now();
   const balanceMode = config?.balanceMode || 'balanced';
@@ -991,16 +1096,16 @@ export const balanceTeams = (
   // Map players to vectors
   const athletes = players.map(mapPlayerToAthleteVector);
 
-  const totalFemales = athletes.filter(a => a.gender === 'F').length;
-  const totalMales = athletes.filter(a => a.gender === 'M').length;
-  const totalInjured = athletes.filter(a => a.isInjured).length;
+  const totalFemales = athletes.filter((a) => a.gender === 'F').length;
+  const totalMales = athletes.filter((a) => a.gender === 'M').length;
+  const totalInjured = athletes.filter((a) => a.isInjured).length;
 
   const scorer = new ObjectiveScorer(weights, totalFemales, totalMales, totalInjured, numTeams);
   const initialBuilder = new InitialTeamBuilder(numTeams);
   const balancer = new SimulatedAnnealingBalancer(initialBuilder, scorer);
 
   // Generate 3 options using deterministic seeds: base, base + 101, base + 202
-  const baseSeed = 42; 
+  const baseSeed = 42;
   const seeds = [baseSeed, baseSeed + 101, baseSeed + 202];
 
   const results: Division[] = seeds.map((seed) => {
@@ -1010,7 +1115,7 @@ export const balanceTeams = (
       constraints,
       speed.maxIterations,
       speed.timeLimitMillis,
-      seed
+      seed,
     );
     const runRuntime = Date.now() - runStartTime;
 
@@ -1026,14 +1131,14 @@ export const balanceTeams = (
       totalMales,
       totalInjured,
       numTeams,
-      constraints
+      constraints,
     );
 
     // Map AthleteVector[][] back to Team[]
     const divisionTeams: Team[] = solution.teams.map((teamAthletes, i) => {
       // Re-map back to actual Player object references
-      const originalTeamPlayers = players.filter(p => teamAthletes.some(ta => ta.id === p.id));
-      
+      const originalTeamPlayers = players.filter((p) => teamAthletes.some((ta) => ta.id === p.id));
+
       const teamMetrics = calculateTeamMetrics(i, teamAthletes);
       const strengthSnapshot = buildTeamStrengthSnapshot(teamMetrics);
 
@@ -1041,16 +1146,18 @@ export const balanceTeams = (
         id: `team-${sessionId}-${seed}-${i}`,
         sessionId,
         name: `Time ${i + 1}`,
-        playerIds: teamAthletes.map(a => a.id),
+        playerIds: teamAthletes.map((a) => a.id),
         generatedByAlgorithm: true,
         locked: false,
-        strengthSnapshot
+        strengthSnapshot,
       };
     });
 
     const explanation = [
       ...diagnostics.warnings,
-      ...(diagnostics.warnings.length === 0 ? ['Divisão equilibrada conforme todos os critérios técnicos.'] : [])
+      ...(diagnostics.warnings.length === 0
+        ? ['Divisão equilibrada conforme todos os critérios técnicos.']
+        : []),
     ];
 
     return {
@@ -1062,7 +1169,7 @@ export const balanceTeams = (
       algorithm: 'Simulated Annealing (Smart Balance Engine)',
       seed,
       iterations,
-      runtimeMillis: runRuntime
+      runtimeMillis: runRuntime,
     };
   });
 
@@ -1088,6 +1195,6 @@ function buildTeamStrengthSnapshot(m: TeamMetrics): TeamStrengthSnapshot {
     averageHeight: m.averageHeight,
     netPresence: m.netPresence,
     maleCount: m.maleCount,
-    femaleCount: m.femaleCount
+    femaleCount: m.femaleCount,
   };
 }

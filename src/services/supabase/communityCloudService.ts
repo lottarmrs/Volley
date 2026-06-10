@@ -45,10 +45,7 @@ export function mapDbToCommunity(db: any): Community {
 
 export const communityCloudService = {
   async fetchAll(): Promise<Community[]> {
-    const { data, error } = await supabase
-      .from('communities')
-      .select('*')
-      .is('deleted_at', null);
+    const { data, error } = await supabase.from('communities').select('*').is('deleted_at', null);
 
     if (error) throw error;
     return (data || []).map(mapDbToCommunity);
@@ -56,11 +53,7 @@ export const communityCloudService = {
 
   async upsert(local: Community, ownerId: string): Promise<Community> {
     const dbRecord = mapCommunityToDb(local, ownerId);
-    const { data, error } = await supabase
-      .from('communities')
-      .upsert(dbRecord)
-      .select()
-      .single();
+    const { data, error } = await supabase.from('communities').upsert(dbRecord).select().single();
 
     if (error) throw error;
     return mapDbToCommunity(data);
@@ -73,5 +66,5 @@ export const communityCloudService = {
       .eq('id', cloudId);
 
     if (error) throw error;
-  }
+  },
 };

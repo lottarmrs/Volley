@@ -5,10 +5,7 @@
   "genero": "M",
   "ativo": true,
   "posicaoPrincipal": "oposto",
-  "posicoesSecundarias": [
-    "ponteiro",
-    "central"
-  ],
+  "posicoesSecundarias": ["ponteiro", "central"],
   "alturaCm": 180,
   "maoDominante": "direita",
   "atributos": {
@@ -34,12 +31,7 @@
   "formaAtual": {
     "valor": 2,
     "observacao": "Jogando bem",
-    "ultimasPartidas": [
-      2,
-      3,
-      1,
-      2
-    ]
+    "ultimasPartidas": [2, 3, 1, 2]
   },
   "status": {
     "lesionado": false,

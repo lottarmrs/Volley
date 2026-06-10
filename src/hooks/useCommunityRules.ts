@@ -30,7 +30,14 @@ export function createDefaultCommunityRules(community: Community): CommunityRule
       hasFinal: false,
       hasThirdPlaceMatch: false,
       classificationPoints: { win: 3, loss: 0 },
-      standingsRules: ['classificationPoints', 'wins', 'pointDifference', 'pointsFor', 'headToHead', 'pointsAgainst'],
+      standingsRules: [
+        'classificationPoints',
+        'wins',
+        'pointDifference',
+        'pointsFor',
+        'headToHead',
+        'pointsAgainst',
+      ],
     },
     updatedAt: new Date().toISOString(),
   };
@@ -38,33 +45,47 @@ export function createDefaultCommunityRules(community: Community): CommunityRule
 
 export function useCommunityRules() {
   const [rules, setRules] = useState<CommunityRules[]>(() =>
-    loadFromStorage<CommunityRules[]>(STORAGE_KEYS.communityRules, [])
+    loadFromStorage<CommunityRules[]>(STORAGE_KEYS.communityRules, []),
   );
 
   useEffect(() => saveToStorage(STORAGE_KEYS.communityRules, rules), [rules]);
 
-  const getRules = useCallback((community: Community) => {
-    return rules.find(rule => rule.communityId === community.id) || createDefaultCommunityRules(community);
-  }, [rules]);
+  const getRules = useCallback(
+    (community: Community) => {
+      return (
+        rules.find((rule) => rule.communityId === community.id) ||
+        createDefaultCommunityRules(community)
+      );
+    },
+    [rules],
+  );
 
   const saveRules = useCallback((next: CommunityRules) => {
     const now = new Date().toISOString();
-    setRules(prev => prev.some(rule => rule.communityId === next.communityId)
-      ? prev.map(rule => rule.communityId === next.communityId ? { ...next, syncStatus: 'pending', updatedAt: now } : rule)
-      : [...prev, { ...next, syncStatus: 'local', updatedAt: now }]
+    setRules((prev) =>
+      prev.some((rule) => rule.communityId === next.communityId)
+        ? prev.map((rule) =>
+            rule.communityId === next.communityId
+              ? { ...next, syncStatus: 'pending', updatedAt: now }
+              : rule,
+          )
+        : [...prev, { ...next, syncStatus: 'local', updatedAt: now }],
     );
   }, []);
 
   const removeRules = useCallback((communityId: string) => {
-    setRules(prev => prev.filter(rule => rule.communityId !== communityId));
+    setRules((prev) => prev.filter((rule) => rule.communityId !== communityId));
   }, []);
 
-  return useMemo(() => ({ 
-    rules: rules.filter(r => !r.deletedAt), 
-    rawRules: rules, // Expose full list for syncService
-    setRules, 
-    getRules, 
-    saveRules, 
-    removeRules 
-  }), [rules, getRules, saveRules, removeRules]);
+  return useMemo(
+    () => ({
+      rules: rules.filter((r) => !r.deletedAt),
+      rawRules: rules, // Expose full list for syncService
+      setRules,
+      getRules,
+      saveRules,
+      removeRules,
+    }),
+    [rules, getRules, saveRules, removeRules],
+  );
 }

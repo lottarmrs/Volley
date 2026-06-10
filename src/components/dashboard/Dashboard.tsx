@@ -1,15 +1,15 @@
 import React from 'react';
-import { 
-  Plus, 
-  Users, 
-  History as HistoryIcon, 
-  Play, 
+import {
+  Plus,
+  Users,
+  History as HistoryIcon,
+  Play,
   ChevronRight,
   Sword,
-  RotateCcw, 
+  RotateCcw,
   Globe,
   Trophy,
-  Activity
+  Activity,
 } from 'lucide-react';
 import { Session } from '../../types';
 import { SessionDraft } from '../../logic/sessionDraft';
@@ -39,21 +39,22 @@ export function Dashboard({
   onClearActiveSession,
   onPlayers,
   onHistory,
-  onCommunities
+  onCommunities,
 }: DashboardProps) {
   return (
     <div className="space-y-8">
       {/* Welcome Banner */}
       <div className="card bg-base-200 border border-base-300 shadow-xl p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-black text-white uppercase tracking-tight">Bem-vindo ao Panelinha</h1>
-          <p className="text-xs text-base-content/60 mt-1">Plataforma de gerenciamento de campeonatos, partidas e equilíbrio de equipes.</p>
+          <h1 className="text-xl font-black text-white uppercase tracking-tight">
+            Bem-vindo ao Panelinha
+          </h1>
+          <p className="text-xs text-base-content/60 mt-1">
+            Plataforma de gerenciamento de campeonatos, partidas e equilíbrio de equipes.
+          </p>
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={onNewSession}
-            className="btn btn-primary"
-          >
+          <button onClick={onNewSession} className="btn btn-primary">
             <Plus className="w-4 h-4" /> Nova Sessão
           </button>
         </div>
@@ -71,18 +72,22 @@ export function Dashboard({
                 <span className="badge badge-success badge-soft font-bold text-[8px] uppercase">
                   {activeSession.status === 'active' ? 'Partida Ativa' : 'Pronta para Iniciar'}
                 </span>
-                <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">{activeSession.name}</h2>
-                <p className="text-[10px] text-base-content/50 uppercase font-semibold mt-0.5">{activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}</p>
+                <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">
+                  {activeSession.name}
+                </h2>
+                <p className="text-[10px] text-base-content/50 uppercase font-semibold mt-0.5">
+                  {activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}
+                </p>
               </div>
             </div>
             <div className="flex gap-2 w-full sm:w-auto justify-end">
-              <button 
+              <button
                 onClick={onClearActiveSession}
                 className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
               >
                 Descartar
               </button>
-              <button 
+              <button
                 onClick={onResumeSession}
                 className="btn btn-success btn-sm text-black font-bold flex-1 sm:flex-initial"
               >
@@ -92,38 +97,44 @@ export function Dashboard({
           </div>
         )}
 
-        {sessionDraft && activeSession?.status !== 'active' && activeSession?.status !== 'teams_generated' && (
-          <div className="alert alert-warning alert-soft p-5 border border-warning/30 flex flex-col sm:flex-row gap-4 items-center justify-between rounded-2xl">
-            <div className="flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-warning/15 flex items-center justify-center border border-warning/20 shrink-0">
-                <RotateCcw className="w-5 h-5 text-warning" />
+        {sessionDraft &&
+          activeSession?.status !== 'active' &&
+          activeSession?.status !== 'teams_generated' && (
+            <div className="alert alert-warning alert-soft p-5 border border-warning/30 flex flex-col sm:flex-row gap-4 items-center justify-between rounded-2xl">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-warning/15 flex items-center justify-center border border-warning/20 shrink-0">
+                  <RotateCcw className="w-5 h-5 text-warning" />
+                </div>
+                <div className="text-left">
+                  <span className="badge badge-neutral badge-soft text-[8px] font-bold uppercase">
+                    Rascunho Pendente
+                  </span>
+                  <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">
+                    {sessionDraft.session.name}
+                  </h2>
+                </div>
               </div>
-              <div className="text-left">
-                <span className="badge badge-neutral badge-soft text-[8px] font-bold uppercase">Rascunho Pendente</span>
-                <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">{sessionDraft.session.name}</h2>
+              <div className="flex gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={onClearDraft}
+                  className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
+                >
+                  Descartar
+                </button>
+                <button
+                  onClick={() => onResumeDraft(sessionDraft)}
+                  className="btn btn-warning btn-sm text-black font-bold flex-1 sm:flex-initial"
+                >
+                  Continuar
+                </button>
               </div>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto justify-end">
-              <button 
-                onClick={onClearDraft}
-                className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
-              >
-                Descartar
-              </button>
-              <button 
-                onClick={() => onResumeDraft(sessionDraft)}
-                className="btn btn-warning btn-sm text-black font-bold flex-1 sm:flex-initial"
-              >
-                Continuar
-              </button>
-            </div>
-          </div>
-        )}
+          )}
       </div>
 
       {/* Main Administrative Options */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div 
+        <div
           onClick={onNewSession}
           className="card bg-base-100 shadow-sm border border-base-300 overflow-hidden hover:border-primary hover:bg-primary/5 transition-all duration-300 hover:shadow-lg group cursor-pointer flex flex-col"
         >
@@ -146,7 +157,7 @@ export function Dashboard({
           </div>
         </div>
 
-        <div 
+        <div
           onClick={onPlayers}
           className="card bg-base-100 shadow-sm border border-base-300 overflow-hidden hover:border-accent hover:bg-accent/5 transition-all duration-300 hover:shadow-lg group cursor-pointer flex flex-col"
         >
@@ -163,13 +174,14 @@ export function Dashboard({
                 Atletas
               </h2>
               <p className="text-xs text-base-content/60 mt-2 leading-relaxed">
-                Gerenciar fichas técnicas, habilidades individuais, posições e forma física dos jogadores.
+                Gerenciar fichas técnicas, habilidades individuais, posições e forma física dos
+                jogadores.
               </p>
             </div>
           </div>
         </div>
 
-        <div 
+        <div
           onClick={onCommunities}
           className="card bg-base-100 shadow-sm border border-base-300 overflow-hidden hover:border-secondary hover:bg-secondary/5 transition-all duration-300 hover:shadow-lg group cursor-pointer flex flex-col"
         >
@@ -186,7 +198,8 @@ export function Dashboard({
                 Comunidades
               </h2>
               <p className="text-xs text-base-content/60 mt-2 leading-relaxed">
-                Organizar grupos de jogadores recorrentes, filtrar participantes e definir presenças.
+                Organizar grupos de jogadores recorrentes, filtrar participantes e definir
+                presenças.
               </p>
             </div>
           </div>
@@ -195,14 +208,18 @@ export function Dashboard({
 
       {/* History link card */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <button 
+        <button
           onClick={onHistory}
           className="card bg-base-200 border border-base-300 shadow-md p-5 flex flex-row items-center gap-4 hover:bg-base-300 transition-all text-left cursor-pointer"
         >
           <HistoryIcon className="w-6 h-6 text-base-content/60" />
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-white">Histórico de Sessões</span>
-            <p className="text-[10px] text-base-content/40 uppercase mt-0.5">Consultar partidas e relatórios antigos</p>
+            <span className="text-xs font-bold uppercase tracking-wider text-white">
+              Histórico de Sessões
+            </span>
+            <p className="text-[10px] text-base-content/40 uppercase mt-0.5">
+              Consultar partidas e relatórios antigos
+            </p>
           </div>
         </button>
       </div>

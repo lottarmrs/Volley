@@ -11,11 +11,7 @@ export function useAuth() {
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     if (!isSupabaseConfigured) return null;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
 
       if (error) {
         console.error('Error fetching profile:', error);
@@ -58,21 +54,21 @@ export function useAuth() {
     });
 
     // Listen to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const activeUser = session?.user ?? null;
-        setUser(activeUser);
-        if (activeUser) {
-          setLoading(true);
-          const p = await fetchProfile(activeUser.id);
-          setProfile(p);
-          setLoading(false);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const activeUser = session?.user ?? null;
+      setUser(activeUser);
+      if (activeUser) {
+        setLoading(true);
+        const p = await fetchProfile(activeUser.id);
+        setProfile(p);
+        setLoading(false);
+      } else {
+        setProfile(null);
+        setLoading(false);
       }
-    );
+    });
 
     return () => {
       subscription.unsubscribe();
@@ -93,27 +89,24 @@ export function useAuth() {
     return data;
   }, []);
 
-  const signUp = useCallback(
-    async (email: string, password: string, name?: string) => {
-      if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
-      setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: name || '',
-          },
+  const signUp = useCallback(async (email: string, password: string, name?: string) => {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name || '',
         },
-      });
-      if (error) {
-        setLoading(false);
-        throw error;
-      }
-      return data;
-    },
-    []
-  );
+      },
+    });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+    return data;
+  }, []);
 
   const signOut = useCallback(async () => {
     if (!isSupabaseConfigured) return;

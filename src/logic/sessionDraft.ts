@@ -1,6 +1,11 @@
-import { Session, Division } from "../types";
-import { STORAGE_KEYS, saveToStorage, loadFromStorage, removeFromStorage } from "../storage/localStorageRepository";
-import { normalizeSessionDraft } from "./migrations";
+import { Session, Division } from '../types';
+import {
+  STORAGE_KEYS,
+  saveToStorage,
+  loadFromStorage,
+  removeFromStorage,
+} from '../storage/localStorageRepository';
+import { normalizeSessionDraft } from './migrations';
 
 export interface SessionDraft {
   session: Session;
@@ -15,7 +20,9 @@ export function saveSessionDraft(draft: SessionDraft) {
 }
 
 export function loadSessionDraft(): SessionDraft | null {
-  return normalizeSessionDraft(loadFromStorage<SessionDraft | null>(STORAGE_KEYS.sessionDraft, null));
+  return normalizeSessionDraft(
+    loadFromStorage<SessionDraft | null>(STORAGE_KEYS.sessionDraft, null),
+  );
 }
 
 export function clearSessionDraft() {

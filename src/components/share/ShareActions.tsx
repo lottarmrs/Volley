@@ -34,7 +34,11 @@ export function ShareActions({
 
   const handleShare = async () => {
     const result = await shareText({ title, text });
-    showToast(result === 'shared' ? 'Compartilhamento aberto.' : 'Compartilhamento indisponivel. O texto foi copiado.');
+    showToast(
+      result === 'shared'
+        ? 'Compartilhamento aberto.'
+        : 'Compartilhamento indisponivel. O texto foi copiado.',
+    );
   };
 
   const blockMenu = blocks.length > 0 && (
@@ -43,9 +47,11 @@ export function ShareActions({
         <MoreVertical className="w-4 h-4" />
       </button>
       <ul className="menu dropdown-content bg-base-200 rounded-box z-20 mt-2 w-56 p-2 shadow-xl border border-base-300">
-        {blocks.map(block => (
+        {blocks.map((block) => (
           <li key={block.id}>
-            <button type="button" onClick={() => handleCopy(block.text)}>{block.label}</button>
+            <button type="button" onClick={() => handleCopy(block.text)}>
+              {block.label}
+            </button>
           </li>
         ))}
       </ul>
@@ -60,19 +66,41 @@ export function ShareActions({
             <Share2 className="w-4 h-4" /> Acoes
           </button>
           <ul className="menu dropdown-content bg-base-200 rounded-box z-20 mt-2 w-56 p-2 shadow-xl border border-base-300">
-            <li><button type="button" onClick={() => handleCopy()}>{copyLabel}</button></li>
-            <li><button type="button" onClick={handleShare}>{shareLabel}</button></li>
-            {blocks.map(block => (
-              <li key={block.id}><button type="button" onClick={() => handleCopy(block.text)}>{block.label}</button></li>
+            <li>
+              <button type="button" onClick={() => handleCopy()}>
+                {copyLabel}
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={handleShare}>
+                {shareLabel}
+              </button>
+            </li>
+            {blocks.map((block) => (
+              <li key={block.id}>
+                <button type="button" onClick={() => handleCopy(block.text)}>
+                  {block.label}
+                </button>
+              </li>
             ))}
           </ul>
         </div>
       ) : variant === 'icon' ? (
         <>
-          <button type="button" className="btn btn-ghost btn-sm btn-square" onClick={() => handleCopy()} aria-label={copyLabel}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            onClick={() => handleCopy()}
+            aria-label={copyLabel}
+          >
             <Copy className="w-4 h-4" />
           </button>
-          <button type="button" className="btn btn-ghost btn-sm btn-square" onClick={handleShare} aria-label={shareLabel}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            onClick={handleShare}
+            aria-label={shareLabel}
+          >
             <Share2 className="w-4 h-4" />
           </button>
           {blockMenu}

@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const migration = readFileSync(
-  new URL('../../../supabase/migrations/20260609120000_backend_operational_sync.sql', import.meta.url),
+  new URL(
+    '../../../supabase/migrations/20260609120000_backend_operational_sync.sql',
+    import.meta.url,
+  ),
   'utf8',
 );
 
@@ -38,8 +41,14 @@ test('backend migration enables RLS and authenticated Data API grants', () => {
     );
   }
 
-  assert.match(migration, /grant select, insert, update, delete on[\s\S]*public\.sessions[\s\S]*to authenticated;/i);
-  assert.match(migration, /grant select, insert, update, delete on[\s\S]*public\.communities[\s\S]*to authenticated;/i);
+  assert.match(
+    migration,
+    /grant select, insert, update, delete on[\s\S]*public\.sessions[\s\S]*to authenticated;/i,
+  );
+  assert.match(
+    migration,
+    /grant select, insert, update, delete on[\s\S]*public\.communities[\s\S]*to authenticated;/i,
+  );
 });
 
 test('backend migration includes membership RLS helpers and policies', () => {
@@ -51,7 +60,16 @@ test('backend migration includes membership RLS helpers and policies', () => {
 });
 
 test('backend migration defines critical local id and lookup indexes', () => {
-  for (const table of ['sessions', 'teams', 'games', 'point_events', 'game_reports', 'session_reports', 'community_presence', 'whatsapp_list_drafts']) {
+  for (const table of [
+    'sessions',
+    'teams',
+    'games',
+    'point_events',
+    'game_reports',
+    'session_reports',
+    'community_presence',
+    'whatsapp_list_drafts',
+  ]) {
     assert.match(
       migration,
       new RegExp(`unique index if not exists ${table}_owner_local_id_idx`, 'i'),
@@ -59,7 +77,10 @@ test('backend migration defines critical local id and lookup indexes', () => {
     );
     assert.match(
       migration,
-      new RegExp(`index if not exists ${table}_(community_id|session_id|updated_at|deleted_at)_idx`, 'i'),
+      new RegExp(
+        `index if not exists ${table}_(community_id|session_id|updated_at|deleted_at)_idx`,
+        'i',
+      ),
       `missing lookup index for ${table}`,
     );
   }

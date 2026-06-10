@@ -5,9 +5,7 @@
   "genero": "F",
   "ativo": true,
   "posicaoPrincipal": "ponteiro",
-  "posicoesSecundarias": [
-    "libero"
-  ],
+  "posicoesSecundarias": ["libero"],
   "alturaCm": 168,
   "maoDominante": "direita",
   "atributos": {
@@ -33,11 +31,6 @@
   "formaAtual": {
     "valor": 1,
     "observacao": "Normal",
-    "ultimasPartidas": [
-      1,
-      1,
-      2,
-      1
-    ]
+    "ultimasPartidas": [1, 1, 2, 1]
   }
 }

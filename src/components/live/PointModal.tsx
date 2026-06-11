@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
 import { Plus } from 'lucide-react';
-import { Team, Player, PointReason } from '../../types';
-import { POINT_REASON_LABELS } from '../../logic/match';
+import { Team, Player, PointReason, PointType, Skill, Fault } from '../../types';
+import { SKILL_LABELS, FAULT_LABELS, skillToReason } from '../../logic/match';
+
+export interface PointDetails {
+  playerId?: string;
+  pointType?: PointType;
+  skill?: Skill;
+  fault?: Fault;
+  reason: PointReason;
+}
 
 interface PointModalProps {
   team: Team;
   players: Player[];
   onClose: () => void;
-  onConfirm: (playerId: string | undefined, reason: PointReason) => void;
+  onConfirm: (details: PointDetails) => void;
 }
 
 const positionLabels: Record<string, string> = {
@@ -20,9 +27,46 @@ const positionLabels: Record<string, string> = {
   'all-rounder': 'Coringa',
 };
 
+const SKILL_ORDER: Skill[] = [
+  'ataque',
+  'bloqueio',
+  'saque',
+  'defesa',
+  'recepcao',
+  'levantamento',
+  'posicionamento',
+];
+
+const FAULT_ORDER: Fault[] = Object.keys(FAULT_LABELS) as Fault[];
+
+type Tab = 'winner' | 'error';
+
 export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProps) => {
+  const [tab, setTab] = useState<Tab>('winner');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>();
-  const [selectedReason, setSelectedReason] = useState<PointReason>('unknown');
+  const [selectedSkill, setSelectedSkill] = useState<Skill | undefined>();
+  const [selectedFault, setSelectedFault] = useState<Fault | undefined>();
+
+  const teamPlayers = team.playerIds
+    .map((pid) => players.find((p) => p.id === pid))
+    .filter((p): p is Player => !!p);
+
+  const confirm = () => {
+    if (tab === 'winner') {
+      onConfirm({
+        playerId: selectedPlayerId,
+        pointType: 'winner',
+        skill: selectedSkill,
+        reason: selectedSkill ? skillToReason(selectedSkill) : 'unknown',
+      });
+    } else {
+      onConfirm({
+        pointType: 'error',
+        fault: selectedFault,
+        reason: 'opponent_error',
+      });
+    }
+  };
 
   return (
     <dialog className="modal modal-open">
@@ -36,62 +80,110 @@ export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProp
           </button>
         </div>
 
+        {/* Abas: Ponto nosso / Erro adversário */}
+        <div className="grid grid-cols-2 border-b border-base-300">
+          <button
+            onClick={() => setTab('winner')}
+            className={`py-3 text-[11px] font-bold uppercase tracking-widest transition-all ${
+              tab === 'winner'
+                ? 'bg-accent/15 text-accent border-b-2 border-accent'
+                : 'text-base-content/60 hover:bg-base-300/50'
+            }`}
+          >
+            Ponto Nosso
+          </button>
+          <button
+            onClick={() => setTab('error')}
+            className={`py-3 text-[11px] font-bold uppercase tracking-widest transition-all ${
+              tab === 'error'
+                ? 'bg-error/15 text-error border-b-2 border-error'
+                : 'text-base-content/60 hover:bg-base-300/50'
+            }`}
+          >
+            Erro Adversário
+          </button>
+        </div>
+
         <div className="p-6 space-y-6">
-          <div>
-            <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
-              Responsável pelo Ponto
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {team.playerIds
-                .map((pid) => players.find((p) => p.id === pid))
-                .filter((p): p is Player => !!p)
-                .map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedPlayerId(p.id)}
-                    className={`p-3 border rounded-xl transition-all text-left group cursor-pointer ${selectedPlayerId === p.id ? 'bg-accent/15 border-accent' : 'bg-base-300 border-base-300 hover:border-accent/50'}`}
-                  >
-                    <p
-                      className={`text-xs font-bold ${selectedPlayerId === p.id ? 'text-accent' : 'group-hover:text-accent'}`}
+          {tab === 'winner' ? (
+            <>
+              <div>
+                <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
+                  Responsável pelo Ponto
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {teamPlayers.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedPlayerId(p.id)}
+                      className={`p-3 border rounded-xl transition-all text-left group cursor-pointer ${selectedPlayerId === p.id ? 'bg-accent/15 border-accent' : 'bg-base-300 border-base-300 hover:border-accent/50'}`}
                     >
-                      {p.nome}
-                    </p>
-                    <p className="text-[9px] uppercase text-base-content/60">
-                      {positionLabels[p.posicaoPrincipal] || 'Jogador'}
-                    </p>
+                      <p
+                        className={`text-xs font-bold ${selectedPlayerId === p.id ? 'text-accent' : 'group-hover:text-accent'}`}
+                      >
+                        {p.nome}
+                      </p>
+                      <p className="text-[9px] uppercase text-base-content/60">
+                        {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                      </p>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setSelectedPlayerId(undefined)}
+                    className={`col-span-2 p-3 border rounded-xl transition-all text-xs font-bold uppercase tracking-widest text-center italic cursor-pointer ${selectedPlayerId === undefined ? 'bg-accent/15 border-accent text-accent' : 'bg-base-300 border-base-300 hover:bg-base-300/80'}`}
+                  >
+                    Ponto do Time (sem autor)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
+                  Fundamento
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {SKILL_ORDER.map((skill) => (
+                    <button
+                      key={skill}
+                      onClick={() =>
+                        setSelectedSkill((cur) => (cur === skill ? undefined : skill))
+                      }
+                      className={`py-3 px-1 border rounded-lg text-[9px] font-bold uppercase tracking-tighter text-center transition-all cursor-pointer ${selectedSkill === skill ? 'bg-accent text-white border-accent' : 'bg-base-300 border-base-300 hover:border-base-content/50'}`}
+                    >
+                      {SKILL_LABELS[skill]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[8px] uppercase text-base-content/40 mt-2 italic tracking-widest">
+                  Opcional — confirme direto para registrar como não informado.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
+                Tipo de Erro do Adversário
+              </label>
+              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                {FAULT_ORDER.map((fault) => (
+                  <button
+                    key={fault}
+                    onClick={() => setSelectedFault((cur) => (cur === fault ? undefined : fault))}
+                    className={`py-2.5 px-2 border rounded-lg text-[9px] font-bold uppercase tracking-tighter text-left transition-all cursor-pointer ${selectedFault === fault ? 'bg-error text-white border-error' : 'bg-base-300 border-base-300 hover:border-base-content/50'}`}
+                  >
+                    {FAULT_LABELS[fault]}
                   </button>
                 ))}
-              <button
-                onClick={() => setSelectedPlayerId(undefined)}
-                className={`col-span-2 p-3 border rounded-xl transition-all text-xs font-bold uppercase tracking-widest text-center italic cursor-pointer ${selectedPlayerId === undefined ? 'bg-accent/15 border-accent text-accent' : 'bg-base-300 border-base-300 hover:bg-base-300/80'}`}
-              >
-                Erro Adversário / Outro (Time)
-              </button>
+              </div>
+              <p className="text-[8px] uppercase text-base-content/40 mt-2 italic tracking-widest">
+                Opcional — confirme direto para registrar erro genérico.
+              </p>
             </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
-              Fundamento Decisivo
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.entries(POINT_REASON_LABELS) as [PointReason, string][]).map(
-                ([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedReason(key as PointReason)}
-                    className={`py-3 px-1 border rounded-lg text-[9px] font-bold uppercase tracking-tighter text-center transition-all cursor-pointer ${selectedReason === key ? 'bg-accent text-white border-accent' : 'bg-base-300 border-base-300 hover:border-base-content/50'}`}
-                  >
-                    {label}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
+          )}
 
           <button
-            onClick={() => onConfirm(selectedPlayerId, selectedReason)}
-            className="btn btn-accent w-full font-bold uppercase tracking-widest shadow-xl shadow-accent/20"
+            onClick={confirm}
+            className={`btn w-full font-bold uppercase tracking-widest shadow-xl ${tab === 'winner' ? 'btn-accent shadow-accent/20' : 'btn-error shadow-error/20'}`}
           >
             Confirmar Ponto
           </button>

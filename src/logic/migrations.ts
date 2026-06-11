@@ -1,4 +1,4 @@
-import { Community, Game, Session, TournamentConfig } from '../types';
+import { Community, FreePlayConfig, Game, Session, TournamentConfig } from '../types';
 
 const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
   type: 'tournament',
@@ -20,6 +20,19 @@ const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
     'headToHead',
     'pointsAgainst',
   ],
+  rotationType: '6x0',
+};
+
+const DEFAULT_FREE_PLAY_CONFIG: FreePlayConfig = {
+  type: 'free_play',
+  teamCount: 3,
+  maxPoints: 15,
+  tieBreakMethod: 'win_by_2',
+  rotationSystem: 'winner_stays',
+  initialCourtTeams: ['', ''],
+  initialQueue: [],
+  queuePolicy: 'fifo',
+  rotationType: '6x0',
 };
 
 export function normalizeTournamentConfig(config: any): TournamentConfig {
@@ -39,6 +52,18 @@ export function normalizeTournamentConfig(config: any): TournamentConfig {
     standingsRules: config?.standingsRules?.length
       ? config.standingsRules
       : DEFAULT_TOURNAMENT_CONFIG.standingsRules,
+    rotationType: config?.rotationType ?? '6x0', // sessões antigas viram 6x0
+  };
+}
+
+export function normalizeFreePlayConfig(config: any): FreePlayConfig {
+  return {
+    ...DEFAULT_FREE_PLAY_CONFIG,
+    ...config,
+    type: 'free_play',
+    initialCourtTeams: config?.initialCourtTeams ?? DEFAULT_FREE_PLAY_CONFIG.initialCourtTeams,
+    initialQueue: config?.initialQueue ?? DEFAULT_FREE_PLAY_CONFIG.initialQueue,
+    rotationType: config?.rotationType ?? '6x0', // sessões antigas viram 6x0
   };
 }
 
@@ -51,9 +76,15 @@ export function normalizeSession(session: any): Session {
     session.config?.type === 'tournament';
 
   if (!isTournament) {
+    const isFreePlay =
+      session.type === 'free_play' || session.config?.type === 'free_play';
     return {
       ...session,
       communityId: session.communityId ?? null,
+      config:
+        isFreePlay && session.config
+          ? normalizeFreePlayConfig(session.config)
+          : session.config,
     };
   }
 

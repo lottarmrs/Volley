@@ -7,6 +7,9 @@ import {
   Player,
   FreePlayConfig,
   PointReason,
+  PointType,
+  Skill,
+  Fault,
   GameReport,
 } from '../types';
 import { getGameWinner, rotateTeams } from '../logic/session';
@@ -125,7 +128,12 @@ export function useLiveSession(
 
   // ── Register point ────────────────────────────────────────────────────────
   const registerPoint = useCallback(
-    (teamId: string, playerId?: string, reason?: PointReason) => {
+    (
+      teamId: string,
+      playerId?: string,
+      reason?: PointReason,
+      details?: { pointType?: PointType; skill?: Skill; fault?: Fault },
+    ) => {
       if (
         !currentGame ||
         !activeSession ||
@@ -168,6 +176,11 @@ export function useLiveSession(
           concedingTeamId,
           playerId,
           reason: reason || 'unknown',
+          pointType: details?.pointType,
+          skill: details?.skill,
+          fault: details?.fault,
+          // Time do autor: no erro, o autor está no time que concedeu o ponto.
+          playerTeamId: details?.pointType === 'error' ? concedingTeamId : teamId,
           scoreBefore,
           scoreAfter,
           timestamp: new Date().toISOString(),

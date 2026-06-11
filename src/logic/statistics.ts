@@ -1,4 +1,5 @@
-import { Player, PointEvent, Game, Team, Session } from '../types';
+import { Player, PointEvent, Game, Team, Session, Fault } from '../types';
+import { isCreditedPoint } from './match';
 
 export interface PlayerStats {
   gamesPlayed: number;
@@ -7,11 +8,30 @@ export interface PlayerStats {
   winRate: number;
   totalPoints: number;
   aces: number;
+  /** Cortadas + largadas + contra-ataques (compatível com o consumo anterior). */
   kills: number;
+  cortadas: number;
+  tips: number;
+  defenses: number;
   blocks: number;
+  /** Total de erros atribuídos ao jogador. */
   errors: number;
-  pointsContribution: number; // percentage of team points scored by player
+  /** Erros do jogador discriminados por tipo de falta. */
+  errorsByType: Partial<Record<Fault, number>>;
+  /** Saldo individual: pontos conquistados − erros cometidos. */
+  balance: number;
+  /** Percentual dos pontos do time conquistados por este jogador. */
+  pointsContribution: number;
 }
+
+// Detecção por fundamento, preferindo a taxonomia nova e caindo para o reason legado.
+const isAce = (p: PointEvent) => p.skill === 'saque' || (!p.skill && p.reason === 'serve_ace');
+const isCortada = (p: PointEvent) => p.skill === 'ataque' || (!p.skill && p.reason === 'attack');
+const isBlock = (p: PointEvent) => p.skill === 'bloqueio' || (!p.skill && p.reason === 'block');
+const isDefense = (p: PointEvent) =>
+  p.skill === 'defesa' || (!p.skill && p.reason === 'defense_counterattack');
+// "Largada" não tem habilidade dedicada na taxonomia nova; vem do reason legado.
+const isTip = (p: PointEvent) => !p.skill && p.reason === 'tip';
 
 export function calculatePlayerStats(
   player: Player,
@@ -28,59 +48,66 @@ export function calculatePlayerStats(
   );
   const registeredGameIds = new Set(registeredGames.map((game) => game.id));
   const playerTeams = allTeams.filter((t) => t.playerIds.includes(player.id));
-  const playerTeamIds = playerTeams.map((t) => t.id);
+  const playerTeamIds = new Set(playerTeams.map((t) => t.id));
 
   const playerGames = registeredGames.filter(
-    (g) => playerTeamIds.includes(g.teamAId) || playerTeamIds.includes(g.teamBId),
+    (g) => playerTeamIds.has(g.teamAId) || playerTeamIds.has(g.teamBId),
   );
 
   const wins = playerGames.filter((g) => {
-    const isTeamA = playerTeamIds.includes(g.teamAId);
+    const isTeamA = playerTeamIds.has(g.teamAId);
     return isTeamA ? g.winnerTeamId === g.teamAId : g.winnerTeamId === g.teamBId;
   }).length;
 
-  const playerPoints = allPoints.filter(
-    (p) => p.playerId === player.id && registeredGameIds.has(p.gameId),
-  );
+  const registeredPoints = allPoints.filter((p) => registeredGameIds.has(p.gameId));
+  const playerPoints = registeredPoints.filter((p) => p.playerId === player.id);
 
-  const CREDITED_REASONS = [
-    'attack',
-    'block',
-    'serve_ace',
-    'defense_counterattack',
-    'tip',
-  ] as const;
-  const creditedPoints = playerPoints.filter((p) => CREDITED_REASONS.includes(p.reason as any));
+  // Pontos conquistados (creditados) pelo jogador.
+  const creditedPoints = playerPoints.filter(isCreditedPoint);
+  const totalPoints = creditedPoints.length;
 
-  const aces = playerPoints.filter((p) => p.reason === 'serve_ace').length;
-  const kills = playerPoints.filter((p) => p.reason === 'attack').length;
-  const blocks = playerPoints.filter((p) => p.reason === 'block').length;
-  const defenseCounter = playerPoints.filter((p) => p.reason === 'defense_counterattack').length;
-  const tips = playerPoints.filter((p) => p.reason === 'tip').length;
+  const aces = creditedPoints.filter(isAce).length;
+  const cortadas = creditedPoints.filter(isCortada).length;
+  const blocks = creditedPoints.filter(isBlock).length;
+  const defenses = creditedPoints.filter(isDefense).length;
+  const tips = creditedPoints.filter(isTip).length;
 
-  // Errors are points marked as opponent_error?
-  // No, opponent_error means the SCORING team got a point because of an error.
-  // We need to look for points where this player's team CONCEDED a point and a reason was error.
-  const teamIdentity = allTeams.filter((t) => t.playerIds.includes(player.id)).map((t) => t.id);
-  const errorsPoints = allPoints.filter(
-    (p) =>
-      registeredGameIds.has(p.gameId) &&
-      p.concedingTeamId &&
-      teamIdentity.includes(p.concedingTeamId) &&
-      p.reason === 'opponent_error' &&
-      p.playerId === player.id, // If we log which player made the error
+  // Erros atribuídos ao jogador (taxonomia nova: pointType 'error' com o jogador
+  // como autor; legado: ponto concedido pelo time do jogador por erro próprio).
+  const errorPoints = registeredPoints.filter((p) => {
+    if (p.playerId !== player.id) return false;
+    if (p.pointType) return p.pointType === 'error';
+    return p.reason === 'opponent_error' && playerTeamIds.has(p.concedingTeamId);
+  });
+
+  const errorsByType: Partial<Record<Fault, number>> = {};
+  for (const p of errorPoints) {
+    if (p.fault) errorsByType[p.fault] = (errorsByType[p.fault] ?? 0) + 1;
+  }
+  const errors = errorPoints.length;
+
+  // Contribuição: pontos do jogador ÷ pontos conquistados pelo seu time.
+  const teamCreditedPoints = registeredPoints.filter(
+    (p) => isCreditedPoint(p) && playerTeamIds.has(p.scoringTeamId),
   ).length;
+  const pointsContribution =
+    teamCreditedPoints > 0 ? (totalPoints / teamCreditedPoints) * 100 : 0;
 
   return {
     gamesPlayed: playerGames.length,
     wins,
     losses: playerGames.length - wins,
     winRate: playerGames.length > 0 ? (wins / playerGames.length) * 100 : 0,
-    totalPoints: creditedPoints.length,
+    totalPoints,
     aces,
-    kills: kills + defenseCounter + tips,
+    kills: cortadas + defenses + tips,
+    cortadas,
+    tips,
+    defenses,
     blocks,
-    errors: errorsPoints,
-    pointsContribution: 0,
+    errors,
+    errorsByType,
+    balance: totalPoints - errors,
+    pointsContribution,
   };
 }

@@ -12,6 +12,8 @@ import {
   BalanceQuality,
   BalanceDiagnostics,
   TeamStrengthSnapshot,
+  RoleComposition,
+  RotationType,
 } from '../types';
 import {
   calculateTeamStrength,
@@ -19,46 +21,51 @@ import {
   calculateTeamSizes,
   calculateGeneralOverall,
 } from './calculations';
+import { OVERALL_SCALE, PENALTIES, THRESHOLDS, QUALITY } from './balancingConstants';
 
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
+// Pesos recalibrados para a escala normalizada (Fase A): com overall e
+// fundamentos na mesma faixa (0–10), os pesos passam a ter efeito real.
+// O domínio do `overall` foi reduzido e os fundamentos ganharam peso de verdade.
+// `gender` respeita um piso de GENDER_WEIGHT_FLOOR em todos os perfis (Fase B).
 const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', BalanceWeights> = {
   balanced: {
-    overall: 1.4,
-    attack: 1.15,
+    overall: 1.0,
+    attack: 1.2,
     defense: 1.1,
-    setting: 1.25,
+    setting: 1.2,
     block: 0.9,
-    reception: 0.95,
+    reception: 1.0,
     serve: 0.65,
-    height: 0.55,
-    gender: 0.75,
-    injured: 1.2,
+    height: 0.5,
+    gender: 0.8,
+    injured: 1.0,
     teamSize: 2.0,
-    roleCoverage: 1.5,
+    roleCoverage: 1.3,
     consistency: 0.7,
     emotionalControl: 0.5,
-    netPresence: 1.0,
+    netPresence: 0.9,
   },
   competitive: {
-    overall: 2.0,
-    attack: 1.8,
-    defense: 1.7,
-    setting: 1.9,
-    block: 1.5,
-    reception: 1.6,
-    serve: 1.0,
-    height: 0.8,
-    gender: 0.2,
+    overall: 1.0,
+    attack: 1.6,
+    defense: 1.4,
+    setting: 1.6,
+    block: 1.2,
+    reception: 1.3,
+    serve: 0.8,
+    height: 0.5,
+    gender: 0.6,
     injured: 0.5,
     teamSize: 2.0,
-    roleCoverage: 2.0,
-    consistency: 1.2,
-    emotionalControl: 1.0,
-    netPresence: 1.5,
+    roleCoverage: 1.5,
+    consistency: 0.8,
+    emotionalControl: 0.6,
+    netPresence: 1.0,
   },
   social: {
-    overall: 1.0,
+    overall: 0.8,
     attack: 0.5,
     defense: 0.5,
     setting: 0.6,
@@ -69,13 +76,13 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
     gender: 1.5,
     injured: 1.8,
     teamSize: 3.0,
-    roleCoverage: 0.5,
+    roleCoverage: 0.6,
     consistency: 0.4,
     emotionalControl: 0.3,
     netPresence: 0.4,
   },
   mixed: {
-    overall: 1.2,
+    overall: 0.9,
     attack: 0.8,
     defense: 0.8,
     setting: 1.0,
@@ -83,7 +90,7 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
     reception: 0.7,
     serve: 0.5,
     height: 0.4,
-    gender: 3.0,
+    gender: 2.0,
     injured: 1.0,
     teamSize: 2.5,
     roleCoverage: 1.0,
@@ -93,13 +100,18 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
   },
 };
 
+// Piso de gênero: o equilíbrio de gênero é critério permanente em todos os perfis (Fase B).
+export const GENDER_WEIGHT_FLOOR = 0.6;
+
 const SPEED_CONFIG: Record<
   'fast' | 'normal' | 'advanced',
   { maxIterations: number; timeLimitMillis: number }
 > = {
   fast: { maxIterations: 3000, timeLimitMillis: 500 },
   normal: { maxIterations: 8000, timeLimitMillis: 1500 },
-  advanced: { maxIterations: 25000, timeLimitMillis: 3000 },
+  // O cálculo roda em um Web Worker, então a UI não congela: cobrimos mais
+  // possibilidades sem prejudicar a responsividade.
+  advanced: { maxIterations: 40000, timeLimitMillis: 5000 },
 };
 
 // ─── Player Mapping & Technical Vectors ──────────────────────────────────────
@@ -129,19 +141,11 @@ export function mapPlayerToAthleteVector(p: Player): AthleteVector {
   };
 }
 
-function calculateHeightImpact(heightCm: number | null): number {
-  if (!heightCm) return 0;
-  if (heightCm > 190) return 0.5;
-  if (heightCm > 180) return 0.25;
-  if (heightCm < 170) return -0.25;
-  return 0;
-}
-
 export function adjustedOverall(a: AthleteVector): number {
-  const injuryPenalty = a.isInjured ? 1.5 : 0.0;
-  const formModifier = a.currentForm * 0.25;
-  const heightBonus = calculateHeightImpact(a.heightCm);
-  return a.overall + formModifier + heightBonus - injuryPenalty;
+  // overall (de calculateGeneralOverall) já incorpora forma e altura.
+  // Lesão é tratada exclusivamente no termo injuredPenalty do scorer,
+  // evitando dupla contagem.
+  return a.overall;
 }
 
 export function netPresence(a: AthleteVector): number {
@@ -150,6 +154,67 @@ export function netPresence(a: AthleteVector): number {
   const attackWeight = a.attack * 0.35;
   const positionBonus = a.position === 'central' || a.position === 'oposto' ? 0.75 : 0.0;
   return blockWeight + attackWeight + heightFactor * 2.0 + positionBonus;
+}
+
+// ─── Role Composition (Fase B — 5x1) ─────────────────────────────────────────
+
+const COMPOSITION_ROLES: (keyof RoleComposition)[] = [
+  'levantador',
+  'libero',
+  'central',
+  'oposto',
+  'ponteiro',
+];
+
+/**
+ * Decide a composição viável por time antes do annealing.
+ * 1 líbero por time se houver o suficiente; senão, fallback 2 centrais / 0 líbero.
+ */
+export function resolveComposition(
+  athletes: AthleteVector[],
+  numTeams: number,
+): { perTeam: RoleComposition; warnings: string[] } {
+  const liberos = athletes.filter((a) => a.position === 'libero').length;
+  const warnings: string[] = [];
+  const useLibero = liberos >= numTeams;
+  if (!useLibero) warnings.push('Líberos insuficientes → usando 2 centrais por time.');
+  return {
+    perTeam: {
+      levantador: 1,
+      ponteiro: 2,
+      oposto: 1,
+      central: useLibero ? 1 : 2,
+      libero: useLibero ? 1 : 0,
+    },
+    warnings,
+  };
+}
+
+/**
+ * Conta quantos slots da composição alvo ficam descobertos em um time.
+ * Cada jogador preenche no máximo um slot, na ordem: posição principal →
+ * posição secundária → coringa (all-rounder).
+ */
+function computeCompositionDeficit(team: AthleteVector[], perTeam: RoleComposition): number {
+  const pool = team.slice();
+  let deficit = 0;
+  for (const role of COMPOSITION_ROLES) {
+    let want = perTeam[role];
+    if (want <= 0) continue;
+    const takeBy = (pred: (a: AthleteVector) => boolean) => {
+      for (let i = pool.length - 1; i >= 0 && want > 0; i--) {
+        if (pred(pool[i])) {
+          pool.splice(i, 1);
+          want--;
+        }
+      }
+    };
+    takeBy((a) => a.position === role);
+    takeBy((a) => !!a.secondaryPositions?.includes(role));
+    takeBy((a) => a.position === 'all-rounder');
+    deficit += want;
+  }
+  return deficit;
 }
 
 // ─── Team Metrics ────────────────────────────────────────────────────────────
@@ -192,13 +257,16 @@ export function calculateTeamMetrics(teamIndex: number, athletes: AthleteVector[
 
   const hasSetter = athletes.some(
     (a) =>
-      a.setting >= 7.0 ||
+      a.setting >= THRESHOLDS.setter ||
       a.position === 'levantador' ||
       a.secondaryPositions?.includes('levantador'),
   );
-  const hasStrongAttacker = athletes.some((a) => a.attack >= 7.0);
+  const hasStrongAttacker = athletes.some((a) => a.attack >= THRESHOLDS.strongAttacker);
   const hasDefensiveReference = athletes.some(
-    (a) => a.defense >= 7.0 || a.reception >= 7.0 || a.position === 'libero',
+    (a) =>
+      a.defense >= THRESHOLDS.defensiveRef ||
+      a.reception >= THRESHOLDS.defensiveRef ||
+      a.position === 'libero',
   );
 
   return {
@@ -248,6 +316,8 @@ export class ObjectiveScorer {
     public totalMales: number,
     public totalInjured: number,
     public numTeams: number,
+    public rotationType: RotationType = '6x0',
+    public composition?: RoleComposition,
   ) {}
 
   score(
@@ -264,7 +334,7 @@ export class ObjectiveScorer {
         for (const t of solution.teams) {
           const ids = t.map((a) => a.id);
           if (ids.includes(p1) && ids.includes(p2)) {
-            penalty += 10000;
+            penalty += PENALTIES.forbiddenPair;
           }
         }
       }
@@ -282,7 +352,7 @@ export class ObjectiveScorer {
           }
         }
         if (!sameTeam) {
-          penalty += 10000;
+          penalty += PENALTIES.togetherPair;
         }
       }
     }
@@ -292,7 +362,7 @@ export class ObjectiveScorer {
       for (const [pid, targetIdx] of Object.entries(constraints.lockedPlayerIdxs)) {
         const currentIdx = solution.teams.findIndex((t) => t.some((a) => a.id === pid));
         if (currentIdx !== -1 && currentIdx !== targetIdx) {
-          penalty += 10000;
+          penalty += PENALTIES.lockedAssignment;
         }
       }
     }
@@ -302,7 +372,7 @@ export class ObjectiveScorer {
     const minSize = Math.min(...teamSizes);
     const maxSize = Math.max(...teamSizes);
     if (maxSize - minSize > 1) {
-      penalty += (maxSize - minSize) * 2000;
+      penalty += (maxSize - minSize) * PENALTIES.teamSizeDiff;
     }
 
     // Spreads calculation
@@ -312,7 +382,7 @@ export class ObjectiveScorer {
     };
 
     const overallSpread = weightedSpread(
-      teamsMetrics.map((m) => m.overall),
+      teamsMetrics.map((m) => m.overall / OVERALL_SCALE), // 0–100 → mesma faixa dos fundamentos (0–10)
       this.weights.overall,
     );
     const attackSpread = weightedSpread(
@@ -407,19 +477,19 @@ export class ObjectiveScorer {
       solution.teams.forEach((t) => {
         const pCount = t.filter((a) => a.position === 'levantador').length;
         if (pCount < minP) {
-          penalty += (minP - pCount) * 8000;
+          penalty += (minP - pCount) * PENALTIES.setterSlot;
         } else if (pCount > maxP) {
-          penalty += (pCount - maxP) * 8000;
+          penalty += (pCount - maxP) * PENALTIES.setterSlot;
         }
         if (pCount === 0) {
-          penalty += 15000;
+          penalty += PENALTIES.setterMissing;
         }
       });
     } else {
       solution.teams.forEach((t) => {
         const pCount = t.filter((a) => a.position === 'levantador').length;
         if (pCount > 1) {
-          penalty += (pCount - 1) * 8000;
+          penalty += (pCount - 1) * PENALTIES.setterSlot;
         }
       });
 
@@ -436,13 +506,13 @@ export class ObjectiveScorer {
           const tCount = pCount + sCount;
 
           if (tCount < minT) {
-            penalty += (minT - tCount) * 8000;
+            penalty += (minT - tCount) * PENALTIES.setterSlot;
           } else if (tCount > maxT) {
-            penalty += (tCount - maxT) * 8000;
+            penalty += (tCount - maxT) * PENALTIES.setterSlot;
           }
 
           if (tCount === 0 && totalSetters >= this.numTeams) {
-            penalty += 15000;
+            penalty += PENALTIES.setterMissing;
           }
         });
       }
@@ -457,11 +527,26 @@ export class ObjectiveScorer {
     });
     roleCoveragePenalty *= this.weights.roleCoverage;
 
+    // Composition penalty (Fase B — 5x1): penaliza slots de papel descobertos
+    let compositionPenalty = 0;
+    if (this.rotationType === '5x1' && this.composition) {
+      for (const team of solution.teams) {
+        compositionPenalty += computeCompositionDeficit(team, this.composition) * PENALTIES.compositionSlot;
+      }
+
+      // Penalidade leve: evitar que todas as mulheres caiam no mesmo papel.
+      const females = solution.teams.flat().filter((a) => a.gender === 'F');
+      if (females.length >= 2) {
+        const distinctRoles = new Set(females.map((a) => a.position));
+        if (distinctRoles.size === 1) compositionPenalty += 200;
+      }
+    }
+
     // 5. Duplicate penalty (avoid repeating options)
     if (!ignoreDuplicates && this.previousFingerprints && this.previousFingerprints.length > 0) {
       const fp = getSolutionFingerprint(solution);
       if (this.previousFingerprints.includes(fp)) {
-        penalty += 5000.0;
+        penalty += PENALTIES.duplicateSolution;
       }
     }
 
@@ -481,7 +566,8 @@ export class ObjectiveScorer {
       genderBalancePenalty +
       injuredPenalty +
       teamSizePenalty +
-      roleCoveragePenalty
+      roleCoveragePenalty +
+      compositionPenalty
     );
   }
 }
@@ -774,10 +860,10 @@ function createSeededRandom(seed: number) {
 
 // ─── Quality Labeling & Diagnostics ──────────────────────────────────────────
 
-function getQualityLabel(score: number): BalanceQuality {
-  if (score < 15.0) return 'EXCELLENT';
-  if (score < 30.0) return 'GOOD';
-  if (score < 60.0) return 'ACCEPTABLE';
+export function getQualityLabel(score: number): BalanceQuality {
+  if (score < QUALITY.excellent) return 'EXCELLENT';
+  if (score < QUALITY.good) return 'GOOD';
+  if (score < QUALITY.acceptable) return 'ACCEPTABLE';
   return 'UNBALANCED';
 }
 
@@ -797,7 +883,9 @@ function buildBalanceDiagnostics(
     return Math.max(...values) - Math.min(...values);
   };
 
-  const overallSpread = getSpread(metrics.map((m) => m.overall));
+  // Normaliza o overall (0–100) para a faixa dos fundamentos (0–10),
+  // para o diagnóstico bater com o score do scorer.
+  const overallSpread = getSpread(metrics.map((m) => m.overall / OVERALL_SCALE));
   const attackSpread = getSpread(metrics.map((m) => m.attack));
   const defenseSpread = getSpread(metrics.map((m) => m.defense));
   const settingSpread = getSpread(metrics.map((m) => m.setting));
@@ -889,7 +977,7 @@ function buildBalanceDiagnostics(
     }
   });
 
-  if (overallSpread > 3.0) {
+  if (overallSpread > 1.0) {
     warnings.push(
       `Desequilíbrio de nível geral elevado (${overallSpread.toFixed(1)} pts de diferença máxima).`,
     );
@@ -933,6 +1021,7 @@ export class SimulatedAnnealingBalancer {
     maxIterations: number,
     timeLimitMillis: number,
     seed: number,
+    onProgress?: (fraction: number, bestScore: number, best: TeamSolution) => void,
   ): { solution: TeamSolution; score: number; iterations: number } {
     const random = createSeededRandom(seed);
     const startTime = Date.now();
@@ -949,6 +1038,8 @@ export class SimulatedAnnealingBalancer {
     let iterations = 0;
     let iterationsWithoutImprovement = 0;
     const maxNoImprovement = Math.max(2000, Math.floor(maxIterations * 0.8));
+    // Emite progresso a cada ~2% das iterações (sem onProgress, nada muda).
+    const progressEvery = Math.max(1, Math.floor(maxIterations / 50));
 
     while (
       iterations < maxIterations &&
@@ -987,6 +1078,10 @@ export class SimulatedAnnealingBalancer {
       // Cooling rate
       temperature *= 0.995;
       iterations++;
+
+      if (onProgress && iterations % progressEvery === 0) {
+        onProgress(Math.min(1, iterations / maxIterations), bestScore, best);
+      }
     }
 
     return { solution: best, score: this.scorer.score(best, constraints, true), iterations };
@@ -1084,13 +1179,16 @@ export const balanceTeams = (
   numTeams: number,
   sessionId: string,
   config?: TournamentConfig | FreePlayConfig,
+  onProgress?: (percent: number, bestScore: number) => void,
 ): Division[] => {
   const startTime = Date.now();
   const balanceMode = config?.balanceMode || 'balanced';
   const balanceSpeed = config?.balanceSpeed || 'advanced';
   const constraints = config?.balanceConstraints || {};
 
-  const weights = MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced;
+  // Gênero é critério permanente: respeita um piso em todos os perfis (Fase B).
+  const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
+  weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
   const speed = SPEED_CONFIG[balanceSpeed] || SPEED_CONFIG.advanced;
 
   // Map players to vectors
@@ -1100,15 +1198,28 @@ export const balanceTeams = (
   const totalMales = athletes.filter((a) => a.gender === 'M').length;
   const totalInjured = athletes.filter((a) => a.isInjured).length;
 
-  const scorer = new ObjectiveScorer(weights, totalFemales, totalMales, totalInjured, numTeams);
+  const rotationType: RotationType = config?.rotationType ?? '6x0';
+  const composition =
+    rotationType === '5x1' ? resolveComposition(athletes, numTeams).perTeam : undefined;
+
+  const scorer = new ObjectiveScorer(
+    weights,
+    totalFemales,
+    totalMales,
+    totalInjured,
+    numTeams,
+    rotationType,
+    composition,
+  );
   const initialBuilder = new InitialTeamBuilder(numTeams);
   const balancer = new SimulatedAnnealingBalancer(initialBuilder, scorer);
 
   // Generate 3 options using deterministic seeds: base, base + 101, base + 202
   const baseSeed = 42;
   const seeds = [baseSeed, baseSeed + 101, baseSeed + 202];
+  const numSeeds = seeds.length;
 
-  const results: Division[] = seeds.map((seed) => {
+  const results: Division[] = seeds.map((seed, seedIdx) => {
     const runStartTime = Date.now();
     const { solution, score, iterations } = balancer.balance(
       athletes,
@@ -1116,6 +1227,13 @@ export const balanceTeams = (
       speed.maxIterations,
       speed.timeLimitMillis,
       seed,
+      onProgress
+        ? (fraction, bestScore) => {
+            // Acumula o progresso global entre as seeds.
+            const percent = Math.min(99, Math.round(((seedIdx + fraction) / numSeeds) * 100));
+            onProgress(percent, bestScore);
+          }
+        : undefined,
     );
     const runRuntime = Date.now() - runStartTime;
 
@@ -1177,7 +1295,9 @@ export const balanceTeams = (
   assignLabelsToDivisions(results);
 
   // Return sorted by score ascending (best first)
-  return results.sort((a, b) => a.score - b.score);
+  const sorted = results.sort((a, b) => a.score - b.score);
+  if (onProgress) onProgress(100, sorted[0]?.score ?? 0);
+  return sorted;
 };
 
 function buildTeamStrengthSnapshot(m: TeamMetrics): TeamStrengthSnapshot {

@@ -111,3 +111,28 @@ export function normalizeCommunity(community: any): Community {
 export function normalizeCommunities(communities: any[]): Community[] {
   return Array.isArray(communities) ? communities.map(normalizeCommunity) : [];
 }
+
+export function sanitizeImportedBackup(val: any): any {
+  if (val === null || val === undefined) return val;
+  if (Array.isArray(val)) {
+    return val.map(sanitizeImportedBackup);
+  }
+  if (typeof val === 'object') {
+    const cleaned = { ...val };
+    if ('cloudId' in cleaned) {
+      delete cleaned.cloudId;
+    }
+    if ('syncStatus' in cleaned) {
+      cleaned.syncStatus = 'pending';
+    }
+    if ('lastSyncedAt' in cleaned) {
+      delete cleaned.lastSyncedAt;
+    }
+    for (const key in cleaned) {
+      cleaned[key] = sanitizeImportedBackup(cleaned[key]);
+    }
+    return cleaned;
+  }
+  return val;
+}
+

@@ -6,6 +6,7 @@ import {
   normalizeSessionDraft,
   normalizeSessions,
   normalizeTournamentConfig,
+  sanitizeImportedBackup,
 } from './migrations';
 
 test('normalizeTournamentConfig fills modern tournament defaults', () => {
@@ -61,3 +62,40 @@ test('normalizers return empty arrays for invalid collection inputs', () => {
   assert.deepEqual(normalizeGames(undefined as unknown as []), []);
   assert.deepEqual(normalizeCommunities('bad' as unknown as []), []);
 });
+
+test('sanitizeImportedBackup recursively removes cloudId/lastSyncedAt and sets syncStatus to pending', () => {
+  const input = {
+    players: [
+      {
+        id: 'player-1',
+        nome: 'Carol Mendes',
+        cloudId: 'dd346673-f27b-4a26-ae54-1b0dd511728d',
+        syncStatus: 'synced',
+        lastSyncedAt: '2026-06-10T21:02:10.391Z',
+      },
+    ],
+    activeSession: {
+      id: 'session-1',
+      cloudId: 'some-uuid',
+      syncStatus: 'synced',
+      lastSyncedAt: 'yesterday',
+    },
+  };
+
+  const sanitized = sanitizeImportedBackup(input);
+
+  assert.deepEqual(sanitized, {
+    players: [
+      {
+        id: 'player-1',
+        nome: 'Carol Mendes',
+        syncStatus: 'pending',
+      },
+    ],
+    activeSession: {
+      id: 'session-1',
+      syncStatus: 'pending',
+    },
+  });
+});
+

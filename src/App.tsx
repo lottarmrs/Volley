@@ -57,7 +57,7 @@ import {
   Team,
   TournamentConfig,
 } from './types';
-import { normalizeCommunities, normalizeGames, normalizeSessions } from './logic/migrations';
+import { normalizeCommunities, normalizeGames, normalizeSessions, sanitizeImportedBackup } from './logic/migrations';
 import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
@@ -208,7 +208,8 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = JSON.parse(e.target?.result as string);
+        const rawData = JSON.parse(e.target?.result as string);
+        const data = sanitizeImportedBackup(rawData);
         if (data.players) play.setPlayers(data.players);
         if (data.sessions) sess.setSessions(normalizeSessions(data.sessions));
         if (data.teams) sess.setTeams(data.teams);

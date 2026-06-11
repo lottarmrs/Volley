@@ -26,7 +26,17 @@ import {
   Share2,
   Copy,
 } from 'lucide-react';
-import { Session, Player, Team, Division, Position, Community, Game } from '../../types';
+import {
+  Session,
+  Player,
+  Team,
+  Division,
+  Position,
+  Community,
+  Game,
+  RotationType,
+} from '../../types';
+import { resolveComposition, mapPlayerToAthleteVector } from '../../logic/balancing';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
@@ -55,6 +65,9 @@ interface SessionWizardProps {
   onClearSelection: () => void;
   onUseLastSelection: () => void;
   onGenerateDivisions: (advanceStep?: boolean) => void;
+  onCancelGeneration: () => void;
+  isGenerating: boolean;
+  generationProgress: number;
   onConfirmDivision: () => void;
   onStartGeneratedTournament: () => void;
   setSelectedDivisionIndex: (i: number) => void;
@@ -92,6 +105,9 @@ export function SessionWizard({
   onClearSelection,
   onUseLastSelection,
   onGenerateDivisions,
+  onCancelGeneration,
+  isGenerating,
+  generationProgress,
   onConfirmDivision,
   onStartGeneratedTournament,
   setSelectedDivisionIndex,
@@ -230,6 +246,16 @@ export function SessionWizard({
   const selectedPlayers = useMemo(() => {
     return players.filter((p) => activeSession?.selectedPlayerIds.includes(p.id));
   }, [players, activeSession?.selectedPlayerIds]);
+
+  const rotationType: RotationType =
+    (activeSession?.config as { rotationType?: RotationType } | undefined)?.rotationType ?? '6x0';
+
+  const rotationComposition = useMemo(() => {
+    if (rotationType !== '5x1') return null;
+    const teamCount = activeSession?.config?.teamCount ?? 0;
+    if (teamCount <= 0 || selectedPlayers.length === 0) return null;
+    return resolveComposition(selectedPlayers.map(mapPlayerToAthleteVector), teamCount);
+  }, [rotationType, activeSession?.config?.teamCount, selectedPlayers]);
 
   const updateGeneratedTeam = (divisionIndex: number, teamId: string, patch: Partial<Team>) => {
     setBestDivisions((prev) =>
@@ -1295,6 +1321,77 @@ export function SessionWizard({
                         </div>
                       </div>
                     </div>
+
+                    {/* Sistema de Rotação (6x0 / 5x1) */}
+                    <div className="w-full">
+                      <div className="fieldset">
+                        <label className="fieldset-legend text-[9px] font-bold uppercase text-text-muted tracking-wider mb-2">
+                          Sistema de Rotação
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 w-full">
+                          {[
+                            {
+                              id: '6x0' as RotationType,
+                              label: '6x0',
+                              desc: 'Todos levantam',
+                            },
+                            {
+                              id: '5x1' as RotationType,
+                              label: '5x1',
+                              desc: 'Levantador fixo',
+                            },
+                          ].map((r) => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() =>
+                                onUpdateSession({
+                                  config: {
+                                    ...(activeSession.config as any),
+                                    rotationType: r.id,
+                                  },
+                                })
+                              }
+                              className={`btn btn-sm text-left h-auto block p-2 ${
+                                rotationType === r.id ? 'btn-accent' : 'btn-neutral'
+                              }`}
+                            >
+                              <span className="text-[9px] font-bold uppercase block">
+                                {r.label}
+                              </span>
+                              <span className="text-[7px] lowercase opacity-70 block mt-0.5 leading-none">
+                                {r.desc}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {rotationType === '5x1' && rotationComposition && (
+                          <div className="mt-2 space-y-1.5">
+                            <p className="text-[8px] font-bold uppercase text-text-muted/80 tracking-wider">
+                              Composição por time:{' '}
+                              <span className="text-base-content">
+                                {rotationComposition.perTeam.levantador} Levantador ·{' '}
+                                {rotationComposition.perTeam.ponteiro} Ponteiros ·{' '}
+                                {rotationComposition.perTeam.oposto} Oposto ·{' '}
+                                {rotationComposition.perTeam.central} Central
+                                {rotationComposition.perTeam.libero > 0
+                                  ? ` · ${rotationComposition.perTeam.libero} Líbero`
+                                  : ''}
+                              </span>
+                            </p>
+                            {rotationComposition.warnings.map((w, i) => (
+                              <p
+                                key={i}
+                                className="text-[8px] font-bold uppercase text-warning tracking-tight italic leading-tight"
+                              >
+                                {w}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1328,21 +1425,47 @@ export function SessionWizard({
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  onPrev();
-                }}
-                className="btn btn-ghost flex-1 text-xs"
-              >
-                Voltar às Regras
-              </button>
-              <button onClick={onGenerateDivisions} className="btn btn-accent flex-[2] group">
-                Gerar Times Equilibrados{' '}
-                <Sparkles className="w-4 h-4 inline-block ml-2 group-hover:animate-pulse" />
-              </button>
-            </div>
+            {isGenerating ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase text-text-muted tracking-widest flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 animate-pulse text-accent" /> Equilibrando os
+                    times…
+                  </p>
+                  <span className="text-[10px] font-mono font-bold text-accent">
+                    {generationProgress}%
+                  </span>
+                </div>
+                <progress
+                  className="progress progress-accent w-full"
+                  value={generationProgress}
+                  max={100}
+                />
+                <button
+                  type="button"
+                  onClick={onCancelGeneration}
+                  className="btn btn-ghost btn-sm w-full text-xs"
+                >
+                  <X className="w-3.5 h-3.5" /> Cancelar
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPrev();
+                  }}
+                  className="btn btn-ghost flex-1 text-xs"
+                >
+                  Voltar às Regras
+                </button>
+                <button onClick={onGenerateDivisions} className="btn btn-accent flex-[2] group">
+                  Gerar Times Equilibrados{' '}
+                  <Sparkles className="w-4 h-4 inline-block ml-2 group-hover:animate-pulse" />
+                </button>
+              </div>
+            )}
           </div>
         );
       }
@@ -1368,10 +1491,15 @@ export function SessionWizard({
               <div className="divider divider-horizontal mx-1 hidden sm:flex" />
               <button
                 onClick={() => onGenerateDivisions(false)}
+                disabled={isGenerating}
                 className="btn btn-sm btn-ghost btn-circle"
                 title="Regerar equipes com as travas/restrições atuais"
               >
-                <RotateCcw className="w-4 h-4" />
+                {isGenerating ? (
+                  <span className="loading loading-spinner loading-xs" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
               </button>
               <button
                 onClick={() => setShowConstraintsModal(true)}

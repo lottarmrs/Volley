@@ -39,7 +39,7 @@ import { TeamScoreCard } from './TeamScoreCard';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { PointModal } from './PointModal';
 import { POINT_REASON_LABELS, getPointLabel } from '../../logic/match';
-import { PointReason } from '../../types';
+import { PointReason, PointType, Skill, Fault } from '../../types';
 
 interface Props {
   activeSession: Session;
@@ -52,7 +52,12 @@ interface Props {
   scoringRanking: { playerId: string; points: number }[];
   pointModalTeamId: string | null;
   setPointModalTeamId: (id: string | null) => void;
-  registerPoint: (teamId: string, playerId?: string, reason?: PointReason) => void;
+  registerPoint: (
+    teamId: string,
+    playerId?: string,
+    reason?: PointReason,
+    details?: { pointType?: PointType; skill?: Skill; fault?: Fault },
+  ) => void;
   finishCurrentGameManually: () => void;
   startNextGame: (update: (s: Session) => void) => void;
   undoLastPoint: () => void;
@@ -522,8 +527,12 @@ export const TournamentActiveView = ({
             team={sessionTeams.find((t) => t.id === pointModalTeamId)!}
             players={players}
             onClose={() => setPointModalTeamId(null)}
-            onConfirm={(playerId, reason) => {
-              registerPoint(pointModalTeamId, playerId, reason);
+            onConfirm={(details) => {
+              registerPoint(pointModalTeamId, details.playerId, details.reason, {
+                pointType: details.pointType,
+                skill: details.skill,
+                fault: details.fault,
+              });
               setPointModalTeamId(null);
             }}
           />

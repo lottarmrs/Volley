@@ -532,8 +532,12 @@ export const SessionActiveView = ({
               team={sessionTeams.find((t) => t.id === pointModalTeamId)!}
               players={players}
               onClose={() => setPointModalTeamId(null)}
-              onConfirm={(playerId, reason) => {
-                registerPoint(pointModalTeamId, playerId, reason);
+              onConfirm={(details) => {
+                registerPoint(pointModalTeamId, details.playerId, details.reason, {
+                  pointType: details.pointType,
+                  skill: details.skill,
+                  fault: details.fault,
+                });
                 setPointModalTeamId(null);
               }}
             />

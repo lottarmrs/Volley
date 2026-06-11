@@ -21,6 +21,17 @@ export interface Attributes {
 
 export type Position = 'levantador' | 'oposto' | 'ponteiro' | 'central' | 'libero' | 'all-rounder';
 
+export type RotationType = '6x0' | '5x1';
+
+/** Composição alvo por papel para uma equipe (usada no 5x1). */
+export interface RoleComposition {
+  levantador: number; // 1
+  ponteiro: number; // 2
+  oposto: number; // 1
+  central: number; // 1 (ou 2 no fallback)
+  libero: number; // 1 (ou 0 no fallback)
+}
+
 export interface Player {
   id: string;
   /** Globally unique, human-readable handle for the athlete (slug of the name). */
@@ -246,6 +257,7 @@ export interface TournamentConfig {
   balanceMode?: 'balanced' | 'competitive' | 'social' | 'mixed';
   balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
+  rotationType?: RotationType; // default '6x0'
 }
 
 export interface FreePlayConfig {
@@ -262,6 +274,7 @@ export interface FreePlayConfig {
   balanceMode?: 'balanced' | 'competitive' | 'social' | 'mixed';
   balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
+  rotationType?: RotationType; // default '6x0'
 }
 
 export type SessionStatus =
@@ -339,6 +352,39 @@ export type PointReason =
   | 'tip'
   | 'unknown';
 
+// ─── Event taxonomy (nomenclatura do vôlei) ───────────────────────────────────
+
+export type PointType = 'winner' | 'error';
+
+export type Skill =
+  | 'saque'
+  | 'recepcao'
+  | 'levantamento'
+  | 'ataque'
+  | 'bloqueio'
+  | 'defesa'
+  | 'posicionamento';
+
+export type Fault =
+  | 'saque_fora'
+  | 'saque_rede'
+  | 'ataque_fora'
+  | 'ataque_rede'
+  | 'dois_toques'
+  | 'conducao'
+  | 'quatro_toques'
+  | 'toque_apoiado'
+  | 'toque_rede'
+  | 'invasao_quadra'
+  | 'invasao_rede'
+  | 'ataque_linha_ataque'
+  | 'libero_ataque'
+  | 'libero_levantamento_frente'
+  | 'libero_bloqueio'
+  | 'libero_saque'
+  | 'bloqueio_fora_antena'
+  | 'posicao_rotacao';
+
 export type GameWinner = 'A' | 'B' | null;
 
 export interface PointEvent {
@@ -349,7 +395,11 @@ export interface PointEvent {
   scoringTeamId: string;
   concedingTeamId: string;
   playerId?: string | null;
-  reason?: PointReason;
+  reason?: PointReason; // legado (mantido para retrocompat de leitura)
+  pointType?: PointType; // novo
+  skill?: Skill; // novo (quando pointType === 'winner')
+  fault?: Fault; // novo (quando pointType === 'error')
+  playerTeamId?: string | null; // time do autor (crédito/débito correto)
   scoreBefore: {
     teamA: number;
     teamB: number;

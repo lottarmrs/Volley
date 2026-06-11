@@ -553,6 +553,9 @@ export default function App() {
               onClearSelection={wizard.clearSelectedPlayers}
               onUseLastSelection={wizard.useLastSelection}
               onGenerateDivisions={wizard.generateDivisions}
+              onCancelGeneration={wizard.cancelGeneration}
+              isGenerating={wizard.isGenerating}
+              generationProgress={wizard.progress}
               onConfirmDivision={wizard.confirmDivision}
               onStartGeneratedTournament={wizard.startGeneratedTournament}
               setSelectedDivisionIndex={wizard.setSelectedDivisionIndex}

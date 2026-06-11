@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Session,
   Player,
@@ -9,6 +9,7 @@ import {
   TournamentConfig,
 } from '../types';
 import { balanceTeams } from '../logic/balancing';
+import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 
@@ -35,6 +36,17 @@ export function useSessionWizard({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [bestDivisions, setBestDivisions] = useState<Division[]>([]);
   const [selectedDivisionIndex, setSelectedDivisionIndex] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const workerRef = useRef<Worker | null>(null);
+
+  // Garante que o worker é encerrado se o componente desmontar no meio do cálculo.
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (activeSession && activeSession.status === 'draft') {
@@ -124,17 +136,78 @@ export function useSessionWizard({
   const generateDivisions = (advanceStep = true) => {
     if (!activeSession || !activeSession.config) return;
     const sessionPlayers = players.filter((p) => activeSession.selectedPlayerIds.includes(p.id));
-    const divisions = balanceTeams(
-      sessionPlayers,
-      activeSession.config.teamCount,
-      activeSession.id,
-      activeSession.config,
-    );
-    setBestDivisions(divisions);
-    setSelectedDivisionIndex(0);
-    if (advanceStep) {
-      nextStep();
+    const { config } = activeSession;
+    const sessionId = activeSession.id;
+
+    const finish = (divisions: Division[]) => {
+      setBestDivisions(divisions);
+      setSelectedDivisionIndex(0);
+      setIsGenerating(false);
+      setProgress(100);
+      if (advanceStep) nextStep();
+    };
+
+    // Encerra qualquer cálculo anterior ainda em andamento.
+    workerRef.current?.terminate();
+    workerRef.current = null;
+
+    // Fallback síncrono quando Web Workers não estão disponíveis (ex.: testes/SSR).
+    if (typeof Worker === 'undefined') {
+      setIsGenerating(true);
+      setProgress(0);
+      const divisions = balanceTeams(sessionPlayers, config.teamCount, sessionId, config);
+      finish(divisions);
+      return;
     }
+
+    const worker = new Worker(new URL('../logic/balancer.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    workerRef.current = worker;
+    setIsGenerating(true);
+    setProgress(0);
+
+    worker.onmessage = (e: MessageEvent<BalanceResponse>) => {
+      const msg = e.data;
+      if (msg.type === 'progress') {
+        setProgress(msg.percent);
+      } else if (msg.type === 'done') {
+        worker.terminate();
+        if (workerRef.current === worker) workerRef.current = null;
+        finish(msg.divisions);
+      } else {
+        // erro: encerra e cai no cálculo síncrono para não travar o fluxo.
+        console.error('Balancer worker error:', msg.message);
+        worker.terminate();
+        if (workerRef.current === worker) workerRef.current = null;
+        const divisions = balanceTeams(sessionPlayers, config.teamCount, sessionId, config);
+        finish(divisions);
+      }
+    };
+
+    worker.onerror = (err) => {
+      console.error('Balancer worker failed, falling back to sync:', err.message);
+      worker.terminate();
+      if (workerRef.current === worker) workerRef.current = null;
+      const divisions = balanceTeams(sessionPlayers, config.teamCount, sessionId, config);
+      finish(divisions);
+    };
+
+    const request: BalanceRequest = {
+      type: 'balance',
+      players: sessionPlayers,
+      numTeams: config.teamCount,
+      sessionId,
+      config,
+    };
+    worker.postMessage(request);
+  };
+
+  const cancelGeneration = () => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setIsGenerating(false);
+    setProgress(0);
   };
 
   const togglePlayerLock = (playerId: string, teamIdx: number) => {
@@ -362,6 +435,8 @@ export function useSessionWizard({
     setBestDivisions,
     selectedDivisionIndex,
     setSelectedDivisionIndex,
+    isGenerating,
+    progress,
     nextStep,
     prevStep,
     goToStep,
@@ -372,6 +447,7 @@ export function useSessionWizard({
     useLastSelection,
     validateCurrentStep,
     generateDivisions,
+    cancelGeneration,
     confirmDivision,
     startGeneratedTournament,
     cancelWizard,

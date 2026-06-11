@@ -470,28 +470,32 @@ export default function App() {
     if (!sess.activeSession) return;
     if (!window.confirm('Deseja realmente encerrar a sessão atual?')) return;
 
-    const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
-    const updatedPlayers = calculateAttributeProgression(play.players, sessionPoints);
+    try {
+      const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
+      const updatedPlayers = calculateAttributeProgression(play.players, sessionPoints);
 
-    play.setPlayers(updatedPlayers);
+      play.setPlayers(updatedPlayers);
 
-    const finished: Session = {
-      ...sess.activeSession,
-      status: 'finished',
-      updatedAt: new Date().toISOString(),
-    };
-    const report = generateSessionReport(
-      finished,
-      sess.games.filter((g) => g.sessionId === sess.activeSession!.id),
-      sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id),
-      sess.teams.filter((t) => t.sessionId === sess.activeSession!.id),
-      updatedPlayers,
-    );
-    sess.setSessionReports((prev) => [...prev, report]);
-    sess.setSessions((prev) => prev.map((s) => (s.id === finished.id ? finished : s)));
-    sess.setActiveSession(null);
-    setPage('dashboard');
-    setActiveModule('dashboard');
+      const finished: Session = {
+        ...sess.activeSession,
+        status: 'finished',
+        updatedAt: new Date().toISOString(),
+      };
+      const report = generateSessionReport(
+        finished,
+        sess.games.filter((g) => g.sessionId === sess.activeSession!.id),
+        sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id),
+        sess.teams.filter((t) => t.sessionId === sess.activeSession!.id),
+        updatedPlayers,
+      );
+      sess.setSessionReports((prev) => [...prev, report]);
+      sess.setSessions((prev) => prev.map((s) => (s.id === finished.id ? finished : s)));
+      sess.setActiveSession(null);
+      setPage('dashboard');
+      setActiveModule('dashboard');
+    } catch (e) {
+      console.error('Error in handleFinishSession:', e);
+    }
   };
 
   // ── Navigation shell helpers ──────────────────────────────────────────────

@@ -8,8 +8,18 @@ export function generateGameReport(
   players: Player[],
 ): GameReport {
   const gamePoints = allPoints.filter((p) => p.gameId === game.id);
-  const teamA = teams.find((t) => t.id === game.teamAId)!;
-  const teamB = teams.find((t) => t.id === game.teamBId)!;
+  const teamA = (teams.find((t) => t.id === game.teamAId) || {
+    id: game.teamAId || 'teamA',
+    sessionId: game.sessionId || '',
+    name: 'Time A',
+    playerIds: [],
+  }) as Team;
+  const teamB = (teams.find((t) => t.id === game.teamBId) || {
+    id: game.teamBId || 'teamB',
+    sessionId: game.sessionId || '',
+    name: 'Time B',
+    playerIds: [],
+  }) as Team;
 
   const getPlayerStatsForGame = (playerId: string, team: Team) => {
     const pPoints = gamePoints.filter((p) => p.playerId === playerId);

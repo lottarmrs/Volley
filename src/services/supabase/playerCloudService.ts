@@ -77,6 +77,14 @@ export const playerCloudService = {
       if (
         error &&
         (error.code === '23505' || error.statusCode === '23505') &&
+        error.message?.includes('players_pkey')
+      ) {
+        console.warn(`Primary key collision for player ${local.nome}. Retrying without id.`);
+        return playerCloudService.upsert({ ...local, cloudId: undefined }, ownerId);
+      }
+      if (
+        error &&
+        (error.code === '23505' || error.statusCode === '23505') &&
         error.message?.includes('players_username_lower_idx')
       ) {
         const ownerSuffix = ownerId.slice(0, 4);

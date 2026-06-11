@@ -53,14 +53,36 @@ export const communityCloudService = {
 
   async upsert(local: Community, ownerId: string): Promise<Community> {
     const dbRecord = mapCommunityToDb(local, ownerId);
-    const { data, error } = await supabase
-      .from('communities')
-      .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('communities')
+        .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return mapDbToCommunity(data);
+      if (error) throw error;
+      return mapDbToCommunity(data);
+    } catch (error: any) {
+      if (
+        error &&
+        (error.code === '23505' || error.statusCode === '23505') &&
+        error.message?.includes('communities_pkey')
+      ) {
+        console.warn(`Primary key collision for community ${local.name}. Retrying without id.`);
+        const fallbackRecord = { ...dbRecord };
+        delete (fallbackRecord as any).id;
+
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('communities')
+          .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+          .select()
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        return mapDbToCommunity(fallbackData);
+      }
+      throw error;
+    }
   },
 
   async softDelete(cloudId: string): Promise<void> {

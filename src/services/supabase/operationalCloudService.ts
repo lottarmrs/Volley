@@ -410,14 +410,36 @@ async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
 }
 
 async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbRecord> {
-  const { data, error } = await supabase
-    .from(table)
-    .upsert(record, { onConflict: 'owner_id,local_id' })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from(table)
+      .upsert(record, { onConflict: 'owner_id,local_id' })
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    if (
+      error &&
+      (error.code === '23505' || error.statusCode === '23505') &&
+      error.message?.includes('_pkey')
+    ) {
+      console.warn(`Primary key collision in table ${table}. Retrying without id.`);
+      const fallbackRecord = { ...record };
+      delete fallbackRecord.id;
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from(table)
+        .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+        .select()
+        .single();
+
+      if (fallbackError) throw fallbackError;
+      return fallbackData;
+    }
+    throw error;
+  }
 }
 
 export const operationalCloudService = {

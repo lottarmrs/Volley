@@ -92,14 +92,36 @@ export const whatsappTemplateCloudService = {
     communityCloudId: string,
   ): Promise<WhatsAppListTemplate> {
     const dbRecord = mapTemplateToDb(local, ownerId, communityCloudId);
-    const { data, error } = await supabase
-      .from('whatsapp_list_templates')
-      .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_list_templates')
+        .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return mapDbToTemplate(data, local.communityId);
+      if (error) throw error;
+      return mapDbToTemplate(data, local.communityId);
+    } catch (error: any) {
+      if (
+        error &&
+        (error.code === '23505' || error.statusCode === '23505') &&
+        error.message?.includes('whatsapp_list_templates_pkey')
+      ) {
+        console.warn(`Primary key collision for template ${local.name}. Retrying without id.`);
+        const fallbackRecord = { ...dbRecord };
+        delete (fallbackRecord as any).id;
+
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('whatsapp_list_templates')
+          .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+          .select()
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        return mapDbToTemplate(fallbackData, local.communityId);
+      }
+      throw error;
+    }
   },
 
   async softDelete(cloudId: string): Promise<void> {

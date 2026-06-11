@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculatePlayerStats } from './statistics';
+import { calculateAttributeProgression } from './progression';
 import { Game, Player, PointEvent, Session, Team } from '../types';
 
 const player = (id: string): Player =>
@@ -115,4 +116,48 @@ test('points from unfinished sessions are ignored', () => {
   const stats = calculatePlayerStats(player('p1'), [game], points, [teamA, teamB], [draftSession]);
   assert.equal(stats.totalPoints, 0);
   assert.equal(stats.gamesPlayed, 0);
+});
+
+test('calculateAttributeProgression applies point rewards and fault penalties correctly based on position', () => {
+  const p1 = player('p1');
+  p1.posicaoPrincipal = 'ponteiro'; // critical attributes: ataque, recepcao, defesa
+  p1.atributos.ataque = 5;
+  p1.atributos.saque = 5;
+
+  const sessionPoints: PointEvent[] = [
+    // Winner on critical attribute (ataque) -> delta = +0.1
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'ataque' }),
+    // Winner on non-critical attribute (saque) -> delta = +0.05
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'saque' }),
+    // Fault on non-critical attribute (saque_fora) -> delta = -0.05
+    pt({ playerId: 'p1', pointType: 'error', fault: 'saque_fora' }),
+    // Fault on critical attribute (ataque_fora) -> delta = -0.1
+    pt({ playerId: 'p1', pointType: 'error', fault: 'ataque_fora' }),
+  ];
+
+  const updated = calculateAttributeProgression([p1], sessionPoints);
+  const updatedP1 = updated.find((x) => x.id === 'p1')!;
+
+  // ataque: 5 + 0.1 (winner) - 0.1 (fault) = 5
+  assert.equal(updatedP1.atributos.ataque, 5);
+  // saque: 5 + 0.05 (winner) - 0.05 (fault) = 5
+  assert.equal(updatedP1.atributos.saque, 5);
+});
+
+test('calculateAttributeProgression applies deltas and clamps correctly', () => {
+  const p1 = player('p1');
+  p1.posicaoPrincipal = 'ponteiro';
+  p1.atributos.ataque = 5;
+  p1.atributos.saque = 9.98; // Close to max
+
+  const sessionPoints: PointEvent[] = [
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'ataque' }), // +0.1
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'saque' }),  // +0.05 -> should clamp to 10
+  ];
+
+  const updated = calculateAttributeProgression([p1], sessionPoints);
+  const updatedP1 = updated.find((x) => x.id === 'p1')!;
+
+  assert.equal(updatedP1.atributos.ataque, 5.1);
+  assert.equal(updatedP1.atributos.saque, 10);
 });

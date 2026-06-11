@@ -13,6 +13,7 @@ export interface PointDetails {
 
 interface PointModalProps {
   team: Team;
+  opposingTeam?: Team;
   players: Player[];
   onClose: () => void;
   onConfirm: (details: PointDetails) => void;
@@ -34,14 +35,14 @@ const SKILL_ORDER: Skill[] = [
   'defesa',
   'recepcao',
   'levantamento',
-  'posicionamento',
+  'largada',
 ];
 
 const FAULT_ORDER: Fault[] = Object.keys(FAULT_LABELS) as Fault[];
 
 type Tab = 'winner' | 'error';
 
-export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProps) => {
+export const PointModal = ({ team, opposingTeam, players, onClose, onConfirm }: PointModalProps) => {
   const [tab, setTab] = useState<Tab>('winner');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>();
   const [selectedSkill, setSelectedSkill] = useState<Skill | undefined>();
@@ -50,6 +51,12 @@ export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProp
   const teamPlayers = team.playerIds
     .map((pid) => players.find((p) => p.id === pid))
     .filter((p): p is Player => !!p);
+
+  const opposingPlayers = opposingTeam
+    ? opposingTeam.playerIds
+        .map((pid) => players.find((p) => p.id === pid))
+        .filter((p): p is Player => !!p)
+    : [];
 
   const confirm = () => {
     if (tab === 'winner') {
@@ -61,6 +68,7 @@ export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProp
       });
     } else {
       onConfirm({
+        playerId: selectedPlayerId,
         pointType: 'error',
         fault: selectedFault,
         reason: 'opponent_error',
@@ -83,7 +91,10 @@ export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProp
         {/* Abas: Ponto nosso / Erro adversário */}
         <div className="grid grid-cols-2 border-b border-base-300">
           <button
-            onClick={() => setTab('winner')}
+            onClick={() => {
+              setTab('winner');
+              setSelectedPlayerId(undefined);
+            }}
             className={`py-3 text-[11px] font-bold uppercase tracking-widest transition-all ${
               tab === 'winner'
                 ? 'bg-accent/15 text-accent border-b-2 border-accent'
@@ -93,7 +104,10 @@ export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProp
             Ponto Nosso
           </button>
           <button
-            onClick={() => setTab('error')}
+            onClick={() => {
+              setTab('error');
+              setSelectedPlayerId(undefined);
+            }}
             className={`py-3 text-[11px] font-bold uppercase tracking-widest transition-all ${
               tab === 'error'
                 ? 'bg-error/15 text-error border-b-2 border-error'
@@ -160,25 +174,59 @@ export const PointModal = ({ team, players, onClose, onConfirm }: PointModalProp
               </div>
             </>
           ) : (
-            <div>
-              <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
-                Tipo de Erro do Adversário
-              </label>
-              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-                {FAULT_ORDER.map((fault) => (
-                  <button
-                    key={fault}
-                    onClick={() => setSelectedFault((cur) => (cur === fault ? undefined : fault))}
-                    className={`py-2.5 px-2 border rounded-lg text-[9px] font-bold uppercase tracking-tighter text-left transition-all cursor-pointer ${selectedFault === fault ? 'bg-error text-white border-error' : 'bg-base-300 border-base-300 hover:border-base-content/50'}`}
-                  >
-                    {FAULT_LABELS[fault]}
-                  </button>
-                ))}
+            <>
+              {opposingPlayers.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
+                    Autor do Erro (Oponente)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {opposingPlayers.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => setSelectedPlayerId(p.id)}
+                        className={`p-3 border rounded-xl transition-all text-left group cursor-pointer ${selectedPlayerId === p.id ? 'bg-error/15 border-error' : 'bg-base-300 border-base-300 hover:border-error/50'}`}
+                      >
+                        <p
+                          className={`text-xs font-bold ${selectedPlayerId === p.id ? 'text-error' : 'group-hover:text-error'}`}
+                        >
+                          {p.nome}
+                        </p>
+                        <p className="text-[9px] uppercase text-base-content/60">
+                          {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                        </p>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setSelectedPlayerId(undefined)}
+                      className={`col-span-2 p-3 border rounded-xl transition-all text-xs font-bold uppercase tracking-widest text-center italic cursor-pointer ${selectedPlayerId === undefined ? 'bg-error/15 border-error text-error' : 'bg-base-300 border-base-300 hover:bg-base-300/80'}`}
+                    >
+                      Erro do Time (sem autor)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
+                  Tipo de Erro do Adversário
+                </label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {FAULT_ORDER.map((fault) => (
+                    <button
+                      key={fault}
+                      onClick={() => setSelectedFault((cur) => (cur === fault ? undefined : fault))}
+                      className={`py-2.5 px-2 border rounded-lg text-[9px] font-bold uppercase tracking-tighter text-left transition-all cursor-pointer ${selectedFault === fault ? 'bg-error text-white border-error' : 'bg-base-300 border-base-300 hover:border-base-content/50'}`}
+                    >
+                      {FAULT_LABELS[fault]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[8px] uppercase text-base-content/40 mt-2 italic tracking-widest">
+                  Opcional — confirme direto para registrar erro genérico.
+                </p>
               </div>
-              <p className="text-[8px] uppercase text-base-content/40 mt-2 italic tracking-widest">
-                Opcional — confirme direto para registrar erro genérico.
-              </p>
-            </div>
+            </>
           )}
 
           <button

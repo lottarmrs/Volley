@@ -367,7 +367,7 @@ export type Skill =
   | 'ataque'
   | 'bloqueio'
   | 'defesa'
-  | 'posicionamento';
+  | 'largada';
 
 export type Fault =
   | 'saque_fora'

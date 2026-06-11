@@ -61,6 +61,7 @@ import { normalizeCommunities, normalizeGames, normalizeSessions, sanitizeImport
 import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
+import { calculateAttributeProgression } from './logic/progression';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 
@@ -469,6 +470,11 @@ export default function App() {
     if (!sess.activeSession) return;
     if (!window.confirm('Deseja realmente encerrar a sessão atual?')) return;
 
+    const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
+    const updatedPlayers = calculateAttributeProgression(play.players, sessionPoints);
+
+    play.setPlayers(updatedPlayers);
+
     const finished: Session = {
       ...sess.activeSession,
       status: 'finished',
@@ -479,7 +485,7 @@ export default function App() {
       sess.games.filter((g) => g.sessionId === sess.activeSession!.id),
       sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id),
       sess.teams.filter((t) => t.sessionId === sess.activeSession!.id),
-      play.players,
+      updatedPlayers,
     );
     sess.setSessionReports((prev) => [...prev, report]);
     sess.setSessions((prev) => prev.map((s) => (s.id === finished.id ? finished : s)));

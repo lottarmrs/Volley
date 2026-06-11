@@ -18,7 +18,7 @@ export const SKILL_LABELS: Record<Skill, string> = {
   ataque: 'Cortada (Ataque)',
   bloqueio: 'Bloqueio',
   defesa: 'Defesa',
-  posicionamento: 'Posicionamento',
+  largada: 'Largada / Pingada',
 };
 
 // Termos do vôlei para os erros (faltas).
@@ -52,7 +52,7 @@ const SKILL_TO_REASON: Record<Skill, PointReason> = {
   defesa: 'defense_counterattack',
   recepcao: 'unknown',
   levantamento: 'unknown',
-  posicionamento: 'unknown',
+  largada: 'tip',
 };
 
 export function skillToReason(skill: Skill): PointReason {

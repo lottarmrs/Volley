@@ -530,6 +530,7 @@ export const SessionActiveView = ({
           {pointModalTeamId && sessionTeams.some((t) => t.id === pointModalTeamId) && (
             <PointModal
               team={sessionTeams.find((t) => t.id === pointModalTeamId)!}
+              opposingTeam={currentGame ? sessionTeams.find((t) => t.id === (pointModalTeamId === currentGame.teamAId ? currentGame.teamBId : currentGame.teamAId)) : undefined}
               players={players}
               onClose={() => setPointModalTeamId(null)}
               onConfirm={(details) => {

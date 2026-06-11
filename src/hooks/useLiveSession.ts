@@ -144,9 +144,12 @@ export function useLiveSession(
       if (activeSession.status === 'paused') return;
 
       if (playerId) {
-        const scoringTeam = sessionTeams.find((t) => t.id === teamId);
-        if (!scoringTeam?.playerIds.includes(playerId)) {
-          console.error('O jogador selecionado não pertence ao time que pontuou.');
+        const isError = details?.pointType === 'error';
+        const concedingTeamId = currentGame.teamAId === teamId ? currentGame.teamBId : currentGame.teamAId;
+        const authorTeamId = isError ? concedingTeamId : teamId;
+        const authorTeam = sessionTeams.find((t) => t.id === authorTeamId);
+        if (!authorTeam?.playerIds.includes(playerId)) {
+          console.error('O jogador selecionado não pertence ao seu respectivo time.');
           return;
         }
       }

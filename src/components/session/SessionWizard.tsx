@@ -271,7 +271,7 @@ export function SessionWizard({
         const updatedDivision = { ...division, teams: updatedTeams };
         return recalculateDivisionDiagnostics(
           updatedDivision,
-          players,
+          selectedPlayers,
           activeSession?.config,
           partnershipMatrix,
         );
@@ -297,7 +297,7 @@ export function SessionWizard({
         const updatedDivision = { ...division, teams: nextTeams };
         return recalculateDivisionDiagnostics(
           updatedDivision,
-          players,
+          selectedPlayers,
           activeSession?.config,
           partnershipMatrix,
         );

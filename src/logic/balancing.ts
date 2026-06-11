@@ -1290,9 +1290,7 @@ export const balanceTeams = (
   const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
   weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
 
-  if (config && typeof config.repetitionWeight === 'number') {
-    weights.repetition = config.repetitionWeight;
-  }
+  weights.repetition = config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
 
   // Map players to vectors
   const athletes = players.map(mapPlayerToAthleteVector);
@@ -1456,9 +1454,7 @@ export function recalculateDivisionDiagnostics(
 
   const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
   weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
-  if (config && typeof config.repetitionWeight === 'number') {
-    weights.repetition = config.repetitionWeight;
-  }
+  weights.repetition = config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
 
   // Map all players to athletes
   const athletes = allPlayers.map(mapPlayerToAthleteVector);

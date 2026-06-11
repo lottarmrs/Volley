@@ -258,6 +258,8 @@ export interface TournamentConfig {
   balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
   rotationType?: RotationType; // default '6x0'
+  repetitionWeight?: number;
+  balanceSeed?: number;
 }
 
 export interface FreePlayConfig {
@@ -275,6 +277,8 @@ export interface FreePlayConfig {
   balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
   rotationType?: RotationType; // default '6x0'
+  repetitionWeight?: number;
+  balanceSeed?: number;
 }
 
 export type SessionStatus =
@@ -432,6 +436,7 @@ export interface BalanceWeights {
   consistency: number;
   emotionalControl: number;
   netPresence: number;
+  repetition?: number;
 }
 
 export interface BalanceConstraints {
@@ -522,6 +527,7 @@ export interface Division {
   iterations?: number;
   runtimeMillis?: number;
   qualityLabel?: string;
+  rawSolution?: TeamSolution;
 }
 
 export interface Community {

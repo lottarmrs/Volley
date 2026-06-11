@@ -12,6 +12,7 @@ import { balanceTeams } from '../logic/balancing';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
+import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 
 interface UseSessionWizardProps {
   players: Player[];
@@ -21,6 +22,8 @@ interface UseSessionWizardProps {
   setTeams: React.Dispatch<React.SetStateAction<Team[]>>;
   setGames: React.Dispatch<React.SetStateAction<any[]>>;
   setPage: (page: any) => void;
+  sessions: Session[];
+  teams: Team[];
 }
 
 export function useSessionWizard({
@@ -31,6 +34,8 @@ export function useSessionWizard({
   setTeams,
   setGames,
   setPage,
+  sessions,
+  teams,
 }: UseSessionWizardProps) {
   const [wizardStep, setWizardStep] = useState(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -139,6 +144,23 @@ export function useSessionWizard({
     const { config } = activeSession;
     const sessionId = activeSession.id;
 
+    // Generate new random seed per run
+    const seed = Math.floor(Math.random() * 1000000);
+    const updatedConfig = {
+      ...config,
+      balanceSeed: seed,
+    };
+
+    updateSession({ config: updatedConfig });
+
+    // Build partnership matrix if community ID exists
+    const partnershipMatrix = activeSession.communityId
+      ? buildPartnershipMatrix(
+          sessions.filter((s) => s.communityId === activeSession.communityId),
+          teams,
+        )
+      : undefined;
+
     const finish = (divisions: Division[]) => {
       setBestDivisions(divisions);
       setSelectedDivisionIndex(0);
@@ -155,7 +177,14 @@ export function useSessionWizard({
     if (typeof Worker === 'undefined') {
       setIsGenerating(true);
       setProgress(0);
-      const divisions = balanceTeams(sessionPlayers, config.teamCount, sessionId, config);
+      const divisions = balanceTeams(
+        sessionPlayers,
+        updatedConfig.teamCount,
+        sessionId,
+        updatedConfig,
+        undefined,
+        partnershipMatrix,
+      );
       finish(divisions);
       return;
     }
@@ -180,7 +209,14 @@ export function useSessionWizard({
         console.error('Balancer worker error:', msg.message);
         worker.terminate();
         if (workerRef.current === worker) workerRef.current = null;
-        const divisions = balanceTeams(sessionPlayers, config.teamCount, sessionId, config);
+        const divisions = balanceTeams(
+          sessionPlayers,
+          updatedConfig.teamCount,
+          sessionId,
+          updatedConfig,
+          undefined,
+          partnershipMatrix,
+        );
         finish(divisions);
       }
     };
@@ -189,16 +225,24 @@ export function useSessionWizard({
       console.error('Balancer worker failed, falling back to sync:', err.message);
       worker.terminate();
       if (workerRef.current === worker) workerRef.current = null;
-      const divisions = balanceTeams(sessionPlayers, config.teamCount, sessionId, config);
+      const divisions = balanceTeams(
+        sessionPlayers,
+        updatedConfig.teamCount,
+        sessionId,
+        updatedConfig,
+        undefined,
+        partnershipMatrix,
+      );
       finish(divisions);
     };
 
     const request: BalanceRequest = {
       type: 'balance',
       players: sessionPlayers,
-      numTeams: config.teamCount,
+      numTeams: updatedConfig.teamCount,
       sessionId,
-      config,
+      config: updatedConfig,
+      partnershipMatrix,
     };
     worker.postMessage(request);
   };

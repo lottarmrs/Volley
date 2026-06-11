@@ -1,4 +1,5 @@
 import { Player, TournamentConfig, FreePlayConfig, Division } from '../types';
+import { PartnershipMatrix } from './partnershipHistory';
 
 export interface BalanceRequest {
   type: 'balance';
@@ -6,6 +7,7 @@ export interface BalanceRequest {
   numTeams: number;
   sessionId: string;
   config?: TournamentConfig | FreePlayConfig;
+  partnershipMatrix?: PartnershipMatrix;
 }
 
 export type BalanceResponse =

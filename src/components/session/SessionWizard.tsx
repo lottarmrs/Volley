@@ -1111,6 +1111,66 @@ export function SessionWizard({
                       )}
                     </motion.div>
                   )}
+
+                  {/* Anti-Repetição (Rotação Social) */}
+                  <div className="fieldset pt-4 border-t border-base-300">
+                    <label className="label cursor-pointer justify-start gap-3 bg-neutral/40 p-4 rounded-xl flex-1 border border-base-300 hover:border-accent/30 transition-all">
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-primary toggle-sm"
+                        checked={((config as any).repetitionWeight ?? 0) > 0}
+                        onChange={(e) => {
+                          onUpdateSession({
+                            config: {
+                              ...config,
+                              repetitionWeight: e.target.checked ? 0.8 : 0,
+                            } as any,
+                          });
+                        }}
+                      />
+                      <div className="flex-1">
+                        <span className="label-text text-xs font-bold uppercase block text-base-content">
+                          Misturar o grupo (Anti-Repetição)
+                        </span>
+                        <span className="text-[9px] text-text-muted uppercase block font-semibold mt-0.5">
+                          Evita repetir as mesmas parcerias de sessões anteriores
+                        </span>
+                      </div>
+                    </label>
+
+                    {((config as any).repetitionWeight ?? 0) > 0 && (
+                      <div className="mt-3 pl-2 space-y-2">
+                        <label className="text-[9px] font-bold uppercase text-text-muted tracking-wider">
+                          Intensidade da Mistura
+                        </label>
+                        <div className="join w-full">
+                          {[
+                            { label: 'Leve', value: 0.4 },
+                            { label: 'Normal', value: 0.8 },
+                            { label: 'Intensa', value: 1.6 },
+                          ].map((opt) => (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() =>
+                                onUpdateSession({
+                                  config: {
+                                    ...config,
+                                    repetitionWeight: opt.value,
+                                  } as any,
+                                })
+                              }
+                              className={`btn btn-xs join-item flex-1 font-bold ${
+                                (config as any).repetitionWeight === opt.value ? 'btn-primary' : 'btn-neutral'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {validationErrors.teamCount && (
@@ -1271,6 +1331,20 @@ export function SessionWizard({
                           {activeSession.config?.tieBreakMethod === 'direct_3'
                             ? '3 direto'
                             : 'Vai a 2'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b border-base-300/40 pb-1">
+                        <span className="text-[10px] font-bold text-text-muted uppercase">
+                          Anti-Repetição
+                        </span>
+                        <span className="text-[10px] font-bold text-base-content uppercase">
+                          {!((activeSession.config as any)?.repetitionWeight ?? 0)
+                            ? 'Desativado'
+                            : (activeSession.config as any).repetitionWeight === 0.4
+                              ? 'Leve'
+                              : (activeSession.config as any).repetitionWeight === 0.8
+                                ? 'Normal'
+                                : 'Intenso'}
                         </span>
                       </div>
                     </div>
@@ -1441,6 +1515,9 @@ export function SessionWizard({
                   value={generationProgress}
                   max={100}
                 />
+                <p className="text-[9px] text-text-muted/80 uppercase font-semibold leading-normal mt-1 p-3 bg-neutral/30 rounded-xl border border-base-300">
+                  ℹ️ Estamos testando milhares de combinações para achar o time mais equilibrado. Isso pode levar alguns segundos — quanto maior o grupo, um pouquinho mais.
+                </p>
                 <button
                   type="button"
                   onClick={onCancelGeneration}

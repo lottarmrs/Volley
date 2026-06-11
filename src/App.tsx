@@ -269,6 +269,8 @@ export default function App() {
     setTeams: sess.setTeams,
     setGames: sess.setGames,
     setPage,
+    sessions: sess.sessions,
+    teams: sess.teams,
   });
 
   const buildFreePlayConfig = (rules: CommunityRules): FreePlayConfig => {

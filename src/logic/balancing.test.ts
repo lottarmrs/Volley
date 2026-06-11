@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { players } from '../data/players';
-import { balanceTeams, getQualityLabel, resolveComposition, mapPlayerToAthleteVector } from './balancing';
+import { balanceTeams, getQualityLabel, resolveComposition, mapPlayerToAthleteVector, solutionDistance, selectPortfolio, ObjectiveScorer } from './balancing';
 import { QUALITY } from './balancingConstants';
-import { Attributes, FreePlayConfig, Player, Position } from '../types';
+import { Attributes, FreePlayConfig, Player, Position, Division, BalanceWeights } from '../types';
 
 const selectedPlayers = players.slice(0, 12) as Player[];
 
@@ -216,4 +216,103 @@ test('getQualityLabel maps scores to labels per QUALITY thresholds', () => {
   assert.equal(getQualityLabel(QUALITY.good), 'ACCEPTABLE');
   assert.equal(getQualityLabel(QUALITY.acceptable - 0.1), 'ACCEPTABLE');
   assert.equal(getQualityLabel(QUALITY.acceptable), 'UNBALANCED');
+});
+
+test('solutionDistance correctly calculates the number of players that changed teams', () => {
+  const p1 = { id: '1', name: 'P1', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p2 = { id: '2', name: 'P2', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p3 = { id: '3', name: 'P3', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p4 = { id: '4', name: 'P4', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+
+  const solA = {
+    teams: [
+      [p1, p2],
+      [p3, p4],
+    ],
+  };
+
+  const solB = {
+    teams: [
+      [p1, p2],
+      [p3, p4],
+    ],
+  };
+  assert.equal(solutionDistance(solA, solB), 0);
+
+  const solC = {
+    teams: [
+      [p3, p4],
+      [p1, p2],
+    ],
+  };
+  assert.equal(solutionDistance(solA, solC), 0);
+
+  const solD = {
+    teams: [
+      [p1, p3],
+      [p2, p4],
+    ],
+  };
+  assert.equal(solutionDistance(solA, solD), 2);
+});
+
+test('selectPortfolio selects diverse candidates and falls back when not enough distinct', () => {
+  const p1 = { id: '1', name: 'P1', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p2 = { id: '2', name: 'P2', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p3 = { id: '3', name: 'P3', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p4 = { id: '4', name: 'P4', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+
+  const solA = { teams: [[p1, p2], [p3, p4]] };
+  const solB = { teams: [[p1, p2], [p3, p4]] }; 
+  const solC = { teams: [[p1, p3], [p2, p4]] }; 
+
+  const mockDiv = (sol: any, score: number, seed: number): Division => ({
+    teams: [],
+    penalty: score,
+    score,
+    seed,
+    rawSolution: sol,
+  });
+
+  const candidates = [
+    mockDiv(solA, 10, 1),
+    mockDiv(solB, 12, 2), 
+    mockDiv(solC, 15, 3), 
+  ];
+
+  const chosen = selectPortfolio(candidates, 2, 2);
+  assert.equal(chosen.length, 2);
+  assert.equal(chosen[0].seed, 1);
+  assert.equal(chosen[1].seed, 3);
+});
+
+test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => {
+  const p1 = { id: '1', name: 'P1', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p2 = { id: '2', name: 'P2', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p3 = { id: '3', name: 'P3', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p4 = { id: '4', name: 'P4', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+
+  const sol = {
+    teams: [
+      [p1, p2],
+      [p3, p4],
+    ],
+  };
+
+  const weights: BalanceWeights = {
+    overall: 1, attack: 1, defense: 1, setting: 1, block: 1, reception: 1, serve: 1,
+    height: 1, gender: 1, injured: 1, teamSize: 1, roleCoverage: 1, consistency: 1,
+    emotionalControl: 1, netPresence: 1, repetition: 0.8
+  };
+
+  const scorerWithoutMatrix = new ObjectiveScorer(weights, 0, 4, 0, 2);
+  const score1 = scorerWithoutMatrix.score(sol, undefined, true);
+
+  const partnershipMatrix = {
+    '1|2': 2.0,
+  };
+  const scorerWithMatrix = new ObjectiveScorer(weights, 0, 4, 0, 2, '6x0', undefined, partnershipMatrix);
+  const score2 = scorerWithMatrix.score(sol, undefined, true);
+
+  assert.equal(Math.round((score2 - score1) * 10) / 10, 1.6);
 });

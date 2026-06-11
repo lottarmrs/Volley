@@ -22,6 +22,7 @@ import {
   calculateGeneralOverall,
 } from './calculations';
 import { OVERALL_SCALE, PENALTIES, THRESHOLDS, QUALITY } from './balancingConstants';
+import { PartnershipMatrix } from './partnershipHistory';
 
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
@@ -46,6 +47,7 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
     consistency: 0.7,
     emotionalControl: 0.5,
     netPresence: 0.9,
+    repetition: 0.8,
   },
   competitive: {
     overall: 1.0,
@@ -63,6 +65,7 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
     consistency: 0.8,
     emotionalControl: 0.6,
     netPresence: 1.0,
+    repetition: 0.8,
   },
   social: {
     overall: 0.8,
@@ -80,6 +83,7 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
     consistency: 0.4,
     emotionalControl: 0.3,
     netPresence: 0.4,
+    repetition: 0.8,
   },
   mixed: {
     overall: 0.9,
@@ -97,6 +101,7 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
     consistency: 0.6,
     emotionalControl: 0.5,
     netPresence: 0.6,
+    repetition: 0.8,
   },
 };
 
@@ -318,6 +323,7 @@ export class ObjectiveScorer {
     public numTeams: number,
     public rotationType: RotationType = '6x0',
     public composition?: RoleComposition,
+    public partnershipMatrix?: PartnershipMatrix,
   ) {}
 
   score(
@@ -550,6 +556,21 @@ export class ObjectiveScorer {
       }
     }
 
+    // 6. Partnership Repetition Penalty
+    let repetitionPenalty = 0;
+    if (this.partnershipMatrix) {
+      for (const team of solution.teams) {
+        const ids = team.map((a) => a.id).sort();
+        for (let i = 0; i < ids.length; i++) {
+          for (let j = i + 1; j < ids.length; j++) {
+            const key = `${ids[i]}|${ids[j]}`;
+            repetitionPenalty += this.partnershipMatrix[key] ?? 0;
+          }
+        }
+      }
+      repetitionPenalty *= this.weights.repetition ?? 0.8;
+    }
+
     return (
       penalty +
       overallSpread +
@@ -567,7 +588,8 @@ export class ObjectiveScorer {
       injuredPenalty +
       teamSizePenalty +
       roleCoveragePenalty +
-      compositionPenalty
+      compositionPenalty +
+      repetitionPenalty
     );
   }
 }
@@ -1043,7 +1065,7 @@ export class SimulatedAnnealingBalancer {
 
     while (
       iterations < maxIterations &&
-      Date.now() - startTime < timeLimitMillis &&
+      Date.now() - startTime < 45000 &&
       iterationsWithoutImprovement < maxNoImprovement
     ) {
       const candidate = generateNeighbor(current, constraints, random);
@@ -1172,6 +1194,79 @@ function assignLabelsToDivisions(divisions: Division[]): void {
   divisions[heightTargetIdx].qualityLabel = 'Melhor Distribuição Física';
 }
 
+// Quantos jogadores compartilham o mesmo time entre duas soluções (0 = idênticas)
+export function solutionDistance(a: TeamSolution, b: TeamSolution): number {
+  const numTeams = a.teams.length;
+  const bTeams = b.teams.map(t => new Set(t.map(player => player.id)));
+  const aTeams = a.teams.map(t => t.map(player => player.id));
+
+  let totalOverlap = 0;
+  const matchedB = new Set<number>();
+
+  for (let i = 0; i < numTeams; i++) {
+    const aPlayers = aTeams[i];
+    let bestOverlap = 0;
+    let bestBIdx = -1;
+
+    for (let j = 0; j < numTeams; j++) {
+      if (matchedB.has(j)) continue;
+      let overlap = 0;
+      for (const pId of aPlayers) {
+        if (bTeams[j].has(pId)) {
+          overlap++;
+        }
+      }
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestBIdx = j;
+      }
+    }
+
+    if (bestBIdx !== -1) {
+      matchedB.add(bestBIdx);
+      totalOverlap += bestOverlap;
+    } else {
+      // Find any unmatched team in B
+      for (let j = 0; j < numTeams; j++) {
+        if (!matchedB.has(j)) {
+          matchedB.add(j);
+          break;
+        }
+      }
+    }
+  }
+
+  const totalPlayers = a.teams.reduce((acc, t) => acc + t.length, 0);
+  return totalPlayers - totalOverlap;
+}
+
+export function selectPortfolio(candidates: Division[], k = 3, minDistance = 2): Division[] {
+  const sorted = [...candidates].sort((a, b) => a.score - b.score);
+  if (sorted.length === 0) return [];
+
+  const chosen: Division[] = [sorted[0]]; // melhor de todos
+  for (const c of sorted.slice(1)) {
+    if (chosen.length >= k) break;
+    const distinct = chosen.every(
+      (s) => c.rawSolution && s.rawSolution && solutionDistance(c.rawSolution, s.rawSolution) >= minDistance
+    );
+    if (distinct) {
+      chosen.push(c);
+    }
+  }
+
+  // se não achar k distintas, completa com as melhores restantes
+  if (chosen.length < k) {
+    for (const c of sorted) {
+      if (chosen.length >= k) break;
+      if (!chosen.some((s) => s.seed === c.seed)) {
+        chosen.push(c);
+      }
+    }
+  }
+  return chosen;
+}
+
 // ─── Entry Point Wrapper ─────────────────────────────────────────────────────
 
 export const balanceTeams = (
@@ -1180,8 +1275,8 @@ export const balanceTeams = (
   sessionId: string,
   config?: TournamentConfig | FreePlayConfig,
   onProgress?: (percent: number, bestScore: number) => void,
+  partnershipMatrix?: PartnershipMatrix,
 ): Division[] => {
-  const startTime = Date.now();
   const balanceMode = config?.balanceMode || 'balanced';
   const balanceSpeed = config?.balanceSpeed || 'advanced';
   const constraints = config?.balanceConstraints || {};
@@ -1189,7 +1284,10 @@ export const balanceTeams = (
   // Gênero é critério permanente: respeita um piso em todos os perfis (Fase B).
   const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
   weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
-  const speed = SPEED_CONFIG[balanceSpeed] || SPEED_CONFIG.advanced;
+
+  if (config && typeof config.repetitionWeight === 'number') {
+    weights.repetition = config.repetitionWeight;
+  }
 
   // Map players to vectors
   const athletes = players.map(mapPlayerToAthleteVector);
@@ -1210,22 +1308,39 @@ export const balanceTeams = (
     numTeams,
     rotationType,
     composition,
+    partnershipMatrix,
   );
   const initialBuilder = new InitialTeamBuilder(numTeams);
   const balancer = new SimulatedAnnealingBalancer(initialBuilder, scorer);
 
-  // Generate 3 options using deterministic seeds: base, base + 101, base + 202
-  const baseSeed = 42;
-  const seeds = [baseSeed, baseSeed + 101, baseSeed + 202];
-  const numSeeds = seeds.length;
+  // Iteration scaling based on speed profile
+  const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+  
+  let maxIterations = 40000;
+  let numSeeds = 10;
+  
+  if (balanceSpeed === 'fast') {
+    maxIterations = clamp(athletes.length * 400, 2000, 10000);
+    numSeeds = 3;
+  } else if (balanceSpeed === 'normal') {
+    maxIterations = clamp(athletes.length * 1000, 8000, 30000);
+    numSeeds = 6;
+  } else {
+    maxIterations = clamp(athletes.length * 4000, 20000, 120000);
+    numSeeds = 10;
+  }
+
+  // Generate options using seeds starting from config.balanceSeed
+  const baseSeed = config?.balanceSeed ?? 42;
+  const seeds = Array.from({ length: numSeeds }, (_, i) => baseSeed + i * 101);
 
   const results: Division[] = seeds.map((seed, seedIdx) => {
     const runStartTime = Date.now();
     const { solution, score, iterations } = balancer.balance(
       athletes,
       constraints,
-      speed.maxIterations,
-      speed.timeLimitMillis,
+      maxIterations,
+      45000,
       seed,
       onProgress
         ? (fraction, bestScore) => {
@@ -1288,14 +1403,18 @@ export const balanceTeams = (
       seed,
       iterations,
       runtimeMillis: runRuntime,
+      rawSolution: solution,
     };
   });
 
+  // Select diverse portfolio of top 3 options
+  const portfolio = selectPortfolio(results, 3, 2);
+
   // Assign distinct labels to options
-  assignLabelsToDivisions(results);
+  assignLabelsToDivisions(portfolio);
 
   // Return sorted by score ascending (best first)
-  const sorted = results.sort((a, b) => a.score - b.score);
+  const sorted = portfolio.sort((a, b) => a.score - b.score);
   if (onProgress) onProgress(100, sorted[0]?.score ?? 0);
   return sorted;
 };

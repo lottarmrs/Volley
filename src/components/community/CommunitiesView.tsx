@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
 import {
   AlertTriangle,
   BarChart3,
@@ -226,13 +225,7 @@ export function CommunitiesView({
   currentUserId,
   isSupabaseConfigured,
 }: CommunitiesViewProps) {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const selectedCommunityId = useMemo(() => {
-    const parts = location.pathname.split('/players/communities/');
-    return parts[1] || null;
-  }, [location.pathname]);
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
 
   const [showArchived, setShowArchived] = useState(false);
   const selectedCommunity =
@@ -245,7 +238,7 @@ export function CommunitiesView({
 
   const handleAdd = () => {
     const community = onAddCommunity(emptyCommunityInput());
-    navigate(`/players/communities/${community.id}`);
+    setSelectedCommunityId(community.id);
   };
 
   if (selectedCommunity) {
@@ -261,11 +254,11 @@ export function CommunitiesView({
         presenceApi={presenceApi}
         whatsAppApi={whatsAppApi}
         rulesApi={rulesApi}
-        onBack={() => navigate('/players/communities')}
+        onBack={() => setSelectedCommunityId(null)}
         onUpdateCommunity={onUpdateCommunity}
         onDeleteCommunity={(communityId) => {
           onDeleteCommunity(communityId);
-          navigate('/players/communities');
+          setSelectedCommunityId(null);
         }}
         onDuplicateCommunity={onDuplicateCommunity}
         onUpdatePlayerCommunities={onUpdatePlayerCommunities}
@@ -318,7 +311,7 @@ export function CommunitiesView({
               games={games}
               pointEvents={pointEvents}
               sessionReports={sessionReports}
-              onOpen={() => navigate(`/players/communities/${community.id}`)}
+              onOpen={() => setSelectedCommunityId(community.id)}
               onCreateSession={() =>
                 onCreateSession(
                   community,

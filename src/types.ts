@@ -491,6 +491,7 @@ export interface TeamMetrics {
   hasStrongAttacker: boolean;
   hasDefensiveReference: boolean;
   netPresence: number;
+  averageForm: number;
 }
 
 export interface TeamSolution {
@@ -510,7 +511,10 @@ export interface BalanceDiagnostics {
   receptionSpread: number;
   heightSpread: number;
   genderBalancePenalty: number;
+  genderSpread: number;
   injuredPenalty: number;
+  injuredSpread: number;
+  formSpread: number;
   roleCoveragePenalty: number;
   teamSizePenalty: number;
   warnings: string[];

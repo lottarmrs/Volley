@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Session,
   Player,
@@ -44,6 +44,12 @@ export function useSessionWizard({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const workerRef = useRef<Worker | null>(null);
+
+  const partnershipMatrix = useMemo(() => {
+    if (!activeSession || !activeSession.communityId) return undefined;
+    const historySessions = sessions.filter((s) => s.communityId === activeSession.communityId);
+    return buildPartnershipMatrix(historySessions, teams);
+  }, [activeSession?.communityId, sessions, teams]);
 
   // Garante que o worker é encerrado se o componente desmontar no meio do cálculo.
   useEffect(() => {
@@ -152,14 +158,6 @@ export function useSessionWizard({
     };
 
     updateSession({ config: updatedConfig });
-
-    // Build partnership matrix if community ID exists
-    const partnershipMatrix = activeSession.communityId
-      ? buildPartnershipMatrix(
-          sessions.filter((s) => s.communityId === activeSession.communityId),
-          teams,
-        )
-      : undefined;
 
     const finish = (divisions: Division[]) => {
       setBestDivisions(divisions);
@@ -499,5 +497,6 @@ export function useSessionWizard({
     togglePlayerLock,
     addPairConstraint,
     removePairConstraint,
+    partnershipMatrix,
   };
 }

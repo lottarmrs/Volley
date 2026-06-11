@@ -250,6 +250,7 @@ export function calculateTeamMetrics(teamIndex: number, athletes: AthleteVector[
       hasStrongAttacker: false,
       hasDefensiveReference: false,
       netPresence: 0,
+      averageForm: 0,
     };
   }
 
@@ -297,6 +298,7 @@ export function calculateTeamMetrics(teamIndex: number, athletes: AthleteVector[
     hasStrongAttacker,
     hasDefensiveReference,
     netPresence: avg(netPresence),
+    averageForm: avg((a) => a.currentForm),
   };
 }
 
@@ -1022,7 +1024,10 @@ function buildBalanceDiagnostics(
     receptionSpread,
     heightSpread,
     genderBalancePenalty,
+    genderSpread: getSpread(metrics.map((m) => m.femaleCount)),
     injuredPenalty,
+    injuredSpread: getSpread(metrics.map((m) => m.injuredCount)),
+    formSpread: getSpread(metrics.map((m) => m.averageForm)),
     roleCoveragePenalty,
     teamSizePenalty,
     warnings,
@@ -1435,5 +1440,94 @@ function buildTeamStrengthSnapshot(m: TeamMetrics): TeamStrengthSnapshot {
     netPresence: m.netPresence,
     maleCount: m.maleCount,
     femaleCount: m.femaleCount,
+  };
+}
+
+export function recalculateDivisionDiagnostics(
+  division: Division,
+  allPlayers: Player[],
+  config: TournamentConfig | FreePlayConfig | undefined,
+  partnershipMatrix?: PartnershipMatrix,
+): Division {
+  const balanceMode = config?.balanceMode || 'balanced';
+  const constraints = config?.balanceConstraints || {};
+  const numTeams = config?.teamCount || division.teams.length;
+  const rotationType = config?.rotationType || '6x0';
+
+  const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
+  weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
+  if (config && typeof config.repetitionWeight === 'number') {
+    weights.repetition = config.repetitionWeight;
+  }
+
+  // Map all players to athletes
+  const athletes = allPlayers.map(mapPlayerToAthleteVector);
+  const totalFemales = athletes.filter((a) => a.gender === 'F').length;
+  const totalMales = athletes.filter((a) => a.gender === 'M').length;
+  const totalInjured = athletes.filter((a) => a.isInjured).length;
+
+  let composition: RoleComposition | undefined;
+  if (rotationType === '5x1') {
+    const { perTeam } = resolveComposition(athletes, numTeams);
+    composition = perTeam;
+  }
+
+  // Reconstruct TeamSolution
+  const solutionTeams: AthleteVector[][] = division.teams.map((t) => {
+    return t.playerIds
+      .map((pid) => athletes.find((a) => a.id === pid))
+      .filter((a): a is AthleteVector => !!a);
+  });
+  const solution: TeamSolution = { teams: solutionTeams };
+
+  const scorer = new ObjectiveScorer(
+    weights,
+    totalFemales,
+    totalMales,
+    totalInjured,
+    numTeams,
+    rotationType,
+    composition,
+    partnershipMatrix,
+  );
+
+  const score = scorer.score(solution, constraints, true);
+  const diagnostics = buildBalanceDiagnostics(
+    solution,
+    weights,
+    score,
+    totalFemales,
+    totalMales,
+    totalInjured,
+    numTeams,
+    constraints,
+  );
+
+  const explanation = [
+    ...diagnostics.warnings,
+    ...(diagnostics.warnings.length === 0
+      ? ['Divisão equilibrada conforme todos os critérios técnicos.']
+      : []),
+  ];
+
+  const updatedTeams = division.teams.map((t, i) => {
+    const teamAthletes = solutionTeams[i] || [];
+    const teamMetrics = calculateTeamMetrics(i, teamAthletes);
+    const strengthSnapshot = buildTeamStrengthSnapshot(teamMetrics);
+    return {
+      ...t,
+      strengthSnapshot,
+    };
+  });
+
+  return {
+    ...division,
+    teams: updatedTeams,
+    score,
+    penalty: score,
+    explanation,
+    diagnostics,
+    qualityLabel: getQualityLabel(score),
+    rawSolution: solution,
   };
 }

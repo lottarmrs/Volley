@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { players } from '../data/players';
-import { balanceTeams, getQualityLabel, resolveComposition, mapPlayerToAthleteVector, solutionDistance, selectPortfolio, ObjectiveScorer } from './balancing';
+import { balanceTeams, getQualityLabel, resolveComposition, mapPlayerToAthleteVector, solutionDistance, selectPortfolio, ObjectiveScorer, recalculateDivisionDiagnostics } from './balancing';
 import { QUALITY } from './balancingConstants';
 import { Attributes, FreePlayConfig, Player, Position, Division, BalanceWeights } from '../types';
 
@@ -315,4 +315,70 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
   const score2 = scorerWithMatrix.score(sol, undefined, true);
 
   assert.equal(Math.round((score2 - score1) * 10) / 10, 1.6);
+});
+
+test('recalculateDivisionDiagnostics correctly updates diagnostics and snapshots after manual adjustments', () => {
+  const p1 = makePlayer('1', { genero: 'M', atributos: { ataque: 8 } });
+  const p2 = makePlayer('2', { genero: 'M', atributos: { ataque: 6 } });
+  const p3 = makePlayer('3', { genero: 'F', atributos: { ataque: 4 } });
+  const p4 = makePlayer('4', { genero: 'F', atributos: { ataque: 2 } });
+
+  // Add currentForm and physical status
+  p1.formaAtual.valor = 5;
+  p2.formaAtual.valor = 4;
+  p3.formaAtual.valor = 3;
+  p4.formaAtual.valor = 2;
+  p1.status.lesionado = true;
+
+  const allPlayers = [p1, p2, p3, p4];
+
+  const initialDivision: Division = {
+    teams: [
+      {
+        id: 'team-1',
+        sessionId: 'session-1',
+        name: 'Time 1',
+        playerIds: ['1', '3'],
+        generatedByAlgorithm: true,
+        locked: false,
+        strengthSnapshot: {
+          overall: 0, attack: 0, reception: 0, setting: 0, defense: 0, block: 0, serve: 0,
+          regularity: 0, stamina: 0, gameReading: 0, averageHeight: 0, netPresence: 0,
+          maleCount: 0, femaleCount: 0
+        }
+      },
+      {
+        id: 'team-2',
+        sessionId: 'session-1',
+        name: 'Time 2',
+        playerIds: ['2', '4'],
+        generatedByAlgorithm: true,
+        locked: false,
+        strengthSnapshot: {
+          overall: 0, attack: 0, reception: 0, setting: 0, defense: 0, block: 0, serve: 0,
+          regularity: 0, stamina: 0, gameReading: 0, averageHeight: 0, netPresence: 0,
+          maleCount: 0, femaleCount: 0
+        }
+      }
+    ],
+    penalty: 0,
+    score: 0
+  };
+
+  const config = {
+    balanceMode: 'balanced' as const,
+    teamCount: 2,
+    rotationType: '6x0' as const
+  };
+
+  const updated = recalculateDivisionDiagnostics(initialDivision, allPlayers, config as any);
+
+  assert.ok(updated.diagnostics);
+  assert.equal(updated.diagnostics.genderSpread, 0); // Each has 1 Male and 1 Female
+  assert.equal(updated.diagnostics.injuredSpread, 1); // Team 1 has 1 injured, Team 2 has 0
+  assert.equal(updated.diagnostics.formSpread, 1); // Team 1 avg form = 4, Team 2 avg form = 3, difference = 1
+
+  // Verify that team strengthSnapshot is recalculated
+  assert.equal(updated.teams[0].strengthSnapshot.attack, 6); // (8 + 4) / 2
+  assert.equal(updated.teams[1].strengthSnapshot.attack, 4); // (6 + 2) / 2
 });

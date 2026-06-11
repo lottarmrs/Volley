@@ -36,7 +36,8 @@ import {
   Game,
   RotationType,
 } from '../../types';
-import { resolveComposition, mapPlayerToAthleteVector } from '../../logic/balancing';
+import { resolveComposition, mapPlayerToAthleteVector, recalculateDivisionDiagnostics } from '../../logic/balancing';
+import { PartnershipMatrix } from '../../logic/partnershipHistory';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
@@ -75,6 +76,7 @@ interface SessionWizardProps {
   addPairConstraint: (p1: string, p2: string, type: 'together' | 'separated') => void;
   removePairConstraint: (p1: string, p2: string, type: 'together' | 'separated') => void;
   onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
+  partnershipMatrix?: PartnershipMatrix;
 }
 
 const WIZARD_STEPS = [
@@ -115,6 +117,7 @@ export function SessionWizard({
   addPairConstraint,
   removePairConstraint,
   onAddGuestPlayer,
+  partnershipMatrix,
 }: SessionWizardProps) {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [playerSearch, setPlayerSearch] = useState('');
@@ -261,15 +264,17 @@ export function SessionWizard({
     setBestDivisions((prev) =>
       prev.map((division, idx) => {
         if (idx !== divisionIndex) return division;
-        return {
-          ...division,
-          teams: division.teams.map((team) => {
-            if (team.id !== teamId) return team;
-            const updated = { ...team, ...patch };
-            const teamPlayers = players.filter((player) => updated.playerIds.includes(player.id));
-            return { ...updated, strengthSnapshot: calculateTeamStrength(teamPlayers) };
-          }),
-        };
+        const updatedTeams = division.teams.map((team) => {
+          if (team.id !== teamId) return team;
+          return { ...team, ...patch };
+        });
+        const updatedDivision = { ...division, teams: updatedTeams };
+        return recalculateDivisionDiagnostics(
+          updatedDivision,
+          players,
+          activeSession?.config,
+          partnershipMatrix,
+        );
       }),
     );
   };
@@ -282,21 +287,20 @@ export function SessionWizard({
     setBestDivisions((prev) =>
       prev.map((division, idx) => {
         if (idx !== divisionIndex) return division;
-        const nextTeams = division.teams
-          .map((team) => ({
-            ...team,
-            playerIds:
-              team.id === targetTeamId
-                ? Array.from(new Set([...team.playerIds, playerId]))
-                : team.playerIds.filter((id) => id !== playerId),
-          }))
-          .map((team) => ({
-            ...team,
-            strengthSnapshot: calculateTeamStrength(
-              players.filter((player) => team.playerIds.includes(player.id)),
-            ),
-          }));
-        return { ...division, teams: nextTeams };
+        const nextTeams = division.teams.map((team) => ({
+          ...team,
+          playerIds:
+            team.id === targetTeamId
+              ? Array.from(new Set([...team.playerIds, playerId]))
+              : team.playerIds.filter((id) => id !== playerId),
+        }));
+        const updatedDivision = { ...division, teams: nextTeams };
+        return recalculateDivisionDiagnostics(
+          updatedDivision,
+          players,
+          activeSession?.config,
+          partnershipMatrix,
+        );
       }),
     );
   };
@@ -1900,9 +1904,33 @@ export function SessionWizard({
                           </span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-text-muted">Bloqueio:</span>
+                          <span className="text-base-content font-bold">
+                            {currentDiv.diagnostics.blockSpread.toFixed(1)} pts
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-text-muted">Altura Média:</span>
                           <span className="text-base-content font-bold">
                             {Math.round(currentDiv.diagnostics.heightSpread)} cm
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Gênero:</span>
+                          <span className="text-base-content font-bold">
+                            {currentDiv.diagnostics.genderSpread} {currentDiv.diagnostics.genderSpread === 1 ? 'atleta' : 'atletas'} de dif.
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Forma Média:</span>
+                          <span className="text-base-content font-bold">
+                            {currentDiv.diagnostics.formSpread.toFixed(1)} pts
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-text-muted">Lesionados:</span>
+                          <span className="text-base-content font-bold">
+                            {currentDiv.diagnostics.injuredSpread} {currentDiv.diagnostics.injuredSpread === 1 ? 'atleta' : 'atletas'} de dif.
                           </span>
                         </div>
                       </div>

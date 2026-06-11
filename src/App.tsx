@@ -544,6 +544,7 @@ export default function App() {
               bestDivisions={wizard.bestDivisions}
               setBestDivisions={wizard.setBestDivisions}
               selectedDivisionIndex={wizard.selectedDivisionIndex}
+              partnershipMatrix={wizard.partnershipMatrix}
               onNext={() => {
                 if (wizard.validateCurrentStep()) wizard.nextStep();
               }}

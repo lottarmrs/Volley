@@ -33,14 +33,16 @@ npm run dev
 
 ## Scripts
 
-| Command           | Description                                        |
-| ----------------- | -------------------------------------------------- |
-| `npm run dev`     | Development server on port **3000** (host 0.0.0.0) |
-| `npm run build`   | Production build → `dist/`                         |
-| `npm run preview` | Serve the production build locally                 |
-| `npm run lint`    | Type check (`tsc --noEmit`)                        |
-| `npm test`        | Unit tests (Node test runner + tsx)                |
-| `npm run clean`   | Remove `dist/`                                     |
+| Command             | Description                                        |
+| ------------------- | -------------------------------------------------- |
+| `npm run dev`       | Development server on port **3000** (host 0.0.0.0) |
+| `npm run build`     | Production build → `dist/`                         |
+| `npm run preview`   | Serve the production build locally                 |
+| `npm run lint`      | Type check (`tsc --noEmit`)                        |
+| `npm test`          | All tests (`test:unit` + `test:ui`)                |
+| `npm run test:unit` | Logic/service tests (Node test runner + tsx)       |
+| `npm run test:ui`   | Hook/component tests (Vitest + RTL + jsdom)        |
+| `npm run clean`     | Remove `dist/`                                     |
 
 ## Environment Variables (optional)
 

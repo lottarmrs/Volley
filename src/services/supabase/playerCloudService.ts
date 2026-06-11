@@ -64,14 +64,59 @@ export const playerCloudService = {
 
   async upsert(local: Player, ownerId: string): Promise<Player> {
     const dbRecord = mapPlayerToDb(local, ownerId);
-    const { data, error } = await supabase
-      .from('players')
-      .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .upsert(dbRecord, { onConflict: 'owner_id,local_id' })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return mapDbToPlayer(data);
+      if (error) throw error;
+      return mapDbToPlayer(data);
+    } catch (error: any) {
+      if (
+        error &&
+        (error.code === '23505' || error.statusCode === '23505') &&
+        error.message?.includes('players_username_lower_idx')
+      ) {
+        const ownerSuffix = ownerId.slice(0, 4);
+        const fallbackUsername = local.username ? `${local.username}-${ownerSuffix}` : undefined;
+        console.warn(`Username collision for ${local.nome} (${local.username}). Retrying with fallback: ${fallbackUsername}`);
+
+        const fallbackRecord = {
+          ...dbRecord,
+          ...(fallbackUsername ? { username: fallbackUsername } : {})
+        };
+        if (!fallbackUsername) {
+          delete (fallbackRecord as any).username;
+        }
+
+        try {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('players')
+            .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+            .select()
+            .single();
+
+          if (fallbackError) throw fallbackError;
+          return mapDbToPlayer(fallbackData);
+        } catch {
+          console.warn(`Secondary username collision for ${local.nome}. Retrying with null username.`);
+          const finalRecord = { ...dbRecord };
+          delete (finalRecord as any).username;
+
+          const { data: finalData, error: finalError } = await supabase
+            .from('players')
+            .upsert(finalRecord, { onConflict: 'owner_id,local_id' })
+            .select()
+            .single();
+
+          if (finalError) throw finalError;
+          return mapDbToPlayer(finalData);
+        }
+      }
+      throw error;
+    }
   },
 
   async softDelete(cloudId: string): Promise<void> {

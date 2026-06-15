@@ -1168,7 +1168,7 @@ function SessionDetailView({
           <h3 className="text-xs font-black uppercase text-base-content/60 mb-6 border-b border-base-300 pb-2 flex items-center gap-2">
             <Activity className="w-3.5 h-3.5" /> Eventos de ponto
           </h3>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
+          <div className="space-y-2 sm:max-h-72 sm:overflow-y-auto">
             {sessPoints
               .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
               .map((point) => {

@@ -794,7 +794,7 @@ export const TournamentActiveView = ({
                 Tabela de Jogos
               </h4>
             </div>
-            <div className="max-h-64 overflow-y-auto p-2 space-y-1">
+            <div className="sm:max-h-64 sm:overflow-y-auto p-2 space-y-1">
               {Object.entries(gamesByRound).map(([round, roundGames]) => (
                 <div key={round} className="space-y-1">
                   <p className="px-2 pt-2 pb-1 text-[8px] font-bold uppercase tracking-widest text-accent/70">
@@ -954,7 +954,7 @@ export const TournamentActiveView = ({
             Tempo Real
           </span>
         </div>
-        <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+        <div className="sm:max-h-48 sm:overflow-y-auto p-2 space-y-1">
           {sessionPoints
             .slice()
             .reverse()

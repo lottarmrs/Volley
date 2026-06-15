@@ -569,7 +569,7 @@ export const SessionActiveView = ({
                   Tempo Real
                 </span>
               </div>
-              <div className="max-h-64 overflow-y-auto p-2 space-y-1">
+              <div className="sm:max-h-64 sm:overflow-y-auto p-2 space-y-1">
                 {sessionPoints
                   .slice()
                   .reverse()
@@ -709,7 +709,7 @@ export const SessionActiveView = ({
                 </div>
                 <span className="text-[8px] font-mono text-accent opacity-60">SESSÃO</span>
               </div>
-              <div className="p-2 space-y-2 max-h-[400px] overflow-y-auto">
+              <div className="p-2 space-y-2 sm:max-h-[400px] sm:overflow-y-auto">
                 {teamStats.map((stat, i) => {
                   const team = sessionTeams.find((t) => t.id === stat.teamId);
                   const winRate =

@@ -134,6 +134,12 @@ export function SessionWizard({
   const [dragSourceTeamId, setDragSourceTeamId] = useState<string | null>(null);
   const [dropTargetTeamId, setDropTargetTeamId] = useState<string | null>(null);
 
+  // Click-to-Move state for touch devices
+  const [selectedMovePlayer, setSelectedMovePlayer] = useState<{
+    playerId: string;
+    sourceTeamId: string;
+  } | null>(null);
+
   useEffect(() => {
     if (activeSession?.communityId) {
       setCommunityFilter(activeSession.communityId);
@@ -303,6 +309,107 @@ export function SessionWizard({
         );
       }),
     );
+  };
+
+  const swapPlayersBetweenGeneratedTeams = (
+    divisionIndex: number,
+    player1Id: string,
+    player2Id: string,
+    team1Id: string,
+    team2Id: string,
+  ) => {
+    setBestDivisions((prev) =>
+      prev.map((division, idx) => {
+        if (idx !== divisionIndex) return division;
+        const nextTeams = division.teams.map((team) => {
+          let nextPlayerIds = [...team.playerIds];
+          if (team.id === team1Id) {
+            nextPlayerIds = nextPlayerIds.map((id) => (id === player1Id ? player2Id : id));
+          } else if (team.id === team2Id) {
+            nextPlayerIds = nextPlayerIds.map((id) => (id === player2Id ? player1Id : id));
+          }
+          return {
+            ...team,
+            playerIds: nextPlayerIds,
+          };
+        });
+        const updatedDivision = { ...division, teams: nextTeams };
+        return recalculateDivisionDiagnostics(
+          updatedDivision,
+          selectedPlayers,
+          activeSession?.config,
+          partnershipMatrix,
+        );
+      }),
+    );
+  };
+
+  const handleSelectPlayerForMove = (playerId: string, sourceTeamId: string, isLocked?: boolean) => {
+    if (isLocked) {
+      alert("Este atleta está fixado e não pode ser movido.");
+      return;
+    }
+
+    if (selectedMovePlayer?.playerId === playerId) {
+      setSelectedMovePlayer(null);
+    } else if (selectedMovePlayer) {
+      if (selectedMovePlayer.sourceTeamId !== sourceTeamId) {
+        handleSwapSelectedPlayerWithTarget(playerId, sourceTeamId);
+      } else {
+        setSelectedMovePlayer({ playerId, sourceTeamId });
+      }
+    } else {
+      setSelectedMovePlayer({ playerId, sourceTeamId });
+    }
+  };
+
+  const handleCancelMoveSelection = () => {
+    setSelectedMovePlayer(null);
+  };
+
+  const handleMoveSelectedPlayerToTeam = (targetTeamId: string) => {
+    if (!selectedMovePlayer) return;
+
+    const division = bestDivisions[selectedDivisionIndex];
+    if (division) {
+      const sourceTeam = division.teams.find((t) => t.id === selectedMovePlayer.sourceTeamId);
+      const targetTeam = division.teams.find((t) => t.id === targetTeamId);
+      if (sourceTeam && targetTeam) {
+        const nextTargetSize = targetTeam.playerIds.length + 1;
+        const nextSourceSize = sourceTeam.playerIds.length - 1;
+        if (nextTargetSize - nextSourceSize > 1) {
+          alert("Não é possível mover: os times precisam manter a mesma quantidade de atletas (ou diferença máxima de 1). Use a troca de atletas.");
+          return;
+        }
+      }
+    }
+
+    movePlayerBetweenGeneratedTeams(
+      selectedDivisionIndex,
+      selectedMovePlayer.playerId,
+      targetTeamId,
+    );
+    setSelectedMovePlayer(null);
+  };
+
+  const handleSwapSelectedPlayerWithTarget = (targetPlayerId: string, targetTeamId: string) => {
+    if (!selectedMovePlayer) return;
+
+    const targetPlayerIsLocked =
+      activeSession.config?.balanceConstraints?.lockedPlayerIdxs?.[targetPlayerId] !== undefined;
+    if (targetPlayerIsLocked) {
+      alert("Este atleta está fixado e não pode ser movido.");
+      return;
+    }
+
+    swapPlayersBetweenGeneratedTeams(
+      selectedDivisionIndex,
+      selectedMovePlayer.playerId,
+      targetPlayerId,
+      selectedMovePlayer.sourceTeamId,
+      targetTeamId,
+    );
+    setSelectedMovePlayer(null);
   };
 
   if (!activeSession) return null;
@@ -601,7 +708,7 @@ export function SessionWizard({
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:max-h-[400px] sm:overflow-y-auto pr-2 custom-scrollbar">
               {filteredPlayers.map((p) => (
                 <SelectablePlayerCard
                   key={p.id}
@@ -1529,6 +1636,27 @@ export function SessionWizard({
               </button>
             </div>
 
+            {selectedMovePlayer && (
+              <div className="flex flex-col sm:flex-row justify-between items-center bg-primary/10 border border-primary/20 p-4 rounded-xl shadow-md gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">👉</span>
+                  <p className="text-xs text-base-content font-bold uppercase">
+                    <span className="text-primary font-black">
+                      {players.find((p) => p.id === selectedMovePlayer.playerId)?.nome}
+                    </span>{' '}
+                    selecionado. Toque em outro time para mover ou em outro atleta para trocar.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelMoveSelection}
+                  className="btn btn-error btn-soft btn-xs uppercase font-bold tracking-wider"
+                >
+                  Cancelar seleção
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {currentDiv.teams.map((team, tIdx) => (
                 <div
@@ -1619,12 +1747,22 @@ export function SessionWizard({
                         Soltar aqui
                       </div>
                     )}
+                    {selectedMovePlayer && selectedMovePlayer.sourceTeamId !== team.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleMoveSelectedPlayerToTeam(team.id)}
+                        className="w-full flex items-center justify-center h-8 rounded-lg border-2 border-dashed border-primary hover:bg-primary/10 text-[9px] font-bold uppercase text-primary mb-1 cursor-pointer transition-all"
+                      >
+                        Tocar para mover para cá
+                      </button>
+                    )}
                     {team.playerIds.map((pid) => {
                       const p = players.find((x) => x.id === pid);
                       if (!p) return null;
                       const isLocked =
                         activeSession.config?.balanceConstraints?.lockedPlayerIdxs?.[p.id] === tIdx;
                       const isDragging = dragPlayerId === p.id;
+                      const isSelectedToMove = selectedMovePlayer?.playerId === p.id;
                       return (
                         <div
                           key={p.id}
@@ -1638,11 +1776,19 @@ export function SessionWizard({
                             setDragSourceTeamId(null);
                             setDropTargetTeamId(null);
                           }}
+                          onClick={(e) => {
+                            if ((e.target as HTMLElement).closest('button')) return;
+                            handleSelectPlayerForMove(p.id, team.id, isLocked);
+                          }}
                           className={`flex justify-between items-center p-2 rounded-lg border transition-all ${
                             isDragging
                               ? 'opacity-40 border-primary bg-primary/10'
+                              : isSelectedToMove
+                              ? 'ring-2 ring-primary border-primary bg-primary/10 shadow-md'
+                              : isLocked
+                              ? 'opacity-65 bg-base-300/10 border-base-300/40 cursor-not-allowed'
                               : 'bg-base-300/30 border-base-300/60 hover:bg-base-300/60'
-                          } ${!isLocked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                          } ${!isLocked ? 'cursor-grab active:cursor-grabbing' : ''}`}
                         >
                           <div className="flex items-center gap-2">
                             <div
@@ -1659,6 +1805,11 @@ export function SessionWizard({
                             <span className="font-bold text-[11px] uppercase text-base-content truncate max-w-[110px]">
                               {p.nome}
                             </span>
+                            {isLocked && (
+                              <span className="badge badge-accent badge-xs font-black uppercase tracking-wider scale-90">
+                                Fixado
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[8px] font-bold text-base-content/40 uppercase">
@@ -2033,7 +2184,7 @@ export function SessionWizard({
                     <div className="lg:col-span-2">
                       <TournamentBracket games={dummyGames} teams={selectedDivision.teams} />
                     </div>
-                    <div className="lg:col-span-1 space-y-4 max-h-[440px] overflow-y-auto pr-2">
+                    <div className="lg:col-span-1 space-y-4 lg:max-h-[440px] lg:overflow-y-auto pr-2">
                       {Object.entries(rounds).map(([round, matches]) => (
                         <div key={round} className="space-y-2">
                           <p className="text-[9px] font-bold uppercase tracking-widest text-accent">
@@ -2063,7 +2214,7 @@ export function SessionWizard({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4 max-h-[440px] overflow-y-auto pr-2">
+                  <div className="space-y-4 lg:max-h-[440px] lg:overflow-y-auto pr-2">
                     {Object.entries(rounds).map(([round, matches]) => (
                       <div key={round} className="space-y-2">
                         <p className="text-[9px] font-bold uppercase tracking-widest text-accent">
@@ -2336,7 +2487,7 @@ export function SessionWizard({
                     Vínculos Ativos
                   </h4>
 
-                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                  <div className="space-y-2 sm:max-h-[220px] sm:overflow-y-auto pr-1 custom-scrollbar">
                     {!activeSession.config?.balanceConstraints?.pairsTogether?.length &&
                       !activeSession.config?.balanceConstraints?.pairsSeparated?.length && (
                         <p className="text-[9px] text-text-muted uppercase font-bold text-center py-4 border border-dashed border-base-300 rounded-xl">

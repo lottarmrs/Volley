@@ -104,8 +104,8 @@ export function useLiveSession(
     sessionTeams,
   ]);
 
-  // ── Shared helper: consecutive games on court ─────────────────────────────
-  const getConsecutiveGamesForTeam = useCallback(
+  // ── Shared helper: consecutive wins on court ──────────────────────────────
+  const getConsecutiveWinsForTeam = useCallback(
     (teamId: string, excludeGameId?: string): number => {
       let count = 0;
       const finished = games
@@ -118,8 +118,11 @@ export function useLiveSession(
         .sort((a, b) => new Date(b.finishedAt!).getTime() - new Date(a.finishedAt!).getTime());
 
       for (const g of finished) {
-        if (g.teamAId === teamId || g.teamBId === teamId) count++;
-        else break;
+        if (g.winnerTeamId === teamId) {
+          count++;
+        } else {
+          break;
+        }
       }
       return count;
     },
@@ -288,8 +291,8 @@ export function useLiveSession(
           loserId,
           rotationSystem: cfg.rotationSystem,
           consecutiveGamesByTeam: {
-            [winnerId]: getConsecutiveGamesForTeam(winnerId, currentGame.id),
-            [loserId]: getConsecutiveGamesForTeam(loserId, currentGame.id),
+            [winnerId]: getConsecutiveWinsForTeam(winnerId, currentGame.id),
+            [loserId]: getConsecutiveWinsForTeam(loserId, currentGame.id),
           },
           maxConsecutiveGames: cfg.maxConsecutiveGames,
         });
@@ -346,7 +349,7 @@ export function useLiveSession(
 
       setGames((prev) => [...prev, newGame]);
     },
-    [currentGame, activeSession, sessionGames, getConsecutiveGamesForTeam, setGames],
+    [currentGame, activeSession, sessionGames, getConsecutiveWinsForTeam, setGames],
   );
 
   // ── Undo last point ───────────────────────────────────────────────────────
@@ -410,12 +413,12 @@ export function useLiveSession(
       loserId,
       rotationSystem: cfg.rotationSystem,
       consecutiveGamesByTeam: {
-        [winnerId]: getConsecutiveGamesForTeam(winnerId, currentGame.id),
-        [loserId]: getConsecutiveGamesForTeam(loserId, currentGame.id),
+        [winnerId]: getConsecutiveWinsForTeam(winnerId, currentGame.id),
+        [loserId]: getConsecutiveWinsForTeam(loserId, currentGame.id),
       },
       maxConsecutiveGames: cfg.maxConsecutiveGames,
     });
-  }, [currentGame, activeSession, sessionGames, getConsecutiveGamesForTeam]);
+  }, [currentGame, activeSession, sessionGames, getConsecutiveWinsForTeam]);
 
   const registerWalkover = useCallback(
     (gameId: string, winnerTeamId: string) => {

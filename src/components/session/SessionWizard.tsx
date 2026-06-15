@@ -1080,11 +1080,11 @@ export function SessionWizard({
                             <div className="flex items-center gap-2">
                               <RotateCw className="w-4 h-4 text-info" />
                               <span className="text-[10px] font-bold uppercase">
-                                Limite de Jogos
+                                Limite de Vitórias
                               </span>
                             </div>
                             <p className="text-[8px] opacity-70 uppercase font-bold mt-1">
-                              Sai após atingir limite de jogos.
+                              Sai após atingir limite de vitórias consecutivas.
                             </p>
                           </button>
                         </div>
@@ -1093,7 +1093,7 @@ export function SessionWizard({
                       {(config as any).rotationSystem === 'max_consecutive_games' && (
                         <div className="fieldset">
                           <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest mb-2">
-                            Partidas máximas consecutivas
+                            Vitórias máximas consecutivas
                           </label>
                           <div className="join w-full">
                             {[1, 2, 3, 4, 5].map((n) => (

@@ -67,9 +67,8 @@ export const rotateTeams = (input: RotateInput): RotateOutput => {
     maxConsecutiveGames,
   } = input;
 
-  // Track how many games each team has played consecutively on court
+  // Track how many wins each team has achieved consecutively on court
   const winnerConsecutive = (consecutiveGamesByTeam[winnerId] || 0) + 1;
-  const loserConsecutive = (consecutiveGamesByTeam[loserId] || 0) + 1;
   const nextQueue = [...(queue || [])];
 
   // Logic: A team MUST leave if it has reached the maxConsecutiveGames limit
@@ -94,7 +93,7 @@ export const rotateTeams = (input: RotateInput): RotateOutput => {
       nextConsecutiveGamesByTeam: {
         ...consecutiveGamesByTeam,
         [winnerId]: 0,
-        [loserId]: loserConsecutive,
+        [loserId]: 0,
         [finalIn]: 0,
       },
     };

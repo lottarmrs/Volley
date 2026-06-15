@@ -12,7 +12,7 @@ interface TeamScoreCardProps {
   scoringRanking: any[];
   players: Player[];
   onRegisterPoint: () => void;
-  onOpenDetailModal: () => void;
+  onOpenDetailModal: (playerId?: string) => void;
 }
 
 const positionLabels: Record<string, string> = {
@@ -113,14 +113,15 @@ export const TeamScoreCard = ({
           return (
             <div
               key={pid}
-              className="bg-base-300/50 p-2 rounded-xl border border-base-300 flex flex-col gap-1 hover:border-accent/30 transition-colors group/player"
+              onClick={() => isGameActive && onOpenDetailModal(pid)}
+              className={`bg-base-300/50 p-2 rounded-xl border border-base-300 flex flex-col gap-1 hover:border-accent/35 transition-colors group/player ${isGameActive ? 'cursor-pointer' : ''}`}
             >
               <div className="flex justify-between items-center">
-                <span className="text-[9px] font-bold text-base-content truncate max-w-[50px]">
+                <span className="text-[9px] font-bold text-base-content truncate max-w-[50px] group-hover/player:text-accent transition-colors">
                   {p?.apelido || p?.nome}
                 </span>
                 <div className="flex items-center gap-1">
-                  <Zap className="w-2.5 h-2.5 text-accent" />
+                  <Zap className="w-2.5 h-2.5 text-accent group-hover/player:scale-110 transition-transform" />
                   <span className="text-[9px] font-bold text-accent">{pPoints}</span>
                 </div>
               </div>

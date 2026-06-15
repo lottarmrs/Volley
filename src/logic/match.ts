@@ -23,6 +23,7 @@ export const SKILL_LABELS: Record<Skill, string> = {
 
 // Termos do vôlei para os erros (faltas).
 export const FAULT_LABELS: Record<Fault, string> = {
+  // Legado
   saque_fora: 'Saque para fora',
   saque_rede: 'Saque na rede',
   ataque_fora: 'Ataque para fora',
@@ -41,6 +42,107 @@ export const FAULT_LABELS: Record<Fault, string> = {
   libero_saque: 'Líbero sacando',
   bloqueio_fora_antena: 'Bloqueio fora da antena',
   posicao_rotacao: 'Erro de rodízio / posição',
+
+  // Novos da taxonomia de erro de saque
+  serve_out: 'Saque para fora',
+  serve_net: 'Saque na rede',
+  serve_no_cross: 'Saque não cruzou a rede',
+  serve_foot_fault: 'Falta de pé no saque',
+  serve_wrong_order: 'Saque fora da ordem',
+  serve_screen: 'Barreira no saque',
+
+  // Novos da recepção
+  reception_floor: 'Recepção direta no chão',
+  reception_out: 'Recepção para fora',
+  reception_net: 'Recepção na rede',
+  reception_double: 'Dois toques na recepção',
+  reception_catch: 'Condução na recepção',
+  reception_communication: 'Falha de comunicação na recepção',
+
+  // Novos do levantamento
+  setting_double: 'Dois toques no levantamento',
+  setting_catch: 'Condução no levantamento',
+  setting_out: 'Levantamento para fora',
+  setting_net: 'Levantamento na rede',
+  setting_too_low: 'Levantamento baixo demais',
+  setting_too_close: 'Levantamento colado na rede',
+
+  // Novos do ataque
+  attack_out: 'Ataque para fora',
+  attack_net: 'Ataque na rede',
+  attack_blocked: 'Ataque bloqueado',
+  attack_antenna: 'Ataque tocou antena',
+  attack_back_row_fault: 'Ataque irregular do fundo',
+  attack_opponent_serve: 'Ataque irregular em saque',
+  attack_catch: 'Ataque conduzido',
+  tip_catch: 'Largada conduzida',
+  tip_out: 'Largada para fora',
+
+  // Novos do bloqueio
+  block_out: 'Bloqueio para fora',
+  block_net: 'Toque na rede no bloqueio',
+  block_invasion: 'Invasão no bloqueio',
+  block_before_attack: 'Bloqueio antes do ataque',
+  block_serve: 'Bloqueio do saque',
+  block_back_row: 'Bloqueio irregular do fundo',
+  block_antenna: 'Bloqueio por fora da antena',
+
+  // Novos da defesa
+  defense_floor: 'Defesa direta no chão',
+  defense_out: 'Defesa para fora',
+  defense_net: 'Defesa na rede',
+  defense_tip_missed: 'Largada não defendida',
+  defense_coverage_error: 'Erro de cobertura',
+  defense_communication: 'Falha de comunicação na defesa',
+
+  // Novos do toque/controle
+  four_touches: 'Quatro toques',
+  double_contact: 'Dois toques (toque)',
+  catch: 'Condução / bola retida',
+  assisted_hit: 'Toque apoiado',
+
+  // Novos de rede/invasão
+  net_touch: 'Tocou na rede',
+  antenna_touch: 'Tocou na antena',
+  over_net_fault: 'Invasão por cima',
+  under_net_interference: 'Invasão por baixo',
+  center_line_full_foot: 'Pé completamente no outro lado',
+  opponent_interference: 'Interferência no adversário',
+
+  // Novos de posição/rotação
+  position_fault: 'Falta de posição',
+  rotation_fault: 'Falta de rotação',
+  wrong_server: 'Sacador errado',
+
+  // Novos do líbero
+  libero_attack: 'Líbero atacando acima da rede',
+  libero_serve: 'Líbero sacando',
+  libero_block: 'Líbero bloqueando',
+  libero_block_attempt: 'Líbero tentando bloquear',
+  libero_front_zone_set_attack: 'Ataque pós-levantamento do Líbero',
+  libero_illegal_replacement: 'Troca ilegal do Líbero',
+  libero_late_replacement: 'Troca tardia do Líbero',
+  libero_wrong_zone_replacement: 'Troca fora da zona do Líbero',
+
+  // Novos de substituição
+  illegal_substitution: 'Substituição ilegal',
+  unauthorized_substitution_request: 'Pedido de substituição não autorizado',
+  substitution_limit_exceeded: 'Limite de substituições excedido',
+
+  // Novos de retardamento/admin
+  delay_restart: 'Atraso no reinício do jogo',
+  delay_regular_interruption: 'Prolongamento de interrupção',
+  improper_request: 'Solicitação indevida',
+
+  // Novos de conduta
+  rude_conduct: 'Conduta rude',
+  offensive_conduct: 'Conduta ofensiva',
+  aggression: 'Agressão / conduta física',
+
+  // Outros
+  team_error: 'Erro coletivo / do time',
+  unknown_error: 'Erro não identificado',
+  manual_error: 'Erro registrado manualmente',
 };
 
 // Mapeia uma habilidade (taxonomia nova) para o `reason` legado, mantendo

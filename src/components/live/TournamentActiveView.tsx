@@ -105,6 +105,7 @@ export const TournamentActiveView = ({
   copyGameToClipboard,
   games,
 }: Props) => {
+  const [preSelectedPlayerId, setPreSelectedPlayerId] = React.useState<string | undefined>();
   const progress = getTournamentProgress(games, activeSession.id);
   const gamesByRound = groupGamesByRound(sessionGames);
   const isPaused = activeSession.status === 'paused';
@@ -398,7 +399,10 @@ export const TournamentActiveView = ({
                 color={getTeamColor(teamA.id)}
                 scoringRanking={scoringRanking}
                 onRegisterPoint={() => registerPoint(teamA.id)}
-                onOpenDetailModal={() => setPointModalTeamId(teamA.id)}
+                onOpenDetailModal={(pid) => {
+                  setPointModalTeamId(teamA.id);
+                  setPreSelectedPlayerId(pid);
+                }}
               />
               <TeamScoreCard
                 team={teamB}
@@ -410,7 +414,10 @@ export const TournamentActiveView = ({
                 color={getTeamColor(teamB.id)}
                 scoringRanking={scoringRanking}
                 onRegisterPoint={() => registerPoint(teamB.id)}
-                onOpenDetailModal={() => setPointModalTeamId(teamB.id)}
+                onOpenDetailModal={(pid) => {
+                  setPointModalTeamId(teamB.id);
+                  setPreSelectedPlayerId(pid);
+                }}
               />
             </div>
           ) : currentGame.status === 'finished' || currentGame.status === 'walkover' ? (
@@ -527,7 +534,11 @@ export const TournamentActiveView = ({
             team={sessionTeams.find((t) => t.id === pointModalTeamId)!}
             opposingTeam={currentGame ? sessionTeams.find((t) => t.id === (pointModalTeamId === currentGame.teamAId ? currentGame.teamBId : currentGame.teamAId)) : undefined}
             players={players}
-            onClose={() => setPointModalTeamId(null)}
+            preSelectedPlayerId={preSelectedPlayerId}
+            onClose={() => {
+              setPointModalTeamId(null);
+              setPreSelectedPlayerId(undefined);
+            }}
             onConfirm={(details) => {
               registerPoint(pointModalTeamId, details.playerId, details.reason, {
                 pointType: details.pointType,
@@ -535,6 +546,7 @@ export const TournamentActiveView = ({
                 fault: details.fault,
               });
               setPointModalTeamId(null);
+              setPreSelectedPlayerId(undefined);
             }}
           />
         )}

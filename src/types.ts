@@ -369,7 +369,24 @@ export type Skill =
   | 'defesa'
   | 'largada';
 
+export type ErrorCategory =
+  | 'serve'
+  | 'reception'
+  | 'setting'
+  | 'attack'
+  | 'block'
+  | 'defense'
+  | 'ball_handling'
+  | 'net_invasion'
+  | 'position_rotation'
+  | 'libero'
+  | 'substitution'
+  | 'delay_admin'
+  | 'conduct'
+  | 'other';
+
 export type Fault =
+  // Legado (para retrocompatibilidade)
   | 'saque_fora'
   | 'saque_rede'
   | 'ataque_fora'
@@ -387,7 +404,94 @@ export type Fault =
   | 'libero_bloqueio'
   | 'libero_saque'
   | 'bloqueio_fora_antena'
-  | 'posicao_rotacao';
+  | 'posicao_rotacao'
+  // Novos da taxonomia de erro de saque
+  | 'serve_out'
+  | 'serve_net'
+  | 'serve_no_cross'
+  | 'serve_foot_fault'
+  | 'serve_wrong_order'
+  | 'serve_screen'
+  // Novos da recepção
+  | 'reception_floor'
+  | 'reception_out'
+  | 'reception_net'
+  | 'reception_double'
+  | 'reception_catch'
+  | 'reception_communication'
+  // Novos do levantamento
+  | 'setting_double'
+  | 'setting_catch'
+  | 'setting_out'
+  | 'setting_net'
+  | 'setting_too_low'
+  | 'setting_too_close'
+  // Novos do ataque
+  | 'attack_out'
+  | 'attack_net'
+  | 'attack_blocked'
+  | 'attack_antenna'
+  | 'attack_back_row_fault'
+  | 'attack_opponent_serve'
+  | 'attack_catch'
+  | 'tip_catch'
+  | 'tip_out'
+  // Novos do bloqueio
+  | 'block_out'
+  | 'block_net'
+  | 'block_invasion'
+  | 'block_before_attack'
+  | 'block_serve'
+  | 'block_back_row'
+  | 'block_antenna'
+  // Novos da defesa
+  | 'defense_floor'
+  | 'defense_out'
+  | 'defense_net'
+  | 'defense_tip_missed'
+  | 'defense_coverage_error'
+  | 'defense_communication'
+  // Novos do toque/controle
+  | 'four_touches'
+  | 'double_contact'
+  | 'catch'
+  | 'assisted_hit'
+  // Novos de rede/invasão
+  | 'net_touch'
+  | 'antenna_touch'
+  | 'over_net_fault'
+  | 'under_net_interference'
+  | 'center_line_full_foot'
+  | 'opponent_interference'
+  // Novos de posição/rotação
+  | 'position_fault'
+  | 'rotation_fault'
+  | 'wrong_server'
+  // Novos do líbero
+  | 'libero_attack'
+  | 'libero_serve'
+  | 'libero_block'
+  | 'libero_block_attempt'
+  | 'libero_front_zone_set_attack'
+  | 'libero_illegal_replacement'
+  | 'libero_late_replacement'
+  | 'libero_wrong_zone_replacement'
+  // Novos de substituição
+  | 'illegal_substitution'
+  | 'unauthorized_substitution_request'
+  | 'substitution_limit_exceeded'
+  // Novos de retardamento/admin
+  | 'delay_restart'
+  | 'delay_regular_interruption'
+  | 'improper_request'
+  // Novos de conduta
+  | 'rude_conduct'
+  | 'offensive_conduct'
+  | 'aggression'
+  // Outros
+  | 'team_error'
+  | 'unknown_error'
+  | 'manual_error';
 
 export type GameWinner = 'A' | 'B' | null;
 

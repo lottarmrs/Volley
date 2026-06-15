@@ -94,6 +94,8 @@ export const SessionActiveView = ({
     setGameReports,
   );
 
+  const [preSelectedPlayerId, setPreSelectedPlayerId] = useState<string | undefined>();
+
   const shareNextFreePlayMatch = () => {
     if (!nextMatchPreview) return;
     const teamA =
@@ -404,7 +406,10 @@ export const SessionActiveView = ({
             scoringRanking={scoringRanking}
             players={players}
             onRegisterPoint={() => registerPoint(currentGame.teamAId)}
-            onOpenDetailModal={() => setPointModalTeamId(currentGame.teamAId)}
+            onOpenDetailModal={(pid) => {
+              setPointModalTeamId(currentGame.teamAId);
+              setPreSelectedPlayerId(pid);
+            }}
           />
           <TeamScoreCard
             team={teamB}
@@ -419,7 +424,10 @@ export const SessionActiveView = ({
             scoringRanking={scoringRanking}
             players={players}
             onRegisterPoint={() => registerPoint(currentGame.teamBId)}
-            onOpenDetailModal={() => setPointModalTeamId(currentGame.teamBId)}
+            onOpenDetailModal={(pid) => {
+              setPointModalTeamId(currentGame.teamBId);
+              setPreSelectedPlayerId(pid);
+            }}
           />
         </div>
 
@@ -532,7 +540,11 @@ export const SessionActiveView = ({
               team={sessionTeams.find((t) => t.id === pointModalTeamId)!}
               opposingTeam={currentGame ? sessionTeams.find((t) => t.id === (pointModalTeamId === currentGame.teamAId ? currentGame.teamBId : currentGame.teamAId)) : undefined}
               players={players}
-              onClose={() => setPointModalTeamId(null)}
+              preSelectedPlayerId={preSelectedPlayerId}
+              onClose={() => {
+                setPointModalTeamId(null);
+                setPreSelectedPlayerId(undefined);
+              }}
               onConfirm={(details) => {
                 registerPoint(pointModalTeamId, details.playerId, details.reason, {
                   pointType: details.pointType,
@@ -540,6 +552,7 @@ export const SessionActiveView = ({
                   fault: details.fault,
                 });
                 setPointModalTeamId(null);
+                setPreSelectedPlayerId(undefined);
               }}
             />
           )}

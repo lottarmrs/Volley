@@ -161,3 +161,46 @@ test('calculateAttributeProgression applies deltas and clamps correctly', () => 
   assert.equal(updatedP1.atributos.ataque, 5.1);
   assert.equal(updatedP1.atributos.saque, 10);
 });
+
+test('aggregates new error taxonomy categories and updates statistics and progression correctly', () => {
+  const p1 = player('p1');
+  p1.posicaoPrincipal = 'ponteiro';
+  p1.atributos.recepcao = 5;
+  p1.atributos.levantamento = 5;
+
+  const newPoints = [
+    // p1 makes a reception error (reception_floor)
+    pt({
+      scoringTeamId: 'teamB',
+      concedingTeamId: 'teamA',
+      playerId: 'p1',
+      pointType: 'error',
+      fault: 'reception_floor',
+      playerTeamId: 'teamA',
+    }),
+    // p1 makes a setting error (setting_double)
+    pt({
+      scoringTeamId: 'teamB',
+      concedingTeamId: 'teamA',
+      playerId: 'p1',
+      pointType: 'error',
+      fault: 'setting_double',
+      playerTeamId: 'teamA',
+    }),
+  ];
+
+  // Verify statistics
+  const stats = calculatePlayerStats(p1, [game], newPoints, [teamA, teamB], [session]);
+  assert.equal(stats.errors, 2);
+  assert.equal(stats.errorsByType.reception_floor, 1);
+  assert.equal(stats.errorsByType.setting_double, 1);
+
+  // Verify progression (reception is critical for pointer, setting is not)
+  const updated = calculateAttributeProgression([p1], newPoints);
+  const updatedP1 = updated.find((x) => x.id === 'p1')!;
+  
+  // recepcao: 5 - 0.1 = 4.9 (critical for pointer)
+  assert.equal(updatedP1.atributos.recepcao, 4.9);
+  // levantamento: 5 - 0.05 = 4.95 (non-critical for pointer)
+  assert.equal(updatedP1.atributos.levantamento, 4.95);
+});

@@ -450,6 +450,43 @@ async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbR
   }
 }
 
+async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Promise<DbRecord[]> {
+  if (!records || records.length === 0) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from(table)
+      .upsert(records, { onConflict: 'owner_id,local_id' })
+      .select();
+
+    if (error) throw error;
+    return data || [];
+  } catch (error: any) {
+    if (
+      error &&
+      (error.code === '23505' || error.statusCode === '23505') &&
+      error.message?.includes('_pkey')
+    ) {
+      console.warn(`[Bulk] Colisão de Primary Key na tabela ${table}. Tentando lote sem IDs.`);
+      
+      const fallbackRecords = records.map((record) => {
+        const fallback = { ...record };
+        delete fallback.id;
+        return fallback;
+      });
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from(table)
+        .upsert(fallbackRecords, { onConflict: 'owner_id,local_id' })
+        .select();
+
+      if (fallbackError) throw fallbackError;
+      return fallbackData || [];
+    }
+    throw error;
+  }
+}
+
 export const operationalCloudService = {
   async fetchAll(
     communityCloudToLocalIdMap: Record<string, string>,
@@ -615,5 +652,140 @@ export const operationalCloudService = {
       .eq('id', cloudId);
 
     if (error) throw error;
+  },
+
+  async bulkSoftDelete(table: OperationalTable, cloudIds: string[]): Promise<void> {
+    if (cloudIds.length === 0) return;
+    const { error } = await supabase
+      .from(table)
+      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .in('id', cloudIds);
+
+    if (error) throw error;
+  },
+
+  async bulkUpsertTeams(
+    locals: Team[],
+    ownerId: string,
+    sessionCloudIds: Record<string, string>,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+    sessionsById: Map<string, Session>,
+  ): Promise<Team[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const sessionCloudId = sessionCloudIds[local.sessionId];
+      const session = sessionsById.get(local.sessionId);
+      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      return mapTeamToDb(local, ownerId, sessionCloudId!, communityCloudId);
+    });
+    const data = await bulkUpsertRows('teams', records);
+    return data.map((row) => mapDbToTeam(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+  },
+
+  async bulkUpsertGames(
+    locals: Game[],
+    ownerId: string,
+    sessionCloudIds: Record<string, string>,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+    sessionsById: Map<string, Session>,
+  ): Promise<Game[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const sessionCloudId = sessionCloudIds[local.sessionId];
+      const session = sessionsById.get(local.sessionId);
+      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      return mapGameToDb(local, ownerId, sessionCloudId!, communityCloudId);
+    });
+    const data = await bulkUpsertRows('games', records);
+    return data.map((row) => mapDbToGame(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+  },
+
+  async bulkUpsertPointEvents(
+    locals: PointEvent[],
+    ownerId: string,
+    sessionCloudIds: Record<string, string>,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+    sessionsById: Map<string, Session>,
+  ): Promise<PointEvent[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const sessionCloudId = sessionCloudIds[local.sessionId];
+      const session = sessionsById.get(local.sessionId);
+      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      return mapPointEventToDb(local, ownerId, sessionCloudId!, communityCloudId);
+    });
+    const data = await bulkUpsertRows('point_events', records);
+    return data.map((row) => mapDbToPointEvent(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+  },
+
+  async bulkUpsertGameReports(
+    locals: GameReport[],
+    ownerId: string,
+    sessionCloudIds: Record<string, string>,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+    sessionsById: Map<string, Session>,
+  ): Promise<GameReport[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const sessionCloudId = sessionCloudIds[local.sessionId];
+      const session = sessionsById.get(local.sessionId);
+      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      return mapGameReportToDb(local, ownerId, sessionCloudId!, communityCloudId);
+    });
+    const data = await bulkUpsertRows('game_reports', records);
+    return data.map((row) => mapDbToGameReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+  },
+
+  async bulkUpsertSessionReports(
+    locals: SessionReport[],
+    ownerId: string,
+    sessionCloudIds: Record<string, string>,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+    sessionsById: Map<string, Session>,
+  ): Promise<SessionReport[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const sessionCloudId = sessionCloudIds[local.sessionId];
+      const session = sessionsById.get(local.sessionId);
+      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      return mapSessionReportToDb(local, ownerId, sessionCloudId!, communityCloudId);
+    });
+    const data = await bulkUpsertRows('session_reports', records);
+    return data.map((row) => mapDbToSessionReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+  },
+
+  async bulkUpsertPresence(
+    locals: CommunityPresence[],
+    ownerId: string,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+  ): Promise<CommunityPresence[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const communityCloudId = resolveCommunityCloudId(local.communityId);
+      return mapPresenceToDb(local, ownerId, communityCloudId!);
+    });
+    const data = await bulkUpsertRows('community_presence', records);
+    return data.map((row) => {
+      const local = locals.find((l) => `${l.communityId}:${l.date}` === row.local_id);
+      return mapDbToPresence(row, local?.communityId || '');
+    });
+  },
+
+  async bulkUpsertDrafts(
+    locals: WhatsAppListDraft[],
+    ownerId: string,
+    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
+  ): Promise<WhatsAppListDraft[]> {
+    if (locals.length === 0) return [];
+    const records = locals.map((local) => {
+      const communityCloudId = resolveCommunityCloudId(local.communityId);
+      return mapDraftToDb(local, ownerId, communityCloudId!);
+    });
+    const data = await bulkUpsertRows('whatsapp_list_drafts', records);
+    return data.map((row) => mapDbToDraft(row, locals.find((l) => l.id === row.local_id)?.communityId || ''));
+  },
+
+  async executeBulkUpsert(table: OperationalTable, payloads: DbRecord[]): Promise<DbRecord[]> {
+    return await bulkUpsertRows(table, payloads);
   },
 };

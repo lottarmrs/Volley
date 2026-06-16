@@ -178,22 +178,24 @@ function getSessionCommunityCloudId(
   return session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
 }
 
-async function uploadSessionChildren<T extends Syncable>(
+async function bulkUploadSessionChildren<T extends Syncable>(
   items: T[],
   sessionsById: Map<string, Session>,
   sessionCloudIds: Record<string, string>,
   resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
-  softDeleteTable: Parameters<typeof operationalCloudService.softDelete>[0],
-  upsert: (item: T, sessionCloudId: string, communityCloudId?: string | null) => Promise<T>,
-) {
+  softDeleteTable: Parameters<typeof operationalCloudService.bulkSoftDelete>[0],
+  bulkUpsertFn: (itemsToUpsert: T[]) => Promise<T[]>,
+): Promise<T[]> {
   const syncedAt = nowIso();
   const updated: T[] = [];
 
+  const itemsToDelete: string[] = [];
+  const itemsToUpsert: T[] = [];
+  const itemMap = new Map<string, T>();
+
   for (const item of items) {
     if (item.deletedAt) {
-      if (item.cloudId) {
-        await operationalCloudService.softDelete(softDeleteTable, item.cloudId);
-      }
+      if (item.cloudId) itemsToDelete.push(item.cloudId);
       updated.push(markSynced(item, item.cloudId, syncedAt));
       continue;
     }
@@ -206,12 +208,27 @@ async function uploadSessionChildren<T extends Syncable>(
       continue;
     }
 
-    const uploaded = await upsert(
-      item,
-      sessionCloudId,
-      getSessionCommunityCloudId(session, resolveCommunityCloudId),
-    );
-    updated.push(markSynced(item, uploaded.cloudId, syncedAt));
+    itemsToUpsert.push(item);
+    itemMap.set(item.id || item.cloudId || 'temp', item);
+  }
+
+  try {
+    if (itemsToDelete.length > 0) {
+      await operationalCloudService.bulkSoftDelete(softDeleteTable, itemsToDelete);
+    }
+
+    if (itemsToUpsert.length > 0) {
+      const uploadedResults = await bulkUpsertFn(itemsToUpsert);
+      for (const result of uploadedResults) {
+        const originalItem = itemMap.get(result.id);
+        if (originalItem) {
+          updated.push(markSynced(originalItem, result.cloudId, syncedAt));
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Falha no envio em lote para a tabela ${softDeleteTable}`, error);
+    return items;
   }
 
   return visible(updated);
@@ -327,67 +344,94 @@ export const syncService = {
 
     const sessionsById = new Map(updatedSessions.map((session) => [session.id, session]));
 
-    const updatedTeams = await uploadSessionChildren<Team>(
+    const updatedTeams = await bulkUploadSessionChildren<Team>(
       local.teams,
       sessionsById,
       sessionLocalToCloudIdMap,
       resolveCommunityCloudId,
       'teams',
-      (item, sessionCloudId, communityCloudId) =>
-        operationalCloudService.upsertTeam(item, ownerId, sessionCloudId, communityCloudId),
+      (items) =>
+        operationalCloudService.bulkUpsertTeams(
+          items,
+          ownerId,
+          sessionLocalToCloudIdMap,
+          resolveCommunityCloudId,
+          sessionsById,
+        ),
     );
 
-    const updatedGames = await uploadSessionChildren<Game>(
+    const updatedGames = await bulkUploadSessionChildren<Game>(
       local.games,
       sessionsById,
       sessionLocalToCloudIdMap,
       resolveCommunityCloudId,
       'games',
-      (item, sessionCloudId, communityCloudId) =>
-        operationalCloudService.upsertGame(item, ownerId, sessionCloudId, communityCloudId),
+      (items) =>
+        operationalCloudService.bulkUpsertGames(
+          items,
+          ownerId,
+          sessionLocalToCloudIdMap,
+          resolveCommunityCloudId,
+          sessionsById,
+        ),
     );
 
-    const updatedPointEvents = await uploadSessionChildren<PointEvent>(
+    const updatedPointEvents = await bulkUploadSessionChildren<PointEvent>(
       local.pointEvents,
       sessionsById,
       sessionLocalToCloudIdMap,
       resolveCommunityCloudId,
       'point_events',
-      (item, sessionCloudId, communityCloudId) =>
-        operationalCloudService.upsertPointEvent(item, ownerId, sessionCloudId, communityCloudId),
+      (items) =>
+        operationalCloudService.bulkUpsertPointEvents(
+          items,
+          ownerId,
+          sessionLocalToCloudIdMap,
+          resolveCommunityCloudId,
+          sessionsById,
+        ),
     );
 
-    const updatedGameReports = await uploadSessionChildren<GameReport>(
+    const updatedGameReports = await bulkUploadSessionChildren<GameReport>(
       local.gameReports,
       sessionsById,
       sessionLocalToCloudIdMap,
       resolveCommunityCloudId,
       'game_reports',
-      (item, sessionCloudId, communityCloudId) =>
-        operationalCloudService.upsertGameReport(item, ownerId, sessionCloudId, communityCloudId),
+      (items) =>
+        operationalCloudService.bulkUpsertGameReports(
+          items,
+          ownerId,
+          sessionLocalToCloudIdMap,
+          resolveCommunityCloudId,
+          sessionsById,
+        ),
     );
 
-    const updatedSessionReports = await uploadSessionChildren<SessionReport>(
+    const updatedSessionReports = await bulkUploadSessionChildren<SessionReport>(
       local.sessionReports,
       sessionsById,
       sessionLocalToCloudIdMap,
       resolveCommunityCloudId,
       'session_reports',
-      (item, sessionCloudId, communityCloudId) =>
-        operationalCloudService.upsertSessionReport(
-          item,
+      (items) =>
+        operationalCloudService.bulkUpsertSessionReports(
+          items,
           ownerId,
-          sessionCloudId,
-          communityCloudId,
+          sessionLocalToCloudIdMap,
+          resolveCommunityCloudId,
+          sessionsById,
         ),
     );
 
     const updatedPresenceRecords: CommunityPresence[] = [];
+    const presenceToDelete: string[] = [];
+    const presenceToUpsert: CommunityPresence[] = [];
+    const presenceMap = new Map<string, CommunityPresence>();
+
     for (const presence of local.presenceRecords) {
       if (presence.deletedAt) {
-        if (presence.cloudId) {
-          await operationalCloudService.softDelete('community_presence', presence.cloudId);
-        }
+        if (presence.cloudId) presenceToDelete.push(presence.cloudId);
         updatedPresenceRecords.push(markSynced(presence, presence.cloudId, syncedAt));
         continue;
       }
@@ -398,20 +442,45 @@ export const syncService = {
         continue;
       }
 
-      const uploaded = await operationalCloudService.upsertPresence(
-        presence,
-        ownerId,
-        communityCloudId,
-      );
-      updatedPresenceRecords.push(markSynced(presence, uploaded.cloudId, syncedAt));
+      presenceToUpsert.push(presence);
+      presenceMap.set(`${presence.communityId}:${presence.date}`, presence);
+    }
+
+    try {
+      if (presenceToDelete.length > 0) {
+        await operationalCloudService.bulkSoftDelete('community_presence', presenceToDelete);
+      }
+      if (presenceToUpsert.length > 0) {
+        const uploadedResults = await operationalCloudService.bulkUpsertPresence(
+          presenceToUpsert,
+          ownerId,
+          resolveCommunityCloudId,
+        );
+        for (const result of uploadedResults) {
+          const key = `${result.communityId}:${result.date}`;
+          const original = presenceMap.get(key);
+          if (original) {
+            updatedPresenceRecords.push(markSynced(original, result.cloudId, syncedAt));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Falha no envio em lote para community_presence', error);
+      local.presenceRecords.forEach((p) => {
+        if (!updatedPresenceRecords.some((u) => u.communityId === p.communityId && u.date === p.date)) {
+          updatedPresenceRecords.push(p);
+        }
+      });
     }
 
     const updatedDrafts: WhatsAppListDraft[] = [];
+    const draftsToDelete: string[] = [];
+    const draftsToUpsert: WhatsAppListDraft[] = [];
+    const draftsMap = new Map<string, WhatsAppListDraft>();
+
     for (const draft of local.drafts) {
       if (draft.deletedAt) {
-        if (draft.cloudId) {
-          await operationalCloudService.softDelete('whatsapp_list_drafts', draft.cloudId);
-        }
+        if (draft.cloudId) draftsToDelete.push(draft.cloudId);
         updatedDrafts.push(markSynced(draft, draft.cloudId, syncedAt));
         continue;
       }
@@ -422,8 +491,34 @@ export const syncService = {
         continue;
       }
 
-      const uploaded = await operationalCloudService.upsertDraft(draft, ownerId, communityCloudId);
-      updatedDrafts.push(markSynced(draft, uploaded.cloudId, syncedAt));
+      draftsToUpsert.push(draft);
+      draftsMap.set(draft.id, draft);
+    }
+
+    try {
+      if (draftsToDelete.length > 0) {
+        await operationalCloudService.bulkSoftDelete('whatsapp_list_drafts', draftsToDelete);
+      }
+      if (draftsToUpsert.length > 0) {
+        const uploadedResults = await operationalCloudService.bulkUpsertDrafts(
+          draftsToUpsert,
+          ownerId,
+          resolveCommunityCloudId,
+        );
+        for (const result of uploadedResults) {
+          const original = draftsMap.get(result.id);
+          if (original) {
+            updatedDrafts.push(markSynced(original, result.cloudId, syncedAt));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Falha no envio em lote para whatsapp_list_drafts', error);
+      local.drafts.forEach((d) => {
+        if (!updatedDrafts.some((u) => u.id === d.id)) {
+          updatedDrafts.push(d);
+        }
+      });
     }
 
     const relationsToUpload: Omit<CommunityPlayerDb, 'id'>[] = [];

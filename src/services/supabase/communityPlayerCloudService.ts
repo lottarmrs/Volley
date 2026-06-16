@@ -6,13 +6,17 @@ export interface CommunityPlayerDb {
   community_id: string;
   player_id: string;
   active: boolean;
+  status?: 'active' | 'inactive' | 'banned';
+  role?: 'owner' | 'admin' | 'player' | 'guest';
+  sync_version?: number;
+  deleted_at?: string | null;
 }
 
 export const communityPlayerCloudService = {
   async fetchAll(): Promise<CommunityPlayerDb[]> {
     const { data, error } = await supabase
       .from('community_players')
-      .select('id, owner_id, community_id, player_id, active');
+      .select('id, owner_id, community_id, player_id, active, status, role, sync_version, deleted_at');
 
     if (error) throw error;
     return data || [];

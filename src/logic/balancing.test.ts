@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { players } from '../data/players';
-import { balanceTeams, getQualityLabel, resolveComposition, mapPlayerToAthleteVector, solutionDistance, selectPortfolio, ObjectiveScorer, recalculateDivisionDiagnostics } from './balancing';
+import {
+  balanceTeams,
+  getQualityLabel,
+  resolveComposition,
+  mapPlayerToAthleteVector,
+  solutionDistance,
+  selectPortfolio,
+  ObjectiveScorer,
+  recalculateDivisionDiagnostics,
+} from './balancing';
 import { QUALITY } from './balancingConstants';
 import { Attributes, FreePlayConfig, Player, Position, Division, BalanceWeights } from '../types';
 
@@ -200,9 +209,7 @@ test('5x1 rotation distributes one setter and one libero per team', () => {
 
   const best = divisions[0];
   for (const team of best.teams) {
-    const positions = team.playerIds.map(
-      (id) => roster.find((p) => p.id === id)!.posicaoPrincipal,
-    );
+    const positions = team.playerIds.map((id) => roster.find((p) => p.id === id)!.posicaoPrincipal);
     assert.equal(positions.filter((p) => p === 'levantador').length, 1);
     assert.equal(positions.filter((p) => p === 'libero').length, 1);
   }
@@ -219,10 +226,90 @@ test('getQualityLabel maps scores to labels per QUALITY thresholds', () => {
 });
 
 test('solutionDistance correctly calculates the number of players that changed teams', () => {
-  const p1 = { id: '1', name: 'P1', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p2 = { id: '2', name: 'P2', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p3 = { id: '3', name: 'P3', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p4 = { id: '4', name: 'P4', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p1 = {
+    id: '1',
+    name: 'P1',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p2 = {
+    id: '2',
+    name: 'P2',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p3 = {
+    id: '3',
+    name: 'P3',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p4 = {
+    id: '4',
+    name: 'P4',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
 
   const solA = {
     teams: [
@@ -257,14 +344,109 @@ test('solutionDistance correctly calculates the number of players that changed t
 });
 
 test('selectPortfolio selects diverse candidates and falls back when not enough distinct', () => {
-  const p1 = { id: '1', name: 'P1', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p2 = { id: '2', name: 'P2', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p3 = { id: '3', name: 'P3', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p4 = { id: '4', name: 'P4', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p1 = {
+    id: '1',
+    name: 'P1',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p2 = {
+    id: '2',
+    name: 'P2',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p3 = {
+    id: '3',
+    name: 'P3',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p4 = {
+    id: '4',
+    name: 'P4',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
 
-  const solA = { teams: [[p1, p2], [p3, p4]] };
-  const solB = { teams: [[p1, p2], [p3, p4]] }; 
-  const solC = { teams: [[p1, p3], [p2, p4]] }; 
+  const solA = {
+    teams: [
+      [p1, p2],
+      [p3, p4],
+    ],
+  };
+  const solB = {
+    teams: [
+      [p1, p2],
+      [p3, p4],
+    ],
+  };
+  const solC = {
+    teams: [
+      [p1, p3],
+      [p2, p4],
+    ],
+  };
 
   const mockDiv = (sol: any, score: number, seed: number): Division => ({
     teams: [],
@@ -274,11 +456,7 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     rawSolution: sol,
   });
 
-  const candidates = [
-    mockDiv(solA, 10, 1),
-    mockDiv(solB, 12, 2), 
-    mockDiv(solC, 15, 3), 
-  ];
+  const candidates = [mockDiv(solA, 10, 1), mockDiv(solB, 12, 2), mockDiv(solC, 15, 3)];
 
   const chosen = selectPortfolio(candidates, 2, 2);
   assert.equal(chosen.length, 2);
@@ -287,10 +465,90 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
 });
 
 test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => {
-  const p1 = { id: '1', name: 'P1', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p2 = { id: '2', name: 'P2', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p3 = { id: '3', name: 'P3', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
-  const p4 = { id: '4', name: 'P4', overall: 5, attack: 5, defense: 5, serve: 5, reception: 5, setting: 5, block: 5, speed: 5, stamina: 5, gameVision: 5, consistency: 5, emotionalControl: 5, heightCm: 180, gender: 'M' as const, position: 'ponteiro', isInjured: false, currentForm: 5 };
+  const p1 = {
+    id: '1',
+    name: 'P1',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p2 = {
+    id: '2',
+    name: 'P2',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p3 = {
+    id: '3',
+    name: 'P3',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
+  const p4 = {
+    id: '4',
+    name: 'P4',
+    overall: 5,
+    attack: 5,
+    defense: 5,
+    serve: 5,
+    reception: 5,
+    setting: 5,
+    block: 5,
+    speed: 5,
+    stamina: 5,
+    gameVision: 5,
+    consistency: 5,
+    emotionalControl: 5,
+    heightCm: 180,
+    gender: 'M' as const,
+    position: 'ponteiro',
+    isInjured: false,
+    currentForm: 5,
+  };
 
   const sol = {
     teams: [
@@ -300,9 +558,22 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
   };
 
   const weights: BalanceWeights = {
-    overall: 1, attack: 1, defense: 1, setting: 1, block: 1, reception: 1, serve: 1,
-    height: 1, gender: 1, injured: 1, teamSize: 1, roleCoverage: 1, consistency: 1,
-    emotionalControl: 1, netPresence: 1, repetition: 0.8
+    overall: 1,
+    attack: 1,
+    defense: 1,
+    setting: 1,
+    block: 1,
+    reception: 1,
+    serve: 1,
+    height: 1,
+    gender: 1,
+    injured: 1,
+    teamSize: 1,
+    roleCoverage: 1,
+    consistency: 1,
+    emotionalControl: 1,
+    netPresence: 1,
+    repetition: 0.8,
   };
 
   const scorerWithoutMatrix = new ObjectiveScorer(weights, 0, 4, 0, 2);
@@ -311,7 +582,16 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
   const partnershipMatrix = {
     '1|2': 2.0,
   };
-  const scorerWithMatrix = new ObjectiveScorer(weights, 0, 4, 0, 2, '6x0', undefined, partnershipMatrix);
+  const scorerWithMatrix = new ObjectiveScorer(
+    weights,
+    0,
+    4,
+    0,
+    2,
+    '6x0',
+    undefined,
+    partnershipMatrix,
+  );
   const score2 = scorerWithMatrix.score(sol, undefined, true);
 
   assert.equal(Math.round((score2 - score1) * 10) / 10, 1.6);
@@ -342,10 +622,21 @@ test('recalculateDivisionDiagnostics correctly updates diagnostics and snapshots
         generatedByAlgorithm: true,
         locked: false,
         strengthSnapshot: {
-          overall: 0, attack: 0, reception: 0, setting: 0, defense: 0, block: 0, serve: 0,
-          regularity: 0, stamina: 0, gameReading: 0, averageHeight: 0, netPresence: 0,
-          maleCount: 0, femaleCount: 0
-        }
+          overall: 0,
+          attack: 0,
+          reception: 0,
+          setting: 0,
+          defense: 0,
+          block: 0,
+          serve: 0,
+          regularity: 0,
+          stamina: 0,
+          gameReading: 0,
+          averageHeight: 0,
+          netPresence: 0,
+          maleCount: 0,
+          femaleCount: 0,
+        },
       },
       {
         id: 'team-2',
@@ -355,20 +646,31 @@ test('recalculateDivisionDiagnostics correctly updates diagnostics and snapshots
         generatedByAlgorithm: true,
         locked: false,
         strengthSnapshot: {
-          overall: 0, attack: 0, reception: 0, setting: 0, defense: 0, block: 0, serve: 0,
-          regularity: 0, stamina: 0, gameReading: 0, averageHeight: 0, netPresence: 0,
-          maleCount: 0, femaleCount: 0
-        }
-      }
+          overall: 0,
+          attack: 0,
+          reception: 0,
+          setting: 0,
+          defense: 0,
+          block: 0,
+          serve: 0,
+          regularity: 0,
+          stamina: 0,
+          gameReading: 0,
+          averageHeight: 0,
+          netPresence: 0,
+          maleCount: 0,
+          femaleCount: 0,
+        },
+      },
     ],
     penalty: 0,
-    score: 0
+    score: 0,
   };
 
   const config = {
     balanceMode: 'balanced' as const,
     teamCount: 2,
-    rotationType: '6x0' as const
+    rotationType: '6x0' as const,
   };
 
   const updated = recalculateDivisionDiagnostics(initialDivision, allPlayers, config as any);

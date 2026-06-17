@@ -24,11 +24,10 @@ export function useAuth() {
     if (!isSupabaseConfigured) return null;
     try {
       const queryPromise = supabase.from('profiles').select('*').eq('id', userId).single();
-      const { data, error } = await withTimeout(
-        queryPromise,
-        3000,
-        { data: null, error: { message: 'Request timeout' } } as any
-      );
+      const { data, error } = await withTimeout(queryPromise, 3000, {
+        data: null,
+        error: { message: 'Request timeout' },
+      } as any);
 
       if (error) {
         console.error('Error fetching profile:', error);

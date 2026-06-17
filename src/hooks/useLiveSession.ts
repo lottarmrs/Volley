@@ -148,7 +148,8 @@ export function useLiveSession(
 
       if (playerId) {
         const isError = details?.pointType === 'error';
-        const concedingTeamId = currentGame.teamAId === teamId ? currentGame.teamBId : currentGame.teamAId;
+        const concedingTeamId =
+          currentGame.teamAId === teamId ? currentGame.teamBId : currentGame.teamAId;
         const authorTeamId = isError ? concedingTeamId : teamId;
         const authorTeam = sessionTeams.find((t) => t.id === authorTeamId);
         if (!authorTeam?.playerIds.includes(playerId)) {

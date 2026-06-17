@@ -90,8 +90,7 @@ export function calculatePlayerStats(
   const teamCreditedPoints = registeredPoints.filter(
     (p) => isCreditedPoint(p) && playerTeamIds.has(p.scoringTeamId),
   ).length;
-  const pointsContribution =
-    teamCreditedPoints > 0 ? (totalPoints / teamCreditedPoints) * 100 : 0;
+  const pointsContribution = teamCreditedPoints > 0 ? (totalPoints / teamCreditedPoints) * 100 : 0;
 
   return {
     gamesPlayed: playerGames.length,

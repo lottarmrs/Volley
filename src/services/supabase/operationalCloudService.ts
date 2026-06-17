@@ -468,7 +468,7 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
       error.message?.includes('_pkey')
     ) {
       console.warn(`[Bulk] Colisão de Primary Key na tabela ${table}. Tentando lote sem IDs.`);
-      
+
       const fallbackRecords = records.map((record) => {
         const fallback = { ...record };
         delete fallback.id;
@@ -675,11 +675,15 @@ export const operationalCloudService = {
     const records = locals.map((local) => {
       const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      const communityCloudId = session?.communityId
+        ? resolveCommunityCloudId(session.communityId)
+        : null;
       return mapTeamToDb(local, ownerId, sessionCloudId!, communityCloudId);
     });
     const data = await bulkUpsertRows('teams', records);
-    return data.map((row) => mapDbToTeam(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+    return data.map((row) =>
+      mapDbToTeam(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
+    );
   },
 
   async bulkUpsertGames(
@@ -693,11 +697,15 @@ export const operationalCloudService = {
     const records = locals.map((local) => {
       const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      const communityCloudId = session?.communityId
+        ? resolveCommunityCloudId(session.communityId)
+        : null;
       return mapGameToDb(local, ownerId, sessionCloudId!, communityCloudId);
     });
     const data = await bulkUpsertRows('games', records);
-    return data.map((row) => mapDbToGame(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+    return data.map((row) =>
+      mapDbToGame(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
+    );
   },
 
   async bulkUpsertPointEvents(
@@ -711,11 +719,15 @@ export const operationalCloudService = {
     const records = locals.map((local) => {
       const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      const communityCloudId = session?.communityId
+        ? resolveCommunityCloudId(session.communityId)
+        : null;
       return mapPointEventToDb(local, ownerId, sessionCloudId!, communityCloudId);
     });
     const data = await bulkUpsertRows('point_events', records);
-    return data.map((row) => mapDbToPointEvent(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+    return data.map((row) =>
+      mapDbToPointEvent(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
+    );
   },
 
   async bulkUpsertGameReports(
@@ -729,11 +741,15 @@ export const operationalCloudService = {
     const records = locals.map((local) => {
       const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      const communityCloudId = session?.communityId
+        ? resolveCommunityCloudId(session.communityId)
+        : null;
       return mapGameReportToDb(local, ownerId, sessionCloudId!, communityCloudId);
     });
     const data = await bulkUpsertRows('game_reports', records);
-    return data.map((row) => mapDbToGameReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+    return data.map((row) =>
+      mapDbToGameReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
+    );
   },
 
   async bulkUpsertSessionReports(
@@ -747,11 +763,15 @@ export const operationalCloudService = {
     const records = locals.map((local) => {
       const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
+      const communityCloudId = session?.communityId
+        ? resolveCommunityCloudId(session.communityId)
+        : null;
       return mapSessionReportToDb(local, ownerId, sessionCloudId!, communityCloudId);
     });
     const data = await bulkUpsertRows('session_reports', records);
-    return data.map((row) => mapDbToSessionReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''));
+    return data.map((row) =>
+      mapDbToSessionReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
+    );
   },
 
   async bulkUpsertPresence(
@@ -782,7 +802,9 @@ export const operationalCloudService = {
       return mapDraftToDb(local, ownerId, communityCloudId!);
     });
     const data = await bulkUpsertRows('whatsapp_list_drafts', records);
-    return data.map((row) => mapDbToDraft(row, locals.find((l) => l.id === row.local_id)?.communityId || ''));
+    return data.map((row) =>
+      mapDbToDraft(row, locals.find((l) => l.id === row.local_id)?.communityId || ''),
+    );
   },
 
   async executeBulkUpsert(table: OperationalTable, payloads: DbRecord[]): Promise<DbRecord[]> {

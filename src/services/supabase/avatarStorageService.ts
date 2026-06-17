@@ -93,7 +93,7 @@ export const avatarStorageService = {
     }
 
     const blob = await toWebp(file);
-    const ext = blob.type === 'image/webp' ? 'webp' : (file.name.split('.').pop() || 'jpg');
+    const ext = blob.type === 'image/webp' ? 'webp' : file.name.split('.').pop() || 'jpg';
     // Unique filename per upload => unique public URL => no stale CDN/browser cache.
     const candidateId =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto

@@ -206,7 +206,11 @@ export const PlayerItem: React.FC<{
           >
             <div className="w-12 rounded-full bg-base-300 text-accent font-black overflow-hidden ring-2 ring-primary/40 ring-offset-2 ring-offset-base-200">
               {player.avatarUrl ? (
-                <img src={player.avatarUrl} alt={player.nome} className="w-full h-full object-cover" />
+                <img
+                  src={player.avatarUrl}
+                  alt={player.nome}
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <span className="text-xs">{initials}</span>
               )}

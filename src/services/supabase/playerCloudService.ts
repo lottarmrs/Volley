@@ -93,11 +93,13 @@ export const playerCloudService = {
       ) {
         const ownerSuffix = ownerId.slice(0, 4);
         const fallbackUsername = local.username ? `${local.username}-${ownerSuffix}` : undefined;
-        console.warn(`Username collision for ${local.nome} (${local.username}). Retrying with fallback: ${fallbackUsername}`);
+        console.warn(
+          `Username collision for ${local.nome} (${local.username}). Retrying with fallback: ${fallbackUsername}`,
+        );
 
         const fallbackRecord = {
           ...dbRecord,
-          ...(fallbackUsername ? { username: fallbackUsername } : {})
+          ...(fallbackUsername ? { username: fallbackUsername } : {}),
         };
         if (!fallbackUsername) {
           delete (fallbackRecord as any).username;
@@ -113,7 +115,9 @@ export const playerCloudService = {
           if (fallbackError) throw fallbackError;
           return mapDbToPlayer(fallbackData);
         } catch {
-          console.warn(`Secondary username collision for ${local.nome}. Retrying with null username.`);
+          console.warn(
+            `Secondary username collision for ${local.nome}. Retrying with null username.`,
+          );
           const finalRecord = { ...dbRecord };
           delete (finalRecord as any).username;
 

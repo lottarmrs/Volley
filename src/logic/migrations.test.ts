@@ -98,4 +98,3 @@ test('sanitizeImportedBackup recursively removes cloudId/lastSyncedAt and sets s
     },
   });
 });
-

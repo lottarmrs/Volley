@@ -242,11 +242,17 @@ export function formatDrawForWhatsApp(
   sessionName: string,
   divisions: Division[],
   players: Player[],
-  options?: { includeDetails?: boolean; playerPositions?: Record<string, Position> },
+  options?: {
+    includePositions?: boolean;
+    includeRatings?: boolean;
+    playerPositions?: Record<string, Position>;
+  },
 ): string {
-  // includeDetails: inclui posições por atleta e rating do time.
-  // Quando false, compartilha apenas a divisão (nomes dos times e atletas).
-  const includeDetails = options?.includeDetails ?? true;
+  // includePositions: mostra a função de cada atleta.
+  // includeRatings: mostra o rating do time e o rótulo de qualidade da opção.
+  // Ambos independentes; com os dois false, compartilha só a divisão (nomes).
+  const includePositions = options?.includePositions ?? true;
+  const includeRatings = options?.includeRatings ?? true;
   const playerPositions = options?.playerPositions ?? {};
 
   const formattedDivisions = divisions
@@ -260,14 +266,14 @@ export function formatDrawForWhatsApp(
               const name = p.apelido || p.nome;
               const effectivePos = playerPositions[p.id] ?? p.posicaoPrincipal;
               const pos =
-                includeDetails && effectivePos ? ` (${POSITION_LABELS[effectivePos]})` : '';
+                includePositions && effectivePos ? ` (${POSITION_LABELS[effectivePos]})` : '';
               return `- ${name}${pos}`;
             })
             .filter(Boolean)
             .join('\n');
 
           const rating =
-            includeDetails && team.strengthSnapshot?.overall
+            includeRatings && team.strengthSnapshot?.overall
               ? ` (Rating: ${Math.round(team.strengthSnapshot.overall)})`
               : '';
 
@@ -276,7 +282,7 @@ export function formatDrawForWhatsApp(
         .join('\n\n');
 
       const quality = div.qualityLabel || `Opção ${divIdx + 1}`;
-      const header = includeDetails
+      const header = includeRatings
         ? `📌 *Opção ${divIdx + 1} (${quality})*`
         : `📌 *Opção ${divIdx + 1}*`;
       return `${header}\n\n${teamsFormatted}`;

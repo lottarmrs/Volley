@@ -151,8 +151,9 @@ export function SessionWizard({
   const [constraintPlayerA, setConstraintPlayerA] = useState('');
   const [constraintPlayerB, setConstraintPlayerB] = useState('');
   const [constraintType, setConstraintType] = useState<'together' | 'separated'>('together');
-  // Compartilhar/copiar sorteio: incluir ratings e posições ou só a divisão.
-  const [shareIncludeDetails, setShareIncludeDetails] = useState(true);
+  // Compartilhar/copiar sorteio: escolher o que incluir (independentes).
+  const [shareIncludePositions, setShareIncludePositions] = useState(true);
+  const [shareIncludeRatings, setShareIncludeRatings] = useState(true);
   // Drag & Drop state for team player swapping
   const [dragPlayerId, setDragPlayerId] = useState<string | null>(null);
   const [dragSourceTeamId, setDragSourceTeamId] = useState<string | null>(null);
@@ -173,7 +174,8 @@ export function SessionWizard({
   const handleShareSorteio = () => {
     if (bestDivisions.length === 0) return;
     const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players, {
-      includeDetails: shareIncludeDetails,
+      includePositions: shareIncludePositions,
+      includeRatings: shareIncludeRatings,
       playerPositions,
     });
     openWhatsAppShare(text);
@@ -182,7 +184,8 @@ export function SessionWizard({
   const handleCopySorteio = async () => {
     if (bestDivisions.length === 0) return;
     const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players, {
-      includeDetails: shareIncludeDetails,
+      includePositions: shareIncludePositions,
+      includeRatings: shareIncludeRatings,
       playerPositions,
     });
     const ok = await copyToClipboard(text);
@@ -1746,20 +1749,36 @@ export function SessionWizard({
                 <span className="hidden sm:inline">Configurações e Vínculos</span>
               </button>
               <div className="divider divider-horizontal mx-1 hidden sm:flex" />
-              <label
-                className="flex items-center gap-1.5 cursor-pointer select-none px-1"
-                title="Inclui o rating de cada time e a posição de cada atleta ao compartilhar/copiar. Desligado, envia apenas a divisão dos times."
+              <div
+                className="flex items-center gap-2 px-1"
+                title="Escolha o que incluir ao compartilhar/copiar o sorteio."
               >
-                <input
-                  type="checkbox"
-                  className="toggle toggle-xs toggle-success"
-                  checked={shareIncludeDetails}
-                  onChange={(e) => setShareIncludeDetails(e.target.checked)}
-                />
-                <span className="text-[9px] font-bold uppercase text-base-content/60 tracking-wider">
-                  Ratings e posições
+                <span className="text-[9px] font-bold uppercase text-base-content/40 tracking-wider hidden md:inline">
+                  Incluir:
                 </span>
-              </label>
+                <label className="flex items-center gap-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-xs toggle-success"
+                    checked={shareIncludePositions}
+                    onChange={(e) => setShareIncludePositions(e.target.checked)}
+                  />
+                  <span className="text-[9px] font-bold uppercase text-base-content/60 tracking-wider">
+                    Posições
+                  </span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-xs toggle-success"
+                    checked={shareIncludeRatings}
+                    onChange={(e) => setShareIncludeRatings(e.target.checked)}
+                  />
+                  <span className="text-[9px] font-bold uppercase text-base-content/60 tracking-wider">
+                    Ratings
+                  </span>
+                </label>
+              </div>
               <button
                 onClick={handleShareSorteio}
                 className="btn btn-sm btn-success btn-soft text-success"

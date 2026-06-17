@@ -301,8 +301,7 @@ export function SessionWizard({
       ?.playerPositions ?? {};
 
   /** Posição efetiva do atleta nesta sessão: ajuste manual, com fallback no cadastro. */
-  const getEffectivePosition = (p: Player): Position =>
-    playerPositions[p.id] ?? p.posicaoPrincipal;
+  const getEffectivePosition = (p: Player): Position => playerPositions[p.id] ?? p.posicaoPrincipal;
 
   const setPlayerPosition = (playerId: string, pos: Position) => {
     if (!activeSession?.config) return;
@@ -319,9 +318,7 @@ export function SessionWizard({
     const teamCount = activeSession?.config?.teamCount ?? 0;
     if (teamCount <= 0 || selectedPlayers.length === 0) return null;
     // Respeita as posições ajustadas para a sessão na prévia da composição.
-    const vectors = selectedPlayers.map((p) =>
-      mapPlayerToAthleteVector(p, playerPositions[p.id]),
-    );
+    const vectors = selectedPlayers.map((p) => mapPlayerToAthleteVector(p, playerPositions[p.id]));
     return resolveComposition(vectors, teamCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationType, activeSession?.config?.teamCount, selectedPlayers, playerPositions]);

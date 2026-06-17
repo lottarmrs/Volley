@@ -153,7 +153,7 @@ test('resolveComposition uses 1 libero per team when enough liberos exist', () =
     makePlayer('l2', { posicao: 'libero' }),
     makePlayer('p1', { posicao: 'ponteiro' }),
     makePlayer('p2', { posicao: 'ponteiro' }),
-  ].map(mapPlayerToAthleteVector);
+  ].map((p) => mapPlayerToAthleteVector(p));
 
   const { perTeam, warnings } = resolveComposition(athletes, 2);
   assert.equal(perTeam.libero, 1);
@@ -168,7 +168,7 @@ test('resolveComposition falls back to 2 centrals / 0 libero with a warning', ()
   const athletes = [
     makePlayer('l1', { posicao: 'libero' }),
     makePlayer('p1', { posicao: 'ponteiro' }),
-  ].map(mapPlayerToAthleteVector);
+  ].map((p) => mapPlayerToAthleteVector(p));
 
   const { perTeam, warnings } = resolveComposition(athletes, 2);
   assert.equal(perTeam.libero, 0);

@@ -43,10 +43,32 @@ import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
 import { SelectablePlayerCard } from './cards/SelectablePlayerCard';
 import { getSessionSetupWarnings } from '../../logic/setupWarnings';
-import { calculateGeneralOverall, calculateTeamStrength } from '../../logic/calculations';
+import {
+  calculateGeneralOverall,
+  calculateTeamStrength,
+  calculatePositionOverall,
+} from '../../logic/calculations';
 import { generateTournamentSchedule, getTeamDisplayName } from '../../logic/tournament';
 import { openWhatsAppShare, copyToClipboard, formatDrawForWhatsApp } from '../../logic/exporters';
 import { GuestPlayerModal } from '../player/GuestPlayerModal';
+
+const POSITION_LABELS: Record<Position, string> = {
+  levantador: 'Levantador',
+  ponteiro: 'Ponteiro',
+  oposto: 'Oposto',
+  central: 'Central',
+  libero: 'Líbero',
+  'all-rounder': 'Curinga',
+};
+
+const POSITION_ORDER: Position[] = [
+  'levantador',
+  'ponteiro',
+  'oposto',
+  'central',
+  'libero',
+  'all-rounder',
+];
 
 interface SessionWizardProps {
   activeSession: Session | null;
@@ -259,12 +281,35 @@ export function SessionWizard({
   const rotationType: RotationType =
     (activeSession?.config as { rotationType?: RotationType } | undefined)?.rotationType ?? '6x0';
 
+  const playerPositions =
+    (activeSession?.config as { playerPositions?: Record<string, Position> } | undefined)
+      ?.playerPositions ?? {};
+
+  /** Posição efetiva do atleta nesta sessão: ajuste manual, com fallback no cadastro. */
+  const getEffectivePosition = (p: Player): Position =>
+    playerPositions[p.id] ?? p.posicaoPrincipal;
+
+  const setPlayerPosition = (playerId: string, pos: Position) => {
+    if (!activeSession?.config) return;
+    onUpdateSession({
+      config: {
+        ...(activeSession.config as any),
+        playerPositions: { ...playerPositions, [playerId]: pos },
+      },
+    });
+  };
+
   const rotationComposition = useMemo(() => {
     if (rotationType !== '5x1') return null;
     const teamCount = activeSession?.config?.teamCount ?? 0;
     if (teamCount <= 0 || selectedPlayers.length === 0) return null;
-    return resolveComposition(selectedPlayers.map(mapPlayerToAthleteVector), teamCount);
-  }, [rotationType, activeSession?.config?.teamCount, selectedPlayers]);
+    // Respeita as posições ajustadas para a sessão na prévia da composição.
+    const vectors = selectedPlayers.map((p) =>
+      mapPlayerToAthleteVector(p, playerPositions[p.id]),
+    );
+    return resolveComposition(vectors, teamCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rotationType, activeSession?.config?.teamCount, selectedPlayers, playerPositions]);
 
   const updateGeneratedTeam = (divisionIndex: number, teamId: string, patch: Partial<Team>) => {
     setBestDivisions((prev) =>
@@ -1500,6 +1545,75 @@ export function SessionWizard({
                                 {w}
                               </p>
                             ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Posições dos Atletas (somente nesta sessão) */}
+                    <div className="w-full">
+                      <div className="fieldset">
+                        <label className="fieldset-legend text-[9px] font-bold uppercase text-text-muted tracking-wider mb-1">
+                          Posições dos Atletas
+                        </label>
+                        <p className="text-[8px] font-bold uppercase text-text-muted/70 tracking-wider mb-2 leading-relaxed">
+                          Defina a função de cada atleta apenas para esta sessão. O padrão vem do
+                          cadastro.
+                        </p>
+                        {selectedPlayers.length === 0 ? (
+                          <p className="text-[9px] font-bold uppercase text-text-muted/60 italic">
+                            Nenhum atleta selecionado.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full">
+                            {selectedPlayers.map((p) => {
+                              const effPos = getEffectivePosition(p);
+                              const overridden = effPos !== p.posicaoPrincipal;
+                              const generalOverall = calculateGeneralOverall(p);
+                              const posOverall = overridden
+                                ? calculatePositionOverall(p, effPos)
+                                : generalOverall;
+                              const delta = posOverall - generalOverall;
+                              return (
+                                <div
+                                  key={p.id}
+                                  className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-base-300/30 border border-base-300/60"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div
+                                      className={`w-1.5 h-5 rounded-full ${p.genero === 'M' ? 'bg-info' : 'bg-secondary'}`}
+                                    />
+                                    <span className="font-bold text-[10px] uppercase text-base-content truncate max-w-[90px]">
+                                      {p.apelido || p.nome}
+                                    </span>
+                                    <span className="font-bold font-mono text-[11px] text-accent/80">
+                                      {posOverall}
+                                    </span>
+                                    {overridden && (
+                                      <span
+                                        className={`font-bold font-mono text-[9px] ${delta < 0 ? 'text-error/80' : 'text-success/80'}`}
+                                        title={`Overall na função escolhida vs. geral (${generalOverall})`}
+                                      >
+                                        {delta >= 0 ? `+${delta}` : delta}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <select
+                                    value={effPos}
+                                    onChange={(e) =>
+                                      setPlayerPosition(p.id, e.target.value as Position)
+                                    }
+                                    className="select select-xs select-bordered text-[9px] font-bold uppercase max-w-[120px]"
+                                  >
+                                    {POSITION_ORDER.map((pos) => (
+                                      <option key={pos} value={pos}>
+                                        {POSITION_LABELS[pos]}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

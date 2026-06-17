@@ -14,12 +14,14 @@ import {
   TeamStrengthSnapshot,
   RoleComposition,
   RotationType,
+  Position,
 } from '../types';
 import {
   calculateTeamStrength,
   calculateGenderDistribution,
   calculateTeamSizes,
   calculateGeneralOverall,
+  calculatePositionOverall,
 } from './calculations';
 import { OVERALL_SCALE, PENALTIES, THRESHOLDS, QUALITY } from './balancingConstants';
 import { PartnershipMatrix } from './partnershipHistory';
@@ -121,11 +123,19 @@ const SPEED_CONFIG: Record<
 
 // ─── Player Mapping & Technical Vectors ──────────────────────────────────────
 
-export function mapPlayerToAthleteVector(p: Player): AthleteVector {
+export function mapPlayerToAthleteVector(p: Player, sessionPosition?: Position): AthleteVector {
+  // Quando o atleta se disponibiliza para uma função diferente da principal,
+  // avalia o overall pelos pesos daquela posição (geralmente mais baixo).
+  // Sem override (ou jogando na própria posição), mantém o overall geral.
+  const effectivePosition = sessionPosition ?? p.posicaoPrincipal;
+  const overall =
+    sessionPosition && sessionPosition !== p.posicaoPrincipal
+      ? calculatePositionOverall(p, sessionPosition)
+      : calculateGeneralOverall(p);
   return {
     id: p.id,
     name: p.apelido || p.nome,
-    overall: calculateGeneralOverall(p),
+    overall,
     attack: p.atributos.ataque,
     defense: p.atributos.defesa,
     serve: p.atributos.saque,
@@ -139,7 +149,7 @@ export function mapPlayerToAthleteVector(p: Player): AthleteVector {
     emotionalControl: p.atributos.controleEmocional,
     heightCm: p.alturaCm ?? null,
     gender: p.genero,
-    position: p.posicaoPrincipal,
+    position: effectivePosition,
     secondaryPositions: p.posicoesSecundarias || [],
     isInjured: p.status.lesionado,
     currentForm: p.formaAtual.valor,
@@ -1349,8 +1359,9 @@ export const balanceTeams = (
 
   weights.repetition = config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
 
-  // Map players to vectors
-  const athletes = players.map(mapPlayerToAthleteVector);
+  // Map players to vectors, respeitando posições escolhidas para a sessão.
+  const positionOverrides = config?.playerPositions ?? {};
+  const athletes = players.map((p) => mapPlayerToAthleteVector(p, positionOverrides[p.id]));
 
   const totalFemales = athletes.filter((a) => a.gender === 'F').length;
   const totalMales = athletes.filter((a) => a.gender === 'M').length;
@@ -1513,8 +1524,9 @@ export function recalculateDivisionDiagnostics(
   weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
   weights.repetition = config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
 
-  // Map all players to athletes
-  const athletes = allPlayers.map(mapPlayerToAthleteVector);
+  // Map all players to athletes, respeitando posições escolhidas para a sessão.
+  const positionOverrides = config?.playerPositions ?? {};
+  const athletes = allPlayers.map((p) => mapPlayerToAthleteVector(p, positionOverrides[p.id]));
   const totalFemales = athletes.filter((a) => a.gender === 'F').length;
   const totalMales = athletes.filter((a) => a.gender === 'M').length;
   const totalInjured = athletes.filter((a) => a.isInjured).length;

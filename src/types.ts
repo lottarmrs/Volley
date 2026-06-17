@@ -274,6 +274,8 @@ export interface TournamentConfig {
   balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
   rotationType?: RotationType; // default '6x0'
+  /** Função tática de cada atleta, sobrescrita só para esta sessão (playerId -> posição). Padrão: posicaoPrincipal do cadastro. */
+  playerPositions?: Record<string, Position>;
   repetitionWeight?: number;
   balanceSeed?: number;
 }
@@ -293,6 +295,8 @@ export interface FreePlayConfig {
   balanceSpeed?: 'fast' | 'normal' | 'advanced';
   balanceConstraints?: BalanceConstraints;
   rotationType?: RotationType; // default '6x0'
+  /** Função tática de cada atleta, sobrescrita só para esta sessão (playerId -> posição). Padrão: posicaoPrincipal do cadastro. */
+  playerPositions?: Record<string, Position>;
   repetitionWeight?: number;
   balanceSeed?: number;
 }

@@ -15,13 +15,13 @@ A pergunta original ("a seed é a melhor solução?") tinha uma premissa que o c
 
 Conclusão: a seed fixa (42) hoje só serve para deixar o sorteio previsível durante o wizard. Vamos substituí‑la por um conjunto de mecanismos melhores.
 
-| Necessidade | Melhor solução |
-|---|---|
-| Reabrir sessão → mesmos times | **Persistência (já existe)** — nada a fazer |
-| 3 opções realmente distintas | **Portfólio diverso** (§3) |
-| Variar semana a semana, mesmo grupo | **Anti‑repetição por histórico** (§4) + **seed aleatória** (§6) |
-| Mesmo resultado entre aparelhos p/ uma geração | **Parada por iterações** (§5) |
-| Cada clique em "gerar" muda | **Seed aleatória por geração** (§6) |
+| Necessidade                                    | Melhor solução                                                  |
+| ---------------------------------------------- | --------------------------------------------------------------- |
+| Reabrir sessão → mesmos times                  | **Persistência (já existe)** — nada a fazer                     |
+| 3 opções realmente distintas                   | **Portfólio diverso** (§3)                                      |
+| Variar semana a semana, mesmo grupo            | **Anti‑repetição por histórico** (§4) + **seed aleatória** (§6) |
+| Mesmo resultado entre aparelhos p/ uma geração | **Parada por iterações** (§5)                                   |
+| Cada clique em "gerar" muda                    | **Seed aleatória por geração** (§6)                             |
 
 ---
 
@@ -48,7 +48,7 @@ Tudo continua **client-side** (Web Worker, ver plano principal §2.6) e **sem se
 
 ## 3. Peça 1 — Portfólio diverso (3 opções de verdade)
 
-**Problema atual:** as 3 opções vêm de 3 seeds fixas + uma penalidade só para *fingerprint idêntico*. Soluções "quase iguais" (1 jogador trocado) passam.
+**Problema atual:** as 3 opções vêm de 3 seeds fixas + uma penalidade só para _fingerprint idêntico_. Soluções "quase iguais" (1 jogador trocado) passam.
 
 **Solução:** gerar **mais candidatos** e **selecionar** as 3 melhores que sejam diferentes entre si.
 
@@ -99,7 +99,7 @@ import { Team, Session } from '../types';
 export type PartnershipMatrix = Map<string, number>; // chave "idA|idB" (ordenada)
 
 export function buildPartnershipMatrix(
-  sessions: Session[],      // do mesmo grupo/comunidade
+  sessions: Session[], // do mesmo grupo/comunidade
   teams: Team[],
   opts = { lookback: 6, decay: 0.8 },
 ): PartnershipMatrix {
@@ -111,14 +111,16 @@ export function buildPartnershipMatrix(
   const matrix: PartnershipMatrix = new Map();
   finished.forEach((s, idx) => {
     const weight = Math.pow(opts.decay, idx); // sessão mais recente pesa mais
-    teams.filter((t) => t.sessionId === s.id).forEach((team) => {
-      const ids = [...team.playerIds].sort();
-      for (let i = 0; i < ids.length; i++)
-        for (let j = i + 1; j < ids.length; j++) {
-          const key = `${ids[i]}|${ids[j]}`;
-          matrix.set(key, (matrix.get(key) ?? 0) + weight);
-        }
-    });
+    teams
+      .filter((t) => t.sessionId === s.id)
+      .forEach((team) => {
+        const ids = [...team.playerIds].sort();
+        for (let i = 0; i < ids.length; i++)
+          for (let j = i + 1; j < ids.length; j++) {
+            const key = `${ids[i]}|${ids[j]}`;
+            matrix.set(key, (matrix.get(key) ?? 0) + weight);
+          }
+      });
   });
   return matrix;
 }

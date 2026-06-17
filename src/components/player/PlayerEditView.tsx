@@ -269,9 +269,7 @@ export const PlayerEditView = ({
                 initials={
                   editingPlayer.nome ? editingPlayer.nome.substring(0, 2).toUpperCase() : 'AT'
                 }
-                onApplied={(newUrl) =>
-                  setEditingPlayer({ ...editingPlayer, avatarUrl: newUrl })
-                }
+                onApplied={(newUrl) => setEditingPlayer({ ...editingPlayer, avatarUrl: newUrl })}
               />
 
               <div className="flex-1 min-w-0 space-y-2">

@@ -55,13 +55,13 @@ Hoje o algoritmo distribui por força/gênero e tenta garantir 1 levantador por 
 
 **Composição alvo por time no 5x1 (6 em quadra):**
 
-| Posição | Qtd padrão | Alternativa (sem líberos suficientes) |
-|---|---|---|
-| Levantador | 1 | 1 |
-| Ponteiro (saída de rede) | 2 | 2 |
-| Oposto | 1 | 1 |
-| Central | 1 | **2** |
-| Líbero | 1 | **0** |
+| Posição                  | Qtd padrão | Alternativa (sem líberos suficientes) |
+| ------------------------ | ---------- | ------------------------------------- |
+| Levantador               | 1          | 1                                     |
+| Ponteiro (saída de rede) | 2          | 2                                     |
+| Oposto                   | 1          | 1                                     |
+| Central                  | 1          | **2**                                 |
+| Líbero                   | 1          | **0**                                 |
 
 > Regra de fallback: usar **2 centrais + 0 líbero** somente quando **não houver líberos suficientes** para dar 1 por time. A decisão é por time/sessão, priorizando dar líbero ao máximo de times possível.
 
@@ -81,26 +81,19 @@ No **6x0** não há especialização: vale a distribuição livre por atributos 
 ### 2.4 Plano para o algoritmo (consolidado)
 
 **Fase A — Fundação (alto impacto, baixo risco)**
-1. **Normalizar a escala apenas no código do scorer**, mantendo os atributos em **0–10** e o overall em **0–100** nos dados e na UI (mais fácil de preencher/ler — sua preferência). A normalização é interna e localizada: ao calcular os *spreads*, ou multiplica-se os fundamentos por 10, ou divide-se o overall por 10, de modo que tudo seja comparado na mesma unidade. **Recalibrar os 4 perfis** de peso depois disso. → habilita "fundamentos importam". Ver detalhe em §2.5.
+
+1. **Normalizar a escala apenas no código do scorer**, mantendo os atributos em **0–10** e o overall em **0–100** nos dados e na UI (mais fácil de preencher/ler — sua preferência). A normalização é interna e localizada: ao calcular os _spreads_, ou multiplica-se os fundamentos por 10, ou divide-se o overall por 10, de modo que tudo seja comparado na mesma unidade. **Recalibrar os 4 perfis** de peso depois disso. → habilita "fundamentos importam". Ver detalhe em §2.5.
 2. Remover dupla contagem de forma; limpar `adjustedOverall`.
 3. Remover `totalMales`; extrair `PENALTIES`/`THRESHOLDS` nomeados e documentados.
 4. Reforçar `balancing.test.ts` com casos que provem que mudar o perfil muda o foco e que os fundamentos influenciam.
 
-**Fase B — Rotação e composição (a feature pedida)**
-5. Adicionar `rotationType` (config + wizard + persistência/migração).
-6. Implementar resolução de elenco por posição, viabilidade e fallback líbero↔central.
-7. Penalidades de composição no scorer + atribuição inicial por papéis (snake draft por posição).
-8. Equilíbrio de gênero como critério permanente.
+**Fase B — Rotação e composição (a feature pedida)** 5. Adicionar `rotationType` (config + wizard + persistência/migração). 6. Implementar resolução de elenco por posição, viabilidade e fallback líbero↔central. 7. Penalidades de composição no scorer + atribuição inicial por papéis (snake draft por posição). 8. Equilíbrio de gênero como critério permanente.
 
-**Fase C — Qualidade**
-9. Trocar `max−min` por desvio‑padrão; limiares relativos ao grupo.
-10. Garantir diversidade real das 3 opções (penalizar similaridade, rotular por objetivo).
-11. **Cobrir o maior número de possibilidades** (mais iterações/seeds, sem temperatura adaptativa — manter o resfriamento simples) e mover o cálculo para um **Web Worker** que roda na máquina do usuário, alimentando uma **barra de progresso** que mostra o equilíbrio acontecendo. Detalhe em §2.6.
-12. Expor um "porquê" legível por opção (liga com §4.5).
+**Fase C — Qualidade** 9. Trocar `max−min` por desvio‑padrão; limiares relativos ao grupo. 10. Garantir diversidade real das 3 opções (penalizar similaridade, rotular por objetivo). 11. **Cobrir o maior número de possibilidades** (mais iterações/seeds, sem temperatura adaptativa — manter o resfriamento simples) e mover o cálculo para um **Web Worker** que roda na máquina do usuário, alimentando uma **barra de progresso** que mostra o equilíbrio acontecendo. Detalhe em §2.6. 12. Expor um "porquê" legível por opção (liga com §4.5).
 
 ### 2.5 NOVO — Normalização de escala só no código (resposta à sua dúvida)
 
-**Sim, dá para fazer 100% via código, sem mexer nos dados nem na UI.** A escala dos atributos (0–10) e do overall (0–100) é só uma questão de *como os números são comparados dentro do scorer* — não precisa mudar o que você digita nem o que aparece na tela.
+**Sim, dá para fazer 100% via código, sem mexer nos dados nem na UI.** A escala dos atributos (0–10) e do overall (0–100) é só uma questão de _como os números são comparados dentro do scorer_ — não precisa mudar o que você digita nem o que aparece na tela.
 
 O problema hoje:
 
@@ -113,11 +106,12 @@ attackSpread  = (maxAttack  − minAttack)  × 1.15  // ~0.3–1.7  ← some no 
 Duas formas equivalentes de resolver, ambas localizadas no `ObjectiveScorer`/`calculateTeamMetrics`:
 
 - **Opção A (a que você sugeriu): multiplicar os fundamentos por 10.** Cada `attackSpread`, `defenseSpread`, etc. passa a usar `valor × 10`, ficando na mesma faixa do overall (0–100). Simples e direto.
-- **Opção B: dividir o overall por 10** dentro do scorer (overall vira 0–10 só ali). Tem a vantagem de deixar os *spreads* em "pontos de fundamento" (ex.: "times diferem 0,4 no ataque"), o que torna os limiares de qualidade mais intuitivos.
+- **Opção B: dividir o overall por 10** dentro do scorer (overall vira 0–10 só ali). Tem a vantagem de deixar os _spreads_ em "pontos de fundamento" (ex.: "times diferem 0,4 no ataque"), o que torna os limiares de qualidade mais intuitivos.
 
 **Recomendação:** Opção B (dividir o overall por 10 no scorer), porque os números ficam pequenos e legíveis e casam com os limiares de `getQualityLabel`. Mas a Opção A funciona igual — fica a seu critério.
 
 **Em ambos os casos, o que NÃO muda:**
+
 - O cadastro de atributos continua **0–10**.
 - O `strengthSnapshot.overall` continua **0–100** (salvo na nuvem e exibido com `max={100}` no `TeamScoreCard`).
 - Nenhuma migração de dados é necessária.
@@ -130,7 +124,7 @@ Em resumo: **a normalização é um ajuste de código pequeno e isolado**; sua e
 
 **Boa notícia: isso que você quer já é a realidade hoje.** O balanceamento (`balanceTeams`) é uma função JavaScript pura que roda **inteiramente no navegador do usuário** — é chamada de forma síncrona em `useSessionWizard.generateDivisions`. **Não há servidor envolvido** no cálculo: o Supabase só é usado para backup/sync opcional. Ou seja, **a máquina do usuário já faz todo o processamento e nosso servidor não é sobrecarregado.** Não há custo de servidor por sorteio, e funciona até offline.
 
-**O porém:** como o cálculo roda na *thread principal* do navegador, durante o processamento pesado (modo `advanced`: 25.000 iterações × 3 seeds) **a interface congela** — nenhuma barra de progresso conseguiria sequer animar, porque a tela só atualiza quando o loop termina. Por isso, hoje, "mostrar o progresso" e "não travar a UI" exigem a mesma solução técnica.
+**O porém:** como o cálculo roda na _thread principal_ do navegador, durante o processamento pesado (modo `advanced`: 25.000 iterações × 3 seeds) **a interface congela** — nenhuma barra de progresso conseguiria sequer animar, porque a tela só atualiza quando o loop termina. Por isso, hoje, "mostrar o progresso" e "não travar a UI" exigem a mesma solução técnica.
 
 **A solução é o Web Worker** — e ele atende exatamente os dois desejos ao mesmo tempo:
 
@@ -140,6 +134,7 @@ Em resumo: **a normalização é um ajuste de código pequeno e isolado**; sua e
 - O cálculo continua **determinístico** (seeds fixas), então o resultado final é o mesmo.
 
 **Plano de implementação (§2.4 Fase C, item 11):**
+
 1. Extrair `balanceTeams` para um worker (`src/logic/balancer.worker.ts`), trocando a chamada síncrona por mensagens (`postMessage`/`onmessage`).
 2. No `SimulatedAnnealingBalancer`, emitir progresso periódico (a cada ~2–5% das iterações) com `% , bestScore, melhor divisão parcial`.
 3. UI: estado `isGenerating` + barra de progresso animada no passo "Times", com prévia opcional da melhor divisão atual e botão "cancelar".
@@ -182,46 +177,46 @@ Cruzando o `PointReason` atual do projeto (`attack`, `block`, `serve_ace`, `oppo
 
 **Ações positivas (pontos conquistados) — cobertura atual:**
 
-| Ação (regra) | No projeto hoje | Status |
-|---|---|---|
-| Ace — saque ponto (12) | `serve_ace` | ✅ Coberto |
-| Cortada / ataque (13) | `attack` | ✅ Coberto |
-| Largadinha (13.1.2) | `tip` | ✅ Coberto |
-| Bloqueio (14) | `block` | ✅ Coberto |
-| Contra‑ataque (transição) | `defense_counterattack` | ✅ Coberto |
-| Bola de segunda (ataque do levantador) | — | ❌ Faltando |
+| Ação (regra)                           | No projeto hoje         | Status      |
+| -------------------------------------- | ----------------------- | ----------- |
+| Ace — saque ponto (12)                 | `serve_ace`             | ✅ Coberto  |
+| Cortada / ataque (13)                  | `attack`                | ✅ Coberto  |
+| Largadinha (13.1.2)                    | `tip`                   | ✅ Coberto  |
+| Bloqueio (14)                          | `block`                 | ✅ Coberto  |
+| Contra‑ataque (transição)              | `defense_counterattack` | ✅ Coberto  |
+| Bola de segunda (ataque do levantador) | —                       | ❌ Faltando |
 
 **Faltas oficiais (pontos por erro) — o livro de regras lista, o projeto não distingue:**
 
-| Falta oficial | Regra | No projeto hoje |
-|---|---|---|
-| Quatro toques | 9.3.1 | ❌ vira `opponent_error` |
-| Toque apoiado | 9.3.2 | ❌ vira `opponent_error` |
-| Condução (bola retida/lançada) | 9.3.3 | ❌ vira `opponent_error` |
-| Dois toques | 9.3.4 | ❌ vira `opponent_error` |
-| Invasão sobre a rede (tocar bola/adversário no espaço dele) | 11.4.1 | ❌ vira `opponent_error` |
-| Interferência sob a rede | 11.4.2 | ❌ vira `opponent_error` |
-| Invasão da quadra adversária (pé além da linha central) | 11.4.3 | ❌ vira `opponent_error` |
-| Toque na rede durante a jogada | 11.4.4 | ❌ vira `opponent_error` |
-| Falta de ordem de saque | 12.6.1.1 | ❌ vira `opponent_error` |
-| Execução incorreta do saque (8s, pisar na linha) | 12.6.1.2 / 12.4 | ❌ vira `opponent_error` |
-| Saque na rede / não cruza | 12.6.2.1 | ❌ vira `opponent_error` |
-| Saque "fora" | 12.6.2.2 | ❌ vira `opponent_error` |
-| Saque sobre barreira | 12.6.2.3 | ❌ vira `opponent_error` |
-| Ataque "fora" | 13.3.2 | ❌ vira `opponent_error` |
-| Ataque ilegal de fundo ("pisar na linha dos 3") | 13.3.3 | ❌ vira `opponent_error` |
-| Ataque sobre saque na zona de frente | 13.3.4 | ❌ vira `opponent_error` |
-| Líbero ataca bola acima da rede | 13.3.5 / 19.3.1.2 | ❌ vira `opponent_error` |
-| Ataque de bola vinda de toque de dedos do líbero na frente | 13.3.6 / 19.3.1.4 | ❌ vira `opponent_error` |
-| Bloqueio invade espaço adversário antes do ataque | 14.6.1 | ❌ vira `opponent_error` |
-| Bloqueio de jogador de fundo / líbero | 14.6.2 / 19.3.1.3 | ❌ vira `opponent_error` |
-| Bloquear o saque | 14.6.3 | ❌ vira `opponent_error` |
-| Bloqueio manda a bola "fora" | 14.6.4 | ❌ vira `opponent_error` |
-| Bloqueio por fora da antena | 14.6.5 | ❌ vira `opponent_error` |
-| Líbero tenta bloquear | 14.6.6 / 19.3.1.3 | ❌ vira `opponent_error` |
-| Líbero saca | 19.3.1.3 | ❌ vira `opponent_error` |
-| Falta de posição | 7.5 | ❌ vira `opponent_error` |
-| Falta de rotação | 7.7 | ❌ vira `opponent_error` |
+| Falta oficial                                               | Regra             | No projeto hoje          |
+| ----------------------------------------------------------- | ----------------- | ------------------------ |
+| Quatro toques                                               | 9.3.1             | ❌ vira `opponent_error` |
+| Toque apoiado                                               | 9.3.2             | ❌ vira `opponent_error` |
+| Condução (bola retida/lançada)                              | 9.3.3             | ❌ vira `opponent_error` |
+| Dois toques                                                 | 9.3.4             | ❌ vira `opponent_error` |
+| Invasão sobre a rede (tocar bola/adversário no espaço dele) | 11.4.1            | ❌ vira `opponent_error` |
+| Interferência sob a rede                                    | 11.4.2            | ❌ vira `opponent_error` |
+| Invasão da quadra adversária (pé além da linha central)     | 11.4.3            | ❌ vira `opponent_error` |
+| Toque na rede durante a jogada                              | 11.4.4            | ❌ vira `opponent_error` |
+| Falta de ordem de saque                                     | 12.6.1.1          | ❌ vira `opponent_error` |
+| Execução incorreta do saque (8s, pisar na linha)            | 12.6.1.2 / 12.4   | ❌ vira `opponent_error` |
+| Saque na rede / não cruza                                   | 12.6.2.1          | ❌ vira `opponent_error` |
+| Saque "fora"                                                | 12.6.2.2          | ❌ vira `opponent_error` |
+| Saque sobre barreira                                        | 12.6.2.3          | ❌ vira `opponent_error` |
+| Ataque "fora"                                               | 13.3.2            | ❌ vira `opponent_error` |
+| Ataque ilegal de fundo ("pisar na linha dos 3")             | 13.3.3            | ❌ vira `opponent_error` |
+| Ataque sobre saque na zona de frente                        | 13.3.4            | ❌ vira `opponent_error` |
+| Líbero ataca bola acima da rede                             | 13.3.5 / 19.3.1.2 | ❌ vira `opponent_error` |
+| Ataque de bola vinda de toque de dedos do líbero na frente  | 13.3.6 / 19.3.1.4 | ❌ vira `opponent_error` |
+| Bloqueio invade espaço adversário antes do ataque           | 14.6.1            | ❌ vira `opponent_error` |
+| Bloqueio de jogador de fundo / líbero                       | 14.6.2 / 19.3.1.3 | ❌ vira `opponent_error` |
+| Bloquear o saque                                            | 14.6.3            | ❌ vira `opponent_error` |
+| Bloqueio manda a bola "fora"                                | 14.6.4            | ❌ vira `opponent_error` |
+| Bloqueio por fora da antena                                 | 14.6.5            | ❌ vira `opponent_error` |
+| Líbero tenta bloquear                                       | 14.6.6 / 19.3.1.3 | ❌ vira `opponent_error` |
+| Líbero saca                                                 | 19.3.1.3          | ❌ vira `opponent_error` |
+| Falta de posição                                            | 7.5               | ❌ vira `opponent_error` |
+| Falta de rotação                                            | 7.7               | ❌ vira `opponent_error` |
 
 **Conclusão:** a §4.1 abaixo propõe a taxonomia que cobre exatamente essa lacuna. Para vôlei amador, o registro deve ser **opcional e rápido** (atalho "Erro — não informado" sempre disponível); o ganho é poder detalhar quando quiser, com a linguagem certa.
 
@@ -238,35 +233,35 @@ Hoje `PointReason` é genérico: `attack | block | serve_ace | opponent_error | 
 
 **Pontos por ação positiva (`winner`):**
 
-| Rótulo na UI | `skill` | Observação |
-|---|---|---|
-| Ace | saque | Saque que resulta em ponto |
-| Cortada / Ataque | ataque | Kill |
-| Largadinha (largada) | ataque | Toque sutil para enganar a defesa |
-| Bloqueio | bloqueio | Ponto de bloqueio |
-| Contra‑ataque | defesa | Ponto após defesa/transição |
-| Bola de segunda | levantamento | Ataque do levantador (opcional) |
+| Rótulo na UI         | `skill`      | Observação                        |
+| -------------------- | ------------ | --------------------------------- |
+| Ace                  | saque        | Saque que resulta em ponto        |
+| Cortada / Ataque     | ataque       | Kill                              |
+| Largadinha (largada) | ataque       | Toque sutil para enganar a defesa |
+| Bloqueio             | bloqueio     | Ponto de bloqueio                 |
+| Contra‑ataque        | defesa       | Ponto após defesa/transição       |
+| Bola de segunda      | levantamento | Ataque do levantador (opcional)   |
 
 **Pontos por erro/falta do adversário (`error`):**
 
-| Rótulo na UI | `skill` | `fault` | Base na regra |
-|---|---|---|---|
-| Erro de saque | saque | saque_fora_rede | 12.6 |
-| Erro de ataque | ataque | ataque_fora_rede | 13.3 |
-| Erro de recepção | recepcao | — | — |
-| Erro de defesa | defesa | — | — |
-| Dois toques | levantamento | dois_toques | 9.3.4 |
-| Condução (carregada) | levantamento | conducao | 9.3.3 |
-| Quatro toques | — | quatro_toques | 9.3.1 |
-| Toque na rede | — | toque_rede | 11.3 / 11.4 |
-| Invasão (linha central) | — | invasao_quadra | 11.2 |
-| Invasão sobre a rede | — | invasao_rede | 11.1 |
-| Ataque ilegal da linha de trás ("pisar na linha dos 3") | ataque | ataque_linha_ataque | 13.2.2 / 13.3 |
-| Falta do líbero — ataque acima da rede | ataque | libero_ataque | 13.3.5 |
-| Falta do líbero — levantar de dedos na zona de frente p/ ataque | levantamento | libero_levantamento_frente | 13.3.6 |
-| Falta do líbero — bloqueio | bloqueio | libero_bloqueio | 14.6.6 |
-| Falta de posição / rotação | — | posicao_rotacao | 7.5 / 7.7 |
-| Posicionamento / movimentação | posicionamento | — | erro tático genérico |
+| Rótulo na UI                                                    | `skill`        | `fault`                    | Base na regra        |
+| --------------------------------------------------------------- | -------------- | -------------------------- | -------------------- |
+| Erro de saque                                                   | saque          | saque_fora_rede            | 12.6                 |
+| Erro de ataque                                                  | ataque         | ataque_fora_rede           | 13.3                 |
+| Erro de recepção                                                | recepcao       | —                          | —                    |
+| Erro de defesa                                                  | defesa         | —                          | —                    |
+| Dois toques                                                     | levantamento   | dois_toques                | 9.3.4                |
+| Condução (carregada)                                            | levantamento   | conducao                   | 9.3.3                |
+| Quatro toques                                                   | —              | quatro_toques              | 9.3.1                |
+| Toque na rede                                                   | —              | toque_rede                 | 11.3 / 11.4          |
+| Invasão (linha central)                                         | —              | invasao_quadra             | 11.2                 |
+| Invasão sobre a rede                                            | —              | invasao_rede               | 11.1                 |
+| Ataque ilegal da linha de trás ("pisar na linha dos 3")         | ataque         | ataque_linha_ataque        | 13.2.2 / 13.3        |
+| Falta do líbero — ataque acima da rede                          | ataque         | libero_ataque              | 13.3.5               |
+| Falta do líbero — levantar de dedos na zona de frente p/ ataque | levantamento   | libero_levantamento_frente | 13.3.6               |
+| Falta do líbero — bloqueio                                      | bloqueio       | libero_bloqueio            | 14.6.6               |
+| Falta de posição / rotação                                      | —              | posicao_rotacao            | 7.5 / 7.7            |
+| Posicionamento / movimentação                                   | posicionamento | —                          | erro tático genérico |
 
 > A UI agrupa por "Ponto nosso" (ação) vs. "Erro deles / Erro nosso", com o fundamento. Manter um atalho "Não informado" para velocidade.
 
@@ -275,6 +270,7 @@ Hoje `PointReason` é genérico: `attack | block | serve_ace | opponent_error | 
 **Problemas atuais:** fluxo de até 3 toques; `reason` inicia em `unknown` e jogador `undefined` (fácil confirmar sem dados); fontes minúsculas; sem desfazer rápido visível.
 
 **Plano:**
+
 1. **Marcação em 1 toque com atribuição opcional**: tocar no jogador já registra o ponto; um seletor de fundamento/falta (taxonomia §4.1) aparece por alguns segundos e auto‑confirma. Mantém velocidade e ainda coleta dados ricos.
 2. **Botão grande de Desfazer** sempre visível ("Desfazer: Ace do Math") — `undoLastPoint` já existe no hook.
 3. **Aumentar tipografia** do placar; mover barras Força/Rede para um detalhe recolhível.
@@ -285,6 +281,7 @@ Hoje `PointReason` é genérico: `attack | block | serve_ace | opponent_error | 
 **Problemas:** `pointsContribution` fixo em `0` (TODO); cálculo de **erros** quase sempre 0 (depende de `playerId` em `opponent_error`, que o fluxo não preenche); `kills` mistura ataque+contra‑ataque+largada.
 
 **Plano (habilitado pela §4.1):**
+
 1. Estatísticas por fundamento: **aces, cortadas, largadas, bloqueios, defesas/contra‑ataques** separados; e **erros por tipo** (saque, ataque, recepção, faltas).
 2. Implementar `pointsContribution` (pontos do jogador ÷ pontos do time).
 3. Índices úteis para vôlei amador: **eficiência de ataque** (pontos − erros de ataque), **% de aproveitamento de saque**, **saldo individual** (pontos gerados − erros).
@@ -306,16 +303,16 @@ Adicionar uma tela/painel de **glossário do vôlei** (acessível do menu e como
 
 ## 5. Roadmap priorizado
 
-| Prioridade | Item | Esforço | Risco | Impacto |
-|---|---|---|---|---|
-| **P0** | Algoritmo §2.4 Fase A (escala, forma, limpeza + recalibrar pesos) — *fundamentos passam a importar* | M | Médio | 🔥 Muito alto |
-| **P0** | Eventos §4.1 + registro 1 toque/desfazer §4.2 (nova taxonomia do vôlei) | M‑G | Médio | 🔥 Alto (uso real) |
-| **P1** | Algoritmo §2.4 Fase B — rotação 6x0/5x1 + composição por posição + gênero permanente | G | Médio‑alto | 🔥 Alto (feature pedida) |
-| **P1** | Wizard §3.3‑2/3 (seletor de rotação na etapa Regras + validação) | M | Baixo | Alto |
-| **P1** | Estatísticas §4.3 (por fundamento, erros, contribuição, testes) | M | Baixo | Alto |
-| **P2** | Wizard §3.3‑1/4/5/6 (quebrar componentes, tipografia, feedback ao editar, 3 opções) | G | Médio | Médio‑alto |
-| **P2** | Algoritmo §2.4 Fase C (desvio‑padrão, diversidade, Web Worker + barra de progresso) | M | Médio | Médio‑alto |
-| **P3** | Estat. ao vivo §4.4 + transparência §4.5 + glossário §4.6 | M | Baixo | Médio |
+| Prioridade | Item                                                                                                | Esforço | Risco      | Impacto                  |
+| ---------- | --------------------------------------------------------------------------------------------------- | ------- | ---------- | ------------------------ |
+| **P0**     | Algoritmo §2.4 Fase A (escala, forma, limpeza + recalibrar pesos) — _fundamentos passam a importar_ | M       | Médio      | 🔥 Muito alto            |
+| **P0**     | Eventos §4.1 + registro 1 toque/desfazer §4.2 (nova taxonomia do vôlei)                             | M‑G     | Médio      | 🔥 Alto (uso real)       |
+| **P1**     | Algoritmo §2.4 Fase B — rotação 6x0/5x1 + composição por posição + gênero permanente                | G       | Médio‑alto | 🔥 Alto (feature pedida) |
+| **P1**     | Wizard §3.3‑2/3 (seletor de rotação na etapa Regras + validação)                                    | M       | Baixo      | Alto                     |
+| **P1**     | Estatísticas §4.3 (por fundamento, erros, contribuição, testes)                                     | M       | Baixo      | Alto                     |
+| **P2**     | Wizard §3.3‑1/4/5/6 (quebrar componentes, tipografia, feedback ao editar, 3 opções)                 | G       | Médio      | Médio‑alto               |
+| **P2**     | Algoritmo §2.4 Fase C (desvio‑padrão, diversidade, Web Worker + barra de progresso)                 | M       | Médio      | Médio‑alto               |
+| **P3**     | Estat. ao vivo §4.4 + transparência §4.5 + glossário §4.6                                           | M       | Baixo      | Médio                    |
 
 > **Sequência sugerida:** começar pela **Fase A do algoritmo** (sem ela, nem a rotação nem os "fundamentos importam" funcionam direito) **em paralelo** com a **nova taxonomia de eventos + registro 1 toque**. Depois a **rotação 5x1** (que depende da Fase A) junto do seletor no wizard, e então as estatísticas por fundamento.
 
@@ -328,4 +325,7 @@ Adicionar uma tela/painel de **glossário do vôlei** (acessível do menu e como
 - **Migração de dados:** `PointEvent.reason` muda de forma. Manter um **mapeamento dos reasons antigos** para a nova taxonomia em `migrations.ts` para não perder histórico/estatísticas. `strengthSnapshot.overall` é salvo/exibido em 0–100 (`max={100}` no `TeamScoreCard`); ao mudar a escala interna, manter a de exibição ou versionar.
 - **Refactor do Wizard:** incremental, um passo por vez, mantendo os testes verdes.
 - **Compatibilidade FIVB vs. amador:** as faltas seguem a FIVB 2025‑2028, mas o app é para vôlei recreativo — manter o registro **opcional e rápido** (ninguém vai detalhar toda falta no meio do jogo). O valor está em permitir, não obrigar.
+
+```
+
 ```

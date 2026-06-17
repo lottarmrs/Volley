@@ -64,9 +64,7 @@ export function AvatarApprovalInbox() {
         </button>
       </div>
 
-      {error && (
-        <div className="alert alert-error py-2 text-xs font-bold">{error}</div>
-      )}
+      {error && <div className="alert alert-error py-2 text-xs font-bold">{error}</div>}
 
       {items.length === 0 ? (
         <div className="py-10 text-center card bg-base-200 border border-base-300 border-dashed">

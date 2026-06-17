@@ -145,7 +145,7 @@ export const FAULT_TO_ATTRIBUTE: Record<string, keyof Attributes> = {
 
 export function calculateAttributeProgression(
   players: Player[],
-  sessionPoints: PointEvent[]
+  sessionPoints: PointEvent[],
 ): Player[] {
   const deltas: Record<string, Partial<Record<keyof Attributes, number>>> = {};
 

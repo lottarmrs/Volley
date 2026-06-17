@@ -36,7 +36,11 @@ import {
   Game,
   RotationType,
 } from '../../types';
-import { resolveComposition, mapPlayerToAthleteVector, recalculateDivisionDiagnostics } from '../../logic/balancing';
+import {
+  resolveComposition,
+  mapPlayerToAthleteVector,
+  recalculateDivisionDiagnostics,
+} from '../../logic/balancing';
 import { PartnershipMatrix } from '../../logic/partnershipHistory';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { SessionWizardProgress } from './SessionWizardProgress';
@@ -400,9 +404,13 @@ export function SessionWizard({
     );
   };
 
-  const handleSelectPlayerForMove = (playerId: string, sourceTeamId: string, isLocked?: boolean) => {
+  const handleSelectPlayerForMove = (
+    playerId: string,
+    sourceTeamId: string,
+    isLocked?: boolean,
+  ) => {
     if (isLocked) {
-      alert("Este atleta está fixado e não pode ser movido.");
+      alert('Este atleta está fixado e não pode ser movido.');
       return;
     }
 
@@ -434,7 +442,9 @@ export function SessionWizard({
         const nextTargetSize = targetTeam.playerIds.length + 1;
         const nextSourceSize = sourceTeam.playerIds.length - 1;
         if (nextTargetSize - nextSourceSize > 1) {
-          alert("Não é possível mover: os times precisam manter a mesma quantidade de atletas (ou diferença máxima de 1). Use a troca de atletas.");
+          alert(
+            'Não é possível mover: os times precisam manter a mesma quantidade de atletas (ou diferença máxima de 1). Use a troca de atletas.',
+          );
           return;
         }
       }
@@ -454,7 +464,7 @@ export function SessionWizard({
     const targetPlayerIsLocked =
       activeSession.config?.balanceConstraints?.lockedPlayerIdxs?.[targetPlayerId] !== undefined;
     if (targetPlayerIsLocked) {
-      alert("Este atleta está fixado e não pode ser movido.");
+      alert('Este atleta está fixado e não pode ser movido.');
       return;
     }
 
@@ -1679,7 +1689,8 @@ export function SessionWizard({
                   max={100}
                 />
                 <p className="text-[9px] text-text-muted/80 uppercase font-semibold leading-normal mt-1 p-3 bg-neutral/30 rounded-xl border border-base-300">
-                  ℹ️ Estamos testando milhares de combinações para achar o time mais equilibrado. Isso pode levar alguns segundos — quanto maior o grupo, um pouquinho mais.
+                  ℹ️ Estamos testando milhares de combinações para achar o time mais equilibrado.
+                  Isso pode levar alguns segundos — quanto maior o grupo, um pouquinho mais.
                 </p>
                 <button
                   type="button"
@@ -1939,10 +1950,10 @@ export function SessionWizard({
                             isDragging
                               ? 'opacity-40 border-primary bg-primary/10'
                               : isSelectedToMove
-                              ? 'ring-2 ring-primary border-primary bg-primary/10 shadow-md'
-                              : isLocked
-                              ? 'opacity-65 bg-base-300/10 border-base-300/40 cursor-not-allowed'
-                              : 'bg-base-300/30 border-base-300/60 hover:bg-base-300/60'
+                                ? 'ring-2 ring-primary border-primary bg-primary/10 shadow-md'
+                                : isLocked
+                                  ? 'opacity-65 bg-base-300/10 border-base-300/40 cursor-not-allowed'
+                                  : 'bg-base-300/30 border-base-300/60 hover:bg-base-300/60'
                           } ${!isLocked ? 'cursor-grab active:cursor-grabbing' : ''}`}
                         >
                           <div className="flex items-center gap-2">
@@ -2165,7 +2176,9 @@ export function SessionWizard({
                         <div className="flex justify-between">
                           <span className="text-text-muted">Gênero:</span>
                           <span className="text-base-content font-bold">
-                            {currentDiv.diagnostics.genderSpread} {currentDiv.diagnostics.genderSpread === 1 ? 'atleta' : 'atletas'} de dif.
+                            {currentDiv.diagnostics.genderSpread}{' '}
+                            {currentDiv.diagnostics.genderSpread === 1 ? 'atleta' : 'atletas'} de
+                            dif.
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -2177,7 +2190,9 @@ export function SessionWizard({
                         <div className="flex justify-between">
                           <span className="text-text-muted">Lesionados:</span>
                           <span className="text-base-content font-bold">
-                            {currentDiv.diagnostics.injuredSpread} {currentDiv.diagnostics.injuredSpread === 1 ? 'atleta' : 'atletas'} de dif.
+                            {currentDiv.diagnostics.injuredSpread}{' '}
+                            {currentDiv.diagnostics.injuredSpread === 1 ? 'atleta' : 'atletas'} de
+                            dif.
                           </span>
                         </div>
                       </div>
@@ -2503,7 +2518,8 @@ export function SessionWizard({
                 {/* Rotação Histórica / Anti-Repetição */}
                 <div className="bg-base-100 p-4 rounded-xl border border-base-300 space-y-3">
                   <h4 className="text-[10px] font-bold text-base-content/70 uppercase tracking-wider flex items-center gap-1.5">
-                    <RotateCw className="w-3.5 h-3.5 text-accent" /> Rotação Histórica (Anti-Repetição)
+                    <RotateCw className="w-3.5 h-3.5 text-accent" /> Rotação Histórica
+                    (Anti-Repetição)
                   </h4>
                   <label className="label cursor-pointer justify-start gap-3 bg-neutral/40 p-3 rounded-lg border border-base-300 hover:border-accent/30 transition-all w-full">
                     <input
@@ -2553,7 +2569,8 @@ export function SessionWizard({
                             }
                             className={`btn btn-xs join-item flex-1 font-bold ${
                               (activeSession.config as any)?.repetitionWeight === opt.value ||
-                              (opt.value === 0.8 && (activeSession.config as any)?.repetitionWeight === undefined)
+                              (opt.value === 0.8 &&
+                                (activeSession.config as any)?.repetitionWeight === undefined)
                                 ? 'btn-primary'
                                 : 'btn-neutral'
                             }`}

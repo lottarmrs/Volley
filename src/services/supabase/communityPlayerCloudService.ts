@@ -16,7 +16,9 @@ export const communityPlayerCloudService = {
   async fetchAll(): Promise<CommunityPlayerDb[]> {
     const { data, error } = await supabase
       .from('community_players')
-      .select('id, owner_id, community_id, player_id, active, status, role, sync_version, deleted_at');
+      .select(
+        'id, owner_id, community_id, player_id, active, status, role, sync_version, deleted_at',
+      );
 
     if (error) throw error;
     return data || [];

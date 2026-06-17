@@ -7,12 +7,12 @@
 
 ## 0. Mapa rápido: o que cada melhoria toca
 
-| Melhoria | Arquivos principais | Migração Supabase? | Impacto Vercel |
-|---|---|---|---|
-| Fase A — normalização de escala | `src/logic/calculations.ts`, `src/logic/balancing.ts` | **Não** | Nenhum |
-| Fase B — rotação 6x0/5x1 | `src/types.ts`, `src/logic/migrations.ts`, `src/logic/balancing.ts`, `src/components/session/SessionWizard.tsx` | **Não** (config é `jsonb`) | Nenhum |
-| Web Worker + barra de progresso | `src/logic/balancer.worker.ts` (novo), `src/hooks/useSessionWizard.ts`, UI do passo "Times" | **Não** | **Atenção leve** (bundling do worker) |
-| Taxonomia de eventos | `src/types.ts`, `src/logic/match.ts`, `src/components/live/PointModal.tsx`, `src/logic/statistics.ts`, `src/services/supabase/operationalCloudService.ts` | **Opcional** (texto funciona; colunas estruturadas = 1 migração aditiva) | Nenhum |
+| Melhoria                        | Arquivos principais                                                                                                                                       | Migração Supabase?                                                       | Impacto Vercel                        |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------- |
+| Fase A — normalização de escala | `src/logic/calculations.ts`, `src/logic/balancing.ts`                                                                                                     | **Não**                                                                  | Nenhum                                |
+| Fase B — rotação 6x0/5x1        | `src/types.ts`, `src/logic/migrations.ts`, `src/logic/balancing.ts`, `src/components/session/SessionWizard.tsx`                                           | **Não** (config é `jsonb`)                                               | Nenhum                                |
+| Web Worker + barra de progresso | `src/logic/balancer.worker.ts` (novo), `src/hooks/useSessionWizard.ts`, UI do passo "Times"                                                               | **Não**                                                                  | **Atenção leve** (bundling do worker) |
+| Taxonomia de eventos            | `src/types.ts`, `src/logic/match.ts`, `src/components/live/PointModal.tsx`, `src/logic/statistics.ts`, `src/services/supabase/operationalCloudService.ts` | **Opcional** (texto funciona; colunas estruturadas = 1 migração aditiva) | Nenhum                                |
 
 **Resumo executivo do impacto de backend:** a maior parte das melhorias é **lógica client-side pura** e **não exige nenhuma mudança no Supabase**, porque os campos relevantes já são `jsonb`/`text` flexíveis (`sessions.config`, `teams.strength_snapshot`, `community_rules.balance_weights`, `point_events.reason`). A única que pode pedir uma migração (aditiva e opcional) é a taxonomia de eventos, se quisermos colunas estruturadas. Detalhes nas §6 e §7.
 
@@ -57,7 +57,10 @@ export const QUALITY = { excellent: 1.5, good: 3.0, acceptable: 6.0 } as const;
 Onde hoje está:
 
 ```ts
-const overallSpread = weightedSpread(teamsMetrics.map((m) => m.overall), this.weights.overall);
+const overallSpread = weightedSpread(
+  teamsMetrics.map((m) => m.overall),
+  this.weights.overall,
+);
 ```
 
 Trocar para dividir o overall pela escala (Opção B do plano, recomendada):
@@ -83,7 +86,7 @@ Também ajustar `buildBalanceDiagnostics` para usar `m.overall / OVERALL_SCALE` 
 // ANTES
 export function adjustedOverall(a: AthleteVector): number {
   const injuryPenalty = a.isInjured ? 1.5 : 0.0;
-  const formModifier = a.currentForm * 0.25;          // ← dupla contagem
+  const formModifier = a.currentForm * 0.25; // ← dupla contagem
   const heightBonus = calculateHeightImpact(a.heightCm);
   return a.overall + formModifier + heightBonus - injuryPenalty;
 }
@@ -180,7 +183,9 @@ export function resolveComposition(
   if (!useLibero) warnings.push('Líberos insuficientes → usando 2 centrais por time.');
   return {
     perTeam: {
-      levantador: 1, ponteiro: 2, oposto: 1,
+      levantador: 1,
+      ponteiro: 2,
+      oposto: 1,
       central: useLibero ? 1 : 2,
       libero: useLibero ? 1 : 0,
     },
@@ -198,7 +203,7 @@ Dentro de `ObjectiveScorer.score`, quando `rotationType === '5x1'`, somar penali
 ```ts
 // pseudo: por time, contar jogadores por papel (usando position + secondary + all-rounder)
 for (const team of solution.teams) {
-  for (const role of ['levantador','ponteiro','oposto','central','libero'] as const) {
+  for (const role of ['levantador', 'ponteiro', 'oposto', 'central', 'libero'] as const) {
     const have = countRole(team, role);
     const want = composition.perTeam[role];
     if (have < want) penalty += (want - have) * PENALTIES.compositionSlot;
@@ -224,7 +229,7 @@ Adicionar um grupo de opções (6x0 / 5x1). Ao escolher 5x1, chamar `resolveComp
 <RotationSelector
   value={config.rotationType ?? '6x0'}
   onChange={(rt) => updateConfig({ rotationType: rt })}
-  composition={composition}   // de resolveComposition
+  composition={composition} // de resolveComposition
   warnings={warnings}
 />
 ```
@@ -265,8 +270,12 @@ self.onmessage = (e: MessageEvent<BalanceRequest>) => {
   const post = (m: BalanceResponse) => self.postMessage(m);
   try {
     // balanceTeams recebe um callback opcional de progresso (passo 3.3)
-    const divisions = balanceTeams(players, numTeams, sessionId, config, (percent, bestScore, partial) =>
-      post({ type: 'progress', percent, bestScore, partial }),
+    const divisions = balanceTeams(
+      players,
+      numTeams,
+      sessionId,
+      config,
+      (percent, bestScore, partial) => post({ type: 'progress', percent, bestScore, partial }),
     );
     post({ type: 'done', divisions });
   } catch (err) {
@@ -291,20 +300,33 @@ const generateDivisions = (advanceStep = true) => {
   if (!activeSession?.config) return;
   const sessionPlayers = players.filter((p) => activeSession.selectedPlayerIds.includes(p.id));
 
-  const worker = new Worker(new URL('../logic/balancer.worker.ts', import.meta.url), { type: 'module' });
-  setIsGenerating(true); setProgress(0);
+  const worker = new Worker(new URL('../logic/balancer.worker.ts', import.meta.url), {
+    type: 'module',
+  });
+  setIsGenerating(true);
+  setProgress(0);
 
   worker.onmessage = (e: MessageEvent<BalanceResponse>) => {
     const msg = e.data;
     if (msg.type === 'progress') setProgress(msg.percent);
     else if (msg.type === 'done') {
-      setBestDivisions(msg.divisions); setSelectedDivisionIndex(0);
-      setIsGenerating(false); worker.terminate();
+      setBestDivisions(msg.divisions);
+      setSelectedDivisionIndex(0);
+      setIsGenerating(false);
+      worker.terminate();
       if (advanceStep) nextStep();
-    } else { setIsGenerating(false); worker.terminate(); /* tratar erro */ }
+    } else {
+      setIsGenerating(false);
+      worker.terminate(); /* tratar erro */
+    }
   };
-  worker.postMessage({ type: 'balance', players: sessionPlayers,
-    numTeams: activeSession.config.teamCount, sessionId: activeSession.id, config: activeSession.config });
+  worker.postMessage({
+    type: 'balance',
+    players: sessionPlayers,
+    numTeams: activeSession.config.teamCount,
+    sessionId: activeSession.id,
+    config: activeSession.config,
+  });
 };
 ```
 
@@ -326,23 +348,42 @@ Como a UI não trava mais, aumentar `SPEED_CONFIG.advanced` (mais iterações/se
 
 ```ts
 export type PointType = 'winner' | 'error';
-export type Skill = 'saque' | 'recepcao' | 'levantamento' | 'ataque' | 'bloqueio' | 'defesa' | 'posicionamento';
+export type Skill =
+  | 'saque'
+  | 'recepcao'
+  | 'levantamento'
+  | 'ataque'
+  | 'bloqueio'
+  | 'defesa'
+  | 'posicionamento';
 export type Fault =
-  | 'saque_fora' | 'saque_rede' | 'ataque_fora' | 'ataque_rede'
-  | 'dois_toques' | 'conducao' | 'quatro_toques' | 'toque_apoiado'
-  | 'toque_rede' | 'invasao_quadra' | 'invasao_rede'
-  | 'ataque_linha_ataque' | 'libero_ataque' | 'libero_levantamento_frente'
-  | 'libero_bloqueio' | 'libero_saque' | 'bloqueio_fora_antena'
+  | 'saque_fora'
+  | 'saque_rede'
+  | 'ataque_fora'
+  | 'ataque_rede'
+  | 'dois_toques'
+  | 'conducao'
+  | 'quatro_toques'
+  | 'toque_apoiado'
+  | 'toque_rede'
+  | 'invasao_quadra'
+  | 'invasao_rede'
+  | 'ataque_linha_ataque'
+  | 'libero_ataque'
+  | 'libero_levantamento_frente'
+  | 'libero_bloqueio'
+  | 'libero_saque'
+  | 'bloqueio_fora_antena'
   | 'posicao_rotacao';
 
 // PointReason antigo é mantido para retrocompat de leitura; novos campos:
 export interface PointEvent {
   // ...campos atuais...
-  reason?: PointReason;          // legado (manter)
-  pointType?: PointType;         // novo
-  skill?: Skill;                 // novo
-  fault?: Fault;                 // novo (quando pointType === 'error')
-  playerTeamId?: string | null;  // time do autor (crédito/débito correto)
+  reason?: PointReason; // legado (manter)
+  pointType?: PointType; // novo
+  skill?: Skill; // novo
+  fault?: Fault; // novo (quando pointType === 'error')
+  playerTeamId?: string | null; // time do autor (crédito/débito correto)
 }
 ```
 
@@ -424,4 +465,7 @@ O projeto é uma **SPA Vite** (sem `vercel.json`, sem funções serverless). O c
 - [ ] **B:** sessão 5x1 gera composição correta; fallback líbero→central com aviso; sessões antigas abrem como 6x0.
 - [ ] **Worker:** UI não congela no modo `advanced`; barra anima; resultado idêntico ao síncrono (determinismo); build de produção (`npm run build`) emite o chunk do worker.
 - [ ] **Eventos:** PointModal grava `pointType/skill/fault`; estatísticas por fundamento batem; migração aditiva aplicada e mappers atualizados; dados antigos ainda leem.
+
+```
+
 ```

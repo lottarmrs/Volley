@@ -319,9 +319,7 @@ export const PointModal = ({
                   {SKILL_ORDER.map((skill) => (
                     <button
                       key={skill}
-                      onClick={() =>
-                        setSelectedSkill((cur) => (cur === skill ? undefined : skill))
-                      }
+                      onClick={() => setSelectedSkill((cur) => (cur === skill ? undefined : skill))}
                       className={`py-3 px-1 border rounded-lg text-[9px] font-bold uppercase tracking-tighter text-center transition-all cursor-pointer ${selectedSkill === skill ? 'bg-accent text-white border-accent' : 'bg-base-300 border-base-300 hover:border-base-content/50'}`}
                     >
                       {SKILL_LABELS[skill]}
@@ -458,7 +456,9 @@ export const PointModal = ({
                     </div>
                   ) : (
                     <div className="text-center py-6 border border-dashed border-base-300 rounded-xl">
-                      <p className="text-xs italic text-base-content/60 uppercase">Nenhum jogador oponente disponível</p>
+                      <p className="text-xs italic text-base-content/60 uppercase">
+                        Nenhum jogador oponente disponível
+                      </p>
                     </div>
                   )}
                 </div>

@@ -57,7 +57,12 @@ import {
   Team,
   TournamentConfig,
 } from './types';
-import { normalizeCommunities, normalizeGames, normalizeSessions, sanitizeImportedBackup } from './logic/migrations';
+import {
+  normalizeCommunities,
+  normalizeGames,
+  normalizeSessions,
+  sanitizeImportedBackup,
+} from './logic/migrations';
 import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';

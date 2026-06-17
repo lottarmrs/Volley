@@ -467,7 +467,9 @@ export const syncService = {
     } catch (error) {
       console.error('Falha no envio em lote para community_presence', error);
       local.presenceRecords.forEach((p) => {
-        if (!updatedPresenceRecords.some((u) => u.communityId === p.communityId && u.date === p.date)) {
+        if (
+          !updatedPresenceRecords.some((u) => u.communityId === p.communityId && u.date === p.date)
+        ) {
           updatedPresenceRecords.push(p);
         }
       });

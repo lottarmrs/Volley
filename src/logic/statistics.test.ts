@@ -152,7 +152,7 @@ test('calculateAttributeProgression applies deltas and clamps correctly', () => 
 
   const sessionPoints: PointEvent[] = [
     pt({ playerId: 'p1', pointType: 'winner', skill: 'ataque' }), // +0.1
-    pt({ playerId: 'p1', pointType: 'winner', skill: 'saque' }),  // +0.05 -> should clamp to 10
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'saque' }), // +0.05 -> should clamp to 10
   ];
 
   const updated = calculateAttributeProgression([p1], sessionPoints);
@@ -198,7 +198,7 @@ test('aggregates new error taxonomy categories and updates statistics and progre
   // Verify progression (reception is critical for pointer, setting is not)
   const updated = calculateAttributeProgression([p1], newPoints);
   const updatedP1 = updated.find((x) => x.id === 'p1')!;
-  
+
   // recepcao: 5 - 0.1 = 4.9 (critical for pointer)
   assert.equal(updatedP1.atributos.recepcao, 4.9);
   // levantamento: 5 - 0.05 = 4.95 (non-critical for pointer)

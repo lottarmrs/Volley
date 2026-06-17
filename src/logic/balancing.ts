@@ -549,7 +549,8 @@ export class ObjectiveScorer {
     let compositionPenalty = 0;
     if (this.rotationType === '5x1' && this.composition) {
       for (const team of solution.teams) {
-        compositionPenalty += computeCompositionDeficit(team, this.composition) * PENALTIES.compositionSlot;
+        compositionPenalty +=
+          computeCompositionDeficit(team, this.composition) * PENALTIES.compositionSlot;
       }
 
       // Penalidade leve: evitar que todas as mulheres caiam no mesmo papel.
@@ -1269,8 +1270,8 @@ function assignLabelsToDivisions(divisions: Division[]): void {
 // Quantos jogadores compartilham o mesmo time entre duas soluções (0 = idênticas)
 export function solutionDistance(a: TeamSolution, b: TeamSolution): number {
   const numTeams = a.teams.length;
-  const bTeams = b.teams.map(t => new Set(t.map(player => player.id)));
-  const aTeams = a.teams.map(t => t.map(player => player.id));
+  const bTeams = b.teams.map((t) => new Set(t.map((player) => player.id)));
+  const aTeams = a.teams.map((t) => t.map((player) => player.id));
 
   let totalOverlap = 0;
   const matchedB = new Set<number>();
@@ -1320,7 +1321,10 @@ export function selectPortfolio(candidates: Division[], k = 3, minDistance = 2):
   for (const c of sorted.slice(1)) {
     if (chosen.length >= k) break;
     const distinct = chosen.every(
-      (s) => c.rawSolution && s.rawSolution && solutionDistance(c.rawSolution, s.rawSolution) >= minDistance
+      (s) =>
+        c.rawSolution &&
+        s.rawSolution &&
+        solutionDistance(c.rawSolution, s.rawSolution) >= minDistance,
     );
     if (distinct) {
       chosen.push(c);
@@ -1357,7 +1361,8 @@ export const balanceTeams = (
   const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
   weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
 
-  weights.repetition = config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
+  weights.repetition =
+    config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
 
   // Map players to vectors, respeitando posições escolhidas para a sessão.
   const positionOverrides = config?.playerPositions ?? {};
@@ -1386,10 +1391,10 @@ export const balanceTeams = (
 
   // Iteration scaling based on speed profile
   const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
-  
+
   let maxIterations = 40000;
   let numSeeds = 10;
-  
+
   if (balanceSpeed === 'fast') {
     maxIterations = clamp(athletes.length * 400, 2000, 10000);
     numSeeds = 3;
@@ -1522,7 +1527,8 @@ export function recalculateDivisionDiagnostics(
 
   const weights = { ...(MODE_WEIGHTS[balanceMode] || MODE_WEIGHTS.balanced) };
   weights.gender = Math.max(weights.gender, GENDER_WEIGHT_FLOOR);
-  weights.repetition = config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
+  weights.repetition =
+    config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
 
   // Map all players to athletes, respeitando posições escolhidas para a sessão.
   const positionOverrides = config?.playerPositions ?? {};

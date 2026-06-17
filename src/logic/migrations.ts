@@ -76,15 +76,12 @@ export function normalizeSession(session: any): Session {
     session.config?.type === 'tournament';
 
   if (!isTournament) {
-    const isFreePlay =
-      session.type === 'free_play' || session.config?.type === 'free_play';
+    const isFreePlay = session.type === 'free_play' || session.config?.type === 'free_play';
     return {
       ...session,
       communityId: session.communityId ?? null,
       config:
-        isFreePlay && session.config
-          ? normalizeFreePlayConfig(session.config)
-          : session.config,
+        isFreePlay && session.config ? normalizeFreePlayConfig(session.config) : session.config,
     };
   }
 
@@ -166,4 +163,3 @@ export function sanitizeImportedBackup(val: any): any {
   }
   return val;
 }
-

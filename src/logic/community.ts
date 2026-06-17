@@ -111,7 +111,9 @@ export function getCommunitySummary(params: {
     params.sessions || [],
     params.pointEvents || [],
   );
-  const finishedSessions = communitySessions.filter((session) => session && session.status === 'finished');
+  const finishedSessions = communitySessions.filter(
+    (session) => session && session.status === 'finished',
+  );
   const finishedGames = communityGames.filter(
     (game) => game && (game.status === 'finished' || game.status === 'walkover'),
   );
@@ -121,8 +123,9 @@ export function getCommunitySummary(params: {
     activeAthletes: communityPlayers.filter((player) => player && player.ativo).length,
     totalSessions: finishedSessions.length,
     totalMatches: finishedGames.length,
-    totalPoints: communityPoints.filter((point) => point && CREDITED_REASONS.includes(point.reason || ''))
-      .length,
+    totalPoints: communityPoints.filter(
+      (point) => point && CREDITED_REASONS.includes(point.reason || ''),
+    ).length,
     lastSession: finishedSessions[0],
     lastMvpName: getLastMvpName(params.sessionReports || [], communitySessions),
     mostFrequentPlayerName: getMostFrequentPlayerName(communitySessions, params.players || []),
@@ -203,7 +206,9 @@ export function getCommunityRanking(params: {
       (game) =>
         playerTeamIds.includes(game.teamAId || '') || playerTeamIds.includes(game.teamBId || ''),
     );
-    const wins = playerGames.filter((game) => playerTeamIds.includes(game.winnerTeamId || '')).length;
+    const wins = playerGames.filter((game) =>
+      playerTeamIds.includes(game.winnerTeamId || ''),
+    ).length;
     const playerPoints = sessionPoints.filter((point) => point.playerId === playerId);
     const credited = playerPoints.filter((point) => CREDITED_REASONS.includes(point.reason || ''));
     const mvpCount = (params.sessionReports || [])
@@ -234,7 +239,9 @@ export function getCommunityRanking(params: {
       gamesPlayed: playerGames.length,
       winRate: playerGames.length > 0 ? Math.round((wins / playerGames.length) * 100) : 0,
       presenceRate:
-        communitySessions.length > 0 ? Math.round((attendances / communitySessions.length) * 100) : 0,
+        communitySessions.length > 0
+          ? Math.round((attendances / communitySessions.length) * 100)
+          : 0,
       regularity:
         player?.atributos?.regularidade !== undefined
           ? Math.round(player.atributos.regularidade * 10)

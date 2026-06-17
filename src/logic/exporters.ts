@@ -1,5 +1,23 @@
-import { GameReport, SessionReport, Game, Team, Player, PointEvent, Division } from '../types';
+import {
+  GameReport,
+  SessionReport,
+  Game,
+  Team,
+  Player,
+  PointEvent,
+  Division,
+  Position,
+} from '../types';
 import { TournamentStanding, TournamentMVP } from './tournament';
+
+const POSITION_LABELS: Record<Position, string> = {
+  levantador: 'Levantador',
+  ponteiro: 'Ponteiro',
+  oposto: 'Oposto',
+  central: 'Central',
+  libero: 'Líbero',
+  'all-rounder': 'Curinga',
+};
 
 export function formatGameReportForWhatsApp(report: GameReport): string {
   const sortedPlayers = [...report.playerStats]
@@ -224,7 +242,13 @@ export function formatDrawForWhatsApp(
   sessionName: string,
   divisions: Division[],
   players: Player[],
+  options?: { includeDetails?: boolean; playerPositions?: Record<string, Position> },
 ): string {
+  // includeDetails: inclui posições por atleta e rating do time.
+  // Quando false, compartilha apenas a divisão (nomes dos times e atletas).
+  const includeDetails = options?.includeDetails ?? true;
+  const playerPositions = options?.playerPositions ?? {};
+
   const formattedDivisions = divisions
     .map((div, divIdx) => {
       const teamsFormatted = div.teams
@@ -234,22 +258,28 @@ export function formatDrawForWhatsApp(
               const p = players.find((x) => x.id === pid);
               if (!p) return '';
               const name = p.apelido || p.nome;
-              const pos = p.posicaoPrincipal ? ` (${p.posicaoPrincipal})` : '';
+              const effectivePos = playerPositions[p.id] ?? p.posicaoPrincipal;
+              const pos =
+                includeDetails && effectivePos ? ` (${POSITION_LABELS[effectivePos]})` : '';
               return `- ${name}${pos}`;
             })
             .filter(Boolean)
             .join('\n');
 
-          const rating = team.strengthSnapshot?.overall
-            ? ` (Rating: ${Math.round(team.strengthSnapshot.overall)})`
-            : '';
+          const rating =
+            includeDetails && team.strengthSnapshot?.overall
+              ? ` (Rating: ${Math.round(team.strengthSnapshot.overall)})`
+              : '';
 
           return `*${team.name}*${rating}:\n${teamPlayers}`;
         })
         .join('\n\n');
 
       const quality = div.qualityLabel || `Opção ${divIdx + 1}`;
-      return `📌 *Opção ${divIdx + 1} (${quality})*\n\n${teamsFormatted}`;
+      const header = includeDetails
+        ? `📌 *Opção ${divIdx + 1} (${quality})*`
+        : `📌 *Opção ${divIdx + 1}*`;
+      return `${header}\n\n${teamsFormatted}`;
     })
     .join('\n\n════════════════════\n\n');
 

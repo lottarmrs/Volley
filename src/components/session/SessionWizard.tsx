@@ -151,6 +151,8 @@ export function SessionWizard({
   const [constraintPlayerA, setConstraintPlayerA] = useState('');
   const [constraintPlayerB, setConstraintPlayerB] = useState('');
   const [constraintType, setConstraintType] = useState<'together' | 'separated'>('together');
+  // Compartilhar/copiar sorteio: incluir ratings e posições ou só a divisão.
+  const [shareIncludeDetails, setShareIncludeDetails] = useState(true);
   // Drag & Drop state for team player swapping
   const [dragPlayerId, setDragPlayerId] = useState<string | null>(null);
   const [dragSourceTeamId, setDragSourceTeamId] = useState<string | null>(null);
@@ -170,13 +172,19 @@ export function SessionWizard({
 
   const handleShareSorteio = () => {
     if (bestDivisions.length === 0) return;
-    const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players);
+    const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players, {
+      includeDetails: shareIncludeDetails,
+      playerPositions,
+    });
     openWhatsAppShare(text);
   };
 
   const handleCopySorteio = async () => {
     if (bestDivisions.length === 0) return;
-    const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players);
+    const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players, {
+      includeDetails: shareIncludeDetails,
+      playerPositions,
+    });
     const ok = await copyToClipboard(text);
     if (ok) alert('Sorteio copiado!');
   };
@@ -1738,6 +1746,20 @@ export function SessionWizard({
                 <span className="hidden sm:inline">Configurações e Vínculos</span>
               </button>
               <div className="divider divider-horizontal mx-1 hidden sm:flex" />
+              <label
+                className="flex items-center gap-1.5 cursor-pointer select-none px-1"
+                title="Inclui o rating de cada time e a posição de cada atleta ao compartilhar/copiar. Desligado, envia apenas a divisão dos times."
+              >
+                <input
+                  type="checkbox"
+                  className="toggle toggle-xs toggle-success"
+                  checked={shareIncludeDetails}
+                  onChange={(e) => setShareIncludeDetails(e.target.checked)}
+                />
+                <span className="text-[9px] font-bold uppercase text-base-content/60 tracking-wider">
+                  Ratings e posições
+                </span>
+              </label>
               <button
                 onClick={handleShareSorteio}
                 className="btn btn-sm btn-success btn-soft text-success"

@@ -750,109 +750,166 @@ export class InitialTeamBuilder {
   }
 }
 
-// ─── Neighbor Generation ─────────────────────────────────────────────────────
+// ─── Neighbor Generation (Strategy-based) ────────────────────────────────────
+//
+// Cada movimento vizinho do Simulated Annealing é uma `MutationStrategy`
+// isolada. Adicionar um movimento novo = criar a função + dar push no array
+// `mutationStrategies`, sem tocar nos movimentos que já funcionam (Open/Closed).
+// O `generateNeighbor` é o único dono do clone: as estratégias recebem a cópia
+// e a mutam no lugar, nunca o `current`.
+
+/** Jogadores de um time que não estão travados (locked) em uma equipe fixa. */
+function getNonLocked(
+  team: AthleteVector[],
+  constraints: BalanceConstraints | undefined,
+): AthleteVector[] {
+  return team.filter((a) => {
+    if (!constraints?.lockedPlayerIdxs) return true;
+    return constraints.lockedPlayerIdxs[a.id] === undefined;
+  });
+}
+
+interface MutationStrategy {
+  /** Probabilidade relativa de a estratégia ser sorteada por iteração. */
+  weight: number;
+  /** Muta `teams` (já clonado) no lugar. Não deve tocar o `current` original. */
+  execute: (
+    teams: AthleteVector[][],
+    constraints: BalanceConstraints | undefined,
+    random: () => number,
+  ) => void;
+}
+
+const mutationStrategies: MutationStrategy[] = [
+  {
+    // Swap 1x1: troca um jogador não-travado entre dois times distintos.
+    weight: 0.8,
+    execute: (teams, constraints, random) => {
+      const numTeams = teams.length;
+      const t1 = Math.floor(random() * numTeams);
+      const t2 = (t1 + Math.floor(random() * (numTeams - 1)) + 1) % numTeams;
+
+      const p1List = getNonLocked(teams[t1], constraints);
+      const p2List = getNonLocked(teams[t2], constraints);
+
+      if (p1List.length > 0 && p2List.length > 0) {
+        const p1 = p1List[Math.floor(random() * p1List.length)];
+        const p2 = p2List[Math.floor(random() * p2List.length)];
+
+        teams[t1] = teams[t1].map((a) => (a.id === p1.id ? p2 : a));
+        teams[t2] = teams[t2].map((a) => (a.id === p2.id ? p1 : a));
+      }
+    },
+  },
+  {
+    // Move: realoca um jogador de um time maior para um menor (mantém tamanhos).
+    weight: 0.15,
+    execute: (teams, constraints, random) => {
+      const numTeams = teams.length;
+      const teamSizes = teams.map((t) => t.length);
+      const minSize = Math.min(...teamSizes);
+      const maxSize = Math.max(...teamSizes);
+
+      const t1Candidates: number[] = [];
+      const t2Candidates: number[] = [];
+
+      for (let i = 0; i < numTeams; i++) {
+        if (teams[i].length > minSize) t1Candidates.push(i);
+        if (teams[i].length < maxSize) t2Candidates.push(i);
+      }
+
+      if (t1Candidates.length > 0 && t2Candidates.length > 0) {
+        const t1 = t1Candidates[Math.floor(random() * t1Candidates.length)];
+        const t2 = t2Candidates[Math.floor(random() * t2Candidates.length)];
+
+        const pList = getNonLocked(teams[t1], constraints);
+        if (pList.length > 0) {
+          const p = pList[Math.floor(random() * pList.length)];
+          teams[t1] = teams[t1].filter((a) => a.id !== p.id);
+          teams[t2].push(p);
+        }
+      }
+    },
+  },
+  {
+    // Weakness-targeted swap: equaliza um fundamento trocando o melhor jogador
+    // do time forte pelo pior do time fraco naquele fundamento.
+    weight: 0.05,
+    execute: (teams, constraints, random) => {
+      const numTeams = teams.length;
+      const categories: (keyof AthleteVector)[] = [
+        'setting',
+        'reception',
+        'attack',
+        'defense',
+        'block',
+      ];
+      const cat = categories[Math.floor(random() * categories.length)];
+
+      let tWeak = 0;
+      let minCatVal = Infinity;
+      let tStrong = 0;
+      let maxCatVal = -Infinity;
+
+      for (let i = 0; i < numTeams; i++) {
+        const avgVal =
+          teams[i].reduce((acc, a) => acc + (a[cat] as number), 0) / (teams[i].length || 1);
+        if (avgVal < minCatVal) {
+          minCatVal = avgVal;
+          tWeak = i;
+        }
+        if (avgVal > maxCatVal) {
+          maxCatVal = avgVal;
+          tStrong = i;
+        }
+      }
+
+      if (tWeak !== tStrong) {
+        const pWeakList = getNonLocked(teams[tWeak], constraints).sort(
+          (a, b) => (a[cat] as number) - (b[cat] as number),
+        );
+        const pStrongList = getNonLocked(teams[tStrong], constraints).sort(
+          (a, b) => (b[cat] as number) - (a[cat] as number),
+        );
+
+        if (pWeakList.length > 0 && pStrongList.length > 0) {
+          const pWeak = pWeakList[0];
+          const pStrong = pStrongList[0];
+
+          teams[tWeak] = teams[tWeak].map((a) => (a.id === pWeak.id ? pStrong : a));
+          teams[tStrong] = teams[tStrong].map((a) => (a.id === pStrong.id ? pWeak : a));
+        }
+      }
+    },
+  },
+];
+
+// Soma dos pesos pré-computada: normaliza o sorteio sem exigir que somem 1.
+const TOTAL_MUTATION_WEIGHT = mutationStrategies.reduce((acc, s) => acc + s.weight, 0);
+
+/**
+ * Sorteia uma estratégia por soma cumulativa, consumindo exatamente um random().
+ * Com os pesos atuais (0.80 / 0.15 / 0.05) os limiares coincidem com os antigos
+ * (< 0.80, < 0.95), então o resultado por seed é idêntico ao if/else anterior.
+ */
+function pickMutationStrategy(random: () => number): MutationStrategy {
+  let r = random() * TOTAL_MUTATION_WEIGHT;
+  for (const strategy of mutationStrategies) {
+    r -= strategy.weight;
+    if (r < 0) return strategy;
+  }
+  return mutationStrategies[mutationStrategies.length - 1];
+}
 
 function generateNeighbor(
   current: TeamSolution,
   constraints: BalanceConstraints | undefined,
   random: () => number,
 ): TeamSolution {
-  const numTeams = current.teams.length;
+  // Único ponto de clone: a estratégia muta esta cópia, nunca o `current`.
   const teams = current.teams.map((t) => [...t]);
-  const moveVal = random();
-
-  const getNonLocked = (tIdx: number) => {
-    return teams[tIdx].filter((a) => {
-      if (!constraints?.lockedPlayerIdxs) return true;
-      return constraints.lockedPlayerIdxs[a.id] === undefined;
-    });
-  };
-
-  if (moveVal < 0.8) {
-    // Swap 1x1
-    const t1 = Math.floor(random() * numTeams);
-    const t2 = (t1 + Math.floor(random() * (numTeams - 1)) + 1) % numTeams;
-
-    const p1List = getNonLocked(t1);
-    const p2List = getNonLocked(t2);
-
-    if (p1List.length > 0 && p2List.length > 0) {
-      const p1 = p1List[Math.floor(random() * p1List.length)];
-      const p2 = p2List[Math.floor(random() * p2List.length)];
-
-      teams[t1] = teams[t1].map((a) => (a.id === p1.id ? p2 : a));
-      teams[t2] = teams[t2].map((a) => (a.id === p2.id ? p1 : a));
-    }
-  } else if (moveVal < 0.95) {
-    // Move one player
-    const teamSizes = teams.map((t) => t.length);
-    const minSize = Math.min(...teamSizes);
-    const maxSize = Math.max(...teamSizes);
-
-    const t1Candidates: number[] = [];
-    const t2Candidates: number[] = [];
-
-    for (let i = 0; i < numTeams; i++) {
-      if (teams[i].length > minSize) t1Candidates.push(i);
-      if (teams[i].length < maxSize) t2Candidates.push(i);
-    }
-
-    if (t1Candidates.length > 0 && t2Candidates.length > 0) {
-      const t1 = t1Candidates[Math.floor(random() * t1Candidates.length)];
-      const t2 = t2Candidates[Math.floor(random() * t2Candidates.length)];
-
-      const pList = getNonLocked(t1);
-      if (pList.length > 0) {
-        const p = pList[Math.floor(random() * pList.length)];
-        teams[t1] = teams[t1].filter((a) => a.id !== p.id);
-        teams[t2].push(p);
-      }
-    }
-  } else {
-    // Weakness-targeted swap
-    const categories: (keyof AthleteVector)[] = [
-      'setting',
-      'reception',
-      'attack',
-      'defense',
-      'block',
-    ];
-    const cat = categories[Math.floor(random() * categories.length)];
-
-    let tWeak = 0;
-    let minCatVal = Infinity;
-    let tStrong = 0;
-    let maxCatVal = -Infinity;
-
-    for (let i = 0; i < numTeams; i++) {
-      const avgVal =
-        teams[i].reduce((acc, a) => acc + (a[cat] as number), 0) / (teams[i].length || 1);
-      if (avgVal < minCatVal) {
-        minCatVal = avgVal;
-        tWeak = i;
-      }
-      if (avgVal > maxCatVal) {
-        maxCatVal = avgVal;
-        tStrong = i;
-      }
-    }
-
-    if (tWeak !== tStrong) {
-      const pWeakList = getNonLocked(tWeak).sort((a, b) => (a[cat] as number) - (b[cat] as number));
-      const pStrongList = getNonLocked(tStrong).sort(
-        (a, b) => (b[cat] as number) - (a[cat] as number),
-      );
-
-      if (pWeakList.length > 0 && pStrongList.length > 0) {
-        const pWeak = pWeakList[0];
-        const pStrong = pStrongList[0];
-
-        teams[tWeak] = teams[tWeak].map((a) => (a.id === pWeak.id ? pStrong : a));
-        teams[tStrong] = teams[tStrong].map((a) => (a.id === pStrong.id ? pWeak : a));
-      }
-    }
-  }
-
+  const strategy = pickMutationStrategy(random);
+  strategy.execute(teams, constraints, random);
   return { teams };
 }
 

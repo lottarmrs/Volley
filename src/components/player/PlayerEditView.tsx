@@ -43,6 +43,7 @@ import {
   getAttributeLabel,
 } from '../../logic/calculations';
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
+import { AvatarUpload } from './AvatarUpload';
 
 interface PlayerEditViewProps {
   editingPlayer: Player;
@@ -262,13 +263,17 @@ export const PlayerEditView = ({
           <div className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             {/* Header info */}
             <div className="flex items-start gap-4 border-b border-base-300 pb-4">
-              <div className="avatar avatar-placeholder shrink-0">
-                <div className="w-16 rounded-full bg-base-300 text-accent border-2 border-accent font-black text-xl shadow-lg shadow-accent/15">
-                  <span>
-                    {editingPlayer.nome ? editingPlayer.nome.substring(0, 2).toUpperCase() : 'AT'}
-                  </span>
-                </div>
-              </div>
+              <AvatarUpload
+                playerCloudId={editingPlayer.cloudId}
+                currentAvatarUrl={editingPlayer.avatarUrl}
+                initials={
+                  editingPlayer.nome ? editingPlayer.nome.substring(0, 2).toUpperCase() : 'AT'
+                }
+                onApplied={(newUrl) =>
+                  setEditingPlayer({ ...editingPlayer, avatarUrl: newUrl })
+                }
+              />
+
               <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex flex-col sm:flex-row gap-2 w-full">
                   <div className="flex-1">

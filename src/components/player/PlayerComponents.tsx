@@ -202,10 +202,14 @@ export const PlayerItem: React.FC<{
         {/* ── Top Row: Avatar + Name + Overall ───────────────────────── */}
         <div className="flex gap-3 items-center">
           <div
-            className={`avatar avatar-placeholder ${player.ativo ? 'avatar-online' : 'avatar-offline'}`}
+            className={`avatar ${player.avatarUrl ? '' : 'avatar-placeholder'} ${player.ativo ? 'avatar-online' : 'avatar-offline'}`}
           >
-            <div className="w-12 rounded-full bg-base-300 text-accent font-black ring-2 ring-primary/40 ring-offset-2 ring-offset-base-200">
-              <span className="text-xs">{initials}</span>
+            <div className="w-12 rounded-full bg-base-300 text-accent font-black overflow-hidden ring-2 ring-primary/40 ring-offset-2 ring-offset-base-200">
+              {player.avatarUrl ? (
+                <img src={player.avatarUrl} alt={player.nome} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs">{initials}</span>
+              )}
             </div>
           </div>
 

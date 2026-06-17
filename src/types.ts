@@ -32,10 +32,26 @@ export interface RoleComposition {
   libero: number; // 1 (ou 0 no fallback)
 }
 
+export type AvatarProposalStatus = 'pending' | 'approved' | 'rejected' | 'superseded';
+
+/** A proposed avatar change awaiting (or having passed) the creator's approval. */
+export interface PlayerAvatarProposal {
+  id: string;
+  playerCloudId: string;
+  proposedBy: string;
+  imageUrl: string;
+  status: AvatarProposalStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
 export interface Player {
   id: string;
   /** Globally unique, human-readable handle for the athlete (slug of the name). */
   username?: string;
+  /** Public URL of the approved avatar photo. Read-only here; changed via the approval flow. */
+  avatarUrl?: string;
   nome: string;
   apelido: string;
   genero: Gender;

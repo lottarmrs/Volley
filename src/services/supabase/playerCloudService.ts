@@ -30,6 +30,10 @@ export function mapDbToPlayer(db: any): Player {
   return {
     id: db.local_id || db.id,
     username: db.username || undefined,
+    // Read-only here. avatar_url is only ever written through the approval RPCs,
+    // so it is deliberately NOT added to mapPlayerToDb (keeps the sync upsert from
+    // tripping the guard_avatar_url trigger).
+    avatarUrl: db.avatar_url || undefined,
     nome: db.name,
     apelido: db.nickname || '',
     genero: db.gender,

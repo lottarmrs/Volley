@@ -1926,9 +1926,23 @@ export function SessionWizard({
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[8px] font-bold text-base-content/40 uppercase">
-                              {p.posicaoPrincipal}
-                            </span>
+                            {(() => {
+                              const effPos = getEffectivePosition(p);
+                              const overridden = effPos !== p.posicaoPrincipal;
+                              return (
+                                <span
+                                  className={`text-[8px] font-bold uppercase ${overridden ? 'text-accent/80' : 'text-base-content/40'}`}
+                                  title={
+                                    overridden
+                                      ? `Função nesta sessão · cadastro: ${POSITION_LABELS[p.posicaoPrincipal]}`
+                                      : undefined
+                                  }
+                                >
+                                  {POSITION_LABELS[effPos]}
+                                  {overridden ? ' *' : ''}
+                                </span>
+                              );
+                            })()}
                             <span className="font-bold font-mono text-sm text-accent/80">
                               {calculateGeneralOverall(p)}
                             </span>

@@ -171,6 +171,8 @@ const CREDITED_REASONS: PointReason[] = [
 
 /** Um ponto conta para o ranking individual quando foi conquistado ativamente. */
 export function isCreditedPoint(point: PointEvent): boolean {
+  // Lances de destaque (highlight) são só gamificação — nunca contam como ponto.
+  if (point.eventKind === 'highlight') return false;
   // Taxonomia nova: crédito por ponto conquistado (winner).
   if (point.pointType) return point.pointType === 'winner';
   // Legado: crédito pelos reasons históricos.
@@ -190,6 +192,42 @@ export function calculatePlayerScoringRanking(pointEvents: PointEvent[]) {
   return Object.entries(ranking)
     .map(([playerId, points]) => ({ playerId, points }))
     .sort((a, b) => b.points - a.points);
+}
+
+/**
+ * Camada de RECONHECIMENTO (não-rating): destaca facilitadores que somem na
+ * estatística de ponto. Maestro = levantador com mais assistências; Muralha =
+ * jogador com mais lances/defesas. Derivado só de sinais já registrados.
+ */
+export interface SessionRecognition {
+  maestro?: { playerId: string; count: number };
+  muralha?: { playerId: string; count: number };
+}
+
+export function calculateSessionRecognition(points: PointEvent[]): SessionRecognition {
+  const assists: Record<string, number> = {};
+  const defenses: Record<string, number> = {};
+
+  for (const p of points) {
+    if (p.assistPlayerId && p.eventKind !== 'highlight') {
+      assists[p.assistPlayerId] = (assists[p.assistPlayerId] || 0) + 1;
+    }
+    const isDefensive =
+      (p.eventKind === 'highlight' && (p.skill === 'defesa' || p.skill === 'recepcao')) ||
+      (p.eventKind !== 'highlight' && p.pointType === 'winner' && p.skill === 'defesa');
+    if (isDefensive && p.playerId) {
+      defenses[p.playerId] = (defenses[p.playerId] || 0) + 1;
+    }
+  }
+
+  const top = (rec: Record<string, number>) => Object.entries(rec).sort((a, b) => b[1] - a[1])[0];
+  const m = top(assists);
+  const d = top(defenses);
+
+  return {
+    maestro: m ? { playerId: m[0], count: m[1] } : undefined,
+    muralha: d ? { playerId: d[0], count: d[1] } : undefined,
+  };
 }
 
 export function calculateTeamSessionStats(games: Game[], teamIds: string[]) {
@@ -233,6 +271,15 @@ export function calculateTeamSessionStats(games: Game[], teamIds: string[]) {
 export function getPointLabel(point: PointEvent, teams: Team[], players: Player[]) {
   const team = teams.find((t) => t.id === point.scoringTeamId);
   const player = players.find((p) => p.id === point.playerId);
+  // Lance de destaque: rótulo próprio, fora da taxonomia de ponto/erro.
+  if (point.eventKind === 'highlight') {
+    return {
+      score: `${point.scoreAfter.teamA}x${point.scoreAfter.teamB}`,
+      teamName: team?.name ?? 'Time',
+      playerName: player?.nome ?? 'Lance',
+      reason: point.skill ? `Lance · ${SKILL_LABELS[point.skill]}` : 'Lance 🌟',
+    };
+  }
   // Prefere a taxonomia nova (skill/fault); cai para o reason legado.
   const reason = point.skill
     ? SKILL_LABELS[point.skill]

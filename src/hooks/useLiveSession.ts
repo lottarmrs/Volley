@@ -135,7 +135,7 @@ export function useLiveSession(
       teamId: string,
       playerId?: string,
       reason?: PointReason,
-      details?: { pointType?: PointType; skill?: Skill; fault?: Fault },
+      details?: { pointType?: PointType; skill?: Skill; fault?: Fault; assistPlayerId?: string },
     ) => {
       if (
         !currentGame ||
@@ -186,6 +186,8 @@ export function useLiveSession(
           pointType: details?.pointType,
           skill: details?.skill,
           fault: details?.fault,
+          eventKind: 'point',
+          assistPlayerId: details?.assistPlayerId || null,
           // Time do autor: no erro, o autor está no time que concedeu o ponto.
           playerTeamId: details?.pointType === 'error' ? concedingTeamId : teamId,
           scoreBefore,
@@ -245,6 +247,55 @@ export function useLiveSession(
       setGames,
       setGameReports,
     ],
+  );
+
+  // ── Register highlight (lance de destaque, NÃO altera placar) ──────────────
+  const registerHighlight = useCallback(
+    (playerId: string, skill: Skill) => {
+      if (!currentGame || !activeSession || currentGame.status !== 'active') return;
+      if (activeSession.status === 'paused') return;
+
+      const team = sessionTeams.find(
+        (t) =>
+          (t.id === currentGame.teamAId || t.id === currentGame.teamBId) &&
+          t.playerIds.includes(playerId),
+      );
+      if (!team) return;
+
+      const currentGamePoints = sessionPoints.filter((p) => p.gameId === currentGame.id);
+      const score = { teamA: currentGame.scoreA, teamB: currentGame.scoreB };
+
+      const highlight: PointEvent = {
+        id: `highlight-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        sessionId: activeSession.id,
+        gameId: currentGame.id,
+        sequenceNumber: currentGamePoints.length + 1,
+        scoringTeamId: team.id,
+        concedingTeamId:
+          team.id === currentGame.teamAId ? currentGame.teamBId : currentGame.teamAId,
+        playerId,
+        reason: 'unknown',
+        eventKind: 'highlight',
+        skill,
+        playerTeamId: team.id,
+        scoreBefore: score,
+        scoreAfter: score, // não mexe no placar
+        timestamp: new Date().toISOString(),
+      };
+
+      setPointEvents((prev) => [...prev, highlight]);
+    },
+    [currentGame, activeSession, sessionTeams, sessionPoints, setPointEvents],
+  );
+
+  // ── Delete highlight (remoção inline do feed; só lances) ───────────────────
+  const deleteHighlight = useCallback(
+    (eventId: string) => {
+      setPointEvents((prev) =>
+        prev.filter((p) => !(p.id === eventId && p.eventKind === 'highlight')),
+      );
+    },
+    [setPointEvents],
   );
 
   const finishCurrentGameManually = useCallback(() => {
@@ -615,6 +666,8 @@ export function useLiveSession(
     pointModalTeamId,
     setPointModalTeamId,
     registerPoint,
+    registerHighlight,
+    deleteHighlight,
     finishCurrentGameManually,
     startNextGame,
     undoLastPoint,

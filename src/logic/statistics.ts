@@ -14,6 +14,10 @@ export interface PlayerStats {
   tips: number;
   defenses: number;
   blocks: number;
+  /** Assistências de levantamento creditadas explicitamente ao jogador. */
+  assists: number;
+  /** Lances de destaque (🌟) registrados para o jogador. */
+  highlights: number;
   /** Total de erros atribuídos ao jogador. */
   errors: number;
   /** Erros do jogador discriminados por tipo de falta. */
@@ -60,7 +64,16 @@ export function calculatePlayerStats(
   }).length;
 
   const registeredPoints = allPoints.filter((p) => registeredGameIds.has(p.gameId));
-  const playerPoints = registeredPoints.filter((p) => p.playerId === player.id);
+  // Lances de destaque (🌟) não contam como ponto/erro — separados para gamificação.
+  const highlights = registeredPoints.filter(
+    (p) => p.eventKind === 'highlight' && p.playerId === player.id,
+  ).length;
+  const assists = registeredPoints.filter(
+    (p) => p.eventKind !== 'highlight' && p.assistPlayerId === player.id,
+  ).length;
+  const playerPoints = registeredPoints.filter(
+    (p) => p.eventKind !== 'highlight' && p.playerId === player.id,
+  );
 
   // Pontos conquistados (creditados) pelo jogador.
   const creditedPoints = playerPoints.filter(isCreditedPoint);
@@ -75,6 +88,7 @@ export function calculatePlayerStats(
   // Erros atribuídos ao jogador (taxonomia nova: pointType 'error' com o jogador
   // como autor; legado: ponto concedido pelo time do jogador por erro próprio).
   const errorPoints = registeredPoints.filter((p) => {
+    if (p.eventKind === 'highlight') return false;
     if (p.playerId !== player.id) return false;
     if (p.pointType) return p.pointType === 'error';
     return p.reason === 'opponent_error' && playerTeamIds.has(p.concedingTeamId);
@@ -104,6 +118,8 @@ export function calculatePlayerStats(
     tips,
     defenses,
     blocks,
+    assists,
+    highlights,
     errors,
     errorsByType,
     balance: totalPoints - errors,

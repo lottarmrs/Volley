@@ -345,6 +345,8 @@ test('team, game and point mappers preserve relationships through local ids', ()
     concedingTeamId: 'team-b',
     playerId: 'player-local',
     reason: 'attack',
+    eventKind: 'point',
+    assistPlayerId: 'setter-local',
     scoreBefore: { teamA: 0, teamB: 0 },
     scoreAfter: { teamA: 1, teamB: 0 },
     timestamp: now,
@@ -385,6 +387,8 @@ test('team, game and point mappers preserve relationships through local ids', ()
   assert.equal(mappedGame.teamAId, 'team-a');
   assert.equal(mappedPoint.gameId, 'game-local');
   assert.equal(mappedPoint.reason, 'attack');
+  assert.equal(mappedPoint.eventKind, 'point');
+  assert.equal(mappedPoint.assistPlayerId, 'setter-local');
 });
 
 test('report, presence and draft mappers preserve JSON payloads', () => {

@@ -515,6 +515,13 @@ export type Fault =
 
 export type GameWinner = 'A' | 'B' | null;
 
+/**
+ * Distingue um evento que altera o placar ('point') de um "lance de destaque"
+ * ('highlight') — uma defesa/levantamento marcado só para gamificação, que NÃO
+ * mexe no placar nem no ranking de pontos. Ausência ⇒ tratado como 'point'.
+ */
+export type EventKind = 'point' | 'highlight';
+
 export interface PointEvent {
   id: string;
   sessionId: string;
@@ -527,6 +534,10 @@ export interface PointEvent {
   pointType?: PointType; // novo
   skill?: Skill; // novo (quando pointType === 'winner')
   fault?: Fault; // novo (quando pointType === 'error')
+  /** 'point' (default) altera placar; 'highlight' é só gamificação. */
+  eventKind?: EventKind;
+  /** Levantador que deu a assistência num ponto de ataque (crédito explícito). */
+  assistPlayerId?: string | null;
   playerTeamId?: string | null; // time do autor (crédito/débito correto)
   scoreBefore: {
     teamA: number;

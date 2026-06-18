@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculatePlayerStats } from './statistics';
 import { calculateAttributeProgression } from './progression';
+import { calculateSessionRecognition } from './match';
 import { Game, Player, PointEvent, Session, Team } from '../types';
 
 const player = (id: string): Player =>
@@ -203,4 +204,145 @@ test('aggregates new error taxonomy categories and updates statistics and progre
   assert.equal(updatedP1.atributos.recepcao, 4.9);
   // levantamento: 5 - 0.05 = 4.95 (non-critical for pointer)
   assert.equal(updatedP1.atributos.levantamento, 4.95);
+});
+
+test('highlight events never count as points, errors or ranking', () => {
+  const p1 = player('p1');
+  const highlightPoints: PointEvent[] = [
+    pt({ playerId: 'p1', eventKind: 'highlight', skill: 'defesa', scoringTeamId: 'teamA' }),
+  ];
+  const stats = calculatePlayerStats(p1, [game], highlightPoints, [teamA, teamB], [session]);
+  assert.equal(stats.totalPoints, 0);
+  assert.equal(stats.errors, 0);
+  assert.equal(stats.highlights, 1);
+});
+
+test('consistency engine rewards a low-error setter with high exposure', () => {
+  const setter = player('sx');
+  setter.posicaoPrincipal = 'levantador';
+  setter.atributos.levantamento = 5;
+
+  const setterTeam = { id: 'teamA', playerIds: ['sx'] } as unknown as Team;
+  const finishedGames = [
+    {
+      id: 'g1',
+      sessionId: 's1',
+      teamAId: 'teamA',
+      teamBId: 'teamB',
+      scoreA: 25,
+      scoreB: 20,
+      status: 'finished',
+    },
+    {
+      id: 'g2',
+      sessionId: 's1',
+      teamAId: 'teamA',
+      teamBId: 'teamB',
+      scoreA: 25,
+      scoreB: 18,
+      status: 'finished',
+    },
+  ] as unknown as Game[];
+
+  // Zero setting errors across high exposure (88 rallies).
+  const updated = calculateAttributeProgression([setter], [], finishedGames, [setterTeam]);
+  const u = updated.find((x) => x.id === 'sx')!;
+  // taxaOk=1, baseline=0.88, confidence=1 -> +0.12, freado pelo teto (current 5) = 0.12
+  assert.equal(u.atributos.levantamento, 5.12);
+});
+
+test('consistency engine credits explicit assists on top of consistency', () => {
+  const setter = player('sx');
+  setter.posicaoPrincipal = 'levantador';
+  setter.atributos.levantamento = 5;
+
+  const setterTeam = { id: 'teamA', playerIds: ['sx'] } as unknown as Team;
+  const finishedGames = [
+    {
+      id: 'g1',
+      sessionId: 's1',
+      teamAId: 'teamA',
+      teamBId: 'teamB',
+      scoreA: 25,
+      scoreB: 20,
+      status: 'finished',
+    },
+  ] as unknown as Game[];
+
+  // 2 ataques assistidos pelo levantador (assistPlayerId = sx).
+  const assistPoints: PointEvent[] = [
+    pt({
+      gameId: 'g1',
+      playerId: 'atk',
+      pointType: 'winner',
+      skill: 'ataque',
+      assistPlayerId: 'sx',
+    }),
+    pt({
+      gameId: 'g1',
+      playerId: 'atk',
+      pointType: 'winner',
+      skill: 'ataque',
+      assistPlayerId: 'sx',
+    }),
+  ];
+
+  const updated = calculateAttributeProgression([setter], assistPoints, finishedGames, [
+    setterTeam,
+  ]);
+  const u = updated.find((x) => x.id === 'sx')!;
+  // exposure=45, confidence=min(1,45/20)=1, taxaOk=1 -> consist=0.12; feats=2*0.1=0.2 -> 0.32
+  assert.equal(u.atributos.levantamento, 5.32);
+});
+
+test('consistency engine falls back to per-event below exposure gate', () => {
+  const setter = player('sx');
+  setter.posicaoPrincipal = 'levantador'; // levantamento é crítico -> peso 0.1
+  setter.atributos.levantamento = 5;
+
+  const setterTeam = { id: 'teamA', playerIds: ['sx'] } as unknown as Team;
+  // Exposição = 3 < eMin(6) -> usa per-evento.
+  const tinyGame = [
+    {
+      id: 'g1',
+      sessionId: 's1',
+      teamAId: 'teamA',
+      teamBId: 'teamB',
+      scoreA: 2,
+      scoreB: 1,
+      status: 'finished',
+    },
+  ] as unknown as Game[];
+
+  const errPoints: PointEvent[] = [
+    pt({
+      gameId: 'g1',
+      scoringTeamId: 'teamB',
+      concedingTeamId: 'teamA',
+      playerId: 'sx',
+      pointType: 'error',
+      fault: 'setting_double',
+      playerTeamId: 'teamA',
+    }),
+  ];
+
+  const updated = calculateAttributeProgression([setter], errPoints, tinyGame, [setterTeam]);
+  const u = updated.find((x) => x.id === 'sx')!;
+  // per-evento: setting_double -> levantamento crítico -> -0.1
+  assert.equal(u.atributos.levantamento, 4.9);
+});
+
+test('session recognition surfaces top setter (maestro) and top defender (muralha)', () => {
+  const recPoints: PointEvent[] = [
+    pt({ playerId: 'atk', pointType: 'winner', skill: 'ataque', assistPlayerId: 'set1' }),
+    pt({ playerId: 'atk', pointType: 'winner', skill: 'ataque', assistPlayerId: 'set1' }),
+    pt({ playerId: 'atk2', pointType: 'winner', skill: 'ataque', assistPlayerId: 'set2' }),
+    pt({ playerId: 'lib', eventKind: 'highlight', skill: 'defesa' }),
+    pt({ playerId: 'lib', eventKind: 'highlight', skill: 'recepcao' }),
+  ];
+  const rec = calculateSessionRecognition(recPoints);
+  assert.equal(rec.maestro?.playerId, 'set1');
+  assert.equal(rec.maestro?.count, 2);
+  assert.equal(rec.muralha?.playerId, 'lib');
+  assert.equal(rec.muralha?.count, 2);
 });

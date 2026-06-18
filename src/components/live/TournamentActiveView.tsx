@@ -14,6 +14,7 @@ import {
   Flag,
   XCircle,
   MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import { Session, Game, PointEvent, Team, Player, GameReport, TournamentConfig } from '../../types';
 import {
@@ -38,6 +39,7 @@ import {
 import { TeamScoreCard } from './TeamScoreCard';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { PointModal } from './PointModal';
+import { HighlightFab } from './HighlightFab';
 import { POINT_REASON_LABELS, getPointLabel } from '../../logic/match';
 import { PointReason, PointType, Skill, Fault } from '../../types';
 
@@ -56,8 +58,10 @@ interface Props {
     teamId: string,
     playerId?: string,
     reason?: PointReason,
-    details?: { pointType?: PointType; skill?: Skill; fault?: Fault },
+    details?: { pointType?: PointType; skill?: Skill; fault?: Fault; assistPlayerId?: string },
   ) => void;
+  registerHighlight: (playerId: string, skill: Skill) => void;
+  deleteHighlight: (eventId: string) => void;
   finishCurrentGameManually: () => void;
   startNextGame: (update: (s: Session) => void) => void;
   undoLastPoint: () => void;
@@ -89,6 +93,8 @@ export const TournamentActiveView = ({
   pointModalTeamId,
   setPointModalTeamId,
   registerPoint,
+  registerHighlight,
+  deleteHighlight,
   finishCurrentGameManually,
   startNextGame,
   undoLastPoint,
@@ -106,6 +112,19 @@ export const TournamentActiveView = ({
   games,
 }: Props) => {
   const [preSelectedPlayerId, setPreSelectedPlayerId] = React.useState<string | undefined>();
+
+  // Levantador nominal do time (pré-seleção da assistência). Só no 5x1; vazio no 6x0.
+  const getSetterDefault = (teamId: string): string | undefined => {
+    const cfg = activeSession.config;
+    if (!cfg || cfg.rotationType !== '5x1') return undefined;
+    const positions = cfg.playerPositions ?? {};
+    const team = sessionTeams.find((t) => t.id === teamId);
+    return team?.playerIds.find(
+      (pid) =>
+        (positions[pid] ?? players.find((p) => p.id === pid)?.posicaoPrincipal) === 'levantador',
+    );
+  };
+
   const progress = getTournamentProgress(games, activeSession.id);
   const gamesByRound = groupGamesByRound(sessionGames);
   const isPaused = activeSession.status === 'paused';
@@ -545,6 +564,7 @@ export const TournamentActiveView = ({
             }
             players={players}
             preSelectedPlayerId={preSelectedPlayerId}
+            assistDefaultPlayerId={getSetterDefault(pointModalTeamId)}
             onClose={() => {
               setPointModalTeamId(null);
               setPreSelectedPlayerId(undefined);
@@ -554,6 +574,7 @@ export const TournamentActiveView = ({
                 pointType: details.pointType,
                 skill: details.skill,
                 fault: details.fault,
+                assistPlayerId: details.assistPlayerId,
               });
               setPointModalTeamId(null);
               setPreSelectedPlayerId(undefined);
@@ -973,7 +994,7 @@ export const TournamentActiveView = ({
               return (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between p-2 rounded hover:bg-base-300/50 transition-colors"
+                  className="flex items-center justify-between p-2 rounded hover:bg-base-300/50 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-mono text-accent opacity-50 w-12 shrink-0">
@@ -987,11 +1008,30 @@ export const TournamentActiveView = ({
                         <span className="text-[8px] font-bold text-base-content/60 uppercase">
                           {label.teamName}
                         </span>
-                        <span className="text-[8px] text-accent italic">• {label.reason}</span>
+                        <span
+                          className={`text-[8px] italic ${p.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}
+                        >
+                          • {label.reason}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <p className="text-[10px] font-bold font-mono text-accent">{label.score}</p>
+                  <div className="flex items-center gap-2">
+                    <p
+                      className={`text-[10px] font-bold font-mono ${p.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}
+                    >
+                      {p.eventKind === 'highlight' ? '🌟' : label.score}
+                    </p>
+                    {p.eventKind === 'highlight' && (
+                      <button
+                        onClick={() => deleteHighlight(p.id)}
+                        title="Remover lance"
+                        className="btn btn-ghost btn-xs btn-circle text-error opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -1002,6 +1042,10 @@ export const TournamentActiveView = ({
           )}
         </div>
       </div>
+
+      {currentGame?.status === 'active' && teamA && teamB && (
+        <HighlightFab teams={[teamA, teamB]} players={players} onRegister={registerHighlight} />
+      )}
     </div>
   );
 };

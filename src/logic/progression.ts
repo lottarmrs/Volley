@@ -1,5 +1,19 @@
-import { Player, Attributes, PointEvent } from '../types';
+import { Player, Attributes, PointEvent, Game, Team, Position } from '../types';
 import { getAutoSpecialty, getAutoWeakness } from './calculations';
+import { CONSISTENCY } from './balancingConstants';
+
+/**
+ * Atributos cujo valor está em ações NÃO-terminais (um passe perfeito, um
+ * levantamento perfeito). Para esses papéis a progressão é por TAXA DE ERRO
+ * (motor de consistência), não por evento — senão o atributo só cairia.
+ */
+const CONSISTENCY_ATTRS: Partial<Record<Position, (keyof Attributes)[]>> = {
+  levantador: ['levantamento'],
+  libero: ['recepcao', 'defesa'],
+};
+
+const getConsistencyAttrs = (pos: string): (keyof Attributes)[] =>
+  CONSISTENCY_ATTRS[pos as Position] ?? [];
 
 export const POSITION_CRITICAL: Record<string, string[]> = {
   levantador: ['levantamento', 'leituraDeJogo', 'regularidade'],
@@ -143,40 +157,113 @@ export const FAULT_TO_ATTRIBUTE: Record<string, keyof Attributes> = {
   manual_error: 'regularidade',
 };
 
+/** Peso do delta por-evento: 0.1 se o atributo é crítico para a posição, senão 0.05. */
+function weightFor(player: Player, attr: keyof Attributes): number {
+  const pos = player.posicaoPrincipal || 'all-rounder';
+  return (POSITION_CRITICAL[pos] || []).includes(attr) ? 0.1 : 0.05;
+}
+
 export function calculateAttributeProgression(
   players: Player[],
   sessionPoints: PointEvent[],
+  sessionGames: Game[] = [],
+  sessionTeams: Team[] = [],
 ): Player[] {
   const deltas: Record<string, Partial<Record<keyof Attributes, number>>> = {};
+  const playerById = new Map(players.map((p) => [p.id, p]));
 
+  const add = (pid: string, attr: keyof Attributes, val: number) => {
+    if (!deltas[pid]) deltas[pid] = {};
+    deltas[pid]![attr] = (deltas[pid]![attr] || 0) + val;
+  };
+
+  // ── Passo 1: deltas por-evento (winner / error / highlight / assist) ──────
+  // Para atributos de consistência isto serve de fallback; o Passo 2 sobrescreve
+  // quando há exposição suficiente.
   sessionPoints.forEach((pt) => {
-    if (!pt.playerId) return;
-    const p = players.find((x) => x.id === pt.playerId);
-    if (!p) return;
-
-    const pos = p.posicaoPrincipal || 'all-rounder';
-    const criticalAttrs = POSITION_CRITICAL[pos] || [];
-
-    if (pt.pointType === 'winner' && pt.skill) {
-      const attr = SKILL_TO_ATTRIBUTE[pt.skill];
-      if (attr) {
-        const isCritical = criticalAttrs.includes(attr);
-        const val = isCritical ? 0.1 : 0.05;
-
-        if (!deltas[pt.playerId]) deltas[pt.playerId] = {};
-        deltas[pt.playerId]![attr] = (deltas[pt.playerId]![attr] || 0) + val;
-      }
-    } else if (pt.pointType === 'error' && pt.fault) {
-      const attr = FAULT_TO_ATTRIBUTE[pt.fault];
-      if (attr) {
-        const isCritical = criticalAttrs.includes(attr);
-        const val = isCritical ? -0.1 : -0.05;
-
-        if (!deltas[pt.playerId]) deltas[pt.playerId] = {};
-        deltas[pt.playerId]![attr] = (deltas[pt.playerId]![attr] || 0) + val;
+    if (pt.playerId) {
+      const p = playerById.get(pt.playerId);
+      if (p) {
+        if (pt.eventKind === 'highlight' && pt.skill) {
+          // Lance de destaque (🌟): feito explícito positivo no fundamento.
+          const attr = SKILL_TO_ATTRIBUTE[pt.skill];
+          if (attr) add(pt.playerId, attr, weightFor(p, attr));
+        } else if (pt.pointType === 'winner' && pt.skill) {
+          const attr = SKILL_TO_ATTRIBUTE[pt.skill];
+          if (attr) add(pt.playerId, attr, weightFor(p, attr));
+        } else if (pt.pointType === 'error' && pt.fault) {
+          const attr = FAULT_TO_ATTRIBUTE[pt.fault];
+          if (attr) add(pt.playerId, attr, -weightFor(p, attr));
+        }
       }
     }
+    // Assistência de levantamento: crédito explícito ao levantador.
+    if (pt.assistPlayerId && pt.eventKind !== 'highlight') {
+      const a = playerById.get(pt.assistPlayerId);
+      if (a) add(pt.assistPlayerId, 'levantamento', weightFor(a, 'levantamento'));
+    }
   });
+
+  // ── Passo 2: motor de consistência (papéis facilitadores) ─────────────────
+  // Substitui o per-evento por uma TAXA DE ERRO contextualizada pela exposição.
+  for (const p of players) {
+    const consistencyAttrs = getConsistencyAttrs(p.posicaoPrincipal || 'all-rounder');
+    if (consistencyAttrs.length === 0) continue;
+
+    const playerTeamIds = new Set(
+      sessionTeams.filter((t) => t.playerIds.includes(p.id)).map((t) => t.id),
+    );
+    const playerGames = sessionGames.filter(
+      (g) =>
+        g.status === 'finished' && (playerTeamIds.has(g.teamAId) || playerTeamIds.has(g.teamBId)),
+    );
+    // Exposição estimada ≈ total de rallies (cada rally vira 1 ponto no placar).
+    const exposure = playerGames.reduce((sum, g) => sum + (g.scoreA || 0) + (g.scoreB || 0), 0);
+    if (exposure < CONSISTENCY.eMin) continue; // sem volume confiável → mantém per-evento
+
+    const confidence = Math.min(1, exposure / CONSISTENCY.eFull);
+
+    for (const attr of consistencyAttrs) {
+      const baseline = CONSISTENCY.baseline[attr] ?? 0.85;
+
+      const errs = sessionPoints.filter(
+        (pt) =>
+          pt.eventKind !== 'highlight' &&
+          pt.playerId === p.id &&
+          pt.pointType === 'error' &&
+          !!pt.fault &&
+          FAULT_TO_ATTRIBUTE[pt.fault] === attr,
+      ).length;
+
+      // Feitos explícitos do atributo: winners/highlights próprios + assists (levantamento).
+      const feats = sessionPoints.filter((pt) => {
+        if (attr === 'levantamento' && pt.eventKind !== 'highlight' && pt.assistPlayerId === p.id)
+          return true;
+        if (pt.playerId !== p.id || !pt.skill) return false;
+        if (SKILL_TO_ATTRIBUTE[pt.skill] !== attr) return false;
+        return pt.eventKind === 'highlight' || pt.pointType === 'winner';
+      }).length;
+
+      const taxaOk = 1 - errs / exposure;
+      const rawDelta = CONSISTENCY.k * (taxaOk - baseline) * confidence;
+
+      const current = p.atributos[attr] ?? 5;
+      const ceilingFactor = Math.max(
+        0,
+        Math.min(1, (CONSISTENCY.ceiling - current) / (CONSISTENCY.ceiling - 5)),
+      );
+      // Consistência positiva é freada pelo teto; negativa não. Feitos explícitos furam o teto.
+      const consistComponent = rawDelta >= 0 ? rawDelta * ceilingFactor : rawDelta;
+      const featComponent = feats * weightFor(p, attr);
+
+      let delta = consistComponent + featComponent;
+      delta = Math.max(-CONSISTENCY.sessionCap, Math.min(CONSISTENCY.sessionCap, delta));
+
+      // Sobrescreve o per-evento do Passo 1 para este atributo.
+      if (!deltas[p.id]) deltas[p.id] = {};
+      deltas[p.id]![attr] = delta;
+    }
+  }
 
   return players.map((p) => {
     const pDeltas = deltas[p.id];

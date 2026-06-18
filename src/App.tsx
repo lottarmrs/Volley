@@ -477,7 +477,14 @@ export default function App() {
 
     try {
       const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
-      const updatedPlayers = calculateAttributeProgression(play.players, sessionPoints);
+      const sessionGames = sess.games.filter((g) => g.sessionId === sess.activeSession!.id);
+      const sessionTeams = sess.teams.filter((t) => t.sessionId === sess.activeSession!.id);
+      const updatedPlayers = calculateAttributeProgression(
+        play.players,
+        sessionPoints,
+        sessionGames,
+        sessionTeams,
+      );
 
       play.setPlayers(updatedPlayers);
 

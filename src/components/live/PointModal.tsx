@@ -9,6 +9,7 @@ export interface PointDetails {
   skill?: Skill;
   fault?: Fault;
   reason: PointReason;
+  assistPlayerId?: string;
 }
 
 interface PointModalProps {
@@ -16,6 +17,8 @@ interface PointModalProps {
   opposingTeam?: Team;
   players: Player[];
   preSelectedPlayerId?: string;
+  /** Levantador nominal do time (pré-seleção da assistência). Vazio no 6x0. */
+  assistDefaultPlayerId?: string;
   onClose: () => void;
   onConfirm: (details: PointDetails) => void;
 }
@@ -192,12 +195,14 @@ export const PointModal = ({
   opposingTeam,
   players,
   preSelectedPlayerId,
+  assistDefaultPlayerId,
   onClose,
   onConfirm,
 }: PointModalProps) => {
   const [tab, setTab] = useState<Tab>('winner');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(preSelectedPlayerId);
   const [selectedSkill, setSelectedSkill] = useState<Skill | undefined>();
+  const [assistPlayerId, setAssistPlayerId] = useState<string | undefined>(assistDefaultPlayerId);
 
   // Estados específicos para o fluxo em 3 etapas de erros
   const [errorStep, setErrorStep] = useState<ErrorStep>('category');
@@ -222,6 +227,13 @@ export const PointModal = ({
         pointType: 'winner',
         skill: selectedSkill,
         reason: selectedSkill ? skillToReason(selectedSkill) : 'unknown',
+        // Assistência só faz sentido em ataque/largada e quando o autor não é o próprio levantador.
+        assistPlayerId:
+          (selectedSkill === 'ataque' || selectedSkill === 'largada') &&
+          assistPlayerId &&
+          assistPlayerId !== selectedPlayerId
+            ? assistPlayerId
+            : undefined,
       });
     } else {
       onConfirm({
@@ -330,6 +342,45 @@ export const PointModal = ({
                   Opcional — confirme direto para registrar como não informado.
                 </p>
               </div>
+
+              {(selectedSkill === 'ataque' || selectedSkill === 'largada') && (
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-base-content/60 mb-3 block tracking-widest">
+                    Levantou <span className="text-base-content/40">(assistência)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {teamPlayers
+                      .filter((p) => p.id !== selectedPlayerId)
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() =>
+                            setAssistPlayerId((cur) => (cur === p.id ? undefined : p.id))
+                          }
+                          className={`p-2.5 border rounded-xl transition-all text-left cursor-pointer ${assistPlayerId === p.id ? 'bg-accent/15 border-accent' : 'bg-base-300 border-base-300 hover:border-accent/50'}`}
+                        >
+                          <p
+                            className={`text-[11px] font-bold ${assistPlayerId === p.id ? 'text-accent' : ''}`}
+                          >
+                            {p.apelido || p.nome}
+                          </p>
+                          <p className="text-[8px] uppercase text-base-content/60">
+                            {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                          </p>
+                        </button>
+                      ))}
+                    <button
+                      onClick={() => setAssistPlayerId(undefined)}
+                      className={`col-span-2 p-2.5 border rounded-xl transition-all text-[10px] font-bold uppercase tracking-widest text-center italic cursor-pointer ${assistPlayerId === undefined ? 'bg-accent/15 border-accent text-accent' : 'bg-base-300 border-base-300 hover:bg-base-300/80'}`}
+                    >
+                      Sem assistência
+                    </button>
+                  </div>
+                  <p className="text-[8px] uppercase text-base-content/40 mt-2 italic tracking-widest">
+                    Um toque credita o levantamento ao maestro da jogada.
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <>

@@ -26,9 +26,10 @@ import {
   SessionReport,
 } from '../../types';
 import { useLiveSession } from '../../hooks/useLiveSession';
-import { getPointLabel, POINT_REASON_LABELS } from '../../logic/match';
+import { getPointLabel, POINT_REASON_LABELS, calculateSessionRecognition } from '../../logic/match';
 import { TeamScoreCard } from './TeamScoreCard';
 import { PointModal } from './PointModal';
+import { HighlightFab } from './HighlightFab';
 import { openWhatsAppShare, copyToClipboard } from '../../logic/exporters';
 
 interface SessionActiveViewProps {
@@ -70,6 +71,8 @@ export const SessionActiveView = ({
     pointModalTeamId,
     setPointModalTeamId,
     registerPoint,
+    registerHighlight,
+    deleteHighlight,
     finishCurrentGameManually,
     startNextGame,
     undoLastPoint,
@@ -95,6 +98,18 @@ export const SessionActiveView = ({
   );
 
   const [preSelectedPlayerId, setPreSelectedPlayerId] = useState<string | undefined>();
+
+  // Levantador nominal do time (pré-seleção da assistência). Só no 5x1; vazio no 6x0.
+  const getSetterDefault = (teamId: string): string | undefined => {
+    const cfg = activeSession.config;
+    if (!cfg || cfg.rotationType !== '5x1') return undefined;
+    const positions = cfg.playerPositions ?? {};
+    const team = sessionTeams.find((t) => t.id === teamId);
+    return team?.playerIds.find(
+      (pid) =>
+        (positions[pid] ?? players.find((p) => p.id === pid)?.posicaoPrincipal) === 'levantador',
+    );
+  };
 
   const shareNextFreePlayMatch = () => {
     if (!nextMatchPreview) return;
@@ -151,6 +166,8 @@ export const SessionActiveView = ({
         pointModalTeamId={pointModalTeamId}
         setPointModalTeamId={setPointModalTeamId}
         registerPoint={registerPoint}
+        registerHighlight={registerHighlight}
+        deleteHighlight={deleteHighlight}
         finishCurrentGameManually={finishCurrentGameManually}
         startNextGame={startNextGame}
         undoLastPoint={undoLastPoint}
@@ -551,6 +568,7 @@ export const SessionActiveView = ({
               }
               players={players}
               preSelectedPlayerId={preSelectedPlayerId}
+              assistDefaultPlayerId={getSetterDefault(pointModalTeamId)}
               onClose={() => {
                 setPointModalTeamId(null);
                 setPreSelectedPlayerId(undefined);
@@ -560,6 +578,7 @@ export const SessionActiveView = ({
                   pointType: details.pointType,
                   skill: details.skill,
                   fault: details.fault,
+                  assistPlayerId: details.assistPlayerId,
                 });
                 setPointModalTeamId(null);
                 setPreSelectedPlayerId(undefined);
@@ -611,17 +630,30 @@ export const SessionActiveView = ({
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-bold font-mono text-accent">
-                            {label.score}
-                          </p>
-                          <p className="text-[7px] text-text-muted uppercase">
-                            {new Date(p.timestamp).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })}
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p
+                              className={`text-[10px] font-bold font-mono ${p.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}
+                            >
+                              {p.eventKind === 'highlight' ? '🌟' : label.score}
+                            </p>
+                            <p className="text-[7px] text-text-muted uppercase">
+                              {new Date(p.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                            </p>
+                          </div>
+                          {p.eventKind === 'highlight' && (
+                            <button
+                              onClick={() => deleteHighlight(p.id)}
+                              title="Remover lance"
+                              className="btn btn-ghost btn-xs btn-circle text-error opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </motion.div>
                     );
@@ -641,6 +673,28 @@ export const SessionActiveView = ({
                 </h4>
                 <Zap className="w-3.5 h-3.5 text-accent" />
               </div>
+              {(() => {
+                const rec = calculateSessionRecognition(sessionPoints);
+                const nameOf = (id?: string) => {
+                  const pl = players.find((x) => x.id === id);
+                  return pl?.apelido || pl?.nome;
+                };
+                if (!rec.maestro && !rec.muralha) return null;
+                return (
+                  <div className="px-3 py-2 flex flex-wrap gap-2 border-b border-base-300 bg-base-300/20">
+                    {rec.maestro && (
+                      <span className="badge badge-soft badge-accent text-[8px] font-bold uppercase tracking-wider gap-1">
+                        🎯 Maestro: {nameOf(rec.maestro.playerId)} ({rec.maestro.count})
+                      </span>
+                    )}
+                    {rec.muralha && (
+                      <span className="badge badge-soft badge-warning text-[8px] font-bold uppercase tracking-wider gap-1">
+                        🧱 Muralha: {nameOf(rec.muralha.playerId)} ({rec.muralha.count})
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="p-2 space-y-1">
                 {scoringRanking.slice(0, 5).map((rank, i) => {
                   const p = players.find((player) => player.id === rank.playerId);
@@ -869,6 +923,10 @@ export const SessionActiveView = ({
           </div>
         </div>
       </div>
+
+      {currentGame.status === 'active' && (
+        <HighlightFab teams={[teamA, teamB]} players={players} onRegister={registerHighlight} />
+      )}
     </div>
   );
 };

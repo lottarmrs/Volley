@@ -48,7 +48,7 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
       <button
         onClick={() => setOpen(true)}
         title="Registrar lance de destaque"
-        className="btn btn-warning btn-circle shadow-xl shadow-warning/30 fixed bottom-6 right-6 z-30 w-14 h-14"
+        className="btn btn-warning btn-circle shadow-xl shadow-warning/30 fixed right-5 bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:right-6 sm:bottom-6 z-30 w-14 h-14"
       >
         <Sparkles className="w-6 h-6" />
       </button>
@@ -65,7 +65,7 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
               </button>
             </div>
 
-            <div className="p-5 space-y-5">
+            <div className="p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-5">
               <div>
                 <label className="text-[10px] font-bold uppercase text-base-content/60 mb-2 block tracking-widest">
                   Fundamento{' '}

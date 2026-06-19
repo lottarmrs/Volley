@@ -37,6 +37,7 @@ import {
   copyToClipboard,
 } from '../../logic/exporters';
 import { TeamScoreCard } from './TeamScoreCard';
+import { calculateLiveGameRatings } from '../../logic/rating';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { PointModal } from './PointModal';
 import { HighlightFab } from './HighlightFab';
@@ -139,6 +140,12 @@ export const TournamentActiveView = ({
 
   const groupA = groups.find((g: any) => g.id === 'A');
   const groupB = groups.find((g: any) => g.id === 'B');
+
+  const liveRatings = React.useMemo(() => {
+    if (!currentGame) return {};
+    const gp = sessionPoints.filter((p) => p.gameId === currentGame.id);
+    return calculateLiveGameRatings(currentGame, gp, sessionTeams, players);
+  }, [currentGame, sessionPoints, sessionTeams, players]);
 
   const standingsA = React.useMemo(
     () =>
@@ -417,6 +424,7 @@ export const TournamentActiveView = ({
                 onCourtStreak={0}
                 color={getTeamColor(teamA.id)}
                 scoringRanking={scoringRanking}
+                ratings={liveRatings}
                 onRegisterPoint={() => registerPoint(teamA.id)}
                 onOpenDetailModal={(pid) => {
                   setPointModalTeamId(teamA.id);
@@ -432,6 +440,7 @@ export const TournamentActiveView = ({
                 onCourtStreak={0}
                 color={getTeamColor(teamB.id)}
                 scoringRanking={scoringRanking}
+                ratings={liveRatings}
                 onRegisterPoint={() => registerPoint(teamB.id)}
                 onOpenDetailModal={(pid) => {
                   setPointModalTeamId(teamB.id);
@@ -937,7 +946,7 @@ export const TournamentActiveView = ({
                       >
                         {i + 1}º
                       </span>
-                      <span className="text-[10px] font-bold uppercase text-base-content">
+                      <span className="text-[10px] font-bold text-base-content">
                         {p?.apelido || p?.nome || '—'}
                       </span>
                     </div>
@@ -964,7 +973,7 @@ export const TournamentActiveView = ({
           </h4>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="font-bold uppercase text-base-content">{mvp.playerName}</p>
+              <p className="font-bold text-base-content">{mvp.playerName}</p>
               <p className="text-[10px] text-base-content/60 uppercase">
                 {mvp.teamName || 'Time'} | destaque: {mvp.topReason} | vitórias do time:{' '}
                 {mvp.teamWinRate}%
@@ -1001,9 +1010,7 @@ export const TournamentActiveView = ({
                       J{games.find((g) => g.id === p.gameId)?.sequenceNumber}•#{p.sequenceNumber}
                     </span>
                     <div>
-                      <p className="text-[10px] font-bold text-base-content uppercase">
-                        {label.playerName}
-                      </p>
+                      <p className="text-[10px] font-bold text-base-content">{label.playerName}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-[8px] font-bold text-base-content/60 uppercase">
                           {label.teamName}
@@ -1279,9 +1286,7 @@ function FinalStandings({
             <div className="flex items-center gap-4 p-4 bg-accent/10 rounded-xl border border-accent/20 flex-1">
               <div className="text-3xl">⚡</div>
               <div>
-                <p className="font-bold text-lg uppercase text-base-content leading-none mb-1">
-                  {mvp.playerName}
-                </p>
+                <p className="font-bold text-lg text-white leading-none mb-1">{mvp.playerName}</p>
                 <p className="text-[9px] text-base-content/60 uppercase">
                   {mvp.teamName || 'Sem Time'}
                 </p>
@@ -1312,7 +1317,7 @@ function FinalStandings({
                 <div className="flex items-center gap-4 p-4 bg-primary/10 rounded-xl border border-primary/20 flex-1">
                   <div className="text-3xl">🎯</div>
                   <div>
-                    <p className="font-bold text-lg uppercase text-base-content leading-none mb-1">
+                    <p className="font-bold text-lg text-base-content leading-none mb-1">
                       {topScorer.apelido || topScorer.nome}
                     </p>
                     <p className="text-[9px] text-base-content/60 uppercase">

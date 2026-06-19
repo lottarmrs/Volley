@@ -189,6 +189,31 @@ export function applySessionRatingToForm(
   });
 }
 
+/**
+ * Notas ao vivo de todos os jogadores em quadra para o jogo corrente.
+ * O resultado do time entra como 0 enquanto o jogo não acaba (calculateMatchRating
+ * só aplica win/loss em jogo finalizado); cedo no jogo a baixa exposição puxa
+ * todos para perto do baseline e as notas vão divergindo conforme o placar sobe.
+ */
+export function calculateLiveGameRatings(
+  game: Game,
+  gamePoints: PointEvent[],
+  teams: Team[],
+  players: Player[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const teamId of [game.teamAId, game.teamBId]) {
+    const team = teams.find((t) => t.id === teamId);
+    if (!team) continue;
+    for (const pid of team.playerIds) {
+      const player = players.find((p) => p.id === pid);
+      if (!player) continue;
+      out[pid] = calculateMatchRating({ player, game, gamePoints, playerTeamId: teamId });
+    }
+  }
+  return out;
+}
+
 /** Forma automática = média das últimas notas de partida (null se sem histórico). */
 export function autoFormFromHistory(player: Player): number | null {
   const hist = player.formaAtual?.ultimasPartidas ?? [];

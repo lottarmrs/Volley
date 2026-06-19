@@ -11,9 +11,14 @@ interface TeamScoreCardProps {
   isGameActive: boolean;
   scoringRanking: any[];
   players: Player[];
+  /** Nota de desempenho ao vivo por jogador (0–10). */
+  ratings?: Record<string, number>;
   onRegisterPoint: () => void;
   onOpenDetailModal: (playerId?: string) => void;
 }
+
+const ratingColorClass = (r: number) =>
+  r >= 8 ? 'text-success' : r >= 6 ? 'text-warning' : 'text-error';
 
 const positionLabels: Record<string, string> = {
   levantador: 'Levantador',
@@ -33,6 +38,7 @@ export const TeamScoreCard = ({
   isGameActive,
   scoringRanking,
   players,
+  ratings,
   onRegisterPoint,
   onOpenDetailModal,
 }: TeamScoreCardProps) => {
@@ -120,7 +126,15 @@ export const TeamScoreCard = ({
                 <span className="text-[9px] font-bold text-base-content truncate max-w-[50px] group-hover/player:text-accent transition-colors">
                   {p?.apelido || p?.nome}
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
+                  {ratings?.[pid] !== undefined && (
+                    <span
+                      className={`text-[9px] font-bold font-mono ${ratingColorClass(ratings[pid])}`}
+                      title="Nota da partida (ao vivo)"
+                    >
+                      {ratings[pid].toFixed(1)}
+                    </span>
+                  )}
                   <Zap className="w-2.5 h-2.5 text-accent group-hover/player:scale-110 transition-transform" />
                   <span className="text-[9px] font-bold text-accent">{pPoints}</span>
                 </div>

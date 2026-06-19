@@ -43,3 +43,41 @@ export const CONSISTENCY = {
   /** Limite absoluto do delta acumulado por sessão, por atributo. */
   sessionCap: 0.5,
 } as const;
+
+// ── Nota da partida (0.00–10.00, estilo SofaScore) ──────────────────────────
+// Modelo aditivo ancorado num baseline; sintetiza o desempenho da noite.
+// É PERFORMANCE, não habilidade — nunca escreve em `atributos`.
+export const RATING = {
+  baseline: 6.0,
+  floor: 3.0,
+  ceiling: 10.0,
+  /** Acima disso, o excedente é comprimido (retornos decrescentes). */
+  topCompressFrom: 8.5,
+  topCompressFactor: 0.4,
+  /** δ⁺ por ação positiva, por fundamento (winner). */
+  pos: {
+    saque: 0.25,
+    bloqueio: 0.22,
+    ataque: 0.18,
+    largada: 0.15,
+    defesa: 0.18,
+    recepcao: 0.12,
+    levantamento: 0.12,
+  } as Record<string, number>,
+  posDefault: 0.15,
+  assist: 0.12,
+  highlight: 0.1,
+  /** δ⁻ base por erro; ×criticalMult se o fundamento é crítico da posição. */
+  error: 0.25,
+  criticalMult: 1.3,
+  /** Ajuste de consistência (facilitadores): escala e teto. */
+  consistScale: 3.0,
+  consistCap: 0.5,
+  /** Modificador de resultado do time, por jogo. */
+  win: 0.2,
+  loss: -0.12,
+  /** Retração à média: confiança = min(1, E/expFull). */
+  expFull: 16,
+  /** Jogo com exposição abaixo disso é ignorado na agregação da sessão. */
+  expMinGame: 4,
+} as const;

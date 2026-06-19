@@ -12,7 +12,7 @@ const CONSISTENCY_ATTRS: Partial<Record<Position, (keyof Attributes)[]>> = {
   libero: ['recepcao', 'defesa'],
 };
 
-const getConsistencyAttrs = (pos: string): (keyof Attributes)[] =>
+export const getConsistencyAttrs = (pos: string): (keyof Attributes)[] =>
   CONSISTENCY_ATTRS[pos as Position] ?? [];
 
 export const POSITION_CRITICAL: Record<string, string[]> = {

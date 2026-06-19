@@ -67,6 +67,7 @@ import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localSto
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
 import { calculateAttributeProgression } from './logic/progression';
+import { applySessionRatingToForm } from './logic/rating';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 
@@ -479,10 +480,17 @@ export default function App() {
       const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
       const sessionGames = sess.games.filter((g) => g.sessionId === sess.activeSession!.id);
       const sessionTeams = sess.teams.filter((t) => t.sessionId === sess.activeSession!.id);
-      const updatedPlayers = calculateAttributeProgression(
+      const progressedPlayers = calculateAttributeProgression(
         play.players,
         sessionPoints,
         sessionGames,
+        sessionTeams,
+      );
+      // Anexa a nota da sessão ao histórico de forma (não toca no valor manual).
+      const updatedPlayers = applySessionRatingToForm(
+        progressedPlayers,
+        sessionGames,
+        sessionPoints,
         sessionTeams,
       );
 
@@ -1154,7 +1162,7 @@ export default function App() {
                             ? '🥉'
                             : `#${index + 1}`}
                     </td>
-                    <td className="p-4 font-bold text-base-content uppercase">
+                    <td className="p-4 font-bold text-base-content">
                       {p.player.apelido || p.player.nome}
                       {p.player.status.lesionado && (
                         <span className="ml-2 px-1.5 py-0.5 bg-error/15 text-error text-[8px] rounded uppercase font-bold">

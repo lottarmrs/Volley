@@ -44,6 +44,9 @@ import {
 } from '../../logic/calculations';
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
 import { AvatarUpload } from './AvatarUpload';
+import { calculatePlayerStats } from '../../logic/statistics';
+import { autoFormFromHistory } from '../../logic/rating';
+import { calculateSessionRecognition, calculatePlayerScoringRanking } from '../../logic/match';
 
 interface PlayerEditViewProps {
   editingPlayer: Player;
@@ -167,11 +170,48 @@ export const PlayerEditView = ({
     }));
   }, [playerFinishedSessions, games, teams, editingPlayer.formaAtual.ultimasPartidas]);
 
+  // ── Gamificação: notas de partida, estatísticas e conquistas ──────────────
+  const ratingHistory = editingPlayer.formaAtual.ultimasPartidas || [];
+  const isRatingMode = ratingHistory.length > 0;
+
+  // Curva de nota 0–10 (quando há histórico de notas persistidas).
+  const ratingChartData = useMemo(
+    () => ratingHistory.map((nota, idx) => ({ name: `${idx + 1}ª`, forma: nota })),
+    [ratingHistory],
+  );
+
+  const autoForm = autoFormFromHistory(editingPlayer);
+  const bestRating = isRatingMode ? Math.max(...ratingHistory) : null;
+
+  const seasonStats = useMemo(
+    () => calculatePlayerStats(editingPlayer, games, pointEvents, teams, sessions),
+    [editingPlayer, games, pointEvents, teams, sessions],
+  );
+
+  // Vitrine de conquistas: contagem de Maestro / Muralha / MVP ao longo das sessões.
+  const trophies = useMemo(() => {
+    let maestro = 0;
+    let muralha = 0;
+    let mvp = 0;
+    for (const s of playerFinishedSessions) {
+      const sPoints = pointEvents.filter((p) => p.sessionId === s.id);
+      const rec = calculateSessionRecognition(sPoints);
+      if (rec.maestro?.playerId === editingPlayer.id) maestro++;
+      if (rec.muralha?.playerId === editingPlayer.id) muralha++;
+      const topScorer = calculatePlayerScoringRanking(sPoints)[0];
+      if (topScorer?.playerId === editingPlayer.id) mvp++;
+    }
+    return { maestro, muralha, mvp };
+  }, [playerFinishedSessions, pointEvents, editingPlayer.id]);
+
+  const ratingColor = (r: number) =>
+    r >= 8 ? 'text-success' : r >= 6 ? 'text-warning' : 'text-error';
+
   const ChartTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     return (
       <div className="bg-base-300 border border-base-300 rounded-lg p-2 text-[10px] font-bold text-base-content">
-        Desempenho: {payload[0].value}%
+        {isRatingMode ? `Nota: ${payload[0].value.toFixed(2)}` : `Desempenho: ${payload[0].value}%`}
       </div>
     );
   };
@@ -239,9 +279,7 @@ export const PlayerEditView = ({
                       {p.nome.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-tight">
-                        {p.apelido || p.nome}
-                      </p>
+                      <p className="text-xs font-bold tracking-tight">{p.apelido || p.nome}</p>
                       <span className="text-[9px] text-base-content/50 font-mono uppercase">
                         {positionAbbreviations[p.posicaoPrincipal]} • {p.genero}
                       </span>
@@ -280,7 +318,7 @@ export const PlayerEditView = ({
                       value={editingPlayer.nome}
                       onChange={(e) => setEditingPlayer({ ...editingPlayer, nome: e.target.value })}
                       placeholder="Nome Completo"
-                      className="input input-bordered input-sm w-full font-bold uppercase text-base-content"
+                      className="input input-bordered input-sm w-full font-bold text-base-content"
                     />
                     {validationErrors.nome && (
                       <p className="text-[9px] text-error font-bold uppercase mt-1">
@@ -296,7 +334,7 @@ export const PlayerEditView = ({
                         setEditingPlayer({ ...editingPlayer, apelido: e.target.value })
                       }
                       placeholder="Apelido"
-                      className="input input-bordered input-sm w-full font-bold uppercase text-base-content"
+                      className="input input-bordered input-sm w-full font-bold text-base-content"
                     />
                   </div>
                 </div>
@@ -580,9 +618,19 @@ export const PlayerEditView = ({
 
             {/* Forma Física e Observações */}
             <div className="bg-base-300/40 p-4 rounded-xl border border-base-300 space-y-4">
-              <span className="text-[9px] font-bold text-base-content/40 uppercase block mb-1">
-                Forma Física Atual
-              </span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] font-bold text-base-content/40 uppercase block">
+                  Forma Física Atual
+                </span>
+                {autoForm != null && (
+                  <span className="text-[8px] font-bold uppercase text-base-content/40">
+                    Forma auto:{' '}
+                    <span className={`font-mono ${ratingColor(autoForm)}`}>
+                      {autoForm.toFixed(2)}
+                    </span>
+                  </span>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Valor Forma */}
@@ -661,6 +709,87 @@ export const PlayerEditView = ({
                     placeholder="Ex: Em plena evolução"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Gamificação da Temporada */}
+            <div className="bg-base-300/40 p-4 rounded-xl border border-base-300 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-bold text-base-content/40 uppercase block">
+                  Gamificação da Temporada
+                </span>
+                {bestRating != null && (
+                  <span className="text-[8px] font-bold uppercase text-base-content/40">
+                    Melhor:{' '}
+                    <span className={`font-mono ${ratingColor(bestRating)}`}>
+                      {bestRating.toFixed(2)}
+                    </span>
+                  </span>
+                )}
+              </div>
+
+              {/* Nota-manchete */}
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center justify-center bg-base-300 rounded-xl border border-base-300 px-4 py-2 min-w-[84px]">
+                  <span
+                    className={`text-3xl font-black font-mono leading-none ${
+                      autoForm != null ? ratingColor(autoForm) : 'text-base-content/30'
+                    }`}
+                  >
+                    {autoForm != null ? autoForm.toFixed(2) : '—'}
+                  </span>
+                  <span className="text-[7px] font-bold uppercase tracking-widest text-base-content/50 mt-1">
+                    Nota Média
+                  </span>
+                </div>
+
+                {/* Vitrine de conquistas */}
+                <div className="flex flex-wrap gap-1.5">
+                  {trophies.mvp > 0 && (
+                    <span className="badge badge-soft badge-accent text-[9px] font-bold uppercase">
+                      🏆 MVP ×{trophies.mvp}
+                    </span>
+                  )}
+                  {trophies.maestro > 0 && (
+                    <span className="badge badge-soft badge-info text-[9px] font-bold uppercase">
+                      🎯 Maestro ×{trophies.maestro}
+                    </span>
+                  )}
+                  {trophies.muralha > 0 && (
+                    <span className="badge badge-soft badge-warning text-[9px] font-bold uppercase">
+                      🧱 Muralha ×{trophies.muralha}
+                    </span>
+                  )}
+                  {trophies.mvp + trophies.maestro + trophies.muralha === 0 && (
+                    <span className="text-[9px] italic text-base-content/40 uppercase">
+                      Sem conquistas ainda
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Faixa de estatísticas */}
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[
+                  { label: 'Pontos', value: seasonStats.totalPoints },
+                  { label: 'Aces', value: seasonStats.aces },
+                  { label: 'Bloqueios', value: seasonStats.blocks },
+                  { label: 'Assists', value: seasonStats.assists },
+                  { label: 'Lances 🌟', value: seasonStats.highlights },
+                  { label: 'Defesas', value: seasonStats.defenses },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="flex flex-col items-center bg-base-300/60 rounded-lg border border-base-300/50 py-1.5"
+                  >
+                    <span className="text-sm font-bold font-mono text-base-content">
+                      {stat.value}
+                    </span>
+                    <span className="text-[7px] font-bold uppercase tracking-tight text-base-content/50">
+                      {stat.label}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -822,13 +951,20 @@ export const PlayerEditView = ({
             {/* Performance History (Line Chart) */}
             <div className="space-y-3 border-t border-base-300 pt-4">
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-base-content/60">
-                Histórico de Performance
+                {isRatingMode ? 'Histórico de Notas (0–10)' : 'Histórico de Performance'}
               </h4>
               <div className="bg-base-300 p-4 rounded-xl border border-base-300 min-w-0 overflow-hidden">
                 <ResponsiveContainer width="100%" height={100}>
-                  <LineChart data={historyData} margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
+                  <LineChart
+                    data={isRatingMode ? ratingChartData : historyData}
+                    margin={{ top: 5, right: 5, bottom: 5, left: -25 }}
+                  >
                     <XAxis dataKey="name" stroke="var(--color-text-subtle)" fontSize={8} />
-                    <YAxis stroke="var(--color-text-subtle)" fontSize={8} domain={[0, 100]} />
+                    <YAxis
+                      stroke="var(--color-text-subtle)"
+                      fontSize={8}
+                      domain={isRatingMode ? [0, 10] : [0, 100]}
+                    />
                     <Tooltip content={<ChartTooltip />} />
                     <Line
                       type="monotone"

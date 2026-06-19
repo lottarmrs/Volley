@@ -160,3 +160,39 @@ export function calculateSessionRating({
   if (totalExposure === 0) return null;
   return Math.round((weighted / totalExposure) * 100) / 100;
 }
+
+/**
+ * Anexa a nota da sessão ao histórico de forma (`formaAtual.ultimasPartidas`),
+ * mantendo as últimas `maxHistory`. NÃO mexe em `formaAtual.valor` — o override
+ * manual do técnico continua existindo ao lado da forma automática.
+ */
+export function applySessionRatingToForm(
+  players: Player[],
+  sessionGames: Game[],
+  sessionPoints: PointEvent[],
+  teams: Team[],
+  maxHistory = 10,
+): Player[] {
+  return players.map((player) => {
+    const rating = calculateSessionRating({ player, sessionGames, sessionPoints, teams });
+    if (rating == null) return player;
+
+    const prev = player.formaAtual?.ultimasPartidas ?? [];
+    const ultimasPartidas = [...prev, rating].slice(-maxHistory);
+
+    return {
+      ...player,
+      formaAtual: { ...player.formaAtual, ultimasPartidas },
+      syncStatus: 'pending',
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
+
+/** Forma automática = média das últimas notas de partida (null se sem histórico). */
+export function autoFormFromHistory(player: Player): number | null {
+  const hist = player.formaAtual?.ultimasPartidas ?? [];
+  if (hist.length === 0) return null;
+  const avg = hist.reduce((a, b) => a + b, 0) / hist.length;
+  return Math.round(avg * 100) / 100;
+}

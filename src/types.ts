@@ -152,6 +152,8 @@ export interface GameReport {
     aces: number;
     tips: number;
     counterAttacks: number;
+    /** Nota de desempenho 0.00–10.00 do jogador neste jogo. */
+    rating?: number;
   }[];
   cloudId?: string;
   syncStatus?: CloudSyncStatus;
@@ -199,6 +201,8 @@ export interface SessionReport {
     aces: number;
     tips: number;
     counterAttacks: number;
+    /** Nota de desempenho 0.00–10.00 do jogador na sessão (média ponderada por exposição). */
+    rating?: number;
   }[];
 
   games: GameReport[];

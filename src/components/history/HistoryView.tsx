@@ -746,7 +746,7 @@ function SessionDetailView({
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-text-muted text-[10px] w-4">{i + 1}º</span>
-                      <span className="text-xs font-bold text-white uppercase">
+                      <span className="text-xs font-bold text-white">
                         {p?.nome || 'Atleta'}
                       </span>
                     </div>
@@ -869,7 +869,7 @@ function SessionDetailView({
               <div className="flex items-center gap-4 p-4 bg-accent/5 rounded-xl border border-accent/20">
                 <div className="text-3xl">⚡</div>
                 <div>
-                  <p className="font-black text-lg uppercase text-white leading-none mb-1">
+                  <p className="font-black text-lg text-white leading-none mb-1">
                     {mvp.playerName}
                   </p>
                   <p className="text-[9px] text-text-muted uppercase">

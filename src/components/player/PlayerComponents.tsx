@@ -1,5 +1,5 @@
 import React from 'react';
-import { Info } from 'lucide-react';
+import { Info, Trophy } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Player, Attributes } from '../../types';
 import {
@@ -134,7 +134,8 @@ export const PlayerItem: React.FC<{
   player: Player;
   isSelected?: boolean;
   onToggle?: () => void;
-}> = ({ player, isSelected, onToggle }) => {
+  onViewVutCard?: (player: Player) => void;
+}> = ({ player, isSelected, onToggle, onViewVutCard }) => {
   const overall = calculatePositionOverall(player, player.posicaoPrincipal);
   const rawOverall = calculatePositionOverall(
     { ...player, formaAtual: { ...player.formaAtual, valor: 0 } },
@@ -218,14 +219,29 @@ export const PlayerItem: React.FC<{
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-sm leading-tight uppercase tracking-tight truncate text-base-content">
-              {player.nome}
-              {player.apelido && player.apelido !== player.nome && (
-                <span className="text-accent font-semibold lowercase italic text-xs ml-1">
-                  "{player.apelido}"
-                </span>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-bold text-sm leading-tight tracking-tight truncate text-base-content flex-1">
+                {player.nome}
+                {player.apelido && player.apelido !== player.nome && (
+                  <span className="text-accent font-semibold italic text-xs ml-1">
+                    "{player.apelido}"
+                  </span>
+                )}
+              </h3>
+              {onViewVutCard && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewVutCard(player);
+                  }}
+                  className="btn btn-ghost btn-xs btn-circle text-accent hover:bg-accent/10 shrink-0"
+                  title="Ver Carta VUT"
+                >
+                  <Trophy className="w-3.5 h-3.5" />
+                </button>
               )}
-            </h3>
+            </div>
             <p className="text-[9px] uppercase text-base-content/50 font-bold tracking-wider mt-0.5">
               {positionLabels[player.posicaoPrincipal] || player.posicaoPrincipal}
               {' • '}

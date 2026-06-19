@@ -60,7 +60,7 @@ export function mapDbToPlayer(db: any): Player {
 
 export const playerCloudService = {
   async fetchAll(): Promise<Player[]> {
-    const { data, error } = await supabase.from('players').select('*').is('deleted_at', null);
+    const { data, error } = await supabase.from('players').select('*');
 
     if (error) throw error;
     return (data || []).map(mapDbToPlayer);

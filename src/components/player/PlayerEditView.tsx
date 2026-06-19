@@ -47,6 +47,7 @@ import { AvatarUpload } from './AvatarUpload';
 import { calculatePlayerStats } from '../../logic/statistics';
 import { autoFormFromHistory } from '../../logic/rating';
 import { calculateSessionRecognition, calculatePlayerScoringRanking } from '../../logic/match';
+import { FutCardModal } from './FutCardModal';
 
 interface PlayerEditViewProps {
   editingPlayer: Player;
@@ -82,6 +83,7 @@ export const PlayerEditView = ({
   setShowDeleteConfirm,
 }: PlayerEditViewProps) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showVutCard, setShowVutCard] = useState(false);
 
   // Track original player to allow "Revert" action
   const originalPlayer = useMemo(() => {
@@ -226,13 +228,20 @@ export const PlayerEditView = ({
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-base-300/40 p-4 rounded-xl border border-base-300">
         <button
           type="button"
           onClick={onBack}
-          className="btn btn-ghost btn-sm gap-2 text-xs font-bold uppercase"
+          className="btn btn-ghost btn-sm gap-2 text-xs font-bold uppercase text-base-content/85"
         >
           <ChevronLeft className="w-4 h-4" /> Voltar ao Recrutamento
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowVutCard(true)}
+          className="btn btn-accent btn-sm gap-2 text-xs font-bold uppercase"
+        >
+          ⭐ Ver Carta VUT
         </button>
       </div>
 
@@ -1133,6 +1142,19 @@ export const PlayerEditView = ({
           </div>
         </div>
       </div>
+
+      {showVutCard && (
+        <FutCardModal
+          isOpen={showVutCard}
+          onClose={() => setShowVutCard(false)}
+          player={editingPlayer}
+          players={players}
+          sessions={sessions}
+          teams={teams}
+          games={games}
+          pointEvents={pointEvents}
+        />
+      )}
     </div>
   );
 };

@@ -180,7 +180,7 @@ export function GuestPlayerModal({
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Ex: Carlos Convidado"
-                className="input input-bordered w-full font-bold uppercase text-xs"
+                className="input input-bordered w-full font-bold text-xs"
                 required
               />
             </div>
@@ -277,7 +277,7 @@ export function GuestPlayerModal({
                         className="w-full text-left px-4 py-2.5 hover:bg-neutral/40 flex items-center justify-between border-b border-base-content/5 last:border-none"
                       >
                         <div>
-                          <p className="text-xs font-bold uppercase text-base-content">{p.nome}</p>
+                          <p className="text-xs font-bold text-base-content">{p.nome}</p>
                           <span className="text-[9px] text-text-muted font-mono uppercase">
                             {POSITION_LABELS[p.posicaoPrincipal]} • {p.genero}
                           </span>

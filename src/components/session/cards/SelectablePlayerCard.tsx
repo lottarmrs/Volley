@@ -44,7 +44,7 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
 
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0 pr-6 text-left">
-          <h4 className="font-bold text-xs uppercase tracking-tight text-white truncate flex items-center gap-1.5">
+          <h4 className="font-bold text-xs tracking-tight text-white truncate flex items-center gap-1.5">
             <span className="truncate">{player.nome}</span>
             {player.isGuest && (
               <span className="badge badge-accent py-0 px-1 uppercase font-bold text-[7px] leading-none shrink-0 rounded-sm">

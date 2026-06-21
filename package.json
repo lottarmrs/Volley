@@ -18,13 +18,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run test:unit && npm run test:ui",
-    "test:unit": "node --import tsx --test src/logic/balancing.test.ts src/logic/tournament.test.ts src/logic/migrations.test.ts src/logic/statistics.test.ts src/services/supabase/mappers.test.ts src/services/supabase/schema.test.ts src/services/supabase/syncService.test.ts src/services/supabase/upsertConflict.test.ts src/logic/syncStatus.test.ts src/logic/username.test.ts src/logic/session.test.ts",
+    "test:unit": "node --import tsx --test src/logic/balancing.test.ts src/logic/tournament.test.ts src/logic/migrations.test.ts src/logic/statistics.test.ts src/logic/rating.test.ts src/services/supabase/mappers.test.ts src/services/supabase/schema.test.ts src/services/supabase/syncService.test.ts src/services/supabase/upsertConflict.test.ts src/logic/syncStatus.test.ts src/logic/username.test.ts src/logic/session.test.ts src/logic/futCards.test.ts",
     "test:ui": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",

@@ -96,3 +96,17 @@ test('mergeEntityLists adds cloud-only records to the local payload', () => {
   assert.equal(merged.length, 2);
   assert.equal(merged[1].cloudId, 'session-cloud');
 });
+
+test('mergeEntityLists preserves local records with cloudId if missing from cloud response (avoiding deletion)', () => {
+  const merged = mergeEntityLists<TestEntity>(
+    [{ id: 'session-local', cloudId: 'session-cloud', updatedAt: '2026-06-09T10:00:00.000Z' }],
+    [], // empty cloud response (could be RLS / truncation)
+    { getId: (item) => item.id },
+  );
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].id, 'session-local');
+  assert.equal(merged[0].cloudId, 'session-cloud');
+  assert.equal(merged[0].deletedAt, undefined);
+});
+

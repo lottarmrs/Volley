@@ -46,6 +46,8 @@ import { AccountSyncView } from './components/account/AccountSyncView';
 import { ToastViewport } from './components/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
+import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
+import { buildVutCard } from './logic/futCards';
 import { generateSessionReport } from './logic/reports';
 import {
   Community,
@@ -67,6 +69,7 @@ import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localSto
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
 import { calculateAttributeProgression } from './logic/progression';
+import { applySessionRatingToForm } from './logic/rating';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 
@@ -92,6 +95,7 @@ export default function App() {
   const [activeModule, setActiveModule] = useState<Module>('dashboard');
   const [selectedHistorySessionId, setSelectedHistorySessionId] = useState<string | null>(null);
   const [sessionDraft, setSessionDraft] = useState(() => loadSessionDraft());
+  const [revealQueue, setRevealQueue] = useState<RevealItem[]>([]);
 
   // Auth state
   const auth = useAuth();
@@ -128,7 +132,7 @@ export default function App() {
     setTemplates: whatsAppLists.setTemplates,
     drafts: whatsAppLists.drafts,
     setDrafts: whatsAppLists.setDrafts,
-    sessions: sess.sessions,
+    sessions: sess.rawSessions,
     setSessions: sess.setSessions,
     teams: sess.teams,
     setTeams: sess.setTeams,
@@ -153,7 +157,7 @@ export default function App() {
       communityRules.rawRules,
       whatsAppLists.rawTemplates,
       whatsAppLists.drafts,
-      sess.sessions,
+      sess.rawSessions,
       sess.teams,
       sess.games,
       sess.pointEvents,
@@ -168,7 +172,7 @@ export default function App() {
     communityRules.rawRules,
     whatsAppLists.rawTemplates,
     whatsAppLists.drafts,
-    sess.sessions,
+    sess.rawSessions,
     sess.teams,
     sess.games,
     sess.pointEvents,
@@ -479,30 +483,121 @@ export default function App() {
       const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
       const sessionGames = sess.games.filter((g) => g.sessionId === sess.activeSession!.id);
       const sessionTeams = sess.teams.filter((t) => t.sessionId === sess.activeSession!.id);
-      const updatedPlayers = calculateAttributeProgression(
+
+      // Collect participants
+      const participantIds = new Set(sessionTeams.flatMap((t) => t.playerIds));
+      const participants = play.players.filter((p) => participantIds.has(p.id));
+
+      // 1. Build cards BEFORE session finish (current session not finished)
+      const buildCtxBefore = {
+        sessions: sess.sessions,
+        teams: sess.teams,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        players: play.players,
+        sessionReports: sess.sessionReports,
+      };
+
+      const beforeCards = participants.map((p) => ({
+        playerId: p.id,
+        card: buildVutCard(p, buildCtxBefore),
+      }));
+
+      // 2. Perform regular attribute progression and form rating calculations
+      const progressedPlayers = calculateAttributeProgression(
         play.players,
         sessionPoints,
         sessionGames,
         sessionTeams,
       );
+      // Anexa a nota da sessão ao histórico de forma (não toca no valor manual).
+      const updatedPlayers = applySessionRatingToForm(
+        progressedPlayers,
+        sessionGames,
+        sessionPoints,
+        sessionTeams,
+      );
 
-      play.setPlayers(updatedPlayers);
-
+      // 3. Mark session as finished and generate report
       const finished: Session = {
         ...sess.activeSession,
         status: 'finished',
         updatedAt: new Date().toISOString(),
       };
+      
       const report = generateSessionReport(
         finished,
-        sess.games.filter((g) => g.sessionId === sess.activeSession!.id),
-        sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id),
-        sess.teams.filter((t) => t.sessionId === sess.activeSession!.id),
+        sessionGames,
+        sessionPoints,
+        sessionTeams,
         updatedPlayers,
       );
-      sess.setSessionReports((prev) => [...prev, report]);
-      sess.setSessions((prev) => prev.map((s) => (s.id === finished.id ? finished : s)));
+
+      // 4. Build cards AFTER session finish (using the updated players and finished session)
+      const updatedSessions = sess.sessions.map((s) => (s.id === finished.id ? finished : s));
+      const updatedReports = [...sess.sessionReports, report];
+
+      const buildCtxAfter = {
+        sessions: updatedSessions,
+        teams: sess.teams,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        players: updatedPlayers,
+        sessionReports: updatedReports,
+      };
+
+      const afterCards = participants.map((p) => {
+        const updatedP = updatedPlayers.find((up) => up.id === p.id) || p;
+        return {
+          playerId: p.id,
+          card: buildVutCard(updatedP, buildCtxAfter),
+        };
+      });
+
+      // 5. Compare before and after cards to detect reveals
+      const itemsToReveal: RevealItem[] = [];
+      for (const p of participants) {
+        const before = beforeCards.find((bc) => bc.playerId === p.id)?.card;
+        const after = afterCards.find((ac) => ac.playerId === p.id)?.card;
+
+        if (!before || !after) continue;
+
+        const reasons: string[] = [];
+
+        // Special card edition?
+        if (after.edition.kind !== 'base') {
+          reasons.push(`${after.edition.emoji} EDIÇÃO ESPECIAL: ${after.edition.label.toUpperCase()}`);
+        }
+
+        // New achievement unlocked?
+        const beforeUnlocked = new Set(before.achievements.filter((a) => a.unlocked).map((a) => a.id));
+        const afterUnlocked = after.achievements.filter((a) => a.unlocked);
+
+        for (const ach of afterUnlocked) {
+          if (!beforeUnlocked.has(ach.id)) {
+            reasons.push(`🏆 CONQUISTA: ${ach.name.toUpperCase()} (${ach.emoji})`);
+          }
+        }
+
+        if (reasons.length > 0) {
+          itemsToReveal.push({
+            card: after,
+            reasons,
+          });
+        }
+      }
+
+      // 6. Update states
+      play.setPlayers(updatedPlayers);
+      sess.setSessionReports(updatedReports);
+      sess.setSessions(updatedSessions);
       sess.setActiveSession(null);
+
+      // Trigger modal reveal queue if any
+      if (itemsToReveal.length > 0) {
+        setRevealQueue(itemsToReveal);
+      }
+
       setPage('dashboard');
       setActiveModule('dashboard');
     } catch (e) {
@@ -689,13 +784,7 @@ export default function App() {
                 )
               ) {
                 const sessionId = sess.activeSession.id;
-                const keepSession = (id: string | undefined | null) => !!id && id !== sessionId;
-                sess.setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-                sess.setGames((prev) => prev.filter((g) => keepSession(g.sessionId)));
-                sess.setPointEvents((prev) => prev.filter((p) => keepSession(p.sessionId)));
-                sess.setTeams((prev) => prev.filter((t) => keepSession(t.sessionId)));
-                sess.setGameReports((prev) => prev.filter((r) => keepSession(r.sessionId)));
-                sess.setSessionReports((prev) => prev.filter((r) => keepSession(r.sessionId)));
+                sess.deleteSession(sessionId);
                 sess.setActiveSession(null);
                 clearSessionDraft();
                 setSessionDraft(null);
@@ -838,6 +927,10 @@ export default function App() {
           <PlayersView
             players={play.players}
             communities={comm.communities}
+            games={sess.games}
+            pointEvents={sess.pointEvents}
+            teams={sess.teams}
+            sessions={sess.sessions}
             onBack={() => {
               setPage('dashboard');
               setActiveModule('dashboard');
@@ -880,13 +973,7 @@ export default function App() {
             selectedHistorySessionId={selectedHistorySessionId}
             setSelectedHistorySessionId={setSelectedHistorySessionId}
             onDeleteSession={(sessionId) => {
-              const keepSession = (id: string | undefined | null) => !!id && id !== sessionId;
-              sess.setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-              sess.setGames((prev) => prev.filter((g) => keepSession(g.sessionId)));
-              sess.setPointEvents((prev) => prev.filter((p) => keepSession(p.sessionId)));
-              sess.setTeams((prev) => prev.filter((t) => keepSession(t.sessionId)));
-              sess.setGameReports((prev) => prev.filter((r) => keepSession(r.sessionId)));
-              sess.setSessionReports((prev) => prev.filter((r) => keepSession(r.sessionId)));
+              sess.deleteSession(sessionId);
               setSelectedHistorySessionId(null);
             }}
             onBackToDashboard={() => {
@@ -1154,7 +1241,7 @@ export default function App() {
                             ? '🥉'
                             : `#${index + 1}`}
                     </td>
-                    <td className="p-4 font-bold text-base-content uppercase">
+                    <td className="p-4 font-bold text-base-content">
                       {p.player.apelido || p.player.nome}
                       {p.player.status.lesionado && (
                         <span className="ml-2 px-1.5 py-0.5 bg-error/15 text-error text-[8px] rounded uppercase font-bold">
@@ -1364,6 +1451,14 @@ export default function App() {
           </AnimatePresence>
         </main>
       </div>
+
+      {revealQueue.length > 0 && (
+        <VutRevealModal
+          isOpen={revealQueue.length > 0}
+          onClose={() => setRevealQueue([])}
+          revealItems={revealQueue}
+        />
+      )}
 
       {/* Drawer Sidebar */}
       <div className="drawer-side z-30">

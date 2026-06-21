@@ -117,11 +117,14 @@ export function mergeEntityLists<T extends Syncable>(
     }
 
     if (localEntity.cloudId) {
-      merged.push({
-        ...localEntity,
-        deletedAt: localEntity.deletedAt || nowIso(),
-        syncStatus: 'synced',
-      });
+      if (localEntity.deletedAt) {
+        merged.push({
+          ...localEntity,
+          syncStatus: 'pending',
+        });
+      } else {
+        merged.push(localEntity);
+      }
     } else {
       merged.push({
         ...localEntity,

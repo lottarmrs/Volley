@@ -76,8 +76,7 @@ export const whatsappTemplateCloudService = {
   async fetchAll(communityLocalIdMap: Record<string, string>): Promise<WhatsAppListTemplate[]> {
     const { data, error } = await supabase
       .from('whatsapp_list_templates')
-      .select('*')
-      .is('deleted_at', null);
+      .select('*');
 
     if (error) throw error;
 

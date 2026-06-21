@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, Plus, Search } from 'lucide-react';
-import { Player, Community } from '../../types';
+import { Player, Community, Game, PointEvent, Team, Session } from '../../types';
 import { PlayerItem } from './PlayerComponents';
 import { GuestPlayerModal } from './GuestPlayerModal';
+import { FutCardModal } from './FutCardModal';
 
 interface PlayersViewProps {
   players: Player[];
   communities: Community[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  teams: Team[];
+  sessions: Session[];
   onBack: () => void;
   onAddPlayer: () => void;
   onEditPlayer: (player: Player) => void;
@@ -18,15 +23,20 @@ interface PlayersViewProps {
 export const PlayersView = ({
   players,
   communities,
+  games,
+  pointEvents,
+  teams,
+  sessions,
   onBack,
   onAddPlayer,
   onEditPlayer,
   onAddGuestPlayer,
 }: PlayersViewProps) => {
-  const [showInactive, setShowInactive] = React.useState(false);
-  const [selectedCommunityId, setSelectedCommunityId] = React.useState<string>('all');
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [showGuestModal, setShowGuestModal] = React.useState(false);
+  const [showInactive, setShowInactive] = useState(false);
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [selectedVutPlayer, setSelectedVutPlayer] = useState<Player | null>(null);
 
   const visiblePlayers = players
     .filter((player) => (showInactive ? true : player.ativo))
@@ -114,7 +124,12 @@ export const PlayersView = ({
       {/* Players List Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {visiblePlayers.map((player) => (
-          <PlayerItem key={player.id} player={player} onToggle={() => onEditPlayer(player)} />
+          <PlayerItem
+            key={player.id}
+            player={player}
+            onToggle={() => onEditPlayer(player)}
+            onViewVutCard={(p) => setSelectedVutPlayer(p)}
+          />
         ))}
         {visiblePlayers.length === 0 && (
           <div className="col-span-full py-20 text-center card bg-base-200 border border-base-300 border-dashed shadow-md">
@@ -133,6 +148,20 @@ export const PlayersView = ({
         onAddGuestPlayer={onAddGuestPlayer}
         defaultCommunityId={selectedCommunityId !== 'all' ? selectedCommunityId : null}
       />
+
+      {/* VUT Card Modal */}
+      {selectedVutPlayer && (
+        <FutCardModal
+          isOpen={!!selectedVutPlayer}
+          onClose={() => setSelectedVutPlayer(null)}
+          player={selectedVutPlayer}
+          players={players}
+          sessions={sessions}
+          teams={teams}
+          games={games}
+          pointEvents={pointEvents}
+        />
+      )}
     </div>
   );
 };

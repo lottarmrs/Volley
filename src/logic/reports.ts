@@ -1,5 +1,6 @@
 import { Game, PointEvent, Team, Player, GameReport, SessionReport, Session } from '../types';
 import { calculateTournamentStandings, isResultGame } from './tournament';
+import { calculateMatchRating, calculateSessionRating } from './rating';
 
 export function generateGameReport(
   game: Game,
@@ -23,9 +24,10 @@ export function generateGameReport(
 
   const getPlayerStatsForGame = (playerId: string, team: Team) => {
     const pPoints = gamePoints.filter((p) => p.playerId === playerId);
+    const player = players.find((p) => p.id === playerId);
     return {
       playerId,
-      playerName: players.find((p) => p.id === playerId)?.nome || 'Atleta',
+      playerName: player?.nome || 'Atleta',
       teamId: team.id,
       teamName: team.name,
       totalPoints: pPoints.length,
@@ -36,6 +38,9 @@ export function generateGameReport(
       aces: pPoints.filter((p) => p.reason === 'serve_ace').length,
       tips: pPoints.filter((p) => p.reason === 'tip').length,
       counterAttacks: pPoints.filter((p) => p.reason === 'defense_counterattack').length,
+      rating: player
+        ? calculateMatchRating({ player, game, gamePoints, playerTeamId: team.id })
+        : undefined,
     };
   };
 
@@ -144,9 +149,10 @@ export function generateSessionReport(
   const playerRanking = playerIds
     .map((pid) => {
       const pPoints = sessionPoints.filter((p) => p.playerId === pid);
+      const player = players.find((p) => p.id === pid);
       return {
         playerId: pid,
-        playerName: players.find((p) => p.id === pid)?.nome || 'Atleta',
+        playerName: player?.nome || 'Atleta',
         totalPoints: pPoints.length,
         attacks: pPoints.filter(
           (p) =>
@@ -156,6 +162,10 @@ export function generateSessionReport(
         aces: pPoints.filter((p) => p.reason === 'serve_ace').length,
         tips: pPoints.filter((p) => p.reason === 'tip').length,
         counterAttacks: pPoints.filter((p) => p.reason === 'defense_counterattack').length,
+        rating: player
+          ? (calculateSessionRating({ player, sessionGames, sessionPoints, teams: sessionTeams }) ??
+            undefined)
+          : undefined,
       };
     })
     .sort((a, b) => b.totalPoints - a.totalPoints);

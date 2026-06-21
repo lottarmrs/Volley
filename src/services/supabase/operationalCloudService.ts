@@ -426,10 +426,32 @@ export function mapDbToDraft(db: DbRecord, communityLocalId: string): WhatsAppLi
 }
 
 async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
-  const { data, error } = await supabase.from(table).select('*').is('deleted_at', null);
+  const pageSize = 1000;
+  let allData: DbRecord[] = [];
+  let from = 0;
+  let to = pageSize - 1;
+  let hasMore = true;
 
-  if (error) throw error;
-  return data || [];
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .range(from, to);
+
+    if (error) throw error;
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        from += pageSize;
+        to += pageSize;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+  return allData;
 }
 
 async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbRecord> {

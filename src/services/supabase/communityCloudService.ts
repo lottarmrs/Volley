@@ -45,7 +45,7 @@ export function mapDbToCommunity(db: any): Community {
 
 export const communityCloudService = {
   async fetchAll(): Promise<Community[]> {
-    const { data, error } = await supabase.from('communities').select('*').is('deleted_at', null);
+    const { data, error } = await supabase.from('communities').select('*');
 
     if (error) throw error;
     return (data || []).map(mapDbToCommunity);

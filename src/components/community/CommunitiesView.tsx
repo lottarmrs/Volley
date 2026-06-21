@@ -1000,7 +1000,7 @@ function CommunityPlayersTab({
               </div>
             </div>
             <div>
-              <div className="font-bold uppercase">{getPlayerDisplayName(player)}</div>
+              <div className="font-bold">{getPlayerDisplayName(player)}</div>
               <div className="text-xs opacity-60">
                 {player.nome} - {POSITION_LABELS[player.posicaoPrincipal]}
               </div>
@@ -1181,7 +1181,7 @@ function CommunityPresenceTab({
         {players.map((player) => (
           <div key={player.id} className="list-row">
             <div>
-              <div className="font-bold uppercase">{getPlayerDisplayName(player)}</div>
+              <div className="font-bold">{getPlayerDisplayName(player)}</div>
               <div className="text-xs opacity-60">{POSITION_LABELS[player.posicaoPrincipal]}</div>
             </div>
             <PresenceStatusControl
@@ -1695,7 +1695,7 @@ function CommunityRankingTab({
               <div className="flex items-start justify-between">
                 <div>
                   <span className="badge badge-primary">#{index + 1}</span>
-                  <h3 className="font-black uppercase mt-2">{row.playerName}</h3>
+                  <h3 className="font-black mt-2">{row.playerName}</h3>
                   <p className="text-sm text-base-content/60">
                     {row.totalPoints} pts - {row.mvpCount} MVPs
                   </p>

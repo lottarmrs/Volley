@@ -91,9 +91,44 @@ export function useSessions() {
     setSessions((prev) => prev.map((old) => (old.id === s.id ? s : old)));
   }, []);
 
+  const deleteSession = useCallback((sessionId: string) => {
+    const now = new Date().toISOString();
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? { ...s, deletedAt: now, syncStatus: 'pending' as const }
+          : s,
+      ),
+    );
+
+    const softDeleteOrFilter = <T extends { sessionId: string; cloudId?: string }>(
+      items: T[],
+    ): T[] => {
+      return items
+        .map((item) => {
+          if (item.sessionId === sessionId) {
+            if (item.cloudId) {
+              return { ...item, deletedAt: now, syncStatus: 'pending' as const };
+            }
+            return null;
+          }
+          return item;
+        })
+        .filter((item): item is T => item !== null);
+    };
+
+    setGames((prev) => softDeleteOrFilter(prev));
+    setPointEvents((prev) => softDeleteOrFilter(prev));
+    setTeams((prev) => softDeleteOrFilter(prev));
+    setGameReports((prev) => softDeleteOrFilter(prev));
+    setSessionReports((prev) => softDeleteOrFilter(prev));
+  }, []);
+
   return {
-    sessions,
+    sessions: sessions.filter((s) => !s.deletedAt),
+    rawSessions: sessions,
     setSessions,
+    deleteSession,
     activeSession,
     setActiveSession,
     updateActiveSession,

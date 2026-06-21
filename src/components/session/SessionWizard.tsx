@@ -1601,7 +1601,7 @@ export function SessionWizard({
                                     <div
                                       className={`w-1.5 h-5 rounded-full ${p.genero === 'M' ? 'bg-info' : 'bg-secondary'}`}
                                     />
-                                    <span className="font-bold text-[10px] uppercase text-base-content truncate max-w-[90px]">
+                                    <span className="font-bold text-[10px] text-base-content truncate max-w-[90px]">
                                       {p.apelido || p.nome}
                                     </span>
                                     <span className="font-bold font-mono text-[11px] text-accent/80">
@@ -1965,7 +1965,7 @@ export function SessionWizard({
                                 ⠿
                               </span>
                             )}
-                            <span className="font-bold text-[11px] uppercase text-base-content truncate max-w-[110px]">
+                            <span className="font-bold text-[11px] text-base-content truncate max-w-[110px]">
                               {p.nome}
                             </span>
                             {isLocked && (

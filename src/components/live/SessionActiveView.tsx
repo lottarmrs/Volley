@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { TournamentActiveView } from './TournamentActiveView';
 import {
@@ -30,6 +30,7 @@ import { getPointLabel, POINT_REASON_LABELS, calculateSessionRecognition } from 
 import { TeamScoreCard } from './TeamScoreCard';
 import { PointModal } from './PointModal';
 import { HighlightFab } from './HighlightFab';
+import { calculateLiveGameRatings } from '../../logic/rating';
 import { openWhatsAppShare, copyToClipboard } from '../../logic/exporters';
 
 interface SessionActiveViewProps {
@@ -98,6 +99,13 @@ export const SessionActiveView = ({
   );
 
   const [preSelectedPlayerId, setPreSelectedPlayerId] = useState<string | undefined>();
+
+  // Notas ao vivo do jogo corrente (aparecem no card do time, inclusive p/ facilitadores).
+  const liveRatings = useMemo(() => {
+    if (!currentGame) return {};
+    const gp = sessionPoints.filter((p) => p.gameId === currentGame.id);
+    return calculateLiveGameRatings(currentGame, gp, sessionTeams, players);
+  }, [currentGame, sessionPoints, sessionTeams, players]);
 
   // Levantador nominal do time (pré-seleção da assistência). Só no 5x1; vazio no 6x0.
   const getSetterDefault = (teamId: string): string | undefined => {
@@ -422,6 +430,7 @@ export const SessionActiveView = ({
             isGameActive={currentGame.status === 'active'}
             scoringRanking={scoringRanking}
             players={players}
+            ratings={liveRatings}
             onRegisterPoint={() => registerPoint(currentGame.teamAId)}
             onOpenDetailModal={(pid) => {
               setPointModalTeamId(currentGame.teamAId);
@@ -440,6 +449,7 @@ export const SessionActiveView = ({
             isGameActive={currentGame.status === 'active'}
             scoringRanking={scoringRanking}
             players={players}
+            ratings={liveRatings}
             onRegisterPoint={() => registerPoint(currentGame.teamBId)}
             onOpenDetailModal={(pid) => {
               setPointModalTeamId(currentGame.teamBId);
@@ -617,7 +627,7 @@ export const SessionActiveView = ({
                             {p.sequenceNumber}
                           </span>
                           <div>
-                            <p className="text-[10px] font-bold text-base-content uppercase">
+                            <p className="text-[10px] font-bold text-base-content">
                               {label.playerName}
                             </p>
                             <div className="flex items-center gap-2">
@@ -727,7 +737,7 @@ export const SessionActiveView = ({
                           0{i + 1}
                         </span>
                         <div>
-                          <p className="text-[10px] font-bold uppercase text-base-content leading-none">
+                          <p className="text-[10px] font-bold text-base-content leading-none">
                             {p?.apelido || p?.nome}
                           </p>
                           <div className="flex gap-2 items-center mt-1">

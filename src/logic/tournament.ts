@@ -197,8 +197,9 @@ function compareTournamentStandings(a: TournamentStanding, b: TournamentStanding
     b.classificationPoints - a.classificationPoints ||
     b.wins - a.wins ||
     b.pointDifference - a.pointDifference ||
-    b.pointsFor - a.pointsFor ||
+    // Confronto direto ANTES de pontos-pró (regra do campeonato).
     compareHeadToHead(a.teamId, b.teamId, games) ||
+    b.pointsFor - a.pointsFor ||
     a.pointsAgainst - b.pointsAgainst
   );
 }
@@ -223,23 +224,22 @@ function getTieBreakerReason(
   sorted: TournamentStanding[],
 ) {
   if (!previous) return undefined;
-  if (previous.classificationPoints !== current.classificationPoints)
-    return undefined;
+  if (previous.classificationPoints !== current.classificationPoints) return undefined;
   if (previous.wins !== current.wins) return 'vitorias';
   if (previous.pointDifference !== current.pointDifference) return 'saldo de pontos';
-  if (previous.pointsFor !== current.pointsFor) return 'pontos pro';
 
+  // Confronto direto vem antes de pontos-pró.
   const tiedGroup = sorted.filter(
     (row) =>
       row.classificationPoints === current.classificationPoints &&
       row.wins === current.wins &&
-      row.pointDifference === current.pointDifference &&
-      row.pointsFor === current.pointsFor,
+      row.pointDifference === current.pointDifference,
   );
   if (tiedGroup.length === 2 && compareHeadToHead(previous.teamId, current.teamId, games) !== 0) {
     return 'confronto direto';
   }
 
+  if (previous.pointsFor !== current.pointsFor) return 'pontos pro';
   if (previous.pointsAgainst !== current.pointsAgainst) return 'menor numero de pontos contra';
   return tiedGroup.length > 2 ? 'criterios agregados' : 'criterio manual';
 }
@@ -375,6 +375,108 @@ export function calculateTournamentMVP(
   });
 
   return ranked.sort((a, b) => b.mvpScore - a.mvpScore || b.totalPoints - a.totalPoints)[0];
+}
+
+// ─── Premiação: 7 categorias do campeonato ────────────────────────────────────
+
+export interface AwardWinner {
+  playerId: string;
+  playerName: string;
+  teamName?: string;
+  value: number;
+}
+
+export interface TournamentAwards {
+  mvp?: AwardWinner;
+  attack?: AwardWinner; // Melhor Ataque (cortadas + largadas)
+  block?: AwardWinner; // Melhor Bloqueio
+  serve?: AwardWinner; // Melhor Saque (aces)
+  setter?: AwardWinner; // Melhor Levantador (assistências)
+  defense?: AwardWinner; // Melhor Defesa (defesas + 🌟 defesa)
+  reception?: AwardWinner; // Melhor Passe (🌟 recepção)
+}
+
+/**
+ * Calcula os vencedores de cada categoria a partir dos eventos do torneio.
+ * - Ataque/Bloqueio/Saque/Defesa: pontos conquistados por fundamento.
+ * - Levantador: assistências explícitas (`assistPlayerId`).
+ * - Defesa: também soma lances 🌟 de defesa.
+ * - Passe: só lances 🌟 de recepção (recepção não gera ponto).
+ */
+export function calculateTournamentAwards(
+  pointEvents: PointEvent[],
+  players: Player[],
+  teams: Team[],
+  standings: TournamentStanding[],
+): TournamentAwards {
+  const nameOf = (id: string) => {
+    const p = players.find((x) => x.id === id);
+    return p?.apelido || p?.nome || 'Atleta';
+  };
+  const teamOf = (id: string) => teams.find((t) => t.playerIds.includes(id))?.name;
+  const topFrom = (counts: Record<string, number>): AwardWinner | undefined => {
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (!top || top[1] <= 0) return undefined;
+    return {
+      playerId: top[0],
+      playerName: nameOf(top[0]),
+      teamName: teamOf(top[0]),
+      value: top[1],
+    };
+  };
+
+  const attack: Record<string, number> = {};
+  const block: Record<string, number> = {};
+  const serve: Record<string, number> = {};
+  const setter: Record<string, number> = {};
+  const defense: Record<string, number> = {};
+  const reception: Record<string, number> = {};
+  const bump = (rec: Record<string, number>, id: string) => (rec[id] = (rec[id] || 0) + 1);
+
+  for (const p of pointEvents) {
+    // Assistência de levantamento (vale mesmo sem ser ponto; nunca em highlight).
+    if (p.assistPlayerId && p.eventKind !== 'highlight') bump(setter, p.assistPlayerId);
+
+    // Lances de destaque: recepção e defesa.
+    if (p.eventKind === 'highlight') {
+      if (p.playerId && p.skill === 'recepcao') bump(reception, p.playerId);
+      if (p.playerId && p.skill === 'defesa') bump(defense, p.playerId);
+      continue;
+    }
+
+    // Pontos conquistados por fundamento.
+    if (!p.playerId || !isCreditedPoint(p)) continue;
+    if (
+      p.skill === 'ataque' ||
+      p.skill === 'largada' ||
+      (!p.skill && (p.reason === 'attack' || p.reason === 'tip'))
+    )
+      bump(attack, p.playerId);
+    if (p.skill === 'bloqueio' || (!p.skill && p.reason === 'block')) bump(block, p.playerId);
+    if (p.skill === 'saque' || (!p.skill && p.reason === 'serve_ace')) bump(serve, p.playerId);
+    if (p.skill === 'defesa' || (!p.skill && p.reason === 'defense_counterattack'))
+      bump(defense, p.playerId);
+  }
+
+  const mvpRaw = calculateTournamentMVP(pointEvents, teams, players, standings);
+  const mvp: AwardWinner | undefined = mvpRaw
+    ? {
+        playerId: mvpRaw.playerId,
+        playerName: mvpRaw.playerName,
+        teamName: mvpRaw.teamName,
+        value: Math.round(mvpRaw.mvpScore),
+      }
+    : undefined;
+
+  return {
+    mvp,
+    attack: topFrom(attack),
+    block: topFrom(block),
+    serve: topFrom(serve),
+    setter: topFrom(setter),
+    defense: topFrom(defense),
+    reception: topFrom(reception),
+  };
 }
 
 export function getHighestScoreMatch(games: Game[], teams: Team[]): string {

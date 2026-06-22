@@ -56,33 +56,33 @@ export const PlayersView = ({
   return (
     <div className="space-y-6">
       {/* Header and Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-base-200 p-4 rounded-xl border border-base-300 shadow-sm">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 bg-base-200 p-3 sm:p-4 rounded-xl border border-base-300 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="btn btn-ghost btn-sm gap-2 text-xs font-bold uppercase tracking-wider"
+            className="btn btn-ghost btn-sm gap-1 sm:gap-2 text-xs font-bold uppercase tracking-wider"
           >
-            <ChevronLeft className="w-4 h-4" /> Voltar
+            <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Voltar</span>
           </button>
           <button
             onClick={() => setShowInactive((prev) => !prev)}
-            className="btn btn-outline btn-sm text-xs font-bold uppercase"
+            className="btn btn-outline btn-sm text-[10px] sm:text-xs font-bold uppercase"
           >
             {showInactive ? 'Ocultar inativos' : 'Mostrar inativos'}
           </button>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap justify-end">
           <button
             type="button"
             onClick={() => setShowGuestModal(true)}
-            className="btn btn-outline btn-accent btn-sm"
+            className="btn btn-outline btn-accent btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
           >
-            <Plus className="w-4 h-4" /> Convidado Rápido
+            <Plus className="w-4 h-4" /> Convidado
           </button>
-          <button onClick={onAddPlayer} className="btn btn-primary btn-sm">
-            <Plus className="w-4 h-4" /> Cadastrar Atleta
+          <button onClick={onAddPlayer} className="btn btn-primary btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs">
+            <Plus className="w-4 h-4" /> Cadastrar
           </button>
         </div>
       </div>

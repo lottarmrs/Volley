@@ -316,3 +316,27 @@ body,
   100% { background-position: 200% 0; }
 }
 
+@media (pointer: coarse) {
+  button, 
+  .btn,
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .btn-xs {
+    min-height: 36px;
+    padding: 0 12px;
+  }
+  
+  .btn-sm {
+    min-height: 40px;
+    padding: 0 16px;
+  }
+}
+
+

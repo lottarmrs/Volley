@@ -361,12 +361,12 @@ export const SessionActiveView = ({
 
   return (
     <div className="space-y-6 pb-32">
-      <div className="navbar bg-base-200 border border-base-300 rounded-xl sticky top-0 z-20 justify-between px-4">
-        <div className="flex flex-col items-start gap-1">
-          <h2 className="text-base font-bold uppercase tracking-tight text-base-content">
+      <div className="navbar bg-base-200 border border-base-300 rounded-xl sticky top-0 z-20 flex-wrap gap-2 justify-between px-3 sm:px-4 py-2">
+        <div className="flex flex-col items-start gap-1 min-w-0 flex-1">
+          <h2 className="text-sm sm:text-base font-bold uppercase tracking-tight text-base-content truncate max-w-full">
             {activeSession.name}
           </h2>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
             <span className="badge badge-success badge-soft badge-xs font-bold uppercase tracking-wider">
               <Activity className="w-2.5 h-2.5 mr-1" /> Sessão Ativa
             </span>
@@ -380,7 +380,7 @@ export const SessionActiveView = ({
             </span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button onClick={onExit} className="btn btn-xs btn-error btn-soft">
             Voltar
           </button>
@@ -474,8 +474,8 @@ export const SessionActiveView = ({
             </div>
 
             {nextMatchPreview && (
-              <div className="w-full flex flex-col gap-4 bg-base-300/40 p-4 rounded-xl border border-base-300">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="w-full flex flex-col gap-4 bg-base-300/40 p-3 sm:p-4 rounded-xl border border-base-300">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="text-center">
                     <p className="text-[8px] font-bold text-text-muted uppercase mb-2 tracking-[0.1em]">
                       Próxima Batalha
@@ -527,7 +527,7 @@ export const SessionActiveView = ({
             <div className="flex flex-wrap justify-center gap-3 w-full">
               <button
                 onClick={() => startNextGame(setActiveSession)}
-                className="btn btn-accent flex-1 min-w-[200px]"
+                className="btn btn-accent w-full sm:flex-1 sm:min-w-[200px]"
               >
                 Iniciar Próximo Jogo
               </button>

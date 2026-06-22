@@ -43,7 +43,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
 
   return (
     <div className="modal modal-open z-[100] backdrop-blur-md bg-black/80">
-      <div className="modal-box max-w-lg bg-base-950/90 border border-white/10 rounded-3xl flex flex-col items-center justify-between p-8 min-h-[500px] overflow-hidden relative shadow-2xl">
+      <div className="modal-box max-w-lg bg-base-950/90 border border-white/10 rounded-3xl flex flex-col items-center justify-between p-4 sm:p-8 min-h-0 sm:min-h-[500px] max-h-[95vh] overflow-y-auto overflow-x-hidden relative shadow-2xl">
         
         {/* Subtle decorative background light */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-accent/15 rounded-full filter blur-[80px] pointer-events-none" />
@@ -62,7 +62,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
         </div>
 
         {/* Card Pack Animation / Render Card */}
-        <div className="my-8 z-10 flex flex-col items-center justify-center min-h-[300px] relative w-full">
+        <div className="my-4 sm:my-8 z-10 flex flex-col items-center justify-center min-h-0 sm:min-h-[300px] relative w-full">
           <AnimatePresence mode="wait">
             {!isOpened ? (
               /* Pack/Envelope to be clicked */
@@ -73,7 +73,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                 exit={{ scale: 1.1, opacity: 0, rotateY: 180 }}
                 transition={{ duration: 0.5, type: 'spring' }}
                 onClick={handleOpenPack}
-                className="w-[220px] h-[320px] bg-gradient-to-br from-accent via-pink-600 to-primary rounded-2xl border-2 border-white/20 shadow-2xl flex flex-col items-center justify-between p-6 cursor-pointer hover:shadow-accent/20 hover:border-white/40 active:scale-95 transition-all"
+                className="w-[180px] h-[260px] sm:w-[220px] sm:h-[320px] bg-gradient-to-br from-accent via-pink-600 to-primary rounded-2xl border-2 border-white/20 shadow-2xl flex flex-col items-center justify-between p-4 sm:p-6 cursor-pointer hover:shadow-accent/20 hover:border-white/40 active:scale-95 transition-all"
               >
                 <div className="w-full flex justify-between text-white/40">
                   <Star className="w-5 h-5 fill-white/10" />
@@ -96,9 +96,11 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                 initial={{ scale: 0.5, rotateY: 180, opacity: 0 }}
                 animate={{ scale: 1, rotateY: 0, opacity: 1 }}
                 transition={{ duration: 0.6, type: 'spring', bounce: 0.3 }}
-                className="flex flex-col items-center space-y-4"
+                className="flex flex-col items-center space-y-4 [&_.vut-card-container]:scale-[0.68] sm:[&_.vut-card-container]:scale-100"
               >
-                <FutCard card={currentItem.card} />
+                <div className="vut-card-container origin-top transition-transform">
+                  <FutCard card={currentItem.card} />
+                </div>
                 
                 {/* Highlight Reasons */}
                 <motion.div

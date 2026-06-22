@@ -12,17 +12,6 @@ import {
 
 type DbRecord = Record<string, any>;
 
-const generateUUID = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
-
 export interface OperationalSyncPayload {
   sessions: Session[];
   teams: Team[];
@@ -54,7 +43,7 @@ function withoutCloudMeta<T extends DbRecord>(entity: T) {
 
 export function mapSessionToDb(local: Session, ownerId: string, communityCloudId?: string | null) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId || null,
     name: local.name,
@@ -102,7 +91,7 @@ export function mapTeamToDb(
   communityCloudId?: string | null,
 ) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId || null,
     session_id: sessionCloudId,
@@ -143,7 +132,7 @@ export function mapGameToDb(
   communityCloudId?: string | null,
 ) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId || null,
     session_id: sessionCloudId,
@@ -206,7 +195,7 @@ export function mapPointEventToDb(
   communityCloudId?: string | null,
 ) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId || null,
     session_id: sessionCloudId,
@@ -265,7 +254,7 @@ export function mapGameReportToDb(
   communityCloudId?: string | null,
 ) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId || null,
     session_id: sessionCloudId,
@@ -303,7 +292,7 @@ export function mapSessionReportToDb(
   communityCloudId?: string | null,
 ) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId || null,
     session_id: sessionCloudId,
@@ -336,7 +325,7 @@ export function mapPresenceToDb(
   communityCloudId: string,
 ) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId,
     date: local.date,
@@ -362,7 +351,7 @@ export function mapDbToPresence(db: DbRecord, communityLocalId: string): Communi
 
 export function mapDraftToDb(local: WhatsAppListDraft, ownerId: string, communityCloudId: string) {
   return {
-    id: local.cloudId || generateUUID(),
+    id: local.cloudId || undefined,
     owner_id: ownerId,
     community_id: communityCloudId,
     template_id: local.templateId || null,

@@ -271,6 +271,10 @@ export interface TournamentConfig {
   hardPointCap?: number | null;
   hasFinal: boolean;
   hasThirdPlaceMatch: boolean;
+  /** Gera final (1º×2º) e 3º lugar (3º×4º) a partir da classificação do round-robin. */
+  roundRobinPlayoffs?: boolean;
+  /** Alvo de pontos por set nas partidas de mata-mata (final/3º). Ex.: [12,12,7]. */
+  playoffSetTargets?: number[];
   classificationPoints: {
     win: number;
     loss: number;
@@ -362,6 +366,10 @@ export interface Game {
   finishedAt?: string | null;
   finishReason?: 'auto' | 'manual' | 'walkover' | null;
   pointIds: string[];
+  /** Sets já concluídos do confronto (multi-set). `scoreA`/`scoreB` = set atual. */
+  sets?: { scoreA: number; scoreB: number }[];
+  /** Alvo de pontos por set, ex.: [12,12,7]. Ausente ou length 1 = set único. */
+  setTargets?: number[];
   metadata?: {
     court?: string | null;
     notes?: string | null;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getGameWinner, rotateTeams } from './session';
+import { getGameWinner, rotateTeams, evaluateMatchState } from './session';
 
 test('getGameWinner - win_by_2 method', () => {
   const rules = { maxPoints: 15, tieBreakMethod: 'win_by_2' };
@@ -32,6 +32,49 @@ test('getGameWinner - direct_3 method', () => {
 
   // Not finished yet (e.g. 15-14)
   assert.equal(getGameWinner(15, 14, rules), null);
+});
+
+const matchRules = { setTargets: [12, 12, 7], tieBreakMethod: 'direct_3' };
+
+test('evaluateMatchState - set único (best-of-1) decide o confronto', () => {
+  const r = evaluateMatchState([], 12, 10, { setTargets: [12], tieBreakMethod: 'direct_3' });
+  assert.equal(r.matchWinner, 'A');
+  assert.equal(r.setClosed, true);
+  assert.equal(r.sets.length, 1);
+});
+
+test('evaluateMatchState - ponto no meio do set não fecha nada', () => {
+  const r = evaluateMatchState([], 8, 6, matchRules);
+  assert.equal(r.matchWinner, null);
+  assert.equal(r.setClosed, false);
+  assert.deepEqual(r.sets, []);
+  assert.equal(r.scoreA, 8);
+});
+
+test('evaluateMatchState - 1º set fecha e o 2º começa zerado', () => {
+  const r = evaluateMatchState([], 12, 9, matchRules);
+  assert.equal(r.setClosed, true);
+  assert.equal(r.matchWinner, null); // 1x0, precisa de 2 sets
+  assert.deepEqual(r.sets, [{ scoreA: 12, scoreB: 9 }]);
+  assert.equal(r.scoreA, 0);
+  assert.equal(r.scoreB, 0);
+});
+
+test('evaluateMatchState - 2 sets a 0 decide o confronto', () => {
+  const r = evaluateMatchState([{ scoreA: 12, scoreB: 9 }], 12, 7, matchRules);
+  assert.equal(r.matchWinner, 'A');
+  assert.equal(r.sets.length, 2);
+});
+
+test('evaluateMatchState - tiebreak de 7 decide o 3º set', () => {
+  // 1x1: A venceu set1, B venceu set2. Set 3 (target 7) vai a 7-5 para B.
+  const sets = [
+    { scoreA: 12, scoreB: 9 },
+    { scoreA: 8, scoreB: 12 },
+  ];
+  const r = evaluateMatchState(sets, 5, 7, matchRules);
+  assert.equal(r.matchWinner, 'B');
+  assert.equal(r.sets.length, 3);
 });
 
 test('rotateTeams - winner stays', () => {

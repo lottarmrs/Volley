@@ -40,6 +40,62 @@ export const getGameWinner = (
   return null;
 };
 
+export interface MatchSetRules {
+  /** Alvo de pontos por set (ex.: [12,12,7]). */
+  setTargets: number[];
+  tieBreakMethod: string;
+  hardPointCap?: number | null;
+}
+
+export interface MatchState {
+  sets: { scoreA: number; scoreB: number }[];
+  scoreA: number;
+  scoreB: number;
+  matchWinner: GameWinner;
+  setClosed: boolean;
+}
+
+/**
+ * Avalia o estado de um confronto multi-set DEPOIS de um ponto no set atual.
+ * Se o set fechou, ele é anexado ao histórico; se o confronto foi decidido,
+ * `matchWinner` é definido; senão o próximo set começa zerado.
+ */
+export const evaluateMatchState = (
+  sets: { scoreA: number; scoreB: number }[],
+  currentA: number,
+  currentB: number,
+  rules: MatchSetRules,
+): MatchState => {
+  const { setTargets } = rules;
+  const idx = sets.length;
+  const target = setTargets[idx] ?? setTargets[setTargets.length - 1] ?? 0;
+
+  const setWinner = getGameWinner(currentA, currentB, {
+    maxPoints: target,
+    tieBreakMethod: rules.tieBreakMethod,
+    hardPointCap: rules.hardPointCap,
+  });
+
+  if (!setWinner) {
+    return { sets, scoreA: currentA, scoreB: currentB, matchWinner: null, setClosed: false };
+  }
+
+  const newSets = [...sets, { scoreA: currentA, scoreB: currentB }];
+  const setsWonA = newSets.filter((s) => s.scoreA > s.scoreB).length;
+  const setsWonB = newSets.filter((s) => s.scoreB > s.scoreA).length;
+  const needed = Math.floor(setTargets.length / 2) + 1;
+
+  let matchWinner: GameWinner = null;
+  if (setsWonA >= needed) matchWinner = 'A';
+  else if (setsWonB >= needed) matchWinner = 'B';
+
+  if (matchWinner) {
+    return { sets: newSets, scoreA: currentA, scoreB: currentB, matchWinner, setClosed: true };
+  }
+  // Confronto continua: próximo set começa zerado.
+  return { sets: newSets, scoreA: 0, scoreB: 0, matchWinner: null, setClosed: true };
+};
+
 export interface RotateInput {
   courtTeams: [string, string];
   queue: string[];

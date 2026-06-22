@@ -85,6 +85,18 @@ export function generateTournamentSchedule(
     }));
   }
 
+  // Playoffs a partir da classificação do round-robin (1º×2º e 3º×4º).
+  if (config?.roundRobinPlayoffs && format === 'round_robin') {
+    const maxRound = Math.max(...matches.map((m) => m.round), 0);
+    matches.push({
+      round: maxRound + 1,
+      teamAId: 'rank:3',
+      teamBId: 'rank:4',
+      stage: 'third_place',
+    });
+    matches.push({ round: maxRound + 1, teamAId: 'rank:1', teamBId: 'rank:2', stage: 'final' });
+  }
+
   // Filter based on configuration
   if (config) {
     if (config.hasFinal === false) {
@@ -856,6 +868,24 @@ function resolvePlaceholder(
     return null;
   }
 
+  // Playoff do round-robin: 'rank:N' = N-ésimo colocado da classificação geral.
+  if (placeholder.startsWith('rank:')) {
+    const pos = parseInt(placeholder.split(':')[1], 10);
+    if (isNaN(pos)) return null;
+
+    const groupGames = sessionGames.filter(
+      (g) => (g.stage === 'group' || !g.stage) && g.status !== 'cancelled',
+    );
+    const allFinished =
+      groupGames.length > 0 &&
+      groupGames.every((g) => g.status === 'finished' || g.status === 'walkover');
+    if (!allFinished) return null;
+
+    const allTeamIds = [...new Set(groupGames.flatMap((g) => [g.teamAId, g.teamBId]))];
+    const standings = calculateTournamentStandings(groupGames, allTeamIds, classPoints);
+    return standings[pos - 1]?.teamId ?? null;
+  }
+
   return null;
 }
 
@@ -937,6 +967,10 @@ export function getTeamDisplayName(teamId: string, teams: Team[]): string {
     const groupName = parts[1];
     const pos = parts[2];
     return `${pos}º Colocado Grupo ${groupName}`;
+  }
+
+  if (teamId.startsWith('rank:')) {
+    return `${teamId.split(':')[1]}º Colocado`;
   }
 
   return 'Time';

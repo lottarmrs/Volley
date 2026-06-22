@@ -214,6 +214,98 @@ test('calculateTournamentAwards picks the leader of each category', () => {
   assert.ok(awards.mvp); // MVP resolvido
 });
 
+test('round-robin with playoffs appends final and third place from standings', () => {
+  const schedule = generateTournamentSchedule(teamIds, 'round_robin', {
+    ...config,
+    roundRobinPlayoffs: true,
+  });
+  // 6 jogos do grupo + 3º lugar + final
+  assert.equal(schedule.length, 8);
+  const final = schedule.find((m) => m.stage === 'final');
+  const third = schedule.find((m) => m.stage === 'third_place');
+  assert.deepEqual([final?.teamAId, final?.teamBId], ['rank:1', 'rank:2']);
+  assert.deepEqual([third?.teamAId, third?.teamBId], ['rank:3', 'rank:4']);
+});
+
+test('rank:N placeholder resolves to the round-robin standings after the group', () => {
+  // a 3-0, b 2-1, c 1-2, d 0-3 -> classificação a, b, c, d.
+  const groupGames = [
+    game({
+      id: 'g1',
+      teamAId: 'team-a',
+      teamBId: 'team-b',
+      scoreA: 12,
+      scoreB: 5,
+      winnerTeamId: 'team-a',
+      loserTeamId: 'team-b',
+      status: 'finished',
+    }),
+    game({
+      id: 'g2',
+      teamAId: 'team-a',
+      teamBId: 'team-c',
+      scoreA: 12,
+      scoreB: 6,
+      winnerTeamId: 'team-a',
+      loserTeamId: 'team-c',
+      status: 'finished',
+    }),
+    game({
+      id: 'g3',
+      teamAId: 'team-a',
+      teamBId: 'team-d',
+      scoreA: 12,
+      scoreB: 7,
+      winnerTeamId: 'team-a',
+      loserTeamId: 'team-d',
+      status: 'finished',
+    }),
+    game({
+      id: 'g4',
+      teamAId: 'team-b',
+      teamBId: 'team-c',
+      scoreA: 12,
+      scoreB: 8,
+      winnerTeamId: 'team-b',
+      loserTeamId: 'team-c',
+      status: 'finished',
+    }),
+    game({
+      id: 'g5',
+      teamAId: 'team-b',
+      teamBId: 'team-d',
+      scoreA: 12,
+      scoreB: 9,
+      winnerTeamId: 'team-b',
+      loserTeamId: 'team-d',
+      status: 'finished',
+    }),
+    game({
+      id: 'g6',
+      teamAId: 'team-c',
+      teamBId: 'team-d',
+      scoreA: 12,
+      scoreB: 10,
+      winnerTeamId: 'team-c',
+      loserTeamId: 'team-d',
+      status: 'finished',
+    }),
+  ];
+  const finalGame = game({
+    id: 'final',
+    sequenceNumber: 7,
+    teamAId: 'rank:1',
+    teamBId: 'rank:2',
+    stage: 'final',
+    metadata: { originalTeamAId: 'rank:1', originalTeamBId: 'rank:2' },
+  });
+
+  const propagated = propagateKnockoutResults([...groupGames, finalGame], 'session', config);
+  const resolvedFinal = propagated.find((g) => g.id === 'final')!;
+  assert.equal(resolvedFinal.teamAId, 'team-a'); // 1º colocado
+  assert.equal(resolvedFinal.teamBId, 'team-b'); // 2º colocado
+});
+
 test('walkovers and knockout propagation update dependent placeholder matches', () => {
   const semifinal = createWalkoverResult(
     game({

@@ -876,7 +876,7 @@ export const PlayerEditView = ({
                 <span className="text-[9px] font-bold text-base-content/40 uppercase block mb-3">
                   Outros Atributos Técnicos
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     {
                       label: 'Recepção',
@@ -1036,8 +1036,8 @@ export const PlayerEditView = ({
             </p>
           </div>
 
-          <div className="flex-1 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={280}>
+          <div className="flex-1 flex items-center justify-center h-52 sm:h-72 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
                 <PolarGrid stroke="var(--color-border)" />
                 <PolarAngleAxis dataKey="subject" stroke="var(--color-text-muted)" fontSize={9} />

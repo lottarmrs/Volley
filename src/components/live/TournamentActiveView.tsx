@@ -234,25 +234,24 @@ export const TournamentActiveView = ({
 
   return (
     <div className="space-y-6 pb-24">
-      {/* Header */}
-      <div className="navbar bg-base-200 border border-base-300 rounded-xl sticky top-0 z-20 justify-between px-4">
-        <div className="flex items-center gap-4">
+      <div className="navbar bg-base-200 border border-base-300 rounded-xl sticky top-0 z-20 flex-wrap gap-2 justify-between px-3 sm:px-4 py-2">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <button
             type="button"
             onClick={onExit}
-            className="btn btn-error btn-outline btn-xs uppercase font-bold"
+            className="btn btn-error btn-outline btn-xs uppercase font-bold shrink-0"
           >
             Sair
           </button>
-          <div>
-            <h2 className="text-lg font-bold uppercase tracking-tight text-base-content line-clamp-1">
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-bold uppercase tracking-tight text-base-content truncate">
               {activeSession.name}
             </h2>
-            <div className="flex items-center gap-3">
-              <span className="badge badge-accent badge-soft badge-xs flex items-center gap-1 font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="badge badge-accent badge-soft badge-xs flex items-center gap-1 font-bold uppercase tracking-wider shrink-0">
                 <Trophy className="w-2.5 h-2.5" /> Torneio
               </span>
-              <span className="text-[10px] font-mono text-base-content/60 uppercase">
+              <span className="text-[9px] sm:text-[10px] font-mono text-base-content/60 uppercase shrink-0">
                 {progress.finished}/{progress.total} jogos
               </span>
             </div>
@@ -262,28 +261,28 @@ export const TournamentActiveView = ({
           <button
             type="button"
             onClick={onFinishSession}
-            className="btn btn-accent btn-sm font-bold uppercase"
+            className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase shrink-0"
           >
             Encerrar
           </button>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={editTournamentInfo}
-              className="btn btn-outline btn-xs sm:btn-sm font-bold uppercase"
+              className="btn btn-outline btn-xs font-bold uppercase"
             >
               Editar
             </button>
             <button
               type="button"
               onClick={() => setTournamentPaused(!isPaused)}
-              className={`btn btn-xs sm:btn-sm font-bold uppercase ${isPaused ? 'btn-success btn-soft' : 'btn-outline'}`}
+              className={`btn btn-xs font-bold uppercase ${isPaused ? 'btn-success btn-soft' : 'btn-outline'}`}
             >
               {isPaused ? (
-                <Play className="w-3.5 h-3.5 inline mr-1" />
+                <Play className="w-3 h-3 mr-1" />
               ) : (
-                <Pause className="w-3.5 h-3.5 inline mr-1" />
+                <Pause className="w-3 h-3 mr-1" />
               )}
               {isPaused ? 'Retomar' : 'Pausar'}
             </button>
@@ -298,7 +297,7 @@ export const TournamentActiveView = ({
                   onFinishSession();
                 }
               }}
-              className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase"
+              className="btn btn-accent btn-xs font-bold uppercase"
             >
               Encerrar
             </button>
@@ -421,7 +420,7 @@ export const TournamentActiveView = ({
           {(currentGame.status === 'active' || currentGame.status === 'paused') &&
           teamA &&
           teamB ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <TeamScoreCard
                 team={teamA}
                 players={players}

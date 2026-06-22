@@ -51,7 +51,7 @@ export const TeamScoreCard = ({
     : 0;
   return (
     <div
-      className={`card card-border bg-base-200 p-8 rounded-3xl flex flex-col items-center gap-6 relative overflow-hidden group transition-all ${isWinner ? 'ring-2 ring-accent ring-offset-4 ring-offset-black scale-105 z-10' : ''}`}
+      className={`card card-border bg-base-200 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl flex flex-col items-center gap-4 sm:gap-6 relative overflow-hidden group transition-all ${isWinner ? 'ring-2 ring-accent ring-offset-4 ring-offset-black scale-105 z-10' : ''}`}
     >
       <div
         className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${color} to-transparent opacity-60 group-hover:opacity-100 transition-opacity`}
@@ -70,7 +70,7 @@ export const TeamScoreCard = ({
               Força
             </span>
             <span className="text-[7px] font-bold text-accent leading-none">
-              {team.strengthSnapshot?.overall || 0}
+              {Math.round(team.strengthSnapshot?.overall || 0)}
             </span>
           </div>
           <progress
@@ -87,7 +87,7 @@ export const TeamScoreCard = ({
               Rede
             </span>
             <span className="text-[7px] font-bold text-warning leading-none">
-              {team.strengthSnapshot?.netPresence || 0}
+              {(team.strengthSnapshot?.netPresence || 0).toFixed(1)}
             </span>
           </div>
           <progress
@@ -154,11 +154,11 @@ export const TeamScoreCard = ({
               onClick={() => isGameActive && onOpenDetailModal(pid)}
               className={`bg-base-300/50 p-2 rounded-xl border border-base-300 flex flex-col gap-1 hover:border-accent/35 transition-colors group/player ${isGameActive ? 'cursor-pointer' : ''}`}
             >
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] font-bold text-base-content truncate max-w-[50px] group-hover/player:text-accent transition-colors">
+              <div className="flex justify-between items-center min-w-0 gap-1 w-full">
+                <span className="text-[9px] font-bold text-base-content truncate flex-1 min-w-0 group-hover/player:text-accent transition-colors">
                   {p?.apelido || p?.nome}
                 </span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {ratings?.[pid] !== undefined && (
                     <span
                       className={`text-[9px] font-bold font-mono ${ratingColorClass(ratings[pid])}`}

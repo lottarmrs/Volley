@@ -11,6 +11,7 @@ import {
   Skill,
   Fault,
   GameReport,
+  GameWinner,
 } from '../types';
 import { getGameWinner, rotateTeams, evaluateMatchState } from '../logic/session';
 import { calculateTeamSessionStats, calculatePlayerScoringRanking } from '../logic/match';

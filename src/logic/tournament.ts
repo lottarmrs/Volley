@@ -49,7 +49,7 @@ export function generateGroupStageSchedule(teamIds: string[]): ScheduledTourname
     stage: 'group' as const,
   }));
 
-  return [...schedA, ...schedB];
+  return [...schedA, ...schedB].sort((a, b) => a.round - b.round);
 }
 
 export function generateTournamentSchedule(
@@ -796,7 +796,7 @@ export function generateGroupsKnockoutSchedule(teamIds: string[]): ScheduledTour
     stage: 'group' as const,
   }));
 
-  const groupStageMatches = [...schedA, ...schedB];
+  const groupStageMatches = [...schedA, ...schedB].sort((a, b) => a.round - b.round);
   const maxGroupRound = Math.max(...groupStageMatches.map((m) => m.round), 0);
 
   const sfRound = maxGroupRound + 1;

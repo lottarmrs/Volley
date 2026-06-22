@@ -69,6 +69,23 @@ test('generateTournamentSchedule creates expected match counts and no self match
   }
 });
 
+test('generateTournamentSchedule sorts matches by round ascending', () => {
+  const formats = ['round_robin', 'double_round_robin', 'groups_knockout', 'group_stage'] as const;
+  for (const format of formats) {
+    const schedule = generateTournamentSchedule(teamIds, format, {
+      ...config,
+      format,
+    });
+    // Check that round numbers are non-decreasing
+    for (let i = 1; i < schedule.length; i++) {
+      assert.ok(
+        schedule[i].round >= schedule[i - 1].round,
+        `Format ${format} matches not sorted by round: index ${i} has round ${schedule[i].round} while index ${i - 1} has round ${schedule[i - 1].round}`
+      );
+    }
+  }
+});
+
 test('calculateTournamentStandings sorts by points, wins and point difference', () => {
   const standings = calculateTournamentStandings(
     [

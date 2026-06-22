@@ -69,6 +69,11 @@ function MatchCard({ game, teams, highlight }: { game: Game; teams: Team[]; high
           </span>
         )}
       </div>
+      {isFinished && game.sets && game.sets.length > 0 && (
+        <div className="bg-base-200/50 px-2 py-0.5 border-t border-base-100/20 text-[8px] font-mono text-center text-base-content/50 uppercase tracking-wider">
+          Parciais: {game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(' | ')}
+        </div>
+      )}
     </div>
   );
 }

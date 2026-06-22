@@ -339,3 +339,46 @@ test('walkovers and knockout propagation update dependent placeholder matches', 
   const propagated = propagateKnockoutResults(games, 'session', config);
   assert.equal(propagated[1].teamAId, 'team-a');
 });
+
+test('calculateTournamentStandings with multi-set games sums set points correctly', () => {
+  const standings = calculateTournamentStandings(
+    [
+      game({
+        id: 'game-1',
+        sequenceNumber: 1,
+        teamAId: 'team-a',
+        teamBId: 'team-b',
+        scoreA: 2, // Sets won by A
+        scoreB: 1, // Sets won by B
+        sets: [
+          { scoreA: 12, scoreB: 5 },
+          { scoreA: 10, scoreB: 12 },
+          { scoreA: 7, scoreB: 4 },
+        ],
+        winnerTeamId: 'team-a',
+        loserTeamId: 'team-b',
+        status: 'finished',
+      }),
+    ],
+    ['team-a', 'team-b'],
+    config.classificationPoints,
+  );
+
+  // team-a wins the match (3 classification points)
+  assert.equal(standings[0].teamId, 'team-a');
+  assert.equal(standings[0].wins, 1);
+  assert.equal(standings[0].classificationPoints, 3);
+  // Total points for team-a across sets: 12 + 10 + 7 = 29
+  assert.equal(standings[0].pointsFor, 29);
+  // Total points against team-a across sets: 5 + 12 + 4 = 21
+  assert.equal(standings[0].pointsAgainst, 21);
+  assert.equal(standings[0].pointDifference, 8); // 29 - 21
+
+  // team-b loses the match (0 classification points)
+  assert.equal(standings[1].teamId, 'team-b');
+  assert.equal(standings[1].losses, 1);
+  assert.equal(standings[1].classificationPoints, 0);
+  assert.equal(standings[1].pointsFor, 21);
+  assert.equal(standings[1].pointsAgainst, 29);
+  assert.equal(standings[1].pointDifference, -8);
+});

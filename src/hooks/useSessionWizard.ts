@@ -363,26 +363,32 @@ export function useSessionWizard({
         cfg.format,
         cfg,
       );
-      const scheduledGames = schedule.map((match, idx) => ({
-        id: `game-${activeSession.id}-${idx}-${Date.now()}`,
-        sessionId: activeSession.id,
-        type: 'tournament' as const,
-        sequenceNumber: idx + 1,
-        round: match.round,
-        stage: match.stage || ('group' as const),
-        groupId: match.groupId || null,
-        teamAId: match.teamAId,
-        teamBId: match.teamBId,
-        scoreA: 0,
-        scoreB: 0,
-        status: 'scheduled' as const,
-        pointIds: [],
-        startedAt: null,
-        metadata: {
-          originalTeamAId: match.teamAId,
-          originalTeamBId: match.teamBId,
-        },
-      }));
+      const scheduledGames = schedule.map((match, idx) => {
+        const isPlayoff = match.stage === 'final' || match.stage === 'third_place';
+        const setTargets = isPlayoff ? (cfg.playoffSetTargets || [12, 12, 7]) : undefined;
+        return {
+          id: `game-${activeSession.id}-${idx}-${Date.now()}`,
+          sessionId: activeSession.id,
+          type: 'tournament' as const,
+          sequenceNumber: idx + 1,
+          round: match.round,
+          stage: match.stage || ('group' as const),
+          groupId: match.groupId || null,
+          teamAId: match.teamAId,
+          teamBId: match.teamBId,
+          scoreA: 0,
+          scoreB: 0,
+          status: 'scheduled' as const,
+          pointIds: [],
+          startedAt: null,
+          sets: isPlayoff ? [] : undefined,
+          setTargets,
+          metadata: {
+            originalTeamAId: match.teamAId,
+            originalTeamBId: match.teamBId,
+          },
+        };
+      });
       setGames((prev: any[]) => [
         ...prev.filter((g) => g.sessionId !== activeSession.id),
         ...scheduledGames,

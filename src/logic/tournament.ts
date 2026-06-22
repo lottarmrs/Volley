@@ -141,7 +141,7 @@ export function calculateTournamentStandings(
   games: Game[],
   teamIds: string[],
   classPoints: { win: number; loss: number; walkoverWin?: number; walkoverLoss?: number },
-): TournamentStanding[] {
+ ): TournamentStanding[] {
   const map = new Map<string, TournamentStanding>(
     teamIds.map((id) => [
       id,
@@ -169,10 +169,18 @@ export function calculateTournamentStandings(
 
     a.gamesPlayed++;
     b.gamesPlayed++;
-    a.pointsFor += game.scoreA;
-    a.pointsAgainst += game.scoreB;
-    b.pointsFor += game.scoreB;
-    b.pointsAgainst += game.scoreA;
+
+    const pointsA = game.sets && game.sets.length > 0
+      ? game.sets.reduce((sum, s) => sum + s.scoreA, 0)
+      : game.scoreA;
+    const pointsB = game.sets && game.sets.length > 0
+      ? game.sets.reduce((sum, s) => sum + s.scoreB, 0)
+      : game.scoreB;
+
+    a.pointsFor += pointsA;
+    a.pointsAgainst += pointsB;
+    b.pointsFor += pointsB;
+    b.pointsAgainst += pointsA;
 
     const winner = game.winnerTeamId === game.teamAId ? a : b;
     const loser = game.winnerTeamId === game.teamAId ? b : a;
@@ -207,10 +215,10 @@ export function calculateTournamentStandings(
 function compareTournamentStandings(a: TournamentStanding, b: TournamentStanding, games: Game[]) {
   return (
     b.classificationPoints - a.classificationPoints ||
-    b.wins - a.wins ||
     b.pointDifference - a.pointDifference ||
-    // Confronto direto ANTES de pontos-pró (regra do campeonato).
+    // Confronto direto ANTES de vitórias e pontos-pró.
     compareHeadToHead(a.teamId, b.teamId, games) ||
+    b.wins - a.wins ||
     b.pointsFor - a.pointsFor ||
     a.pointsAgainst - b.pointsAgainst
   );
@@ -237,20 +245,19 @@ function getTieBreakerReason(
 ) {
   if (!previous) return undefined;
   if (previous.classificationPoints !== current.classificationPoints) return undefined;
-  if (previous.wins !== current.wins) return 'vitorias';
   if (previous.pointDifference !== current.pointDifference) return 'saldo de pontos';
 
-  // Confronto direto vem antes de pontos-pró.
+  // Confronto direto vem antes de vitórias.
   const tiedGroup = sorted.filter(
     (row) =>
       row.classificationPoints === current.classificationPoints &&
-      row.wins === current.wins &&
       row.pointDifference === current.pointDifference,
   );
   if (tiedGroup.length === 2 && compareHeadToHead(previous.teamId, current.teamId, games) !== 0) {
     return 'confronto direto';
   }
 
+  if (previous.wins !== current.wins) return 'vitorias';
   if (previous.pointsFor !== current.pointsFor) return 'pontos pro';
   if (previous.pointsAgainst !== current.pointsAgainst) return 'menor numero de pontos contra';
   return tiedGroup.length > 2 ? 'criterios agregados' : 'criterio manual';

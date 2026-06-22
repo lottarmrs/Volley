@@ -1131,30 +1131,37 @@ function SessionDetailView({
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 flex-1 justify-center">
-                        <span
-                          className={`text-xs font-black uppercase flex-1 text-right ${game.winnerTeamId === game.teamAId ? 'text-white' : 'text-text-muted'}`}
-                        >
-                          {tA?.name}
-                        </span>
-                        <div className="flex gap-2 items-center px-4 py-1 bg-white/5 rounded font-mono font-black text-sm">
+                      <div className="flex flex-col items-center flex-1">
+                        <div className="flex items-center gap-2 w-full justify-center">
                           <span
-                            className={game.winnerTeamId === game.teamAId ? 'text-primary' : ''}
+                            className={`text-xs font-black uppercase flex-1 text-right truncate max-w-[80px] sm:max-w-none ${game.winnerTeamId === game.teamAId ? 'text-white' : 'text-text-muted'}`}
                           >
-                            {game.scoreA}
+                            {tA?.name}
                           </span>
-                          <span className="text-white/20">×</span>
+                          <div className="flex gap-2 items-center px-4 py-1 bg-white/5 rounded font-mono font-black text-sm shrink-0">
+                            <span
+                              className={game.winnerTeamId === game.teamAId ? 'text-primary' : ''}
+                            >
+                              {game.scoreA}
+                            </span>
+                            <span className="text-white/20">×</span>
+                            <span
+                              className={game.winnerTeamId === game.teamBId ? 'text-primary' : ''}
+                            >
+                              {game.scoreB}
+                            </span>
+                          </div>
                           <span
-                            className={game.winnerTeamId === game.teamBId ? 'text-primary' : ''}
+                            className={`text-xs font-black uppercase flex-1 truncate max-w-[80px] sm:max-w-none ${game.winnerTeamId === game.teamBId ? 'text-white' : 'text-text-muted'}`}
                           >
-                            {game.scoreB}
+                            {tB?.name}
                           </span>
                         </div>
-                        <span
-                          className={`text-xs font-black uppercase flex-1 ${game.winnerTeamId === game.teamBId ? 'text-white' : 'text-text-muted'}`}
-                        >
-                          {tB?.name}
-                        </span>
+                        {game.sets && game.sets.length > 0 && (
+                          <span className="text-[8px] font-mono text-text-muted opacity-60 mt-1 uppercase tracking-widest">
+                            ({game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-[8px] font-mono text-text-muted uppercase">

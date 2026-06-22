@@ -1100,6 +1100,42 @@ export function SessionWizard({
                           </div>
                         </div>
                       )}
+
+                      {(config as any).format === 'round_robin' && (
+                        <div className="fieldset pt-4 border-t border-base-300">
+                          <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest mb-3">
+                            Playoffs do Campeonato
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <label className="label cursor-pointer justify-start gap-3 bg-neutral/40 p-4 rounded-xl flex-1 border border-base-300 hover:border-accent/30 transition-all">
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-primary checkbox-sm"
+                                checked={(config as any).roundRobinPlayoffs === true}
+                                onChange={(e) =>
+                                  onUpdateSession({
+                                    config: {
+                                      ...(config as any),
+                                      roundRobinPlayoffs: e.target.checked,
+                                      hasFinal: e.target.checked,
+                                      hasThirdPlaceMatch: e.target.checked,
+                                      playoffSetTargets: e.target.checked ? [12, 12, 7] : undefined,
+                                    },
+                                  })
+                                }
+                              />
+                              <div>
+                                <span className="label-text text-xs font-bold uppercase block text-base-content">
+                                  Gerar Playoffs (Final / 3º)
+                                </span>
+                                <span className="text-[9px] text-text-muted uppercase block font-semibold mt-0.5">
+                                  Gera partidas adicionais de 1ºx2º e 3ºx4º
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

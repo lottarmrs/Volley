@@ -131,6 +131,11 @@ export function mapGameToDb(
   sessionCloudId: string,
   communityCloudId?: string | null,
 ) {
+  const metadata = {
+    ...(local.metadata || {}),
+    sets: local.sets || null,
+    setTargets: local.setTargets || null,
+  };
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
@@ -152,7 +157,7 @@ export function mapGameToDb(
     finished_at: local.finishedAt || null,
     finish_reason: local.finishReason || null,
     point_ids: local.pointIds || [],
-    metadata: local.metadata || {},
+    metadata,
     local_id: local.id,
     deleted_at: local.deletedAt || null,
     updated_at: local.updatedAt || local.finishedAt || local.startedAt || new Date().toISOString(),
@@ -160,6 +165,7 @@ export function mapGameToDb(
 }
 
 export function mapDbToGame(db: DbRecord, sessionLocalId: string): Game {
+  const metadata = db.metadata || {};
   return {
     id: db.local_id || db.id,
     sessionId: sessionLocalId,
@@ -179,7 +185,9 @@ export function mapDbToGame(db: DbRecord, sessionLocalId: string): Game {
     finishedAt: db.finished_at || null,
     finishReason: db.finish_reason || null,
     pointIds: arrayOrEmpty<string>(db.point_ids),
-    metadata: db.metadata || undefined,
+    sets: metadata.sets || undefined,
+    setTargets: metadata.setTargets || undefined,
+    metadata,
     cloudId: db.id,
     syncStatus: 'synced',
     lastSyncedAt: syncedAt(),

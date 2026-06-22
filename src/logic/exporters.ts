@@ -41,10 +41,14 @@ export function formatGameReportForWhatsApp(report: GameReport): string {
     })
     .join('\n');
 
+  const parciais = report.sets && report.sets.length > 0
+    ? ` (${report.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
+    : '';
+
   return [
     `🏐 *Panelinha — Jogo ${report.sequenceNumber}*`,
     ``,
-    `*${report.teamA.name}* ${report.teamA.score} x ${report.teamB.score} *${report.teamB.name}*`,
+    `*${report.teamA.name}* ${report.teamA.score} x ${report.teamB.score} *${report.teamB.name}*${parciais}`,
     ``,
     `🏆 Vencedor: *${report.winnerTeamName}*`,
     ``,
@@ -82,8 +86,12 @@ export function formatSessionReportForWhatsApp(report: SessionReport): string {
 
   const gamesList = report.games
     .map(
-      (game) =>
-        `#${game.sequenceNumber} — ${game.teamA.name} ${game.teamA.score} x ${game.teamB.score} ${game.teamB.name}`,
+      (game) => {
+        const parciais = game.sets && game.sets.length > 0
+          ? ` (${game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
+          : '';
+        return `#${game.sequenceNumber} — ${game.teamA.name} ${game.teamA.score} x ${game.teamB.score} ${game.teamB.name}${parciais}`;
+      },
     )
     .join('\n');
 
@@ -275,10 +283,14 @@ export function formatTournamentGameForWhatsApp(input: {
     })
     .join('\n');
 
+  const parciais = input.game.sets && input.game.sets.length > 0
+    ? ` (${input.game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
+    : '';
+
   return [
     `🏐 Resultado do jogo`,
     ``,
-    `${teamA?.name || 'Time A'} ${input.game.scoreA} x ${input.game.scoreB} ${teamB?.name || 'Time B'}`,
+    `${teamA?.name || 'Time A'} ${input.game.scoreA} x ${input.game.scoreB} ${teamB?.name || 'Time B'}${parciais}`,
     ``,
     `Vencedor: ${winner?.name || 'A definir'}`,
     ``,

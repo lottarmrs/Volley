@@ -138,6 +138,7 @@ export interface GameReport {
 
   startedAt?: string | null;
   finishedAt?: string | null;
+  sets?: { scoreA: number; scoreB: number }[];
 
   totalPoints: number;
 

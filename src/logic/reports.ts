@@ -93,6 +93,7 @@ export function generateGameReport(
     loserTeamName: loserTeam.name,
     startedAt: game.startedAt,
     finishedAt: game.finishedAt,
+    sets: game.sets,
     totalPoints: gamePoints.length,
     playerStats,
   };

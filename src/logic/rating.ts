@@ -61,7 +61,9 @@ export function calculateMatchRating({
   gamePoints,
   playerTeamId,
 }: MatchRatingParams): number {
-  const exposure = (game.scoreA || 0) + (game.scoreB || 0);
+  const exposure = game.sets && game.sets.length > 0
+    ? game.sets.reduce((sum, s) => sum + s.scoreA + s.scoreB, 0)
+    : (game.scoreA || 0) + (game.scoreB || 0);
   if (exposure <= 0) return RATING.baseline;
 
   const pos = player.posicaoPrincipal || 'all-rounder';

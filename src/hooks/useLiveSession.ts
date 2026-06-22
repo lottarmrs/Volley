@@ -12,7 +12,7 @@ import {
   Fault,
   GameReport,
 } from '../types';
-import { getGameWinner, rotateTeams } from '../logic/session';
+import { getGameWinner, rotateTeams, evaluateMatchState } from '../logic/session';
 import { calculateTeamSessionStats, calculatePlayerScoringRanking } from '../logic/match';
 import { generateGameReport } from '../logic/reports';
 import {
@@ -200,18 +200,38 @@ export function useLiveSession(
 
         const updatedGame: Game = {
           ...currentGame,
-          scoreA: scoreAfter.teamA,
-          scoreB: scoreAfter.teamB,
           pointIds: [...currentGame.pointIds, pointEvent.id],
         };
 
-        const rules = {
-          maxPoints: activeSession.config!.maxPoints,
-          tieBreakMethod: activeSession.config!.tieBreakMethod!,
-          hardPointCap: activeSession.config!.hardPointCap,
-        };
+        let winnerSymbol: GameWinner = null;
 
-        const winnerSymbol = getGameWinner(scoreAfter.teamA, scoreAfter.teamB, rules);
+        if (currentGame.setTargets && currentGame.setTargets.length > 1) {
+          const matchRules = {
+            setTargets: currentGame.setTargets,
+            tieBreakMethod: activeSession.config!.tieBreakMethod!,
+            hardPointCap: activeSession.config!.hardPointCap,
+          };
+          const matchState = evaluateMatchState(
+            currentGame.sets || [],
+            scoreAfter.teamA,
+            scoreAfter.teamB,
+            matchRules
+          );
+          updatedGame.sets = matchState.sets;
+          updatedGame.scoreA = matchState.scoreA;
+          updatedGame.scoreB = matchState.scoreB;
+          winnerSymbol = matchState.matchWinner;
+        } else {
+          updatedGame.scoreA = scoreAfter.teamA;
+          updatedGame.scoreB = scoreAfter.teamB;
+          const rules = {
+            maxPoints: activeSession.config!.maxPoints,
+            tieBreakMethod: activeSession.config!.tieBreakMethod!,
+            hardPointCap: activeSession.config!.hardPointCap,
+          };
+          winnerSymbol = getGameWinner(scoreAfter.teamA, scoreAfter.teamB, rules);
+        }
+
         if (winnerSymbol) {
           updatedGame.status = 'finished';
           updatedGame.winnerTeamId =
@@ -306,6 +326,12 @@ export function useLiveSession(
       currentGame.scoreA > currentGame.scoreB ? currentGame.teamAId : currentGame.teamBId;
     const loserTeamId =
       currentGame.scoreA > currentGame.scoreB ? currentGame.teamBId : currentGame.teamAId;
+    
+    let sets = currentGame.sets || [];
+    if (currentGame.setTargets && currentGame.setTargets.length > 1) {
+      sets = [...sets, { scoreA: currentGame.scoreA, scoreB: currentGame.scoreB }];
+    }
+
     const updatedGame: Game = {
       ...currentGame,
       status: 'finished',
@@ -313,6 +339,7 @@ export function useLiveSession(
       loserTeamId,
       finishedAt: new Date().toISOString(),
       finishReason: 'manual',
+      sets,
     };
 
     const report = generateGameReport(updatedGame, pointEvents, sessionTeams, players);
@@ -424,10 +451,23 @@ export function useLiveSession(
     setGames((prev) =>
       prev.map((g) => {
         if (g.id !== currentGame.id) return g;
+        
+        let newSets = g.sets ? [...g.sets] : [];
+        if (newSets.length > 0) {
+          const lastSet = newSets[newSets.length - 1];
+          if (
+            lastPoint.scoreAfter.teamA === lastSet.scoreA &&
+            lastPoint.scoreAfter.teamB === lastSet.scoreB
+          ) {
+            newSets.pop();
+          }
+        }
+
         return {
           ...g,
           scoreA: lastPoint.scoreBefore.teamA,
           scoreB: lastPoint.scoreBefore.teamB,
+          sets: newSets,
           pointIds: g.pointIds.filter((id) => id !== lastPoint.id),
           status: 'active' as const,
           winnerTeamId: null,

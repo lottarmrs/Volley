@@ -432,6 +432,8 @@ export const TournamentActiveView = ({
                 color={getTeamColor(teamA.id)}
                 scoringRanking={scoringRanking}
                 ratings={liveRatings}
+                sets={currentGame.sets}
+                isTeamA={true}
                 onRegisterPoint={() => registerPoint(teamA.id)}
                 onOpenDetailModal={(pid) => {
                   setPointModalTeamId(teamA.id);
@@ -448,6 +450,8 @@ export const TournamentActiveView = ({
                 color={getTeamColor(teamB.id)}
                 scoringRanking={scoringRanking}
                 ratings={liveRatings}
+                sets={currentGame.sets}
+                isTeamA={false}
                 onRegisterPoint={() => registerPoint(teamB.id)}
                 onOpenDetailModal={(pid) => {
                   setPointModalTeamId(teamB.id);
@@ -882,9 +886,16 @@ export const TournamentActiveView = ({
                             {getTeamDisplayName(g.teamAId, sessionTeams)}
                           </span>
                           {isDone ? (
-                            <span className="text-[9px] font-bold font-mono text-accent mx-1">
-                              {g.scoreA}×{g.scoreB}
-                            </span>
+                            <div className="flex flex-col items-center">
+                              <span className="text-[9px] font-bold font-mono text-accent mx-1 leading-none">
+                                {g.scoreA}×{g.scoreB}
+                              </span>
+                              {g.sets && g.sets.length > 0 && (
+                                <span className="text-[7px] text-base-content/50 font-mono mt-0.5 scale-90 whitespace-nowrap">
+                                  ({g.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-[8px] text-base-content/40 mx-1">vs</span>
                           )}
@@ -1165,7 +1176,9 @@ function GameActions({
             onClick={() => {
               if (confirm(`Registrar W.O. a favor de ${teamAName}?`)) onWalkoverA();
             }}
-            className="btn btn-xs btn-warning btn-soft font-bold uppercase"
+            disabled={isBlocked}
+            className="btn btn-xs btn-warning btn-soft font-bold uppercase disabled:opacity-30 disabled:cursor-not-allowed"
+            title={isBlocked ? 'Aguardando confrontos anteriores' : undefined}
           >
             W.O. A
           </button>
@@ -1173,7 +1186,9 @@ function GameActions({
             onClick={() => {
               if (confirm(`Registrar W.O. a favor de ${teamBName}?`)) onWalkoverB();
             }}
-            className="btn btn-xs btn-warning btn-soft font-bold uppercase"
+            disabled={isBlocked}
+            className="btn btn-xs btn-warning btn-soft font-bold uppercase disabled:opacity-30 disabled:cursor-not-allowed"
+            title={isBlocked ? 'Aguardando confrontos anteriores' : undefined}
           >
             W.O. B
           </button>

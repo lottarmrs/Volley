@@ -431,6 +431,8 @@ export const SessionActiveView = ({
             scoringRanking={scoringRanking}
             players={players}
             ratings={liveRatings}
+            sets={currentGame.sets}
+            isTeamA={true}
             onRegisterPoint={() => registerPoint(currentGame.teamAId)}
             onOpenDetailModal={(pid) => {
               setPointModalTeamId(currentGame.teamAId);
@@ -450,6 +452,8 @@ export const SessionActiveView = ({
             scoringRanking={scoringRanking}
             players={players}
             ratings={liveRatings}
+            sets={currentGame.sets}
+            isTeamA={false}
             onRegisterPoint={() => registerPoint(currentGame.teamBId)}
             onOpenDetailModal={(pid) => {
               setPointModalTeamId(currentGame.teamBId);

@@ -13,6 +13,8 @@ interface TeamScoreCardProps {
   players: Player[];
   /** Nota de desempenho ao vivo por jogador (0–10). */
   ratings?: Record<string, number>;
+  sets?: { scoreA: number; scoreB: number }[];
+  isTeamA?: boolean;
   onRegisterPoint: () => void;
   onOpenDetailModal: (playerId?: string) => void;
 }
@@ -39,9 +41,14 @@ export const TeamScoreCard = ({
   scoringRanking,
   players,
   ratings,
+  sets,
+  isTeamA,
   onRegisterPoint,
   onOpenDetailModal,
 }: TeamScoreCardProps) => {
+  const setsWon = sets
+    ? sets.filter((s) => (isTeamA ? s.scoreA > s.scoreB : s.scoreB > s.scoreA)).length
+    : 0;
   return (
     <div
       className={`card card-border bg-base-200 p-8 rounded-3xl flex flex-col items-center gap-6 relative overflow-hidden group transition-all ${isWinner ? 'ring-2 ring-accent ring-offset-4 ring-offset-black scale-105 z-10' : ''}`}
@@ -101,13 +108,38 @@ export const TeamScoreCard = ({
         <span className="text-[10px] font-bold tracking-[0.4em] text-base-content/60 uppercase">
           {team.name || 'Time Sem Nome'}
         </span>
+        {sets && sets.length > 0 && (
+          <span className="badge badge-accent badge-soft font-mono font-black text-xs uppercase tracking-wider mt-1">
+            Sets: {setsWon}
+          </span>
+        )}
       </div>
 
-      <span
-        className={`text-9xl font-black font-mono leading-none tracking-tighter drop-shadow-2xl transition-colors ${isWinner ? 'text-accent' : ''}`}
-      >
-        {score}
-      </span>
+      <div className="flex flex-col items-center gap-2">
+        <span
+          className={`text-9xl font-black font-mono leading-none tracking-tighter drop-shadow-2xl transition-colors ${isWinner ? 'text-accent' : ''}`}
+        >
+          {score}
+        </span>
+        {sets && sets.length > 0 && (
+          <div className="flex gap-1.5 items-center mt-1">
+            {sets.map((s, idx) => {
+              const teamScore = isTeamA ? s.scoreA : s.scoreB;
+              const oppScore = isTeamA ? s.scoreB : s.scoreA;
+              const won = teamScore > oppScore;
+              return (
+                <span
+                  key={idx}
+                  className={`badge badge-sm font-mono font-bold ${won ? 'badge-accent' : 'badge-neutral badge-soft text-base-content/70'}`}
+                  title={`Set ${idx + 1}: ${teamScore} x ${oppScore}`}
+                >
+                  {teamScore}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Player Individual Stats */}
       <div className="w-full grid grid-cols-2 gap-2 mb-2">

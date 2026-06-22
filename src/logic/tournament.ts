@@ -121,12 +121,15 @@ export function generateRoundRobinSchedule(teamIds: string[]): ScheduledTourname
       const home = teams[i];
       const away = teams[teams.length - 1 - i];
       if (home !== '__bye__' && away !== '__bye__') {
-        matches.push({ round: round + 1, teamAId: home, teamBId: away });
+        matches.push({ round: rounds - round, teamAId: home, teamBId: away });
       }
     }
     const last = teams.splice(teams.length - 1, 1)[0];
     teams.splice(1, 0, last);
   }
+
+  // Sort matches by round ascending to ensure chronological sequence numbers are properly mapped
+  matches.sort((a, b) => a.round - b.round);
 
   return matches;
 }

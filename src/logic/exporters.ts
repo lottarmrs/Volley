@@ -9,6 +9,7 @@ import {
   Position,
 } from '../types';
 import { TournamentStanding, TournamentMVP } from './tournament';
+import { isCreditedPoint } from './match';
 
 const POSITION_LABELS: Record<Position, string> = {
   levantador: 'Levantador',
@@ -21,12 +22,21 @@ const POSITION_LABELS: Record<Position, string> = {
 
 export function formatGameReportForWhatsApp(report: GameReport): string {
   const sortedPlayers = [...report.playerStats]
-    .filter((p) => p.totalPoints > 0)
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+    .filter((p) => p.totalPoints > 0 || (p.errors || 0) > 0 || (p.highlights || 0) > 0)
+    .sort((a, b) => b.totalPoints - a.totalPoints || (a.errors || 0) - (b.errors || 0));
 
   const topPlayers = sortedPlayers
     .slice(0, 5)
-    .map((p, index) => `${index + 1}. ${p.playerName} — ${p.totalPoints} pts`)
+    .map((p, index) => {
+      const errVal = p.errors || 0;
+      const hlVal = p.highlights || 0;
+      const details = [
+        `${p.totalPoints} pts`,
+        errVal > 0 ? `${errVal} err` : '',
+        hlVal > 0 ? `${hlVal} lce` : '',
+      ].filter(Boolean).join(' · ');
+      return `${index + 1}. ${p.playerName} — ${details}`;
+    })
     .join('\n');
 
   return [
@@ -54,7 +64,16 @@ export function formatSessionReportForWhatsApp(report: SessionReport): string {
 
   const ranking = report.playerRanking
     .slice(0, 5)
-    .map((player, index) => `${index + 1}. ${player.playerName} — ${player.totalPoints} pts`)
+    .map((player, index) => {
+      const errVal = player.errors || 0;
+      const hlVal = player.highlights || 0;
+      const details = [
+        `${player.totalPoints} pts`,
+        errVal > 0 ? `${errVal} err` : '',
+        hlVal > 0 ? `${hlVal} lce` : '',
+      ].filter(Boolean).join(' · ');
+      return `${index + 1}. ${player.playerName} — ${details}`;
+    })
     .join('\n');
 
   const gamesList = report.games
@@ -211,6 +230,7 @@ export function formatTournamentGameForWhatsApp(input: {
   const gamePoints = input.points.filter((p) => p.gameId === input.game.id);
   const playerTotals = gamePoints.reduce<Record<string, number>>((acc, point) => {
     if (!point.playerId) return acc;
+    if (!isCreditedPoint(point)) return acc;
     acc[point.playerId] = (acc[point.playerId] || 0) + 1;
     return acc;
   }, {});

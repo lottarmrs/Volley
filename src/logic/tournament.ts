@@ -1,4 +1,5 @@
 import { Game, PointEvent, Player, Team, TournamentFormat, TournamentConfig } from '../types';
+import { isCreditedPoint } from './match';
 
 export interface ScheduledTournamentMatch {
   round: number;
@@ -223,7 +224,7 @@ function getTieBreakerReason(
 ) {
   if (!previous) return undefined;
   if (previous.classificationPoints !== current.classificationPoints)
-    return 'pontos de classificacao';
+    return undefined;
   if (previous.wins !== current.wins) return 'vitorias';
   if (previous.pointDifference !== current.pointDifference) return 'saldo de pontos';
   if (previous.pointsFor !== current.pointsFor) return 'pontos pro';
@@ -311,6 +312,7 @@ export function calculateTopScorers(pointEvents: PointEvent[]) {
 
   pointEvents.forEach((point) => {
     if (!point.playerId) return;
+    if (!isCreditedPoint(point)) return;
     const row = stats.get(point.playerId) || {
       playerId: point.playerId,
       totalPoints: 0,

@@ -573,11 +573,19 @@ export function useLiveSession(
         const index = sessionOrdered.findIndex((g) => g.id === gameId);
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (index < 0 || targetIndex < 0 || targetIndex >= sessionOrdered.length) return prev;
+        
+        const gameA = sessionOrdered[index];
+        const gameB = sessionOrdered[targetIndex];
+        
         if (
-          sessionOrdered[index].status !== 'scheduled' ||
-          sessionOrdered[targetIndex].status !== 'scheduled'
+          gameA.status !== 'scheduled' ||
+          gameB.status !== 'scheduled'
         )
           return prev;
+          
+        if (gameA.stage !== gameB.stage)
+          return prev;
+          
         [sessionOrdered[index], sessionOrdered[targetIndex]] = [
           sessionOrdered[targetIndex],
           sessionOrdered[index],

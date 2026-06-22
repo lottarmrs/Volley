@@ -1,6 +1,7 @@
 import { Game, PointEvent, Team, Player, GameReport, SessionReport, Session } from '../types';
 import { calculateTournamentStandings, isResultGame } from './tournament';
 import { calculateMatchRating, calculateSessionRating } from './rating';
+import { isCreditedPoint } from './match';
 
 export function generateGameReport(
   game: Game,
@@ -23,21 +24,31 @@ export function generateGameReport(
   }) as Team;
 
   const getPlayerStatsForGame = (playerId: string, team: Team) => {
-    const pPoints = gamePoints.filter((p) => p.playerId === playerId);
+    const playerPoints = gamePoints.filter((p) => p.playerId === playerId);
+    const creditedPoints = playerPoints.filter(isCreditedPoint);
+    const errorPoints = playerPoints.filter((p) => {
+      if (p.eventKind === 'highlight') return false;
+      if (p.pointType) return p.pointType === 'error';
+      return p.reason === 'opponent_error' && p.concedingTeamId === team.id;
+    });
+    const highlightPoints = playerPoints.filter((p) => p.eventKind === 'highlight');
+
     const player = players.find((p) => p.id === playerId);
     return {
       playerId,
       playerName: player?.nome || 'Atleta',
       teamId: team.id,
       teamName: team.name,
-      totalPoints: pPoints.length,
-      attacks: pPoints.filter(
+      totalPoints: creditedPoints.length,
+      attacks: creditedPoints.filter(
         (p) => p.reason === 'attack' || p.reason === 'defense_counterattack' || p.reason === 'tip',
       ).length,
-      blocks: pPoints.filter((p) => p.reason === 'block').length,
-      aces: pPoints.filter((p) => p.reason === 'serve_ace').length,
-      tips: pPoints.filter((p) => p.reason === 'tip').length,
-      counterAttacks: pPoints.filter((p) => p.reason === 'defense_counterattack').length,
+      blocks: creditedPoints.filter((p) => p.reason === 'block').length,
+      aces: creditedPoints.filter((p) => p.reason === 'serve_ace').length,
+      tips: creditedPoints.filter((p) => p.reason === 'tip').length,
+      counterAttacks: creditedPoints.filter((p) => p.reason === 'defense_counterattack').length,
+      errors: errorPoints.length,
+      highlights: highlightPoints.length,
       rating: player
         ? calculateMatchRating({ player, game, gamePoints, playerTeamId: team.id })
         : undefined,
@@ -148,20 +159,34 @@ export function generateSessionReport(
   const playerIds = Array.from(new Set(sessionTeams.flatMap((t) => t.playerIds)));
   const playerRanking = playerIds
     .map((pid) => {
-      const pPoints = sessionPoints.filter((p) => p.playerId === pid);
+      const playerPoints = sessionPoints.filter((p) => p.playerId === pid);
       const player = players.find((p) => p.id === pid);
+
+      const creditedPoints = playerPoints.filter(isCreditedPoint);
+      const playerTeams = sessionTeams.filter((t) => t.playerIds.includes(pid));
+      const playerTeamIds = new Set(playerTeams.map((t) => t.id));
+
+      const errorPoints = playerPoints.filter((p) => {
+        if (p.eventKind === 'highlight') return false;
+        if (p.pointType) return p.pointType === 'error';
+        return p.reason === 'opponent_error' && playerTeamIds.has(p.concedingTeamId);
+      });
+      const highlightPoints = playerPoints.filter((p) => p.eventKind === 'highlight');
+
       return {
         playerId: pid,
         playerName: player?.nome || 'Atleta',
-        totalPoints: pPoints.length,
-        attacks: pPoints.filter(
+        totalPoints: creditedPoints.length,
+        attacks: creditedPoints.filter(
           (p) =>
             p.reason === 'attack' || p.reason === 'defense_counterattack' || p.reason === 'tip',
         ).length,
-        blocks: pPoints.filter((p) => p.reason === 'block').length,
-        aces: pPoints.filter((p) => p.reason === 'serve_ace').length,
-        tips: pPoints.filter((p) => p.reason === 'tip').length,
-        counterAttacks: pPoints.filter((p) => p.reason === 'defense_counterattack').length,
+        blocks: creditedPoints.filter((p) => p.reason === 'block').length,
+        aces: creditedPoints.filter((p) => p.reason === 'serve_ace').length,
+        tips: creditedPoints.filter((p) => p.reason === 'tip').length,
+        counterAttacks: creditedPoints.filter((p) => p.reason === 'defense_counterattack').length,
+        errors: errorPoints.length,
+        highlights: highlightPoints.length,
         rating: player
           ? (calculateSessionRating({ player, sessionGames, sessionPoints, teams: sessionTeams }) ??
             undefined)

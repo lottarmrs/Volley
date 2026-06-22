@@ -152,6 +152,8 @@ export interface GameReport {
     aces: number;
     tips: number;
     counterAttacks: number;
+    errors?: number;
+    highlights?: number;
     /** Nota de desempenho 0.00–10.00 do jogador neste jogo. */
     rating?: number;
   }[];
@@ -201,6 +203,8 @@ export interface SessionReport {
     aces: number;
     tips: number;
     counterAttacks: number;
+    errors?: number;
+    highlights?: number;
     /** Nota de desempenho 0.00–10.00 do jogador na sessão (média ponderada por exposição). */
     rating?: number;
   }[];
@@ -832,6 +836,8 @@ export interface CommunityRankingRow {
   presenceRate: number;
   regularity: number;
   evolution: number;
+  errors?: number;
+  highlights?: number;
 }
 
 export interface CommunityRanking {

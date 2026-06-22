@@ -35,7 +35,7 @@ import {
   SessionReport,
   TournamentConfig,
 } from '../../types';
-import { calculateTeamSessionStats, calculatePlayerScoringRanking } from '../../logic/match';
+import { calculateTeamSessionStats, calculatePlayerScoringRanking, getPointLabel } from '../../logic/match';
 import { generateSessionReport } from '../../logic/reports';
 import {
   formatSessionReportForWhatsApp,
@@ -513,8 +513,8 @@ function SessionDetailView({
 }) {
   const report = sessionReports.find((r) => r.sessionId === session.id);
 
-  const getReportText = () => {
-    const r =
+  const resolvedReport = useMemo(() => {
+    return (
       report ||
       generateSessionReport(
         session,
@@ -522,8 +522,12 @@ function SessionDetailView({
         pointEvents.filter((p) => p.sessionId === session.id),
         teams.filter((t) => t.sessionId === session.id),
         players,
-      );
-    return formatSessionReportForWhatsApp(r);
+      )
+    );
+  }, [report, session, games, pointEvents, teams, players]);
+
+  const getReportText = () => {
+    return formatSessionReportForWhatsApp(resolvedReport);
   };
 
   const sessPoints = pointEvents.filter((p) =>
@@ -731,14 +735,12 @@ function SessionDetailView({
               Artilheiros
             </h3>
             <div className="space-y-3">
-              {ranking.slice(0, 5).map((rank, i) => {
+              {resolvedReport.playerRanking.slice(0, 5).map((rank, i) => {
                 const p = players.find((x) => x.id === rank.playerId);
-                const aces = sessPoints.filter(
-                  (pt) => pt.playerId === rank.playerId && pt.reason === 'serve_ace',
-                ).length;
-                const blocks = sessPoints.filter(
-                  (pt) => pt.playerId === rank.playerId && pt.reason === 'block',
-                ).length;
+                const aces = rank.aces;
+                const blocks = rank.blocks;
+                const errors = rank.errors || 0;
+                const highlights = rank.highlights || 0;
                 return (
                   <div
                     key={rank.playerId}
@@ -751,7 +753,7 @@ function SessionDetailView({
                       </span>
                     </div>
                     <div className="flex gap-4 items-center">
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
                         {aces > 0 && (
                           <span className="text-[8px] font-black bg-orange-500/20 text-orange-400 px-1 rounded">
                             ACE ×{aces}
@@ -762,13 +764,23 @@ function SessionDetailView({
                             BLK ×{blocks}
                           </span>
                         )}
+                        {errors > 0 && (
+                          <span className="text-[8px] font-black bg-red-500/20 text-red-400 px-1 rounded">
+                            ERR ×{errors}
+                          </span>
+                        )}
+                        {highlights > 0 && (
+                          <span className="text-[8px] font-black bg-yellow-500/20 text-yellow-400 px-1 rounded">
+                            LCE ×{highlights}
+                          </span>
+                        )}
                       </div>
-                      <span className="font-mono font-black text-white">{rank.points} pts</span>
+                      <span className="font-mono font-black text-white">{rank.totalPoints} pts</span>
                     </div>
                   </div>
                 );
               })}
-              {ranking.length === 0 && (
+              {resolvedReport.playerRanking.length === 0 && (
                 <div className="text-center py-8 text-xs text-text-muted italic">
                   NENHUM PONTO REGISTRADO
                 </div>
@@ -1173,8 +1185,7 @@ function SessionDetailView({
               .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
               .map((point) => {
                 const game = games.find((g) => g.id === point.gameId);
-                const team = teams.find((t) => t.id === point.scoringTeamId);
-                const player = players.find((p) => p.id === point.playerId);
+                const label = getPointLabel(point, sessionTeams, players);
                 return (
                   <div
                     key={point.id}
@@ -1183,14 +1194,14 @@ function SessionDetailView({
                     <div>
                       <p className="font-black uppercase text-white">
                         J{game?.sequenceNumber || '-'} | #{point.sequenceNumber} |{' '}
-                        {team?.name || 'Time'}
+                        {label.teamName}
                       </p>
                       <p className="text-text-muted uppercase">
-                        {player?.nome || 'Ponto do time'} | {point.reason || 'unknown'}
+                        {label.playerName} | {label.reason}
                       </p>
                     </div>
-                    <p className="font-mono font-black text-accent">
-                      {point.scoreAfter.teamA}x{point.scoreAfter.teamB}
+                    <p className={`font-mono font-black ${point.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}>
+                      {point.eventKind === 'highlight' ? '🌟' : `${point.scoreAfter.teamA}x${point.scoreAfter.teamB}`}
                     </p>
                   </div>
                 );

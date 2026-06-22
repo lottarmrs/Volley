@@ -1716,6 +1716,12 @@ function CommunityRankingTab({
                   Bloqueios: <b>{row.blocks}</b>
                 </span>
                 <span>
+                  Erros: <b>{row.errors || 0}</b>
+                </span>
+                <span>
+                  Lances: <b>{row.highlights || 0}</b>
+                </span>
+                <span>
                   Aproveitamento: <b>{row.winRate}%</b>
                 </span>
                 <span>

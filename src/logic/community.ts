@@ -12,6 +12,7 @@ import {
   Team,
 } from '../types';
 import { calculateGeneralOverall } from './calculations';
+import { isCreditedPoint } from './match';
 
 const CREDITED_REASONS = ['attack', 'block', 'serve_ace', 'defense_counterattack', 'tip'];
 
@@ -124,7 +125,7 @@ export function getCommunitySummary(params: {
     totalSessions: finishedSessions.length,
     totalMatches: finishedGames.length,
     totalPoints: communityPoints.filter(
-      (point) => point && CREDITED_REASONS.includes(point.reason || ''),
+      (point) => point && isCreditedPoint(point),
     ).length,
     lastSession: finishedSessions[0],
     lastMvpName: getLastMvpName(params.sessionReports || [], communitySessions),
@@ -202,6 +203,7 @@ export function getCommunityRanking(params: {
           sessionIds.has(team.sessionId),
       )
       .map((team) => team.id);
+    const playerTeamIdsSet = new Set(playerTeamIds);
     const playerGames = sessionGames.filter(
       (game) =>
         playerTeamIds.includes(game.teamAId || '') || playerTeamIds.includes(game.teamBId || ''),
@@ -210,7 +212,14 @@ export function getCommunityRanking(params: {
       playerTeamIds.includes(game.winnerTeamId || ''),
     ).length;
     const playerPoints = sessionPoints.filter((point) => point.playerId === playerId);
-    const credited = playerPoints.filter((point) => CREDITED_REASONS.includes(point.reason || ''));
+    const creditedPoints = playerPoints.filter(isCreditedPoint);
+    const errorPoints = playerPoints.filter((p) => {
+      if (p.eventKind === 'highlight') return false;
+      if (p.pointType) return p.pointType === 'error';
+      return p.reason === 'opponent_error' && playerTeamIdsSet.has(p.concedingTeamId);
+    });
+    const highlightPoints = playerPoints.filter((p) => p.eventKind === 'highlight');
+
     const mvpCount = (params.sessionReports || [])
       .filter((report) => report && sessionIds.has(report.sessionId))
       .filter((report) => report.playerRanking?.[0]?.playerId === playerId).length;
@@ -224,18 +233,22 @@ export function getCommunityRanking(params: {
     return {
       playerId,
       playerName: getPlayerDisplayName(player),
-      totalPoints: credited.length,
+      totalPoints: creditedPoints.length,
       attendances,
       wins,
       mvpCount,
-      aces: playerPoints.filter((point) => point.reason === 'serve_ace').length,
-      blocks: playerPoints.filter((point) => point.reason === 'block').length,
-      attacks: playerPoints.filter(
+      aces: creditedPoints.filter((point) => point.reason === 'serve_ace' || point.skill === 'saque').length,
+      blocks: creditedPoints.filter((point) => point.reason === 'block' || point.skill === 'bloqueio').length,
+      attacks: creditedPoints.filter(
         (point) =>
           point.reason === 'attack' ||
           point.reason === 'defense_counterattack' ||
-          point.reason === 'tip',
+          point.reason === 'tip' ||
+          point.skill === 'ataque' ||
+          point.skill === 'largada',
       ).length,
+      errors: errorPoints.length,
+      highlights: highlightPoints.length,
       gamesPlayed: playerGames.length,
       winRate: playerGames.length > 0 ? Math.round((wins / playerGames.length) * 100) : 0,
       presenceRate:

@@ -23,6 +23,7 @@ import {
   getTournamentProgress,
   groupGamesByRound,
   calculateTournamentMVP,
+  calculateTournamentAwards,
   getHighestScoreMatch,
   getMostBalancedMatch,
   getLongestWinStreak,
@@ -37,6 +38,7 @@ import {
   copyToClipboard,
 } from '../../logic/exporters';
 import { TeamScoreCard } from './TeamScoreCard';
+import { AwardsPanel } from './AwardsPanel';
 import { calculateLiveGameRatings } from '../../logic/rating';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { PointModal } from './PointModal';
@@ -132,6 +134,10 @@ export const TournamentActiveView = ({
   const currentRound =
     currentGame?.round || sessionGames.find((g) => g.status === 'scheduled')?.round || 1;
   const mvp = calculateTournamentMVP(sessionPoints, sessionTeams, players, standings);
+  const awards = React.useMemo(
+    () => calculateTournamentAwards(sessionPoints, players, sessionTeams, standings),
+    [sessionPoints, players, sessionTeams, standings],
+  );
 
   const format =
     activeSession.config?.type === 'tournament' ? activeSession.config.format : 'round_robin';
@@ -390,6 +396,7 @@ export const TournamentActiveView = ({
             sessionGames={sessionGames}
             sessionPoints={sessionPoints}
           />
+          <AwardsPanel awards={awards} sessionName={activeSession.name} />
           <div className="flex flex-wrap justify-center gap-3">
             <button
               onClick={() => openWhatsAppShare(finalShareText())}
@@ -983,6 +990,8 @@ export const TournamentActiveView = ({
           </div>
         </div>
       )}
+
+      <AwardsPanel awards={awards} sessionName={activeSession.name} title="Premiação Parcial" />
 
       {/* Point log */}
       <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">

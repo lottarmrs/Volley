@@ -8,7 +8,7 @@ import {
   Division,
   Position,
 } from '../types';
-import { TournamentStanding, TournamentMVP } from './tournament';
+import { TournamentStanding, TournamentMVP, TournamentAwards } from './tournament';
 import { isCreditedPoint } from './match';
 
 const POSITION_LABELS: Record<Position, string> = {
@@ -34,7 +34,9 @@ export function formatGameReportForWhatsApp(report: GameReport): string {
         `${p.totalPoints} pts`,
         errVal > 0 ? `${errVal} err` : '',
         hlVal > 0 ? `${hlVal} lce` : '',
-      ].filter(Boolean).join(' · ');
+      ]
+        .filter(Boolean)
+        .join(' · ');
       return `${index + 1}. ${p.playerName} — ${details}`;
     })
     .join('\n');
@@ -71,7 +73,9 @@ export function formatSessionReportForWhatsApp(report: SessionReport): string {
         `${player.totalPoints} pts`,
         errVal > 0 ? `${errVal} err` : '',
         hlVal > 0 ? `${hlVal} lce` : '',
-      ].filter(Boolean).join(' · ');
+      ]
+        .filter(Boolean)
+        .join(' · ');
       return `${index + 1}. ${player.playerName} — ${details}`;
     })
     .join('\n');
@@ -213,6 +217,33 @@ export function formatTournamentScorersForWhatsApp(input: {
     `🔥 Artilharia — ${input.sessionName}`,
     ``,
     scorers || `Sem pontuação individual registrada.`,
+    ``,
+    `Gerado pelo Panelinha.`,
+  ].join('\n');
+}
+
+export function formatTournamentAwardsForWhatsApp(input: {
+  sessionName: string;
+  awards: TournamentAwards;
+}): string {
+  const { awards } = input;
+  const line = (emoji: string, label: string, w?: { playerName: string; value: number }) =>
+    w ? `${emoji} ${label}: ${w.playerName} (${w.value})` : null;
+
+  const rows = [
+    line('🏆', 'MVP', awards.mvp),
+    line('💥', 'Melhor Ataque', awards.attack),
+    line('🧱', 'Melhor Bloqueio', awards.block),
+    line('🎯', 'Melhor Saque', awards.serve),
+    line('🪄', 'Melhor Levantador', awards.setter),
+    line('🛡️', 'Melhor Defesa', awards.defense),
+    line('🤲', 'Melhor Passe', awards.reception),
+  ].filter(Boolean);
+
+  return [
+    `🏅 Premiação — ${input.sessionName}`,
+    ``,
+    rows.length ? rows.join('\n') : 'Sem dados suficientes para a premiação.',
     ``,
     `Gerado pelo Panelinha.`,
   ].join('\n');

@@ -246,9 +246,9 @@ export const PointModal = ({
   };
 
   return (
-    <dialog className="modal modal-open">
-      <div className="modal-box border border-base-300 p-0 overflow-hidden bg-base-200 w-[calc(100%-2rem)] max-w-md mx-4 sm:mx-auto">
-        <div className="p-6 border-b border-base-300 flex justify-between items-center">
+    <dialog className="modal modal-open modal-bottom sm:modal-middle">
+      <div className="modal-box border border-base-300 p-0 overflow-hidden bg-base-200 w-full sm:w-[calc(100%-2rem)] max-w-md mx-0 sm:mx-auto flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b border-base-300 flex justify-between items-center shrink-0">
           <h3 className="font-bold uppercase tracking-tight text-accent text-base">
             Registrar Detalhes do Ponto
           </h3>
@@ -258,7 +258,7 @@ export const PointModal = ({
         </div>
 
         {/* Abas: Ponto nosso / Erro adversário */}
-        <div className="grid grid-cols-2 border-b border-base-300">
+        <div className="grid grid-cols-2 border-b border-base-300 shrink-0">
           <button
             onClick={() => {
               setTab('winner');
@@ -290,7 +290,7 @@ export const PointModal = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {tab === 'winner' ? (
             <>
               <div>
@@ -516,7 +516,10 @@ export const PointModal = ({
               )}
             </>
           )}
+        </div>
 
+        {/* Footer fixo — Confirmar sempre visível, mesmo com a lista rolada */}
+        <div className="p-4 border-t border-base-300 bg-base-200 shrink-0 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <button
             onClick={confirm}
             className={`btn w-full font-bold uppercase tracking-widest shadow-xl ${tab === 'winner' ? 'btn-accent shadow-accent/20' : 'btn-error shadow-error/20'}`}

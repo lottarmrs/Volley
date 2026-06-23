@@ -55,8 +55,8 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
 
       {open && (
         <dialog className="modal modal-open modal-bottom sm:modal-middle">
-          <div className="modal-box border border-warning/30 bg-base-200 p-0 overflow-hidden sm:max-w-md">
-            <div className="p-5 border-b border-base-300 flex justify-between items-center">
+          <div className="modal-box border border-warning/30 bg-base-200 p-0 overflow-hidden w-full sm:w-auto sm:max-w-md flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-base-300 flex justify-between items-center shrink-0">
               <h3 className="font-bold uppercase tracking-tight text-warning text-sm flex items-center gap-2">
                 <Sparkles className="w-4 h-4" /> Lance de Destaque
               </h3>
@@ -65,7 +65,7 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
               </button>
             </div>
 
-            <div className="p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-5">
+            <div className="p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-5 overflow-y-auto flex-1">
               <div>
                 <label className="text-[10px] font-bold uppercase text-base-content/60 mb-2 block tracking-widest">
                   Fundamento{' '}

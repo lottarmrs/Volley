@@ -333,6 +333,11 @@ test('team, game and point mappers preserve relationships through local ids', ()
     loserTeamId: 'team-b',
     status: 'finished',
     pointIds: ['point-local'],
+    sets: [
+      { scoreA: 12, scoreB: 9 },
+      { scoreA: 10, scoreB: 12 },
+    ],
+    setTargets: [12, 12, 7],
     metadata: { court: '1' },
   };
 
@@ -385,6 +390,11 @@ test('team, game and point mappers preserve relationships through local ids', ()
   assert.deepEqual(mappedTeam.playerIds, ['player-local']);
   assert.equal(mappedGame.sessionId, 'session-local');
   assert.equal(mappedGame.teamAId, 'team-a');
+  assert.deepEqual(mappedGame.sets, [
+    { scoreA: 12, scoreB: 9 },
+    { scoreA: 10, scoreB: 12 },
+  ]);
+  assert.deepEqual(mappedGame.setTargets, [12, 12, 7]);
   assert.equal(mappedPoint.gameId, 'game-local');
   assert.equal(mappedPoint.reason, 'attack');
   assert.equal(mappedPoint.eventKind, 'point');

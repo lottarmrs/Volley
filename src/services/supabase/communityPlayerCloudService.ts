@@ -12,6 +12,13 @@ export interface CommunityPlayerDb {
   deleted_at?: string | null;
 }
 
+function isCardinalityViolation(error: any): boolean {
+  return (
+    error?.code === '21000' ||
+    error?.message?.includes('ON CONFLICT DO UPDATE command cannot affect row a second time')
+  );
+}
+
 export const communityPlayerCloudService = {
   async fetchAll(): Promise<CommunityPlayerDb[]> {
     const { data, error } = await supabase
@@ -28,7 +35,7 @@ export const communityPlayerCloudService = {
     if (relations.length === 0) return;
     const seen = new Set<string>();
     const deduplicated = relations.filter((r) => {
-      const key = `${r.community_id.toLowerCase()}:${r.player_id.toLowerCase()}`;
+      const key = `${r.community_id.trim().toLowerCase()}:${r.player_id.trim().toLowerCase()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -37,7 +44,18 @@ export const communityPlayerCloudService = {
       .from('community_players')
       .upsert(deduplicated, { onConflict: 'community_id,player_id' });
 
-    if (error) throw error;
+    if (!error) return;
+    if (!isCardinalityViolation(error)) throw error;
+
+    console.warn(
+      'Bulk community_players upsert contained duplicate conflict keys. Falling back to individual upserts.',
+    );
+    for (const relation of deduplicated) {
+      const { error: individualError } = await supabase
+        .from('community_players')
+        .upsert(relation, { onConflict: 'community_id,player_id' });
+      if (individualError) throw individualError;
+    }
   },
 
   async linkPlayer(
@@ -62,6 +80,17 @@ export const communityPlayerCloudService = {
 
   async clearAllForUser(ownerId: string): Promise<void> {
     const { error } = await supabase.from('community_players').delete().eq('owner_id', ownerId);
+
+    if (error) throw error;
+  },
+
+  async deleteByIdsForUser(ownerId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from('community_players')
+      .delete()
+      .eq('owner_id', ownerId)
+      .in('id', ids);
 
     if (error) throw error;
   },

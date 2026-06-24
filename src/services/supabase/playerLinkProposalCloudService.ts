@@ -36,6 +36,20 @@ export const playerLinkProposalCloudService = {
 
   async upsert(local: PlayerLinkProposal): Promise<PlayerLinkProposal> {
     const dbRecord = mapProposalToDb(local);
+
+    if (local.status === 'pending') {
+      const { data: existing, error: existingError } = await supabase
+        .from('player_link_proposals')
+        .select('*')
+        .eq('player_id', dbRecord.player_id)
+        .eq('user_id', dbRecord.user_id)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+      if (existing) return mapDbToProposal(existing);
+    }
+
     const { data, error } = await supabase
       .from('player_link_proposals')
       .upsert(dbRecord)

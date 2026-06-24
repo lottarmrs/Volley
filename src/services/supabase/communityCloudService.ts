@@ -53,6 +53,21 @@ export const communityCloudService = {
 
   async upsert(local: Community, ownerId: string): Promise<Community> {
     const dbRecord = mapCommunityToDb(local, ownerId);
+    if (local.cloudId) {
+      const updateRecord = { ...dbRecord };
+      delete (updateRecord as any).id;
+
+      const { data, error } = await supabase
+        .from('communities')
+        .update(updateRecord)
+        .eq('id', local.cloudId)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) return mapDbToCommunity(data);
+    }
+
     try {
       const { data, error } = await supabase
         .from('communities')
@@ -68,13 +83,17 @@ export const communityCloudService = {
         (error.code === '23505' || error.statusCode === '23505') &&
         error.message?.includes('communities_pkey')
       ) {
-        console.warn(`Primary key collision for community ${local.name}. Retrying without id.`);
-        const fallbackRecord = { ...dbRecord };
-        delete (fallbackRecord as any).id;
+        // PK collision means the row already exists in the cloud with this id
+        // but has a different local_id (pre-migration value). Update it in place
+        // so that local_id is aligned with the new UUID scheme.
+        console.warn(`Primary key collision for community ${local.name}. Updating existing row by PK.`);
+        const updateRecord = { ...dbRecord };
+        delete (updateRecord as any).id;
 
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('communities')
-          .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+          .update(updateRecord)
+          .eq('id', dbRecord.id)
           .select()
           .single();
 

@@ -36,6 +36,18 @@ type OperationalTable =
 const syncedAt = () => new Date().toISOString();
 const arrayOrEmpty = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
 
+function timestampMs(value: unknown): number {
+  const time = typeof value === 'string' ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isCardinalityViolation(error: any): boolean {
+  return (
+    error?.code === '21000' ||
+    error?.message?.includes('ON CONFLICT DO UPDATE command cannot affect row a second time')
+  );
+}
+
 function withoutCloudMeta<T extends DbRecord>(entity: T) {
   const { cloudId, syncStatus, lastSyncedAt, deletedAt, updatedAt, ...rest } = entity;
   return rest;
@@ -104,7 +116,7 @@ export function mapTeamToDb(local: Team, ownerId: string, communityId?: string |
 
 export function mapDbToTeam(db: DbRecord): Team {
   return {
-    id: db.id,
+    id: db.local_id || db.id,
     sessionId: db.session_id,
     name: db.name,
     color: db.color || undefined,
@@ -157,7 +169,7 @@ export function mapGameToDb(local: Game, ownerId: string, communityId?: string |
 export function mapDbToGame(db: DbRecord): Game {
   const metadata = db.metadata || {};
   return {
-    id: db.id,
+    id: db.local_id || db.id,
     sessionId: db.session_id,
     type: db.type,
     sequenceNumber: db.sequence_number,
@@ -215,7 +227,7 @@ export function mapPointEventToDb(local: PointEvent, ownerId: string, communityI
 
 export function mapDbToPointEvent(db: DbRecord): PointEvent {
   return {
-    id: db.id,
+    id: db.local_id || db.id,
     sessionId: db.session_id,
     gameId: db.game_id,
     sequenceNumber: db.sequence_number,
@@ -260,7 +272,7 @@ export function mapDbToGameReport(db: DbRecord): GameReport {
   const report = db.report || {};
   return {
     ...report,
-    id: db.id,
+    id: db.local_id || db.id,
     sessionId: db.session_id,
     gameId: report.gameId || db.game_id,
     sequenceNumber: report.sequenceNumber ?? db.sequence_number,
@@ -295,7 +307,7 @@ export function mapDbToSessionReport(db: DbRecord): SessionReport {
   const report = db.report || {};
   return {
     ...report,
-    id: db.id,
+    id: db.local_id || db.id,
     sessionId: db.session_id,
     generatedAt: report.generatedAt || db.generated_at,
     cloudId: db.id,
@@ -442,13 +454,16 @@ async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbR
       (error.code === '23505' || error.statusCode === '23505') &&
       error.message?.includes('_pkey')
     ) {
-      console.warn(`Primary key collision in table ${table}. Retrying without id.`);
-      const fallbackRecord = { ...record };
-      delete fallbackRecord.id;
+      // PK collision: the row exists with this id but has a different local_id
+      // (pre-migration value). Update it in place to align local_id.
+      console.warn(`Primary key collision in table ${table}. Updating existing row by PK.`);
+      const updateRecord = { ...record };
+      delete updateRecord.id;
 
       const { data: fallbackData, error: fallbackError } = await supabase
         .from(table)
-        .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+        .update(updateRecord)
+        .eq('id', record.id)
         .select()
         .single();
 
@@ -462,15 +477,19 @@ async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbR
 async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Promise<DbRecord[]> {
   if (!records || records.length === 0) return [];
 
-  const seen = new Set<string>();
-  const deduplicated = records.filter((r) => {
-    const ownerId = String(r.owner_id || '').toLowerCase();
-    const localId = String(r.local_id || '').toLowerCase();
+  const byOwnerAndLocalId = new Map<string, DbRecord>();
+  for (const r of records) {
+    const ownerId = String(r.owner_id || '').trim().toLowerCase();
+    const localId = String(r.local_id || '').trim().toLowerCase();
+    if (!ownerId || !localId) continue;
     const key = `${ownerId}:${localId}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const existing = byOwnerAndLocalId.get(key);
+    if (!existing || timestampMs(r.updated_at) >= timestampMs(existing.updated_at)) {
+      byOwnerAndLocalId.set(key, r);
+    }
+  }
+  const deduplicated = Array.from(byOwnerAndLocalId.values());
+  if (deduplicated.length === 0) return [];
 
   try {
     const { data, error } = await supabase
@@ -481,26 +500,39 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
     if (error) throw error;
     return data || [];
   } catch (error: any) {
+    if (isCardinalityViolation(error)) {
+      console.warn(`[Bulk] Duplicate conflict keys in ${table}. Falling back to individual upserts.`);
+      const results: DbRecord[] = [];
+      for (const record of deduplicated) {
+        try {
+          const row = await upsertRow(table, record);
+          results.push(row);
+        } catch (individualError) {
+          console.error(`[Bulk] Failed individual upsert in ${table}:`, individualError);
+        }
+      }
+      return results;
+    }
+
     if (
       error &&
       (error.code === '23505' || error.statusCode === '23505') &&
       error.message?.includes('_pkey')
     ) {
-      console.warn(`[Bulk] Colisão de Primary Key na tabela ${table}. Tentando lote sem IDs.`);
-
-      const fallbackRecords = deduplicated.map((record) => {
-        const fallback = { ...record };
-        delete fallback.id;
-        return fallback;
-      });
-
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from(table)
-        .upsert(fallbackRecords, { onConflict: 'owner_id,local_id' })
-        .select();
-
-      if (fallbackError) throw fallbackError;
-      return fallbackData || [];
+      // PK collision in bulk: some rows exist with these ids but have different
+      // local_id values (pre-migration). Fall back to individual upserts so
+      // each row gets an UPDATE-by-PK if needed.
+      console.warn(`[Bulk] PK collision in ${table}. Falling back to individual upserts.`);
+      const results: DbRecord[] = [];
+      for (const record of deduplicated) {
+        try {
+          const row = await upsertRow(table, record);
+          results.push(row);
+        } catch (individualError) {
+          console.error(`[Bulk] Failed individual upsert in ${table}:`, individualError);
+        }
+      }
+      return results;
     }
     throw error;
   }

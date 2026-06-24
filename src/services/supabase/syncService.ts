@@ -171,6 +171,18 @@ function visible<T extends Syncable>(items: T[]) {
   return items.filter((item) => !item.deletedAt);
 }
 
+function makeCloudIdLookup<T extends { id: string; cloudId?: string }>(items: T[]) {
+  return new Map(items.map((item) => [item.id.toLowerCase(), item.cloudId || item.id]));
+}
+
+function resolveCloudId(
+  localOrCloudId: string | null | undefined,
+  lookup: Map<string, string>,
+): string | null | undefined {
+  if (!localOrCloudId) return localOrCloudId;
+  return lookup.get(localOrCloudId.toLowerCase()) || localOrCloudId;
+}
+
 async function bulkUploadSessionChildren<T extends Syncable>(
   items: T[],
   sessionsById: Map<string, Session>,
@@ -271,6 +283,9 @@ export const syncService = {
       updatedPlayers.push(markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt));
     }
 
+    const communityCloudIds = makeCloudIdLookup(updatedCommunities);
+    const playerCloudIds = makeCloudIdLookup(updatedPlayers);
+
     await playerEvaluationCloudService.bulkUpsertForPlayers(
       updatedPlayers,
       ownerId,
@@ -278,7 +293,7 @@ export const syncService = {
 
     const updatedRules: CommunityRules[] = [];
     for (const rule of local.rules) {
-      const communityCloudId = rule.communityId;
+      const communityCloudId = resolveCloudId(rule.communityId, communityCloudIds);
       if (!communityCloudId) {
         updatedRules.push(rule);
         continue;
@@ -298,7 +313,7 @@ export const syncService = {
         continue;
       }
 
-      const communityCloudId = template.communityId;
+      const communityCloudId = resolveCloudId(template.communityId, communityCloudIds);
       if (!communityCloudId) {
         updatedTemplates.push(template);
         continue;
@@ -322,14 +337,26 @@ export const syncService = {
         continue;
       }
 
+      const sessionForUpload = {
+        ...session,
+        communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
+      };
       const uploaded = await operationalCloudService.upsertSession(
-        session,
+        sessionForUpload,
         ownerId,
       );
       updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
     }
 
-    const sessionsById = new Map(updatedSessions.map((session) => [session.id.toLowerCase(), session]));
+    const sessionsById = new Map(
+      updatedSessions.map((session) => [
+        session.id.toLowerCase(),
+        {
+          ...session,
+          communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
+        },
+      ]),
+    );
 
     const updatedTeams = await bulkUploadSessionChildren<Team>(
       local.teams,
@@ -403,14 +430,14 @@ export const syncService = {
         continue;
       }
 
-      const communityCloudId = presence.communityId;
+      const communityCloudId = resolveCloudId(presence.communityId, communityCloudIds);
       if (!communityCloudId) {
         updatedPresenceRecords.push(presence);
         continue;
       }
 
-      presenceToUpsert.push(presence);
-      presenceMap.set(`${presence.communityId.toLowerCase()}:${presence.date}`, presence);
+      presenceToUpsert.push({ ...presence, communityId: communityCloudId });
+      presenceMap.set(`${communityCloudId.toLowerCase()}:${presence.date}`, presence);
     }
 
     try {
@@ -453,13 +480,13 @@ export const syncService = {
         continue;
       }
 
-      const communityCloudId = draft.communityId;
+      const communityCloudId = resolveCloudId(draft.communityId, communityCloudIds);
       if (!communityCloudId) {
         updatedDrafts.push(draft);
         continue;
       }
 
-      draftsToUpsert.push(draft);
+      draftsToUpsert.push({ ...draft, communityId: communityCloudId });
       draftsMap.set(draft.id.toLowerCase(), draft);
     }
 
@@ -489,13 +516,13 @@ export const syncService = {
     }
 
     const relationsToUpload: Omit<CommunityPlayerDb, 'id'>[] = [];
-    for (const player of local.players) {
+    for (const player of updatedPlayers) {
       if (player.deletedAt) continue;
-      const playerCloudId = player.cloudId || player.id;
+      const playerCloudId = resolveCloudId(player.id, playerCloudIds);
       if (!playerCloudId) continue;
 
       for (const localCommunityId of player.communityIds || []) {
-        const communityCloudId = localCommunityId;
+        const communityCloudId = resolveCloudId(localCommunityId, communityCloudIds);
         if (!communityCloudId) continue;
 
         relationsToUpload.push({
@@ -508,13 +535,30 @@ export const syncService = {
     }
 
     if (relationsToUpload.length > 0) {
-      await communityPlayerCloudService.clearAllForUser(ownerId);
       await communityPlayerCloudService.bulkUpsert(relationsToUpload);
     }
+    const desiredRelationKeys = new Set(
+      relationsToUpload.map((relation) =>
+        `${relation.community_id.toLowerCase()}:${relation.player_id.toLowerCase()}`,
+      ),
+    );
+    const currentOwnedRelations = (await communityPlayerCloudService.fetchAll()).filter(
+      (relation) => relation.owner_id === ownerId,
+    );
+    const staleRelationIds = currentOwnedRelations
+      .filter((relation) => {
+        const key = `${relation.community_id.toLowerCase()}:${relation.player_id.toLowerCase()}`;
+        return !desiredRelationKeys.has(key);
+      })
+      .map((relation) => relation.id)
+      .filter(Boolean) as string[];
+    await communityPlayerCloudService.deleteByIdsForUser(ownerId, staleRelationIds);
 
     const updatedProposals: PlayerLinkProposal[] = [];
     for (const proposal of local.linkProposals || []) {
-      const playerCloudId = proposal.playerCloudId || proposal.playerId;
+      const playerCloudId =
+        proposal.playerCloudId ||
+        resolveCloudId(proposal.playerId, playerCloudIds);
       if (!playerCloudId) {
         updatedProposals.push(proposal);
         continue;
@@ -523,7 +567,11 @@ export const syncService = {
         updatedProposals.push(markSynced(proposal, proposal.id, syncedAt));
         continue;
       }
-      const uploaded = await playerLinkProposalCloudService.upsert(proposal);
+      const uploaded = await playerLinkProposalCloudService.upsert({
+        ...proposal,
+        playerId: playerCloudId,
+        playerCloudId,
+      });
       updatedProposals.push(markSynced(proposal, uploaded.id, syncedAt));
     }
 

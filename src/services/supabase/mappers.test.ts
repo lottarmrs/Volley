@@ -24,7 +24,10 @@ import {
 } from './operationalCloudService';
 import { mapDbToCommunityMember } from './membershipCloudService';
 import { mapProposalToDb, mapDbToProposal } from './playerLinkProposalCloudService';
-import { mapPlayerEvaluationToDb } from './playerEvaluationCloudService';
+import {
+  deduplicatePlayerEvaluationRecords,
+  mapPlayerEvaluationToDb,
+} from './playerEvaluationCloudService';
 import {
   Community,
   CommunityPresence,
@@ -548,4 +551,37 @@ test('player evaluation mapper omits the id key so the DB default applies', () =
   assert.equal(db.owner_id, 'owner-id');
   assert.equal(db.player_id, 'player-cloud-uuid');
   assert.equal(db.local_id, 'player-local');
+});
+
+test('player evaluation bulk records are deduplicated by owner and cloud player id', () => {
+  const records = deduplicatePlayerEvaluationRecords([
+    {
+      owner_id: 'OWNER-ID',
+      player_id: 'PLAYER-CLOUD-UUID',
+      local_id: 'old-local',
+      updated_at: '2026-06-09T10:00:00.000Z',
+    },
+    {
+      owner_id: 'owner-id',
+      player_id: 'player-cloud-uuid',
+      local_id: 'new-local',
+      updated_at: '2026-06-09T12:00:00.000Z',
+    },
+    {
+      owner_id: 'owner-id',
+      player_id: 'other-player-cloud-uuid',
+      local_id: 'other-local',
+      updated_at: '2026-06-09T11:00:00.000Z',
+    },
+  ]);
+
+  assert.equal(records.length, 2);
+  assert.equal(
+    records.find((record) => record.player_id === 'player-cloud-uuid')?.local_id,
+    'new-local',
+  );
+  assert.equal(
+    records.find((record) => record.player_id === 'other-player-cloud-uuid')?.local_id,
+    'other-local',
+  );
 });

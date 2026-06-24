@@ -77,6 +77,50 @@ export const playerCloudService = {
 
   async upsert(local: Player, ownerId: string): Promise<Player> {
     const dbRecord = mapPlayerToDb(local, ownerId);
+    if (local.cloudId) {
+      const updateRecord = { ...dbRecord };
+      delete (updateRecord as any).id;
+
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .update(updateRecord)
+          .eq('id', local.cloudId)
+          .select()
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) return mapDbToPlayer(data);
+      } catch (updateError: any) {
+        if (
+          updateError &&
+          (updateError.code === '23505' || updateError.statusCode === '23505') &&
+          updateError.message?.includes('players_username_lower_idx')
+        ) {
+          const ownerSuffix = ownerId.slice(0, 4);
+          const fallbackUsername = local.username ? `${local.username}-${ownerSuffix}` : undefined;
+          console.warn(
+            `Username collision during cloud-id update for ${local.nome} (${local.username}). Retrying with fallback: ${fallbackUsername}`,
+          );
+          const retryRecord = { ...updateRecord };
+          if (fallbackUsername) {
+            retryRecord.username = fallbackUsername;
+          } else {
+            delete retryRecord.username;
+          }
+          const { data: retryData, error: retryError } = await supabase
+            .from('players')
+            .update(retryRecord)
+            .eq('id', local.cloudId)
+            .select()
+            .single();
+          if (retryError) throw retryError;
+          return mapDbToPlayer(retryData);
+        }
+        throw updateError;
+      }
+    }
+
     try {
       const { data, error } = await supabase
         .from('players')
@@ -92,8 +136,51 @@ export const playerCloudService = {
         (error.code === '23505' || error.statusCode === '23505') &&
         error.message?.includes('players_pkey')
       ) {
-        console.warn(`Primary key collision for player ${local.nome}. Retrying without id.`);
-        return playerCloudService.upsert({ ...local, cloudId: undefined }, ownerId);
+        // PK collision means the row already exists in the cloud with this id
+        // but has a different local_id (pre-migration value). Update it in place.
+        console.warn(`Primary key collision for player ${local.nome}. Updating existing row by PK.`);
+        const updateRecord = { ...dbRecord };
+        delete (updateRecord as any).id;
+
+        try {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('players')
+            .update(updateRecord)
+            .eq('id', dbRecord.id)
+            .select()
+            .single();
+
+          if (fallbackError) throw fallbackError;
+          return mapDbToPlayer(fallbackData);
+        } catch (updateError: any) {
+          // The update itself might hit a username collision
+          if (
+            updateError &&
+            (updateError.code === '23505' || updateError.statusCode === '23505') &&
+            updateError.message?.includes('players_username_lower_idx')
+          ) {
+            const ownerSuffix = ownerId.slice(0, 4);
+            const fallbackUsername = local.username ? `${local.username}-${ownerSuffix}` : undefined;
+            console.warn(
+              `Username collision during PK-update for ${local.nome} (${local.username}). Retrying with fallback: ${fallbackUsername}`,
+            );
+            const retryRecord = { ...updateRecord };
+            if (fallbackUsername) {
+              retryRecord.username = fallbackUsername;
+            } else {
+              delete retryRecord.username;
+            }
+            const { data: retryData, error: retryError } = await supabase
+              .from('players')
+              .update(retryRecord)
+              .eq('id', dbRecord.id)
+              .select()
+              .single();
+            if (retryError) throw retryError;
+            return mapDbToPlayer(retryData);
+          }
+          throw updateError;
+        }
       }
       if (
         error &&

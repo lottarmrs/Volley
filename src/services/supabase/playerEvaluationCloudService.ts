@@ -3,6 +3,29 @@ import { Player, PlayerEvaluation } from '../../types';
 
 type DbRecord = Record<string, any>;
 
+function timestampMs(value: unknown): number {
+  const time = typeof value === 'string' ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function deduplicatePlayerEvaluationRecords(records: DbRecord[]): DbRecord[] {
+  const byOwnerAndPlayer = new Map<string, DbRecord>();
+
+  for (const record of records) {
+    const ownerId = String(record.owner_id || '').trim().toLowerCase();
+    const playerId = String(record.player_id || '').trim().toLowerCase();
+    if (!ownerId || !playerId) continue;
+
+    const key = `${ownerId}:${playerId}`;
+    const existing = byOwnerAndPlayer.get(key);
+    if (!existing || timestampMs(record.updated_at) >= timestampMs(existing.updated_at)) {
+      byOwnerAndPlayer.set(key, record);
+    }
+  }
+
+  return Array.from(byOwnerAndPlayer.values());
+}
+
 export function mapPlayerEvaluationToDb(
   player: Player,
   ownerId: string,
@@ -86,18 +109,25 @@ export const playerEvaluationCloudService = {
 
     if (records.length === 0) return;
 
-    const seen = new Set<string>();
-    const deduplicated = records.filter((r) => {
-      const key = `${r.owner_id.toLowerCase()}:${r.player_id.toLowerCase()}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const deduplicated = deduplicatePlayerEvaluationRecords(records);
+    if (deduplicated.length === 0) return;
 
     const { error } = await supabase
       .from('player_evaluations')
       .upsert(deduplicated, { onConflict: 'owner_id,player_id' });
 
-    if (error) throw error;
+    if (!error) return;
+
+    if (error.code !== '21000') throw error;
+
+    console.warn(
+      'Bulk player_evaluations upsert contained duplicate conflict keys. Falling back to individual upserts.',
+    );
+    for (const record of deduplicated) {
+      const { error: individualError } = await supabase
+        .from('player_evaluations')
+        .upsert(record, { onConflict: 'owner_id,player_id' });
+      if (individualError) throw individualError;
+    }
   },
 };

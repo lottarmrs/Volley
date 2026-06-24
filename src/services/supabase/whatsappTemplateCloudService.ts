@@ -89,6 +89,21 @@ export const whatsappTemplateCloudService = {
     communityCloudId: string,
   ): Promise<WhatsAppListTemplate> {
     const dbRecord = mapTemplateToDb(local, ownerId, communityCloudId);
+    if (local.cloudId) {
+      const updateRecord = { ...dbRecord };
+      delete (updateRecord as any).id;
+
+      const { data, error } = await supabase
+        .from('whatsapp_list_templates')
+        .update(updateRecord)
+        .eq('id', local.cloudId)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) return mapDbToTemplate(data, local.communityId);
+    }
+
     try {
       const { data, error } = await supabase
         .from('whatsapp_list_templates')
@@ -104,13 +119,14 @@ export const whatsappTemplateCloudService = {
         (error.code === '23505' || error.statusCode === '23505') &&
         error.message?.includes('whatsapp_list_templates_pkey')
       ) {
-        console.warn(`Primary key collision for template ${local.name}. Retrying without id.`);
-        const fallbackRecord = { ...dbRecord };
-        delete (fallbackRecord as any).id;
+        console.warn(`Primary key collision for template ${local.name}. Updating existing row by PK.`);
+        const updateRecord = { ...dbRecord };
+        delete (updateRecord as any).id;
 
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('whatsapp_list_templates')
-          .upsert(fallbackRecord, { onConflict: 'owner_id,local_id' })
+          .update(updateRecord)
+          .eq('id', dbRecord.id)
           .select()
           .single();
 

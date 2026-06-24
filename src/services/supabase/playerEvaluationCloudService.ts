@@ -86,9 +86,17 @@ export const playerEvaluationCloudService = {
 
     if (records.length === 0) return;
 
+    const seen = new Set<string>();
+    const deduplicated = records.filter((r) => {
+      const key = `${r.owner_id}:${r.player_id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     const { error } = await supabase
       .from('player_evaluations')
-      .upsert(records, { onConflict: 'owner_id,player_id' });
+      .upsert(deduplicated, { onConflict: 'owner_id,player_id' });
 
     if (error) throw error;
   },

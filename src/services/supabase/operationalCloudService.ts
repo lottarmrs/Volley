@@ -462,10 +462,18 @@ async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbR
 async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Promise<DbRecord[]> {
   if (!records || records.length === 0) return [];
 
+  const seen = new Set<string>();
+  const deduplicated = records.filter((r) => {
+    const key = `${r.owner_id}:${r.local_id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   try {
     const { data, error } = await supabase
       .from(table)
-      .upsert(records, { onConflict: 'owner_id,local_id' })
+      .upsert(deduplicated, { onConflict: 'owner_id,local_id' })
       .select();
 
     if (error) throw error;
@@ -478,7 +486,7 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
     ) {
       console.warn(`[Bulk] Colisão de Primary Key na tabela ${table}. Tentando lote sem IDs.`);
 
-      const fallbackRecords = records.map((record) => {
+      const fallbackRecords = deduplicated.map((record) => {
         const fallback = { ...record };
         delete fallback.id;
         return fallback;

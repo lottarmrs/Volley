@@ -26,9 +26,16 @@ export const communityPlayerCloudService = {
 
   async bulkUpsert(relations: Omit<CommunityPlayerDb, 'id'>[]): Promise<void> {
     if (relations.length === 0) return;
+    const seen = new Set<string>();
+    const deduplicated = relations.filter((r) => {
+      const key = `${r.community_id}:${r.player_id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const { error } = await supabase
       .from('community_players')
-      .upsert(relations, { onConflict: 'community_id,player_id' });
+      .upsert(deduplicated, { onConflict: 'community_id,player_id' });
 
     if (error) throw error;
   },

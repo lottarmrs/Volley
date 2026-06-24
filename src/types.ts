@@ -85,10 +85,57 @@ export interface Player {
   communityIds?: string[];
   isGuest?: boolean;
   cloudId?: string;
+  cloudOwnerId?: string;
+  /**
+   * Attribute values according to the current organizer. For shared athletes,
+   * this is persisted as a separate player_evaluations row instead of
+   * overwriting the global player identity.
+   */
+  personalAttributes?: Attributes;
+  hasOwnEvaluation?: boolean;
+  evaluationAggregate?: {
+    attributes: Attributes;
+    evaluatorCount: number;
+    includedValueCount: number;
+    outlierValueCount: number;
+    updatedAt?: string;
+  };
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
   updatedAt?: string;
+  userId?: string;
+}
+
+export interface PlayerLinkProposal {
+  id: string;
+  playerCloudId?: string;
+  playerId: string;
+  userId: string;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+}
+
+export interface PlayerEvaluation {
+  id: string;
+  playerId: string;
+  playerCloudId?: string;
+  ownerId?: string;
+  attributes: Attributes;
+  profile?: Player['perfil'];
+  status?: Player['status'];
+  notes?: string;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeamStrengthSnapshot {
@@ -862,7 +909,7 @@ export interface ShareBlock {
 
 export type CloudSyncStatus = 'local' | 'pending' | 'synced' | 'conflict' | 'error';
 
-export type AuthRole = 'admin' | 'organizer';
+export type AuthRole = 'master' | 'programmer' | 'user';
 
 export interface UserProfile {
   id: string;

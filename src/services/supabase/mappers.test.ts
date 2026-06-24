@@ -23,6 +23,7 @@ import {
   mapTeamToDb,
 } from './operationalCloudService';
 import { mapDbToCommunityMember } from './membershipCloudService';
+import { mapProposalToDb, mapDbToProposal } from './playerLinkProposalCloudService';
 import {
   Community,
   CommunityPresence,
@@ -36,6 +37,7 @@ import {
   Team,
   WhatsAppListDraft,
   WhatsAppListTemplate,
+  PlayerLinkProposal,
 } from '../../types';
 
 const now = '2026-06-09T12:00:00.000Z';
@@ -518,4 +520,35 @@ test('community member mapper reads embedded profile data', () => {
   assert.equal(mapped.userId, 'user-id');
   assert.equal(mapped.name, 'Ana');
   assert.equal(mapped.email, 'ana@example.com');
+});
+
+test('player link proposal mapper round-trips fields and maps local-to-cloud player IDs', () => {
+  const proposal: PlayerLinkProposal = {
+    id: 'proposal-local-uuid',
+    playerId: 'player-local',
+    userId: 'user-auth-uuid',
+    status: 'pending',
+    createdAt: now,
+  };
+
+  const playerLocalToCloudIdMap = {
+    'player-local': 'player-cloud-uuid',
+  };
+
+  const db = mapProposalToDb(proposal, playerLocalToCloudIdMap);
+  assert.equal(db.id, 'proposal-local-uuid');
+  assert.equal(db.player_id, 'player-cloud-uuid');
+  assert.equal(db.user_id, 'user-auth-uuid');
+  assert.equal(db.status, 'pending');
+
+  const playerCloudToLocalIdMap = {
+    'player-cloud-uuid': 'player-local',
+  };
+
+  const mapped = mapDbToProposal(db, playerCloudToLocalIdMap);
+  assert.equal(mapped.id, 'proposal-local-uuid');
+  assert.equal(mapped.playerId, 'player-local');
+  assert.equal(mapped.userId, 'user-auth-uuid');
+  assert.equal(mapped.status, 'pending');
+  assert.equal(mapped.syncStatus, 'synced');
 });

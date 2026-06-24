@@ -6,6 +6,7 @@ export const getGameWinner = (
   rules: { maxPoints: number; tieBreakMethod: string; hardPointCap?: number | null },
 ): GameWinner => {
   const { maxPoints, tieBreakMethod, hardPointCap } = rules;
+  if (!Number.isFinite(maxPoints) || maxPoints <= 0) return null;
 
   const high = Math.max(scoreA, scoreB);
   const low = Math.min(scoreA, scoreB);
@@ -66,7 +67,11 @@ export const evaluateMatchState = (
   currentB: number,
   rules: MatchSetRules,
 ): MatchState => {
-  const { setTargets } = rules;
+  const setTargets = rules.setTargets.filter((target) => Number.isFinite(target) && target > 0);
+  if (setTargets.length === 0) {
+    return { sets, scoreA: currentA, scoreB: currentB, matchWinner: null, setClosed: false };
+  }
+
   const idx = sets.length;
   const target = setTargets[idx] ?? setTargets[setTargets.length - 1] ?? 0;
 

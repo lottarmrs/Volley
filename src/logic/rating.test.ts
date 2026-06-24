@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateMatchRating, calculateSessionRating } from './rating';
+import { calculateMatchRating, calculateSessionRating, gameExposure } from './rating';
 import { Game, Player, PointEvent, Team, Position } from '../types';
 
 const player = (id: string, posicaoPrincipal: Position): Player =>
@@ -165,6 +165,28 @@ test('low exposure shrinks the rating toward the baseline', () => {
   assert.equal(r, 6.23);
 });
 
+test('game exposure uses closed sets without duplicating the final score', () => {
+  const finishedMultiSet = game({
+    scoreA: 7,
+    scoreB: 5,
+    sets: [
+      { scoreA: 12, scoreB: 10 },
+      { scoreA: 10, scoreB: 12 },
+      { scoreA: 7, scoreB: 5 },
+    ],
+  });
+  assert.equal(gameExposure(finishedMultiSet), 56);
+
+  const inProgressMultiSet = game({
+    status: 'active',
+    winnerTeamId: undefined,
+    scoreA: 4,
+    scoreB: 3,
+    sets: [{ scoreA: 12, scoreB: 10 }],
+  });
+  assert.equal(gameExposure(inProgressMultiSet), 29);
+});
+
 test('session rating is the exposure-weighted mean of game ratings', () => {
   const op = player('op', 'oposto');
   const teams = [{ id: 'teamA', playerIds: ['op'] }] as unknown as Team[];
@@ -198,6 +220,54 @@ test('session rating is the exposure-weighted mean of game ratings', () => {
   const session = calculateSessionRating({
     player: op,
     sessionGames: [g1, g2],
+    sessionPoints: points,
+    teams,
+  });
+  assert.equal(session, expected);
+});
+
+test('session rating weights multi-set matches by total set exposure', () => {
+  const op = player('op', 'oposto');
+  const teams = [{ id: 'teamA', playerIds: ['op'] }] as unknown as Team[];
+  const multiSet = game({
+    id: 'g1',
+    scoreA: 7,
+    scoreB: 5,
+    sets: [
+      { scoreA: 12, scoreB: 10 },
+      { scoreA: 10, scoreB: 12 },
+      { scoreA: 7, scoreB: 5 },
+    ],
+  });
+  const singleSet = game({ id: 'g2', scoreA: 12, scoreB: 6 });
+  const points = [
+    pt({ gameId: 'g1', playerId: 'op', pointType: 'winner', skill: 'saque' }),
+    pt({
+      gameId: 'g2',
+      playerId: 'op',
+      pointType: 'error',
+      fault: 'attack_out',
+      scoringTeamId: 'teamB',
+      concedingTeamId: 'teamA',
+    }),
+  ];
+  const r1 = calculateMatchRating({
+    player: op,
+    game: multiSet,
+    gamePoints: [points[0]],
+    playerTeamId: 'teamA',
+  });
+  const r2 = calculateMatchRating({
+    player: op,
+    game: singleSet,
+    gamePoints: [points[1]],
+    playerTeamId: 'teamA',
+  });
+  const expected = Math.round(((r1 * 56 + r2 * 18) / 74) * 100) / 100;
+
+  const session = calculateSessionRating({
+    player: op,
+    sessionGames: [multiSet, singleSet],
     sessionPoints: points,
     teams,
   });

@@ -14,6 +14,7 @@ interface TeamScoreCardProps {
   /** Nota de desempenho ao vivo por jogador (0–10). */
   ratings?: Record<string, number>;
   sets?: { scoreA: number; scoreB: number }[];
+  setTargets?: number[];
   isTeamA?: boolean;
   onRegisterPoint: () => void;
   onOpenDetailModal: (playerId?: string) => void;
@@ -42,6 +43,7 @@ export const TeamScoreCard = ({
   players,
   ratings,
   sets,
+  setTargets,
   isTeamA,
   onRegisterPoint,
   onOpenDetailModal,
@@ -49,6 +51,15 @@ export const TeamScoreCard = ({
   const setsWon = sets
     ? sets.filter((s) => (isTeamA ? s.scoreA > s.scoreB : s.scoreB > s.scoreA)).length
     : 0;
+  const setsLost = sets
+    ? sets.filter((s) => (isTeamA ? s.scoreB > s.scoreA : s.scoreA > s.scoreB)).length
+    : 0;
+  const isMultiSet = !!setTargets && setTargets.length > 1;
+  const currentSetIndex = sets?.length || 0;
+  const validTargets = (setTargets || []).filter((target) => Number.isFinite(target) && target > 0);
+  const currentTarget = validTargets[currentSetIndex] ?? validTargets[validTargets.length - 1];
+  const maxTarget = validTargets.length > 0 ? Math.max(...validTargets) : null;
+  const isTiebreak = isMultiSet && !!currentTarget && !!maxTarget && currentTarget < maxTarget;
   return (
     <div
       className={`card card-border bg-base-200 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl flex flex-col items-center gap-4 sm:gap-6 relative overflow-hidden group transition-all ${isWinner ? 'ring-2 ring-accent ring-offset-4 ring-offset-black scale-105 z-10' : ''}`}
@@ -108,10 +119,17 @@ export const TeamScoreCard = ({
         <span className="text-[10px] font-bold tracking-[0.4em] text-base-content/60 uppercase">
           {team.name || 'Time Sem Nome'}
         </span>
-        {sets && sets.length > 0 && (
-          <span className="badge badge-accent badge-soft font-mono font-black text-xs uppercase tracking-wider mt-1">
-            Sets: {setsWon}
-          </span>
+        {isMultiSet && (
+          <div className="flex flex-wrap justify-center gap-1.5 mt-1">
+            <span className="badge badge-accent badge-soft font-mono font-black text-xs uppercase tracking-wider">
+              Sets {setsWon} x {setsLost}
+            </span>
+            {isTiebreak && (
+              <span className="badge badge-warning badge-soft font-black text-[10px] uppercase tracking-wider">
+                Tiebreak
+              </span>
+            )}
+          </div>
         )}
       </div>
 

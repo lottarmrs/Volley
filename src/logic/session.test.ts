@@ -77,6 +77,24 @@ test('evaluateMatchState - tiebreak de 7 decide o 3º set', () => {
   assert.equal(r.sets.length, 3);
 });
 
+test('evaluateMatchState - setTargets vazio ou invalido nao fecha set', () => {
+  const empty = evaluateMatchState([], 99, 0, { setTargets: [], tieBreakMethod: 'direct_3' });
+  assert.deepEqual(empty, {
+    sets: [],
+    scoreA: 99,
+    scoreB: 0,
+    matchWinner: null,
+    setClosed: false,
+  });
+
+  const invalid = evaluateMatchState([], 99, 0, {
+    setTargets: [Number.NaN, 0, -1],
+    tieBreakMethod: 'direct_3',
+  });
+  assert.equal(invalid.matchWinner, null);
+  assert.equal(invalid.setClosed, false);
+});
+
 test('rotateTeams - winner stays', () => {
   const input = {
     courtTeams: ['team-a', 'team-b'] as [string, string],

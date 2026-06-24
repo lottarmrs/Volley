@@ -49,10 +49,15 @@ export function useLiveSession(
     [games, activeSession?.id],
   );
 
-  const activeGame = useMemo(
-    () => sessionGames.find((g) => g.status === 'active' || g.status === 'paused'),
-    [sessionGames],
-  );
+  const activeGame = useMemo(() => {
+    const orderedGames = [...sessionGames].sort(
+      (a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0),
+    );
+    return (
+      orderedGames.find((g) => g.status === 'active') ??
+      orderedGames.find((g) => g.status === 'paused')
+    );
+  }, [sessionGames]);
 
   const lastResultGame = useMemo(
     () =>
@@ -398,11 +403,14 @@ export function useLiveSession(
 
         // Activate the scheduled game instead of creating a new one
         setGames((prev) =>
-          prev.map((g) =>
-            g.id === nextScheduled.id
-              ? { ...g, status: 'active', startedAt: new Date().toISOString() }
-              : g,
-          ),
+          prev.map((g) => {
+            if (g.sessionId !== activeSession.id) return g;
+            if (g.id === nextScheduled.id) {
+              return { ...g, status: 'active', startedAt: g.startedAt || new Date().toISOString() };
+            }
+            if (g.status === 'active') return { ...g, status: 'paused' as const };
+            return g;
+          }),
         );
         return;
       } else {
@@ -532,14 +540,19 @@ export function useLiveSession(
     (gameId: string, paused: boolean) => {
       setGames((prev) =>
         prev.map((game) => {
-          if (game.id !== gameId) return game;
+          if (game.id !== gameId) {
+            if (!paused && game.sessionId === activeSession?.id && game.status === 'active') {
+              return { ...game, status: 'paused' as const };
+            }
+            return game;
+          }
           if (paused && game.status === 'active') return { ...game, status: 'paused' as const };
           if (!paused && game.status === 'paused') return { ...game, status: 'active' as const };
           return game;
         }),
       );
     },
-    [setGames],
+    [activeSession?.id, setGames],
   );
 
   const reopenGame = useCallback(
@@ -607,6 +620,8 @@ export function useLiveSession(
   const reorderScheduledGame = useCallback(
     (gameId: string, direction: 'up' | 'down') => {
       setGames((prev) => {
+        const canReorder = (status: Game['status']) =>
+          status === 'scheduled' || status === 'active' || status === 'paused';
         const otherGames = prev.filter((g) => g.sessionId !== activeSession?.id);
         const sessionOrdered = prev
           .filter((g) => g.sessionId === activeSession?.id)
@@ -614,19 +629,14 @@ export function useLiveSession(
         const index = sessionOrdered.findIndex((g) => g.id === gameId);
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (index < 0 || targetIndex < 0 || targetIndex >= sessionOrdered.length) return prev;
-        
+
         const gameA = sessionOrdered[index];
         const gameB = sessionOrdered[targetIndex];
-        
-        if (
-          gameA.status !== 'scheduled' ||
-          gameB.status !== 'scheduled'
-        )
-          return prev;
-          
-        if (gameA.stage !== gameB.stage)
-          return prev;
-          
+
+        if (!canReorder(gameA.status) || !canReorder(gameB.status)) return prev;
+
+        if (gameA.stage !== gameB.stage) return prev;
+
         [sessionOrdered[index], sessionOrdered[targetIndex]] = [
           sessionOrdered[targetIndex],
           sessionOrdered[index],

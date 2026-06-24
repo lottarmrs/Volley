@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UserProfile } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { UserProfile, Player, PlayerLinkProposal } from '../../types';
 import {
   Cloud,
   CloudUpload,
@@ -11,6 +11,9 @@ import {
   Calendar,
   CheckCircle,
   AlertCircle,
+  UserCheck,
+  Loader2,
+  Users,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 
@@ -29,6 +32,11 @@ interface AccountSyncViewProps {
   onSync: () => Promise<void>;
   lastSyncedAt: string | null;
   syncLoading: boolean;
+
+  players: Player[];
+  linkProposals: PlayerLinkProposal[];
+  onProposeLink: (playerId: string) => Promise<void> | void;
+  onCancelLink: (proposalId: string) => Promise<void> | void;
 }
 
 export function AccountSyncView({
@@ -44,10 +52,44 @@ export function AccountSyncView({
   onSync,
   lastSyncedAt,
   syncLoading,
+  players = [],
+  linkProposals = [],
+  onProposeLink,
+  onCancelLink,
 }: AccountSyncViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [selectedPlayerId, setSelectedPlayerId] = useState('');
+  const [claiming, setClaiming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  // Encontra atleta vinculado
+  const myLinkedPlayer = useMemo(() => {
+    if (!user) return null;
+    return players.find((p) => p.userId === user.id);
+  }, [players, user]);
+
+  // Encontra proposta pendente
+  const myPendingProposal = useMemo(() => {
+    if (!user) return null;
+    return linkProposals.find((p) => p.userId === user.id && p.status === 'pending');
+  }, [linkProposals, user]);
+
+  const pendingPlayer = useMemo(() => {
+    if (!myPendingProposal) return null;
+    return players.find(
+      (p) =>
+        p.id === myPendingProposal.playerId ||
+        (p.cloudId && myPendingProposal.playerCloudId && p.cloudId === myPendingProposal.playerCloudId)
+    );
+  }, [myPendingProposal, players]);
+
+  // Filtra atletas disponíveis para se vincular (sem userId e que não sejam convidados)
+  const availablePlayers = useMemo(() => {
+    return players.filter((p) => !p.userId && !p.isGuest && p.ativo);
+  }, [players]);
 
   const handleAction = async (name: string, fn: () => Promise<void>) => {
     setError(null);
@@ -112,7 +154,12 @@ export function AccountSyncView({
     );
   }
 
-  const roleLabel = profile?.role === 'admin' ? 'Administrador Geral' : 'Organizador';
+  const roleLabel =
+    profile?.role === 'master'
+      ? 'Master (Dono do App)'
+      : profile?.role === 'programmer'
+        ? 'Programador / Suporte'
+        : 'Usuário';
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
@@ -234,6 +281,119 @@ export function AccountSyncView({
               )}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Vínculo com Perfil de Atleta */}
+      <div className="card card-border bg-base-200 shadow-xl rounded-2xl">
+        <div className="card-body gap-4">
+          <div className="flex items-center gap-3 border-b border-base-300 pb-3">
+            <Users className="w-5 h-5 text-accent" />
+            <h3 className="font-black text-sm text-base-content uppercase tracking-wider">
+              Vínculo com Perfil de Atleta
+            </h3>
+          </div>
+
+          {myLinkedPlayer ? (
+            <div className="bg-success/10 border border-success/20 p-4 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-success/25 border border-success/35 flex items-center justify-center font-bold text-success text-xs">
+                  {myLinkedPlayer.nome.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-base-content flex items-center gap-1.5">
+                    {myLinkedPlayer.apelido || myLinkedPlayer.nome}
+                    <span className="badge badge-success badge-xs font-bold uppercase tracking-wider gap-0.5">
+                      <UserCheck className="w-2.5 h-2.5" /> Vinculado
+                    </span>
+                  </p>
+                  <p className="text-[9px] text-base-content/50 uppercase font-mono mt-0.5">
+                    {myLinkedPlayer.posicaoPrincipal} • {myLinkedPlayer.genero}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : myPendingProposal ? (
+            <div className="bg-warning/10 border border-warning/20 p-4 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-warning/25 border border-warning/35 flex items-center justify-center font-bold text-warning text-xs">
+                  {pendingPlayer?.nome.slice(0, 2).toUpperCase() || '??'}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-base-content flex items-center gap-1.5">
+                    {pendingPlayer?.apelido || pendingPlayer?.nome || 'Jogador Desconhecido'}
+                    <span className="badge badge-warning badge-xs font-bold uppercase tracking-wider">
+                      Pendente
+                    </span>
+                  </p>
+                  <p className="text-[9px] text-base-content/65 mt-0.5">
+                    Aguardando aprovação do administrador da comunidade.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setCancelling(true);
+                    try {
+                      if (onCancelLink) await onCancelLink(myPendingProposal.id);
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setCancelling(false);
+                    }
+                  }}
+                  disabled={cancelling}
+                  className="btn btn-ghost hover:bg-error/15 hover:text-error btn-xs font-bold uppercase"
+                >
+                  {cancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Cancelar'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-base-content/75 leading-relaxed">
+                Você não possui um perfil de jogador vinculado a esta conta de usuário. 
+                Selecione a sua ficha abaixo para solicitar o vínculo com a sua conta.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  value={selectedPlayerId}
+                  onChange={(e) => setSelectedPlayerId(e.target.value)}
+                  className="select select-bordered select-sm flex-1 font-bold text-xs uppercase"
+                  disabled={claiming}
+                >
+                  <option value="">-- Selecione sua Ficha de Atleta --</option>
+                  {availablePlayers.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.apelido || player.nome} ({player.posicaoPrincipal} • {player.genero})
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!selectedPlayerId) return;
+                    setClaiming(true);
+                    try {
+                      if (onProposeLink) await onProposeLink(selectedPlayerId);
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setClaiming(false);
+                    }
+                  }}
+                  disabled={!selectedPlayerId || claiming}
+                  className="btn btn-primary btn-sm font-bold uppercase"
+                >
+                  {claiming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Solicitar Vínculo'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

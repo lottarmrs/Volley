@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const conflictMigration = readFileSync(
   new URL(
-    '../../../supabase/migrations/20260610120000_upsert_conflict_targets.sql',
+    '../../../supabase/migrations/20260610161236_upsert_conflict_targets.sql',
     import.meta.url,
   ),
   'utf8',

@@ -247,6 +247,11 @@ export const PlayerItem: React.FC<{
               {' • '}
               <span className="text-primary font-bold">{balancingRole}</span>
             </p>
+            {player.username && (
+              <p className="text-[9px] text-base-content/40 font-mono mt-0.5 truncate">
+                @{player.username}
+              </p>
+            )}
           </div>
 
           {/* Overall + forma delta */}

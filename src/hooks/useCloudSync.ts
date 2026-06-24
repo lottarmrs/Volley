@@ -9,6 +9,7 @@ import {
   Game,
   GameReport,
   Player,
+  PlayerLinkProposal,
   PointEvent,
   Session,
   SessionReport,
@@ -49,6 +50,8 @@ export interface CloudSyncDeps {
   setSessionReports: (value: SessionReport[]) => void;
   presenceRecords: CommunityPresence[];
   setPresenceRecords: (value: CommunityPresence[]) => void;
+  linkProposals: PlayerLinkProposal[];
+  setLinkProposals: (value: PlayerLinkProposal[]) => void;
   /** Optional sink for user-facing feedback (e.g. toasts). */
   onToast?: (message: string, variant: 'success' | 'error') => void;
 }
@@ -84,6 +87,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     sessionReports: deps.sessionReports,
     presenceRecords: deps.presenceRecords,
     drafts: deps.drafts,
+    linkProposals: deps.linkProposals,
   });
 
   const applyResult = (result: LocalSyncPayload) => {
@@ -99,6 +103,9 @@ export function useCloudSync(deps: CloudSyncDeps) {
     deps.setSessionReports(result.sessionReports);
     deps.setPresenceRecords(result.presenceRecords);
     deps.setDrafts(result.drafts);
+    if (result.linkProposals) {
+      deps.setLinkProposals(result.linkProposals);
+    }
 
     const nowStr = new Date().toISOString();
     setLastSyncedAt(nowStr);

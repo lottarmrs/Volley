@@ -4,6 +4,9 @@ import { communityPlayerCloudService, CommunityPlayerDb } from './communityPlaye
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
+import { playerEvaluationCloudService } from './playerEvaluationCloudService';
+import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
+import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
   Community,
@@ -12,6 +15,7 @@ import {
   Game,
   GameReport,
   Player,
+  PlayerLinkProposal,
   PointEvent,
   Session,
   SessionReport,
@@ -25,6 +29,7 @@ export interface LocalSyncPayload extends OperationalSyncPayload {
   players: Player[];
   rules: CommunityRules[];
   templates: WhatsAppListTemplate[];
+  linkProposals?: PlayerLinkProposal[];
 }
 
 type Syncable = {
@@ -273,19 +278,34 @@ export const syncService = {
 
     for (const player of local.players) {
       if (player.deletedAt) {
-        if (player.cloudId) {
+        const canDeleteGlobalPlayer =
+          player.cloudId && (!player.cloudOwnerId || player.cloudOwnerId === ownerId);
+        if (canDeleteGlobalPlayer) {
           await playerCloudService.softDelete(player.cloudId);
         }
         updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
         continue;
       }
 
-      const uploaded = await playerCloudService.upsert(player, ownerId);
-      if (uploaded.cloudId) {
-        playerLocalToCloudIdMap[player.id] = uploaded.cloudId;
+      const isSharedPlayer =
+        !!player.cloudId && !!player.cloudOwnerId && player.cloudOwnerId !== ownerId;
+
+      if (isSharedPlayer) {
+        playerLocalToCloudIdMap[player.id] = player.cloudId!;
+        updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
+        continue;
       }
-      updatedPlayers.push(markSynced(player, uploaded.cloudId, syncedAt));
+
+      const uploaded = await playerCloudService.upsert(player, ownerId);
+      if (uploaded.cloudId) playerLocalToCloudIdMap[player.id] = uploaded.cloudId;
+      updatedPlayers.push(markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt));
     }
+
+    await playerEvaluationCloudService.bulkUpsertForPlayers(
+      updatedPlayers,
+      ownerId,
+      playerLocalToCloudIdMap,
+    );
 
     const updatedRules: CommunityRules[] = [];
     for (const rule of local.rules) {
@@ -550,6 +570,21 @@ export const syncService = {
       await communityPlayerCloudService.bulkUpsert(relationsToUpload);
     }
 
+    const updatedProposals: PlayerLinkProposal[] = [];
+    for (const proposal of local.linkProposals || []) {
+      const playerCloudId = playerLocalToCloudIdMap[proposal.playerId] || proposal.playerCloudId;
+      if (!playerCloudId) {
+        updatedProposals.push(proposal);
+        continue;
+      }
+      if (proposal.deletedAt) {
+        updatedProposals.push(markSynced(proposal, proposal.id, syncedAt));
+        continue;
+      }
+      const uploaded = await playerLinkProposalCloudService.upsert(proposal, playerLocalToCloudIdMap);
+      updatedProposals.push(markSynced(proposal, uploaded.id, syncedAt));
+    }
+
     return {
       communities: visible(updatedCommunities),
       players: visible(updatedPlayers),
@@ -563,10 +598,11 @@ export const syncService = {
       sessionReports: updatedSessionReports,
       presenceRecords: visible(updatedPresenceRecords),
       drafts: visible(updatedDrafts),
+      linkProposals: visible(updatedProposals),
     };
   },
 
-  async downloadCloudDataToLocal(): Promise<LocalSyncPayload> {
+  async downloadCloudDataToLocal(ownerId?: string): Promise<LocalSyncPayload> {
     const cloudCommunities = await communityCloudService.fetchAll();
     const cloudPlayers = await playerCloudService.fetchAll();
 
@@ -584,11 +620,13 @@ export const syncService = {
       }
     });
 
-    const [cloudRules, cloudTemplates, cloudRelations, operational] = await Promise.all([
+    const [cloudRules, cloudTemplates, cloudRelations, cloudEvaluations, operational, cloudProposals] = await Promise.all([
       communityRulesCloudService.fetchAll(communityCloudToLocalIdMap),
       whatsappTemplateCloudService.fetchAll(communityCloudToLocalIdMap),
       communityPlayerCloudService.fetchAll(),
+      playerEvaluationCloudService.fetchAll(playerCloudToLocalIdMap),
       operationalCloudService.fetchAll(communityCloudToLocalIdMap),
+      playerLinkProposalCloudService.fetchAll(playerCloudToLocalIdMap),
     ]);
 
     const playerMemberships: Record<string, string[]> = {};
@@ -601,22 +639,30 @@ export const syncService = {
       }
     }
 
-    const mappedPlayers = cloudPlayers.map((player) => ({
-      ...player,
-      communityIds: playerMemberships[player.id] || [],
-    }));
+    const mappedPlayers = cloudPlayers.map((player) => {
+      const playerEvaluations = cloudEvaluations.filter((evaluation) => evaluation.playerId === player.id);
+      return applyEvaluationAggregate(
+        {
+          ...player,
+          communityIds: playerMemberships[player.id] || [],
+        },
+        playerEvaluations,
+        ownerId,
+      );
+    });
 
     return {
       communities: cloudCommunities,
       players: mappedPlayers,
       rules: cloudRules,
       templates: cloudTemplates,
+      linkProposals: cloudProposals,
       ...operational,
     };
   },
 
   async syncNow(local: LocalSyncPayload, ownerId: string): Promise<LocalSyncPayload> {
-    const cloud = await this.downloadCloudDataToLocal();
+    const cloud = await this.downloadCloudDataToLocal(ownerId);
 
     const merged: LocalSyncPayload = {
       communities: mergeEntityLists(local.communities, cloud.communities, {
@@ -644,6 +690,9 @@ export const syncService = {
         getId: (item) => `${item.communityId}:${item.date}`,
       }),
       drafts: mergeEntityLists(local.drafts, cloud.drafts, { getId: (item) => item.id }),
+      linkProposals: mergeEntityLists(local.linkProposals || [], cloud.linkProposals || [], {
+        getId: (item) => item.id,
+      }),
     };
 
     return this.uploadLocalDataToCloud(merged, ownerId);

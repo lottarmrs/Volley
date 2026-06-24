@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Trophy, Star, ArrowRight, Sparkles } from 'lucide-react';
+import { X, Trophy, Star, ArrowRight, Sparkles, Target, CheckCircle2, Layers } from 'lucide-react';
 import { FutCard } from './FutCard';
-import { VutCard } from '../../logic/futCards';
+import { Achievement, VutCard } from '../../logic/futCards';
 
 export interface RevealItem {
   card: VutCard;
@@ -27,6 +27,19 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
 
   const currentItem = revealItems[currentIndex];
   const isLast = currentIndex === revealItems.length - 1;
+  const unlocked = currentItem.card.achievements.filter((achievement) => achievement.unlocked);
+  const near = currentItem.card.achievements
+    .filter((achievement) => !achievement.unlocked && achievement.target > 0 && achievement.current > 0)
+    .sort((a, b) => b.current / b.target - a.current / a.target)
+    .slice(0, 2);
+  const packSummary = revealItems.reduce(
+    (acc, item) => {
+      if (item.card.edition.kind !== 'base') acc.specials += 1;
+      acc.achievements += item.card.achievements.filter((achievement) => achievement.unlocked).length;
+      return acc;
+    },
+    { specials: 0, achievements: 0 },
+  );
 
   const handleNext = () => {
     setIsOpened(false);
@@ -41,9 +54,19 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
     setIsOpened(true);
   };
 
+  const achievementProgress = (achievement: Achievement) =>
+    Math.round(Math.min(100, Math.max(0, (achievement.current / achievement.target) * 100)));
+
   return (
     <div className="modal modal-open z-[100] backdrop-blur-md bg-black/80">
       <div className="modal-box max-w-lg bg-base-950/90 border border-white/10 rounded-3xl flex flex-col items-center justify-between p-4 sm:p-8 min-h-0 sm:min-h-[500px] max-h-[95vh] overflow-y-auto overflow-x-hidden relative shadow-2xl">
+        <button
+          onClick={onClose}
+          className="btn btn-circle btn-ghost btn-sm absolute right-3 top-3 z-20 text-white/50 hover:text-white"
+          aria-label="Fechar reveal VUT"
+        >
+          <X className="w-4 h-4" />
+        </button>
         
         {/* Subtle decorative background light */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-accent/15 rounded-full filter blur-[80px] pointer-events-none" />
@@ -59,6 +82,14 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
           <p className="text-xs text-white/50 uppercase font-bold tracking-wider">
             Atleta {currentIndex + 1} de {revealItems.length}
           </p>
+          <div className="flex flex-wrap justify-center gap-2 pt-2">
+            <span className="badge badge-accent badge-soft text-[9px] font-black uppercase">
+              {packSummary.specials} especiais
+            </span>
+            <span className="badge badge-neutral badge-soft text-[9px] font-black uppercase">
+              {packSummary.achievements} conquistas
+            </span>
+          </div>
         </div>
 
         {/* Card Pack Animation / Render Card */}
@@ -82,6 +113,9 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                 <div className="flex flex-col items-center space-y-3">
                   <Trophy className="w-16 h-16 text-white/90 animate-bounce" />
                   <span className="text-lg font-black text-white uppercase tracking-widest leading-none">VUT</span>
+                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest text-center leading-tight">
+                    {currentItem.card.player.apelido || currentItem.card.player.nome}
+                  </span>
                   <span className="text-[8px] font-black text-white/60 uppercase tracking-widest bg-black/40 px-2 py-0.5 rounded-full">Clique para Abrir</span>
                 </div>
                 <div className="w-full flex justify-between text-white/40">
@@ -116,6 +150,60 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                     </p>
                   ))}
                 </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.45 }}
+                  className="grid grid-cols-1 gap-2 max-w-[320px] w-full"
+                >
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-black/45 border border-white/10 p-3 rounded-xl">
+                      <p className="text-[8px] font-black uppercase text-white/45 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-success" />
+                        Conquistas
+                      </p>
+                      <p className="text-lg font-black text-white mt-1">{unlocked.length}</p>
+                      <p className="text-[9px] text-white/45 uppercase truncate">
+                        {unlocked[0]?.name || 'sem novas'}
+                      </p>
+                    </div>
+                    <div className="bg-black/45 border border-white/10 p-3 rounded-xl">
+                      <p className="text-[8px] font-black uppercase text-white/45 flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-accent" />
+                        Moldura
+                      </p>
+                      <p className="text-xs font-black text-white mt-1 truncate">
+                        {currentItem.card.activeFrame.name}
+                      </p>
+                      <p className="text-[9px] text-white/45 uppercase">
+                        {currentItem.card.activeFrame.rarity}
+                      </p>
+                    </div>
+                  </div>
+
+                  {near.length > 0 && (
+                    <div className="bg-black/45 border border-white/10 p-3 rounded-xl space-y-2">
+                      <p className="text-[8px] font-black uppercase text-white/45 flex items-center gap-1">
+                        <Target className="w-3 h-3 text-warning" />
+                        Quase la
+                      </p>
+                      {near.map((achievement) => (
+                        <div key={achievement.id} className="space-y-1">
+                          <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase">
+                            <span className="text-white truncate">{achievement.name}</span>
+                            <span className="text-warning">{achievementProgress(achievement)}%</span>
+                          </div>
+                          <progress
+                            className="progress progress-warning h-1 w-full"
+                            value={achievement.current}
+                            max={achievement.target}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -128,7 +216,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
               onClick={handleNext}
               className="btn btn-accent btn-sm gap-2 uppercase font-bold px-6 py-2 h-auto text-xs"
             >
-              {isLast ? 'Fechar' : 'Próxima Carta'} <ArrowRight className="w-4 h-4" />
+              {isLast ? 'Concluir Pacote' : 'Proxima Carta'} <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <button

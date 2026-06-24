@@ -60,7 +60,10 @@ export function useCommunityRules() {
     [rules],
   );
 
-  const saveRules = useCallback((next: CommunityRules) => {
+  const saveRules = useCallback((next: CommunityRules, allowed = true) => {
+    if (!allowed) {
+      throw new Error('PERMISSION_DENIED');
+    }
     const now = new Date().toISOString();
     setRules((prev) =>
       prev.some((rule) => rule.communityId === next.communityId)

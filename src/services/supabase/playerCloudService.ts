@@ -16,7 +16,7 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
     primary_position: local.posicaoPrincipal,
     secondary_positions: local.posicoesSecundarias || [],
     active: !!local.ativo,
-    attributes: local.atributos,
+    attributes: local.personalAttributes || local.atributos,
     profile: local.perfil,
     forma_atual: local.formaAtual,
     status: local.status,
@@ -51,6 +51,8 @@ export function mapDbToPlayer(db: any): Player {
       atualizadoEm: db.updated_at,
     },
     cloudId: db.id,
+    cloudOwnerId: db.owner_id,
+    userId: db.user_id || undefined,
     syncStatus: 'synced',
     lastSyncedAt: new Date().toISOString(),
     deletedAt: db.deleted_at || undefined,
@@ -64,6 +66,13 @@ export const playerCloudService = {
 
     if (error) throw error;
     return (data || []).map(mapDbToPlayer);
+  },
+
+  async fetchByCloudId(cloudId: string): Promise<Player | null> {
+    const { data, error } = await supabase.from('players').select('*').eq('id', cloudId).single();
+
+    if (error) throw error;
+    return data ? mapDbToPlayer(data) : null;
   },
 
   async upsert(local: Player, ownerId: string): Promise<Player> {

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   LayoutDashboard,
@@ -14,11 +14,11 @@ import {
   Medal,
   BarChart3,
   Settings,
+  ShieldCheck,
   Plus,
   ArrowRight,
   Download,
   Upload,
-  RefreshCw,
   Search,
   UserCheck,
   Cloud,
@@ -34,6 +34,8 @@ import { useWhatsAppListTemplates } from './hooks/useWhatsAppListTemplates';
 import { useAuth } from './hooks/useAuth';
 import { useCloudSync } from './hooks/useCloudSync';
 import { useToasts } from './hooks/useToasts';
+import { useCommunityPermissions } from './hooks/useCommunityPermissions';
+import { usePlayerLinkProposals } from './hooks/usePlayerLinkProposals';
 
 import { Dashboard } from './components/dashboard/Dashboard';
 import { PlayersView } from './components/player/PlayersView';
@@ -43,6 +45,7 @@ import { SessionActiveView } from './components/live/SessionActiveView';
 import { HistoryView } from './components/history/HistoryView';
 import { CommunitiesView } from './components/community/CommunitiesView';
 import { AccountSyncView } from './components/account/AccountSyncView';
+import { GestaoView } from './components/admin/GestaoView';
 import { ToastViewport } from './components/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
@@ -88,7 +91,8 @@ type Module =
   | 'ranking'
   | 'historico'
   | 'configuracoes'
-  | 'conta';
+  | 'conta'
+  | 'gestao';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -117,6 +121,14 @@ export default function App() {
   const communityPresence = useCommunityPresence();
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
+  const proposals = usePlayerLinkProposals(play.rawPlayers, play.setPlayers, auth.user?.id ?? null);
+
+  const editingPlayerCommunity = useMemo(() => {
+    if (!play.editingPlayer || !play.editingPlayer.communityIds || play.editingPlayer.communityIds.length === 0) return null;
+    return comm.communities.find((c) => play.editingPlayer!.communityIds!.includes(c.id)) || null;
+  }, [play.editingPlayer, comm.communities]);
+
+  const playerPermissions = useCommunityPermissions(editingPlayerCommunity);
 
   // ── Cloud sync ────────────────────────────────────────────────────────────
 
@@ -146,8 +158,30 @@ export default function App() {
     setSessionReports: sess.setSessionReports,
     presenceRecords: communityPresence.presenceRecords,
     setPresenceRecords: communityPresence.setPresenceRecords,
+    linkProposals: proposals.linkProposals,
+    setLinkProposals: proposals.setLinkProposals,
     onToast: toasts.push,
   });
+
+  // ── Auto-sync on login ────────────────────────────────────────────────────
+  // Comunidades criadas localmente nascem sem cloudId; a filiação (community_members)
+  // e a busca por @username dependem dele. Sem um sync ao entrar, o app pedia para
+  // "vincular a comunidade" a cada abertura. Disparamos um sync one-shot por usuário
+  // assim que a sessão autentica, hidratando os cloudId e a filiação de owner.
+  const autoSyncedForUser = useRef<string | null>(null);
+  useEffect(() => {
+    if (!auth.isSupabaseConfigured) return;
+    const uid = auth.user?.id ?? null;
+    if (!uid) {
+      autoSyncedForUser.current = null;
+      return;
+    }
+    if (autoSyncedForUser.current === uid) return;
+    autoSyncedForUser.current = uid;
+    // O próprio useCloudSync já emite toast em caso de erro; só evitamos unhandled.
+    cloudSync.sync().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isSupabaseConfigured, auth.user?.id]);
 
   const pendingChanges = useMemo(() => {
     if (!auth.user) return 0;
@@ -164,6 +198,7 @@ export default function App() {
       sess.gameReports,
       sess.sessionReports,
       communityPresence.presenceRecords,
+      proposals.linkProposals,
     ]);
   }, [
     auth.user,
@@ -179,6 +214,7 @@ export default function App() {
     sess.gameReports,
     sess.sessionReports,
     communityPresence.presenceRecords,
+    proposals.linkProposals,
   ]);
 
   // ── Backup actions ────────────────────────────────────────────────────────
@@ -417,62 +453,6 @@ export default function App() {
     setSessionDraft(loadSessionDraft());
   }, [wizard.wizardStep, sess.activeSession]);
 
-  // ── Reset all (needs both play + sess) ────────────────────────────────────
-
-  const handleResetAllData = () => {
-    if (
-      !window.confirm(
-        'Tem certeza que deseja resetar TUDO?\n\n' +
-          'Apagará atletas, sessões, times, jogos, pontos e relatórios.\n\n' +
-          'Essa ação não pode ser desfeita.',
-      )
-    )
-      return;
-
-    play.setPlayers([]);
-    sess.setSessions([]);
-    sess.setTeams([]);
-    sess.setGames([]);
-    sess.setPointEvents([]);
-    sess.setGameReports([]);
-    sess.setSessionReports([]);
-    sess.setActiveSession(null);
-    play.setEditingPlayer(null);
-    comm.setCommunities([]);
-    comm.setEditingCommunity(null);
-    communityPresence.setPresenceRecords([]);
-    whatsAppLists.setTemplates([]);
-    whatsAppLists.setDrafts([]);
-    communityRules.setRules([]);
-    setSelectedHistorySessionId(null);
-    setPage('dashboard');
-    setActiveModule('dashboard');
-
-    // Clear all localStorage
-    const KEYS = [
-      'vpg_players',
-      'vpg_sessions',
-      'vpg_active_session',
-      'vpg_teams',
-      'vpg_games',
-      'vpg_points',
-      'vpg_game_reports',
-      'vpg_session_reports',
-      'vpg_best_divisions',
-      'vpg_selected_division_index',
-      'vpg_session_draft',
-      'vpg_last_selected_player_ids',
-      'vpg_last_session_config',
-      'vpg_communities',
-      'vpg_community_presence',
-      'vpg_whatsapp_list_templates',
-      'vpg_whatsapp_list_drafts',
-      'vpg_community_rules',
-    ];
-    KEYS.forEach((k) => localStorage.removeItem(k));
-    localStorage.setItem('vpg_players', JSON.stringify([]));
-  };
-
   // ── Finish session ────────────────────────────────────────────────────────
 
   const handleFinishSession = () => {
@@ -640,6 +620,8 @@ export default function App() {
         return 'Configurações do Sistema';
       case 'conta':
         return 'Sincronização & Backup Nuvem';
+      case 'gestao':
+        return 'Gestão & Administração';
       default:
         return 'Panelinha';
     }
@@ -709,15 +691,28 @@ export default function App() {
               sessions={sess.sessions}
               onBack={() => setPage('session-wizard')}
               onSave={() => {
-                if (play.handleSavePlayer()) setPage('session-wizard');
+                try {
+                  if (play.handleSavePlayer(playerPermissions)) setPage('session-wizard');
+                } catch (err: any) {
+                  if (err.message === 'PERMISSION_DENIED') {
+                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
+                  }
+                }
               }}
               onDelete={() => {
-                play.handleDeletePlayer();
-                setPage('session-wizard');
+                try {
+                  play.handleDeletePlayer(playerPermissions);
+                  setPage('session-wizard');
+                } catch (err: any) {
+                  if (err.message === 'PERMISSION_DENIED') {
+                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
+                  }
+                }
               }}
               validationErrors={play.validationErrors}
               showDeleteConfirm={play.showDeleteConfirm}
               setShowDeleteConfirm={play.setShowDeleteConfirm}
+              permissions={playerPermissions}
             />
           );
         }
@@ -820,15 +815,34 @@ export default function App() {
               sessions={sess.sessions}
               onBack={() => setPage('players')}
               onSave={() => {
-                if (play.handleSavePlayer()) setPage('players');
+                try {
+                  if (play.handleSavePlayer(playerPermissions)) setPage('players');
+                } catch (err: any) {
+                  if (err.message === 'PERMISSION_DENIED') {
+                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
+                  }
+                }
               }}
               onDelete={() => {
-                play.handleDeletePlayer();
-                setPage('players');
+                try {
+                  play.handleDeletePlayer(playerPermissions);
+                  setPage('players');
+                } catch (err: any) {
+                  if (err.message === 'PERMISSION_DENIED') {
+                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
+                  }
+                }
               }}
               validationErrors={play.validationErrors}
               showDeleteConfirm={play.showDeleteConfirm}
               setShowDeleteConfirm={play.setShowDeleteConfirm}
+              permissions={playerPermissions}
+              currentUserId={auth.user?.id ?? null}
+              linkProposals={proposals.linkProposals}
+              onProposeLink={proposals.handleProposePlayerLink}
+              onReviewLink={proposals.handleReviewPlayerLink}
+              onCancelLink={proposals.handleCancelPlayerLink}
+              onUnlinkPlayer={proposals.handleUnlinkPlayer}
             />
           );
         }
@@ -918,8 +932,25 @@ export default function App() {
                   ),
                 );
               }}
-              currentUserId={auth.user?.id ?? null}
+                            currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
+              onLinkedCloudPlayer={(player, communityId) => {
+                play.setPlayers((prev) => {
+                  const exists = prev.find((p) => p.id === player.id);
+                  const updatedCommunityIds = Array.from(
+                    new Set([...(player.communityIds ?? []), communityId])
+                  );
+                  const updatedPlayer = {
+                    ...player,
+                    communityIds: updatedCommunityIds,
+                    syncStatus: 'synced' as const,
+                  };
+                  if (exists) {
+                    return prev.map((p) => (p.id === player.id ? updatedPlayer : p));
+                  }
+                  return [...prev, updatedPlayer];
+                });
+              }}
             />
           );
         }
@@ -943,7 +974,6 @@ export default function App() {
               play.handleEditPlayer(p);
               setPage('player-edit');
             }}
-            onResetAllData={handleResetAllData}
             onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
             onAddGuestPlayer={(newPlayer, editDetails) => {
               play.setPlayers((prev) => [...prev, newPlayer]);
@@ -988,6 +1018,16 @@ export default function App() {
       case 'configuracoes':
         return renderSettingsModule();
 
+      case 'gestao':
+        return auth.isStaff ? (
+          <GestaoView
+            currentUserId={auth.user?.id ?? null}
+            isMaster={auth.isMaster}
+            players={play.players}
+            onToast={toasts.push}
+          />
+        ) : null;
+
       case 'conta':
         return (
           <AccountSyncView
@@ -1003,6 +1043,10 @@ export default function App() {
             onSync={cloudSync.sync}
             lastSyncedAt={cloudSync.lastSyncedAt}
             syncLoading={cloudSync.syncLoading}
+            players={play.players}
+            linkProposals={proposals.linkProposals}
+            onProposeLink={proposals.handleProposePlayerLink}
+            onCancelLink={proposals.handleCancelPlayerLink}
           />
         );
 
@@ -1387,22 +1431,17 @@ export default function App() {
           </div>
         </div>
 
-        <div className="card card-border border-error/20 bg-error/5 p-6 rounded-2xl">
-          <h3 className="text-base font-bold uppercase text-error tracking-wider mb-4">
-            Zona de Risco
+        <div className="card card-border border-border bg-surface-strong/40 p-6 rounded-2xl">
+          <h3 className="text-base font-bold uppercase text-base-content tracking-wider mb-4">
+            Dados de Exemplo
           </h3>
           <p className="text-xs text-text-muted leading-relaxed mb-6">
-            Ações destrutivas e administrativas. Redefina completamente todos os dados do aplicativo
-            ou carregue o elenco original de atletas de exemplo.
+            Carregue o elenco original de atletas de exemplo. Esta ação é aditiva e preserva seus
+            dados atuais. (A redefinição completa do banco foi removida do aplicativo — use o painel
+            do Supabase, se necessário.)
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4">
-            <button
-              onClick={handleResetAllData}
-              className="btn btn-error rounded-full uppercase tracking-wider text-xs"
-            >
-              <RefreshCw className="w-4 h-4" /> Resetar Banco de Dados
-            </button>
             <button
               onClick={() => {
                 if (
@@ -1437,6 +1476,9 @@ export default function App() {
       badge: pendingChanges,
     },
     { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" /> },
+    ...(auth.isStaff
+      ? [{ id: 'gestao' as Module, label: 'Gestão', icon: <ShieldCheck className="w-5 h-5" /> }]
+      : []),
   ];
 
   return (

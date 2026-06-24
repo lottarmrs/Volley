@@ -4,6 +4,7 @@ import { INITIAL_PLAYERS } from '../constants';
 import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
 import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
 import { resolveUsername } from '../logic/username';
+import { simulateLocalConsensus } from '../logic/playerEvaluations';
 
 function normalizePlayer(p: any): Player {
   return {
@@ -17,6 +18,7 @@ function normalizePlayer(p: any): Player {
       atualizadoEm: new Date().toISOString(),
     },
     communityIds: p.communityIds ?? [],
+    userId: p.userId,
   };
 }
 
@@ -28,8 +30,8 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         let loaded = JSON.parse(raw);
 
         // Migrate old 0-10 physical form values to the new -5 to 5 scale
-        const version = localStorage.getItem('vpg_players_schema_version');
-        if (version !== '1') {
+        let version = localStorage.getItem('vpg_players_schema_version');
+        if (version !== '1' && version !== '2') {
           loaded = loaded.map((p: any) => {
             if (p && p.formaAtual) {
               const oldVal = p.formaAtual.valor ?? 5;
@@ -50,14 +52,27 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
           });
           localStorage.setItem(STORAGE_KEYS.players, JSON.stringify(loaded));
           localStorage.setItem('vpg_players_schema_version', '1');
+          version = '1';
         }
+
+        // Migrate to version 2 (support userId)
+        if (version === '1') {
+          loaded = loaded.map((p: any) => ({
+            ...p,
+            userId: p.userId ?? null,
+          }));
+          localStorage.setItem(STORAGE_KEYS.players, JSON.stringify(loaded));
+          localStorage.setItem('vpg_players_schema_version', '2');
+          version = '2';
+        }
+
         return loaded.map(normalizePlayer);
       }
     } catch (err) {
       console.error('Error loading/migrating players from storage:', err);
     }
     // For new/fresh instances, mark the schema version as migrated immediately
-    localStorage.setItem('vpg_players_schema_version', '1');
+    localStorage.setItem('vpg_players_schema_version', '2');
     return (INITIAL_PLAYERS as unknown as Player[]).map(normalizePlayer);
   });
 
@@ -85,8 +100,46 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     [games, pointEvents, teams],
   );
 
-  const handleSavePlayer = useCallback(() => {
+  const handleSavePlayer = useCallback((permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean }) => {
     if (!editingPlayer) return false;
+
+    const original = players.find((p) => p.id === editingPlayer.id);
+
+    // Impedir edição direta da propriedade userId
+    if (original && original.userId !== editingPlayer.userId) {
+      throw new Error('PERMISSION_DENIED');
+    }
+    if (!original && editingPlayer.userId) {
+      throw new Error('PERMISSION_DENIED');
+    }
+
+    if (permissions) {
+      if (!permissions.canEvaluatePlayer) {
+        throw new Error('PERMISSION_DENIED');
+      }
+
+      if (!permissions.canEditPlayerProfile && original) {
+        const profileFieldsChanged =
+          original.nome !== editingPlayer.nome ||
+          original.apelido !== editingPlayer.apelido ||
+          original.posicaoPrincipal !== editingPlayer.posicaoPrincipal ||
+          JSON.stringify(original.posicoesSecundarias) !== JSON.stringify(editingPlayer.posicoesSecundarias) ||
+          original.genero !== editingPlayer.genero ||
+          original.alturaCm !== editingPlayer.alturaCm ||
+          original.maoDominante !== editingPlayer.maoDominante ||
+          original.ativo !== editingPlayer.ativo ||
+          original.isGuest !== editingPlayer.isGuest ||
+          original.status.lesionado !== editingPlayer.status.lesionado ||
+          original.status.presencaFrequente !== editingPlayer.status.presencaFrequente ||
+          original.status.limitacaoFisica !== editingPlayer.status.limitacaoFisica ||
+          original.formaAtual.valor !== editingPlayer.formaAtual.valor ||
+          original.formaAtual.observacao !== editingPlayer.formaAtual.observacao;
+
+        if (profileFieldsChanged) {
+          throw new Error('PERMISSION_DENIED');
+        }
+      }
+    }
 
     const errors: Record<string, string> = {};
     if (!editingPlayer.nome.trim()) errors.nome = 'O nome do atleta é obrigatório.';
@@ -115,16 +168,27 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         .filter((p) => p.id !== editingPlayer.id && p.username)
         .map((p) => p.username as string),
     );
-    const savedPlayer: Player = {
+    const originalPlayer = players.find((p) => p.id === editingPlayer.id) || editingPlayer;
+    const simulated = simulateLocalConsensus(originalPlayer, editingPlayer.atributos);
+
+    const savedPlayerTemp: Player = {
       ...editingPlayer,
       username,
-      perfil: {
-        ...editingPlayer.perfil,
-        especialidade: getAutoSpecialty(editingPlayer),
-        fraqueza: getAutoWeakness(editingPlayer),
-      },
+      personalAttributes: editingPlayer.atributos,
+      atributos: simulated.atributos,
+      evaluationAggregate: simulated.evaluationAggregate,
+      hasOwnEvaluation: simulated.hasOwnEvaluation,
       syncStatus: 'pending',
       updatedAt: now,
+    };
+
+    const savedPlayer: Player = {
+      ...savedPlayerTemp,
+      perfil: {
+        ...editingPlayer.perfil,
+        especialidade: getAutoSpecialty(savedPlayerTemp),
+        fraqueza: getAutoWeakness(savedPlayerTemp),
+      },
     };
 
     const exists = players.some((p) => p.id === savedPlayer.id);
@@ -142,8 +206,13 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     return true;
   }, [editingPlayer, players]);
 
-  const handleDeletePlayer = useCallback(() => {
+  const handleDeletePlayer = useCallback((permissions?: { canEditPlayerProfile: boolean }) => {
     if (!editingPlayer) return;
+
+    if (permissions && !permissions.canEditPlayerProfile) {
+      throw new Error('PERMISSION_DENIED');
+    }
+
     const usage = getPlayerHistoryUsage(editingPlayer.id);
     const hasCloud = !!editingPlayer.cloudId;
 
@@ -175,7 +244,10 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
   }, [editingPlayer, players, getPlayerHistoryUsage]);
 
   const handleEditPlayer = useCallback((player: Player) => {
-    setEditingPlayer({ ...player });
+    setEditingPlayer({
+      ...player,
+      atributos: player.personalAttributes || player.atributos,
+    });
     setValidationErrors({});
     setShowDeleteConfirm(false);
   }, []);

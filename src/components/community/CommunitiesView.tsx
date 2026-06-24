@@ -46,6 +46,7 @@ import {
   getCommunitySummary,
   getPlayerDisplayName,
 } from '../../logic/community';
+import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import {
   formatPresenceText,
   getPresenceAlerts,
@@ -122,7 +123,7 @@ interface WhatsAppApi {
 
 interface RulesApi {
   getRules: (community: Community) => CommunityRules;
-  saveRules: (rules: CommunityRules) => void;
+  saveRules: (rules: CommunityRules, allowed?: boolean) => void;
   removeRules: (communityId: string) => void;
 }
 
@@ -139,7 +140,7 @@ interface CommunitiesViewProps {
   rulesApi: RulesApi;
   onBack: () => void;
   onAddCommunity: (input: Partial<Community>) => Community;
-  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => void;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => void;
   onDeleteCommunity: (communityId: string) => void;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
@@ -149,6 +150,7 @@ interface CommunitiesViewProps {
   onClearCommunityHistory: (communityId: string) => void;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
+  onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
 }
 
 const TAB_ITEMS: Array<{ id: CommunityTab; label: string }> = [
@@ -372,6 +374,7 @@ function CommunityCard({
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onDeleteCommunity: (communityId: string) => void;
 }) {
+  const permissions = useCommunityPermissions(community);
   const summary = getCommunitySummary({
     community,
     players,
@@ -418,28 +421,32 @@ function CommunityCard({
                   Duplicar com atletas
                 </button>
               </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onUpdateCommunity(community.id, { archived: !community.archived })}
-                >
-                  {community.archived ? 'Desarquivar' : 'Arquivar'}
-                </button>
-              </li>
+              {permissions.canEditRules && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateCommunity(community.id, { archived: !community.archived })}
+                  >
+                    {community.archived ? 'Desarquivar' : 'Arquivar'}
+                  </button>
+                </li>
+              )}
               <li>
                 <button type="button" onClick={() => exportCommunity(community, players, sessions)}>
                   Exportar
                 </button>
               </li>
-              <li>
-                <button
-                  type="button"
-                  className="text-error"
-                  onClick={() => onDeleteCommunity(community.id)}
-                >
-                  Excluir
-                </button>
-              </li>
+              {permissions.canDeleteCommunity && (
+                <li>
+                  <button
+                    type="button"
+                    className="text-error"
+                    onClick={() => onDeleteCommunity(community.id)}
+                  >
+                    Excluir
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         </div>
@@ -474,7 +481,12 @@ function CommunityCard({
           <button type="button" onClick={onOpen} className="btn btn-outline btn-sm">
             Abrir
           </button>
-          <button type="button" onClick={onCreateSession} className="btn btn-primary btn-sm">
+          <button
+            type="button"
+            onClick={onCreateSession}
+            disabled={!permissions.canCreateSession}
+            className="btn btn-primary btn-sm"
+          >
             Criar sessao
           </button>
         </div>
@@ -500,6 +512,7 @@ function CommunityDetailView({
   onDuplicateCommunity,
   onUpdatePlayerCommunities,
   onCreatePlayer,
+  onLinkedCloudPlayer,
   onCreateSession,
   onViewSession,
   onClearCommunityHistory,
@@ -519,6 +532,15 @@ function CommunityDetailView({
   });
   const communityPlayers = getCommunityPlayers(community.id, players);
   const rules = rulesApi.getRules(community);
+
+  const permissions = useCommunityPermissions(community);
+
+  const visibleTabs = TAB_ITEMS.filter((tab) => {
+    if (tab.id === 'members') {
+      return permissions.role !== null;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-5 pb-24">
@@ -580,6 +602,7 @@ function CommunityDetailView({
                   rules,
                 )
               }
+              disabled={!permissions.canCreateSession}
               className="btn btn-primary btn-block sm:btn-wide"
             >
               <Plus className="w-4 h-4" /> Criar sessao com esta comunidade
@@ -589,7 +612,7 @@ function CommunityDetailView({
       </div>
 
       <div role="tablist" className="tabs tabs-box overflow-x-auto flex-nowrap justify-start">
-        {TAB_ITEMS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -618,6 +641,7 @@ function CommunityDetailView({
             )
           }
           onGoToWhatsApp={() => setActiveTab('whatsapp')}
+          canCreateSession={permissions.canCreateSession}
         />
       )}
       {activeTab === 'players' && (
@@ -629,6 +653,8 @@ function CommunityDetailView({
           sessions={sessions}
           onUpdatePlayerCommunities={onUpdatePlayerCommunities}
           onCreatePlayer={onCreatePlayer}
+          onLinkedCloudPlayer={onLinkedCloudPlayer}
+          canManageMembers={permissions.canManageMembers}
         />
       )}
       {activeTab === 'presence' && (
@@ -645,6 +671,7 @@ function CommunityDetailView({
               rules,
             )
           }
+          canCreateSession={permissions.canCreateSession}
         />
       )}
       {activeTab === 'whatsapp' && (
@@ -652,6 +679,8 @@ function CommunityDetailView({
           community={community}
           players={communityPlayers}
           whatsAppApi={whatsAppApi}
+          canCreateSession={permissions.canCreateSession}
+          canEditRules={permissions.canEditRules}
         />
       )}
       {activeTab === 'sessions' && (
@@ -689,8 +718,25 @@ function CommunityDetailView({
         <CommunityRulesTab
           community={community}
           rules={rules}
-          onSave={rulesApi.saveRules}
-          onUpdateCommunity={onUpdateCommunity}
+          onSave={(draftRules) => {
+            try {
+              rulesApi.saveRules(draftRules, permissions.canEditRules);
+            } catch (err: any) {
+              if (err.message === 'PERMISSION_DENIED') {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+              }
+            }
+          }}
+          onUpdateCommunity={(id, patch) => {
+            try {
+              onUpdateCommunity(id, patch, permissions.canEditRules);
+            } catch (err: any) {
+              if (err.message === 'PERMISSION_DENIED') {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+              }
+            }
+          }}
+          canEditRules={permissions.canEditRules}
         />
       )}
       {activeTab === 'data' && (
@@ -698,10 +744,33 @@ function CommunityDetailView({
           community={community}
           players={players}
           sessions={sessions}
-          onUpdateCommunity={onUpdateCommunity}
-          onDeleteCommunity={onDeleteCommunity}
+          onUpdateCommunity={(id, patch) => {
+            try {
+              onUpdateCommunity(id, patch, permissions.canEditRules);
+            } catch (err: any) {
+              if (err.message === 'PERMISSION_DENIED') {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+              }
+            }
+          }}
+          onDeleteCommunity={(id) => {
+            if (!permissions.canDeleteCommunity) {
+              alert('Erro: Ação não autorizada pelo nível de permissão.');
+              return;
+            }
+            onDeleteCommunity(id);
+          }}
           onDuplicateCommunity={onDuplicateCommunity}
-          onClearCommunityHistory={onClearCommunityHistory}
+          onClearCommunityHistory={(id) => {
+            if (!permissions.canClearHistory) {
+              alert('Erro: Ação não autorizada pelo nível de permissão.');
+              return;
+            }
+            onClearCommunityHistory(id);
+          }}
+          canEditRules={permissions.canEditRules}
+          canDeleteCommunity={permissions.canDeleteCommunity}
+          canClearHistory={permissions.canClearHistory}
         />
       )}
     </div>
@@ -717,6 +786,7 @@ function CommunitySummaryTab({
   sessionReports,
   onCreateSession,
   onGoToWhatsApp,
+  canCreateSession = true,
 }: {
   community: Community;
   players: Player[];
@@ -726,6 +796,7 @@ function CommunitySummaryTab({
   sessionReports: SessionReport[];
   onCreateSession: () => void;
   onGoToWhatsApp: () => void;
+  canCreateSession?: boolean;
 }) {
   const summary = getCommunitySummary({
     community,
@@ -789,7 +860,12 @@ function CommunitySummaryTab({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <button type="button" onClick={onCreateSession} className="btn btn-primary btn-block">
+        <button
+          type="button"
+          onClick={onCreateSession}
+          disabled={!canCreateSession}
+          className="btn btn-primary btn-block"
+        >
           <Plus className="w-4 h-4" /> Criar sessao
         </button>
         <button type="button" onClick={onGoToWhatsApp} className="btn btn-outline btn-block">
@@ -827,16 +903,20 @@ function CommunityPlayersTab({
   sessions,
   onUpdatePlayerCommunities,
   onCreatePlayer,
+  onLinkedCloudPlayer,
   currentUserId,
   isSupabaseConfigured,
+  canManageMembers = true,
 }: {
   community: Community;
   players: Player[];
   sessions: Session[];
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
   onCreatePlayer: (name: string, communityId: string) => void;
+  onLinkedCloudPlayer: (player: Player, communityId: string) => void;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
+  canManageMembers?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PlayerFilter>('all');
@@ -920,30 +1000,35 @@ function CommunityPlayersTab({
             </select>
           </div>
 
-          <div className="join w-full">
-            <input
-              className="input input-bordered join-item flex-1"
-              placeholder="Novo atleta"
-              value={newPlayerName}
-              onChange={(event) => setNewPlayerName(event.target.value)}
-            />
-            <button
-              type="button"
-              className="btn btn-primary join-item"
-              onClick={() => {
-                onCreatePlayer(newPlayerName, community.id);
-                setNewPlayerName('');
-              }}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+          {canManageMembers && (
+            <div className="join w-full">
+              <input
+                className="input input-bordered join-item flex-1"
+                placeholder="Novo atleta"
+                value={newPlayerName}
+                onChange={(event) => setNewPlayerName(event.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-primary join-item"
+                onClick={() => {
+                  onCreatePlayer(newPlayerName, community.id);
+                  setNewPlayerName('');
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
-          <AthleteUsernameSearch
-            community={community}
-            currentUserId={currentUserId}
-            isSupabaseConfigured={isSupabaseConfigured}
-          />
+          {canManageMembers && (
+            <AthleteUsernameSearch
+              community={community}
+              currentUserId={currentUserId}
+              isSupabaseConfigured={isSupabaseConfigured}
+              onLinkedPlayer={onLinkedCloudPlayer}
+            />
+          )}
 
           <ShareActions
             title={`Atletas - ${community.name}`}
@@ -1021,38 +1106,42 @@ function CommunityPlayersTab({
                 <span className="badge badge-warning">Restricao</span>
               )}
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => togglePlayer(player.id)}
-            >
-              Remover
-            </button>
+            {canManageMembers && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => togglePlayer(player.id)}
+              >
+                Remover
+              </button>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="collapse collapse-arrow bg-base-200 border border-base-300">
-        <input type="checkbox" />
-        <div className="collapse-title font-bold">Vincular atleta existente</div>
-        <div className="collapse-content">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {players
-              .filter((player) => !selectedIds.has(player.id))
-              .map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  className="btn btn-outline justify-between"
-                  onClick={() => togglePlayer(player.id)}
-                >
-                  {getPlayerDisplayName(player)}
-                  <span className="badge">{POSITION_LABELS[player.posicaoPrincipal]}</span>
-                </button>
-              ))}
+      {canManageMembers && (
+        <div className="collapse collapse-arrow bg-base-200 border border-base-300">
+          <input type="checkbox" />
+          <div className="collapse-title font-bold">Vincular atleta existente</div>
+          <div className="collapse-content">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {players
+                .filter((player) => !selectedIds.has(player.id))
+                .map((player) => (
+                  <button
+                    key={player.id}
+                    type="button"
+                    className="btn btn-outline justify-between"
+                    onClick={() => togglePlayer(player.id)}
+                  >
+                    {getPlayerDisplayName(player)}
+                    <span className="badge">{POSITION_LABELS[player.posicaoPrincipal]}</span>
+                  </button>
+                ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1062,11 +1151,13 @@ function CommunityPresenceTab({
   players,
   presenceApi,
   onCreateSession,
+  canCreateSession = true,
 }: {
   community: Community;
   players: Player[];
   presenceApi: CommunityPresenceApi;
   onCreateSession: () => void;
+  canCreateSession?: boolean;
 }) {
   const [guestName, setGuestName] = useState('');
   const presence = presenceApi.getPresence(community.id);
@@ -1112,6 +1203,7 @@ function CommunityPresenceTab({
           type="button"
           className="btn btn-outline btn-sm"
           onClick={() => presenceApi.selectFrequentPlayers(community.id, players)}
+          disabled={!canCreateSession}
         >
           Frequentes
         </button>
@@ -1119,6 +1211,7 @@ function CommunityPresenceTab({
           type="button"
           className="btn btn-outline btn-sm"
           onClick={() => presenceApi.useLastPresence(community.id)}
+          disabled={!canCreateSession}
         >
           Ultima presenca
         </button>
@@ -1126,32 +1219,40 @@ function CommunityPresenceTab({
           type="button"
           className="btn btn-ghost btn-sm"
           onClick={() => presenceApi.clearPresence(community.id)}
+          disabled={!canCreateSession}
         >
           Limpar
         </button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={onCreateSession}>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={onCreateSession}
+          disabled={!canCreateSession}
+        >
           Criar sessao
         </button>
       </div>
 
-      <div className="join w-full">
-        <input
-          className="input input-bordered join-item flex-1"
-          placeholder="Convidado temporario"
-          value={guestName}
-          onChange={(event) => setGuestName(event.target.value)}
-        />
-        <button
-          type="button"
-          className="btn btn-primary join-item"
-          onClick={() => {
-            presenceApi.addGuest(community.id, guestName);
-            setGuestName('');
-          }}
-        >
-          Adicionar
-        </button>
-      </div>
+      {canCreateSession && (
+        <div className="join w-full">
+          <input
+            className="input input-bordered join-item flex-1"
+            placeholder="Convidado temporario"
+            value={guestName}
+            onChange={(event) => setGuestName(event.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-primary join-item"
+            onClick={() => {
+              presenceApi.addGuest(community.id, guestName);
+              setGuestName('');
+            }}
+          >
+            Adicionar
+          </button>
+        </div>
+      )}
 
       <ShareActions
         title={`Presenca - ${community.name}`}
@@ -1187,6 +1288,7 @@ function CommunityPresenceTab({
             <PresenceStatusControl
               status={getPresenceStatus(presence, player.id)}
               onChange={(status) => presenceApi.setPresenceStatus(community.id, player.id, status)}
+              disabled={!canCreateSession}
             />
           </div>
         ))}
@@ -1198,9 +1300,11 @@ function CommunityPresenceTab({
 function PresenceStatusControl({
   status,
   onChange,
+  disabled = false,
 }: {
   status: CommunityPresenceStatus;
   onChange: (status: CommunityPresenceStatus) => void;
+  disabled?: boolean;
 }) {
   const items: Array<{ value: CommunityPresenceStatus; label: string }> = [
     { value: 'present', label: 'Presente' },
@@ -1217,6 +1321,7 @@ function PresenceStatusControl({
           type="button"
           className={`btn btn-xs join-item ${status === item.value ? 'btn-primary' : 'btn-outline'}`}
           onClick={() => onChange(item.value)}
+          disabled={disabled}
         >
           {item.label}
         </button>
@@ -1229,10 +1334,14 @@ function CommunityWhatsAppListTab({
   community,
   players,
   whatsAppApi,
+  canCreateSession = true,
+  canEditRules = true,
 }: {
   community: Community;
   players: Player[];
   whatsAppApi: WhatsAppApi;
+  canCreateSession?: boolean;
+  canEditRules?: boolean;
 }) {
   const templates = whatsAppApi.getCommunityTemplates(community.id);
   const initialTemplate = templates[0] || createDefaultTemplate(community.id, community.name);
@@ -1296,6 +1405,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={template.name}
                 onChange={(event) => setTemplate({ ...template, name: event.target.value })}
+                disabled={!canEditRules}
               />
             </label>
             <label className="form-control">
@@ -1304,6 +1414,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.title}
                 onChange={(event) => updateDraft({ title: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1313,6 +1424,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.date}
                 onChange={(event) => updateDraft({ date: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1321,6 +1433,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.location || ''}
                 onChange={(event) => updateDraft({ location: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1330,6 +1443,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.startTime || ''}
                 onChange={(event) => updateDraft({ startTime: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1339,6 +1453,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.endTime || ''}
                 onChange={(event) => updateDraft({ endTime: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1348,6 +1463,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.value || 0}
                 onChange={(event) => updateDraft({ value: Number(event.target.value) })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1356,6 +1472,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.pixKey || ''}
                 onChange={(event) => updateDraft({ pixKey: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1364,6 +1481,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.pixHolder || ''}
                 onChange={(event) => updateDraft({ pixHolder: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1372,6 +1490,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.pixBank || ''}
                 onChange={(event) => updateDraft({ pixBank: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1380,6 +1499,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.paymentDeadline || ''}
                 onChange={(event) => updateDraft({ paymentDeadline: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
             <label className="form-control">
@@ -1388,6 +1508,7 @@ function CommunityWhatsAppListTab({
                 className="input input-bordered"
                 value={draft.paymentNote || ''}
                 onChange={(event) => updateDraft({ paymentNote: event.target.value })}
+                disabled={!canCreateSession}
               />
             </label>
           </div>
@@ -1399,6 +1520,7 @@ function CommunityWhatsAppListTab({
               onChange={(count) =>
                 updateDraft({ setters: createSlotsWithCurrent(draft.setters, count) })
               }
+              disabled={!canCreateSession}
             />
             <CountInput
               label="Lista principal"
@@ -1406,6 +1528,7 @@ function CommunityWhatsAppListTab({
               onChange={(count) =>
                 updateDraft({ mainSlots: createSlotsWithCurrent(draft.mainSlots, count) })
               }
+              disabled={!canCreateSession}
             />
             <CountInput
               label="Reservas"
@@ -1413,6 +1536,7 @@ function CommunityWhatsAppListTab({
               onChange={(count) =>
                 updateDraft({ reserveSlots: createSlotsWithCurrent(draft.reserveSlots, count) })
               }
+              disabled={!canCreateSession}
             />
           </div>
 
@@ -1422,21 +1546,33 @@ function CommunityWhatsAppListTab({
               className="toggle toggle-primary"
               checked={draft.showLockIcon}
               onChange={(event) => updateDraft({ showLockIcon: event.target.checked })}
+              disabled={!canCreateSession}
             />
             <span className="label-text">Exibir cadeado entre levantadores e lista principal</span>
           </label>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <button type="button" className="btn btn-outline" onClick={prefillNames}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={prefillNames}
+              disabled={!canCreateSession}
+            >
               Preencher nomes
             </button>
-            <button type="button" className="btn btn-outline" onClick={recreateFromTemplate}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={recreateFromTemplate}
+              disabled={!canCreateSession}
+            >
               <RefreshCw className="w-4 h-4" /> Gerar
             </button>
             <button
               type="button"
               className="btn btn-primary"
               onClick={() => whatsAppApi.saveDraft(draft)}
+              disabled={!canCreateSession}
             >
               <Save className="w-4 h-4" /> Salvar lista
             </button>
@@ -1446,6 +1582,7 @@ function CommunityWhatsAppListTab({
               onClick={() =>
                 whatsAppApi.saveTemplate({ ...template, ...templateFromDraft(template, draft) })
               }
+              disabled={!canEditRules}
             >
               Salvar modelo
             </button>
@@ -1472,10 +1609,12 @@ function CountInput({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="form-control">
@@ -1486,6 +1625,7 @@ function CountInput({
         className="input input-bordered"
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
+        disabled={disabled}
       />
     </label>
   );
@@ -1744,11 +1884,13 @@ function CommunityRulesTab({
   rules,
   onSave,
   onUpdateCommunity,
+  canEditRules = true,
 }: {
   community: Community;
   rules: CommunityRules;
   onSave: (rules: CommunityRules) => void;
   onUpdateCommunity: (communityId: string, patch: Partial<Community>) => void;
+  canEditRules?: boolean;
 }) {
   const [draft, setDraft] = useState<CommunityRules>(rules);
   const save = () => {
@@ -1764,29 +1906,42 @@ function CommunityRulesTab({
 
   return (
     <div className="space-y-3">
+      {!canEditRules && (
+        <div role="alert" className="alert alert-warning alert-soft">
+          <ShieldAlert className="w-4 h-4" />
+          <span className="text-sm">
+            Modo de Leitura: Voce nao tem permissao para alterar as regras desta comunidade.
+          </span>
+        </div>
+      )}
+
       <RulesCollapse title="Dados padrao" open>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field
             label="Local padrao"
             value={draft.defaultLocation || ''}
             onChange={(value) => setDraft({ ...draft, defaultLocation: value })}
+            disabled={!canEditRules}
           />
           <Field
             label="Dia padrao"
             value={draft.defaultDay || ''}
             onChange={(value) => setDraft({ ...draft, defaultDay: value })}
+            disabled={!canEditRules}
           />
           <Field
             label="Inicio"
             type="time"
             value={draft.defaultStartTime || ''}
             onChange={(value) => setDraft({ ...draft, defaultStartTime: value })}
+            disabled={!canEditRules}
           />
           <Field
             label="Fim"
             type="time"
             value={draft.defaultEndTime || ''}
             onChange={(value) => setDraft({ ...draft, defaultEndTime: value })}
+            disabled={!canEditRules}
           />
           <label className="form-control">
             <span className="label-text">Formato padrao</span>
@@ -1799,6 +1954,7 @@ function CommunityRulesTab({
                   defaultFormat: event.target.value as 'free_play' | 'tournament',
                 })
               }
+              disabled={!canEditRules}
             >
               <option value="free_play">Jogo Livre</option>
               <option value="tournament">Campeonato</option>
@@ -1815,6 +1971,7 @@ function CommunityRulesTab({
             onChange={(value) =>
               setDraft({ ...draft, freePlay: { ...draft.freePlay, teamCount: value } })
             }
+            disabled={!canEditRules}
           />
           <NumberField
             label="Pontos"
@@ -1822,6 +1979,7 @@ function CommunityRulesTab({
             onChange={(value) =>
               setDraft({ ...draft, freePlay: { ...draft.freePlay, maxPoints: value } })
             }
+            disabled={!canEditRules}
           />
           <NumberField
             label="Limite consecutivo"
@@ -1829,6 +1987,7 @@ function CommunityRulesTab({
             onChange={(value) =>
               setDraft({ ...draft, freePlay: { ...draft.freePlay, maxConsecutiveGames: value } })
             }
+            disabled={!canEditRules}
           />
         </div>
       </RulesCollapse>
@@ -1841,6 +2000,7 @@ function CommunityRulesTab({
             onChange={(value) =>
               setDraft({ ...draft, tournament: { ...draft.tournament, teamCount: value } })
             }
+            disabled={!canEditRules}
           />
           <NumberField
             label="Pontos por vitoria"
@@ -1857,6 +2017,7 @@ function CommunityRulesTab({
                 },
               })
             }
+            disabled={!canEditRules}
           />
           <NumberField
             label="Pontos por derrota"
@@ -1873,6 +2034,7 @@ function CommunityRulesTab({
                 },
               })
             }
+            disabled={!canEditRules}
           />
         </div>
       </RulesCollapse>
@@ -1885,6 +2047,7 @@ function CommunityRulesTab({
             setDraft({ ...draft, defaultTeamNames: event.target.value.split('\n').filter(Boolean) })
           }
           placeholder="Um nome de time por linha"
+          disabled={!canEditRules}
         />
       </RulesCollapse>
 
@@ -1895,7 +2058,12 @@ function CommunityRulesTab({
         </div>
       </RulesCollapse>
 
-      <button type="button" className="btn btn-primary btn-block" onClick={save}>
+      <button
+        type="button"
+        className="btn btn-primary btn-block"
+        onClick={save}
+        disabled={!canEditRules}
+      >
         <Save className="w-4 h-4" /> Salvar regras
       </button>
     </div>
@@ -1925,11 +2093,13 @@ function Field({
   value,
   onChange,
   type = 'text',
+  disabled = false,
 }: {
   label: string;
   value: string;
   type?: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="form-control">
@@ -1939,6 +2109,7 @@ function Field({
         className="input input-bordered"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
       />
     </label>
   );
@@ -1948,10 +2119,12 @@ function NumberField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="form-control">
@@ -1961,6 +2134,7 @@ function NumberField({
         className="input input-bordered"
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
+        disabled={disabled}
       />
     </label>
   );
@@ -1974,6 +2148,9 @@ function CommunityDataTab({
   onDeleteCommunity,
   onDuplicateCommunity,
   onClearCommunityHistory,
+  canEditRules = true,
+  canDeleteCommunity = true,
+  canClearHistory = true,
 }: {
   community: Community;
   players: Player[];
@@ -1982,6 +2159,9 @@ function CommunityDataTab({
   onDeleteCommunity: (communityId: string) => void;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onClearCommunityHistory: (communityId: string) => void;
+  canEditRules?: boolean;
+  canDeleteCommunity?: boolean;
+  canClearHistory?: boolean;
 }) {
   const [draft, setDraft] = useState<Community>(community);
   const [confirm, setConfirm] = useState<'delete' | 'history' | null>(null);
@@ -1990,12 +2170,21 @@ function CommunityDataTab({
 
   return (
     <div className="space-y-4">
+      {!canEditRules && (
+        <div role="alert" className="alert alert-warning alert-soft">
+          <ShieldAlert className="w-4 h-4" />
+          <span className="text-sm">
+            Modo de Leitura: Voce nao tem permissao para alterar os dados desta comunidade.
+          </span>
+        </div>
+      )}
       <div className="card card-border bg-base-200">
         <div className="card-body gap-3">
           <Field
             label="Nome"
             value={draft.name}
             onChange={(value) => setDraft({ ...draft, name: value })}
+            disabled={!canEditRules}
           />
           <label className="form-control">
             <span className="label-text">Descricao</span>
@@ -2003,30 +2192,35 @@ function CommunityDataTab({
               className="textarea textarea-bordered"
               value={draft.description || ''}
               onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+              disabled={!canEditRules}
             />
           </label>
           <Field
             label="Local padrao"
             value={draft.defaultLocation || ''}
             onChange={(value) => setDraft({ ...draft, defaultLocation: value })}
+            disabled={!canEditRules}
           />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Field
               label="Dia"
               value={draft.defaultDay || ''}
               onChange={(value) => setDraft({ ...draft, defaultDay: value })}
+              disabled={!canEditRules}
             />
             <Field
               label="Inicio"
               type="time"
               value={draft.defaultStartTime || ''}
               onChange={(value) => setDraft({ ...draft, defaultStartTime: value })}
+              disabled={!canEditRules}
             />
             <Field
               label="Fim"
               type="time"
               value={draft.defaultEndTime || ''}
               onChange={(value) => setDraft({ ...draft, defaultEndTime: value })}
+              disabled={!canEditRules}
             />
           </div>
           <label className="label cursor-pointer justify-start gap-3">
@@ -2035,10 +2229,11 @@ function CommunityDataTab({
               className="toggle"
               checked={Boolean(draft.archived)}
               onChange={(event) => setDraft({ ...draft, archived: event.target.checked })}
+              disabled={!canEditRules}
             />
             <span className="label-text">Arquivar comunidade</span>
           </label>
-          <button type="button" className="btn btn-primary" onClick={save}>
+          <button type="button" className="btn btn-primary" onClick={save} disabled={!canEditRules}>
             <Save className="w-4 h-4" /> Salvar dados
           </button>
         </div>
@@ -2059,12 +2254,16 @@ function CommunityDataTab({
         >
           Exportar comunidade
         </button>
-        <button type="button" className="btn btn-warning" onClick={() => setConfirm('history')}>
-          <ShieldAlert className="w-4 h-4" /> Limpar historico
-        </button>
-        <button type="button" className="btn btn-error" onClick={() => setConfirm('delete')}>
-          <Trash2 className="w-4 h-4" /> Excluir comunidade
-        </button>
+        {canClearHistory && (
+          <button type="button" className="btn btn-warning" onClick={() => setConfirm('history')}>
+            <ShieldAlert className="w-4 h-4" /> Limpar historico
+          </button>
+        )}
+        {canDeleteCommunity && (
+          <button type="button" className="btn btn-error" onClick={() => setConfirm('delete')}>
+            <Trash2 className="w-4 h-4" /> Excluir comunidade
+          </button>
+        )}
       </div>
 
       {confirm && (

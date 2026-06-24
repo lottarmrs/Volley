@@ -16,7 +16,10 @@ export function useCommunities() {
     saveToStorage(STORAGE_KEYS.communities, communities);
   }, [communities]);
 
-  const handleSaveCommunity = useCallback(() => {
+  const handleSaveCommunity = useCallback((allowed = true) => {
+    if (!allowed) {
+      throw new Error('PERMISSION_DENIED');
+    }
     if (!editingCommunity) return false;
 
     const errors: Record<string, string> = {};
@@ -48,7 +51,10 @@ export function useCommunities() {
   }, [editingCommunity, communities]);
 
   const handleDeleteCommunity = useCallback(
-    (onCascadeDelete?: (communityId: string) => void) => {
+    (onCascadeDelete?: (communityId: string) => void, allowed = true) => {
+      if (!allowed) {
+        throw new Error('PERMISSION_DENIED');
+      }
       if (!editingCommunity) return;
 
       const hasCloud = !!editingCommunity.cloudId;
@@ -104,7 +110,10 @@ export function useCommunities() {
     setShowDeleteConfirm(false);
   }, []);
 
-  const updateCommunity = useCallback((communityId: string, patch: Partial<Community>) => {
+  const updateCommunity = useCallback((communityId: string, patch: Partial<Community>, allowed = true) => {
+    if (!allowed) {
+      throw new Error('PERMISSION_DENIED');
+    }
     setCommunities((prev) =>
       prev.map((community) =>
         community.id === communityId

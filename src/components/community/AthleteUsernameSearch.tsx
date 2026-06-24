@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { AtSign, Cloud, Search, UserPlus } from 'lucide-react';
-import { Community } from '../../types';
+import { Community, Player } from '../../types';
 import { playerCloudService } from '../../services/supabase/playerCloudService';
 import { communityPlayerCloudService } from '../../services/supabase/communityPlayerCloudService';
 
@@ -8,6 +8,7 @@ interface AthleteUsernameSearchProps {
   community: Community;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
+  onLinkedPlayer?: (player: Player, communityId: string) => void;
 }
 
 type Found = { cloudId: string; username: string; name: string };
@@ -22,6 +23,7 @@ export function AthleteUsernameSearch({
   community,
   currentUserId,
   isSupabaseConfigured,
+  onLinkedPlayer,
 }: AthleteUsernameSearchProps) {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -68,6 +70,16 @@ export function AthleteUsernameSearch({
         result.cloudId,
         currentUserId,
       );
+      const linkedPlayer = await playerCloudService.fetchByCloudId(result.cloudId);
+      if (linkedPlayer) {
+        onLinkedPlayer?.(
+          {
+            ...linkedPlayer,
+            communityIds: [...new Set([...(linkedPlayer.communityIds ?? []), community.id])],
+          },
+          community.id,
+        );
+      }
       setLinked(true);
     } catch (e) {
       setError(messageOf(e, 'Não foi possível vincular o atleta.'));

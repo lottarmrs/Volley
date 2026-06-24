@@ -4,7 +4,15 @@ import { readFileSync } from 'node:fs';
 
 const migration = readFileSync(
   new URL(
-    '../../../supabase/migrations/20260609120000_backend_operational_sync.sql',
+    '../../../supabase/migrations/20260610161203_backend_operational_sync.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+const playerEvaluationsMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260624133200_player_evaluations.sql',
     import.meta.url,
   ),
   'utf8',
@@ -84,4 +92,24 @@ test('backend migration defines critical local id and lookup indexes', () => {
       `missing lookup index for ${table}`,
     );
   }
+});
+
+test('player evaluations migration defines per-organizer athlete evaluations', () => {
+  assert.match(
+    playerEvaluationsMigration,
+    /create table if not exists public\.player_evaluations/i,
+  );
+  assert.match(playerEvaluationsMigration, /player_evaluations_owner_player_idx/i);
+  assert.match(
+    playerEvaluationsMigration,
+    /alter table public\.player_evaluations enable row level security/i,
+  );
+  assert.match(
+    playerEvaluationsMigration,
+    /grant select, insert, update, delete on public\.player_evaluations to authenticated/i,
+  );
+  assert.match(
+    playerEvaluationsMigration,
+    /current_user_can_access_player\(player_id\)/i,
+  );
 });

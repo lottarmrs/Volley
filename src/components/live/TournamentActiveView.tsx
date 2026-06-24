@@ -15,6 +15,8 @@ import {
   XCircle,
   MoreVertical,
   Trash2,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { Session, Game, PointEvent, Team, Player, GameReport, TournamentConfig } from '../../types';
 import {
@@ -432,6 +434,7 @@ export const TournamentActiveView = ({
                 scoringRanking={scoringRanking}
                 ratings={liveRatings}
                 sets={currentGame.sets}
+                setTargets={currentGame.setTargets}
                 isTeamA={true}
                 onRegisterPoint={() => registerPoint(teamA.id)}
                 onOpenDetailModal={(pid) => {
@@ -450,6 +453,7 @@ export const TournamentActiveView = ({
                 scoringRanking={scoringRanking}
                 ratings={liveRatings}
                 sets={currentGame.sets}
+                setTargets={currentGame.setTargets}
                 isTeamA={false}
                 onRegisterPoint={() => registerPoint(teamB.id)}
                 onOpenDetailModal={(pid) => {
@@ -457,6 +461,22 @@ export const TournamentActiveView = ({
                   setPreSelectedPlayerId(pid);
                 }}
               />
+            </div>
+          ) : currentGame.status === 'active' || currentGame.status === 'paused' ? (
+            <div className="card card-border border-warning/30 bg-warning/10 p-6 rounded-2xl text-center space-y-3">
+              <Clock className="w-10 h-10 text-warning mx-auto" />
+              <div>
+                <p className="text-sm font-bold uppercase tracking-widest text-base-content">
+                  Aguardando classificacao
+                </p>
+                <p className="text-[10px] text-base-content/60 uppercase mt-1">
+                  Este confronto ainda depende de resultados anteriores.
+                </p>
+              </div>
+              <p className="text-xs font-mono text-base-content/70">
+                {getTeamDisplayName(currentGame.teamAId, sessionTeams)} x{' '}
+                {getTeamDisplayName(currentGame.teamBId, sessionTeams)}
+              </p>
             </div>
           ) : currentGame.status === 'finished' || currentGame.status === 'walkover' ? (
             <motion.div
@@ -854,6 +874,12 @@ export const TournamentActiveView = ({
                     const isActive = g.status === 'active' || g.status === 'paused';
                     const isDone = g.status === 'finished' || g.status === 'walkover';
                     const isCancelled = g.status === 'cancelled';
+                    const statusLabel =
+                      g.status === 'active'
+                        ? 'Em jogo'
+                        : g.status === 'paused'
+                          ? 'Pausado'
+                          : null;
                     return (
                       <div
                         key={g.id}
@@ -863,6 +889,17 @@ export const TournamentActiveView = ({
                           <span className="text-[8px] font-mono text-base-content/60">
                             #{g.sequenceNumber}
                           </span>
+                          {statusLabel && (
+                            <span
+                              className={`mt-1 badge badge-xs font-bold uppercase tracking-wider ${
+                                g.status === 'paused'
+                                  ? 'badge-warning badge-soft'
+                                  : 'badge-primary badge-soft'
+                              }`}
+                            >
+                              {statusLabel}
+                            </span>
+                          )}
                           {g.stage && g.stage !== 'group' && (
                             <span className="text-[6px] font-bold uppercase text-accent leading-none mt-0.5">
                               {g.stage === 'semifinal'
@@ -905,9 +942,10 @@ export const TournamentActiveView = ({
                           </span>
                         </div>
                         <div className="shrink-0">
-                          {isActive && (
+                          {g.status === 'active' && (
                             <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
                           )}
+                          {g.status === 'paused' && <Pause className="w-3.5 h-3.5 text-warning" />}
                           {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
                           {g.status === 'scheduled' && (
                             <Clock className="w-3.5 h-3.5 text-base-content/30" />
@@ -1111,6 +1149,7 @@ function GameActions({
 }) {
   const canEdit = game.status === 'finished' || game.status === 'walkover';
   const canForceResult = ['scheduled', 'active', 'paused'].includes(game.status);
+  const canMoveWhileInPlay = game.status === 'active' || game.status === 'paused';
 
   const editScore = () => {
     const raw = prompt(
@@ -1127,7 +1166,10 @@ function GameActions({
   };
 
   const isPlaceholder = (id: string) =>
-    id.startsWith('winner:') || id.startsWith('loser:') || id.startsWith('group:');
+    id.startsWith('winner:') ||
+    id.startsWith('loser:') ||
+    id.startsWith('group:') ||
+    id.startsWith('rank:');
   const isBlocked = isPlaceholder(game.teamAId) || isPlaceholder(game.teamBId);
 
   return (
@@ -1161,6 +1203,26 @@ function GameActions({
           </button>
           <button onClick={onCopy} className="btn btn-xs btn-outline font-bold uppercase">
             Copiar
+          </button>
+        </>
+      )}
+      {canMoveWhileInPlay && (
+        <>
+          <button
+            onClick={onMoveUp}
+            className="btn btn-xs btn-outline btn-square"
+            title="Mover para cima"
+            aria-label="Mover partida para cima"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onMoveDown}
+            className="btn btn-xs btn-outline btn-square"
+            title="Mover para baixo"
+            aria-label="Mover partida para baixo"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
           </button>
         </>
       )}

@@ -432,6 +432,7 @@ export const SessionActiveView = ({
             players={players}
             ratings={liveRatings}
             sets={currentGame.sets}
+            setTargets={currentGame.setTargets}
             isTeamA={true}
             onRegisterPoint={() => registerPoint(currentGame.teamAId)}
             onOpenDetailModal={(pid) => {
@@ -453,6 +454,7 @@ export const SessionActiveView = ({
             players={players}
             ratings={liveRatings}
             sets={currentGame.sets}
+            setTargets={currentGame.setTargets}
             isTeamA={false}
             onRegisterPoint={() => registerPoint(currentGame.teamBId)}
             onOpenDetailModal={(pid) => {

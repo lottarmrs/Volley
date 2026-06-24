@@ -171,7 +171,13 @@ export function useAuth() {
     signOut,
     refreshProfile,
     isSupabaseConfigured,
-    isAdmin: profile?.role === 'admin',
-    isOrganizer: profile?.role === 'organizer' || profile?.role === 'admin',
+    // Papéis GLOBAIS (profiles.role): 'master' | 'programmer' | 'user'
+    isMaster: profile?.role === 'master',
+    isProgrammer: profile?.role === 'programmer',
+    // staff = acesso de suporte (leitura ampliada); master = bypass total
+    isStaff: profile?.role === 'master' || profile?.role === 'programmer',
+    // Compat: isAdmin agora significa superadmin (master). Nunca dar bypass de
+    // escrita ao programmer no frontend, senão a fila de sync volta a travar.
+    isAdmin: profile?.role === 'master',
   };
 }

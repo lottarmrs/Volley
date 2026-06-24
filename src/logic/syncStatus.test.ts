@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { countPendingChanges } from './syncStatus';
 
-test('countPendingChanges sums pending records across collections', () => {
+test('countPendingChanges sums local and pending records across collections', () => {
   const total = countPendingChanges([
-    [{ syncStatus: 'pending' }, { syncStatus: 'synced' }, { syncStatus: 'pending' }],
+    [{ syncStatus: 'pending' }, { syncStatus: 'synced' }, { syncStatus: 'local' }],
     [{ syncStatus: 'synced' }],
     [{ syncStatus: 'pending' }],
   ]);

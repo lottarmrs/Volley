@@ -38,6 +38,24 @@ function buildFixture(sessionOverrides: Partial<Session> = {}, gameOverrides: Pa
   return { session, players, teams, initialGames };
 }
 
+function buildTournamentFixture(initialGames: Game[]) {
+  const session = makeSession('s1', {
+    type: 'tournament',
+    config: {
+      type: 'tournament',
+      format: 'round_robin',
+      teamCount: 2,
+      maxPoints: 12,
+      tieBreakMethod: 'direct_3',
+      hardPointCap: null,
+      classificationPoints: { win: 3, loss: 0 },
+    } as any,
+  });
+  const players = [makePlayer('p1'), makePlayer('p2')];
+  const teams = [makeTeam('team-a', 's1', ['p1']), makeTeam('team-b', 's1', ['p2'])];
+  return { session, players, teams, initialGames };
+}
+
 describe('useLiveSession', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -127,5 +145,122 @@ describe('useLiveSession', () => {
       result.current.live.registerPoint('team-a');
     });
     expect(result.current.pointEvents).toHaveLength(0);
+  });
+});
+
+describe('useLiveSession multi-set and tournament scheduling', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('registerPoint fecha set multi-set e zera o placar do proximo set', () => {
+    const config = { ...makeSession('s1').config!, maxPoints: 12, tieBreakMethod: 'direct_3' as const };
+    const { result } = renderHook(() =>
+      useHarness(buildFixture({ config }, { scoreA: 11, scoreB: 9, setTargets: [12, 12, 7], sets: [] })),
+    );
+
+    act(() => {
+      result.current.live.registerPoint('team-a');
+    });
+
+    expect(result.current.pointEvents[0]).toMatchObject({
+      scoreBefore: { teamA: 11, teamB: 9 },
+      scoreAfter: { teamA: 12, teamB: 9 },
+    });
+    expect(result.current.games[0]).toMatchObject({
+      scoreA: 0,
+      scoreB: 0,
+      sets: [{ scoreA: 12, scoreB: 9 }],
+      status: 'active',
+    });
+  });
+
+  it('undoLastPoint remove o set final e reabre a partida multi-set', () => {
+    const config = { ...makeSession('s1').config!, maxPoints: 12, tieBreakMethod: 'direct_3' as const };
+    const { result } = renderHook(() =>
+      useHarness(
+        buildFixture(
+          { config },
+          {
+            scoreA: 11,
+            scoreB: 7,
+            setTargets: [12, 12, 7],
+            sets: [{ scoreA: 12, scoreB: 9 }],
+          },
+        ),
+      ),
+    );
+
+    act(() => {
+      result.current.live.registerPoint('team-a');
+    });
+    expect(result.current.games[0].status).toBe('finished');
+    expect(result.current.games[0].sets).toEqual([
+      { scoreA: 12, scoreB: 9 },
+      { scoreA: 12, scoreB: 7 },
+    ]);
+
+    act(() => {
+      result.current.live.undoLastPoint();
+    });
+
+    expect(result.current.pointEvents).toHaveLength(0);
+    expect(result.current.gameReports).toHaveLength(0);
+    expect(result.current.games[0]).toMatchObject({
+      status: 'active',
+      winnerTeamId: null,
+      loserTeamId: null,
+      finishedAt: null,
+      scoreA: 11,
+      scoreB: 7,
+      sets: [{ scoreA: 12, scoreB: 9 }],
+    });
+  });
+
+  it('reordena partidas ativas ou pausadas dentro da tabela', () => {
+    const initialGames = [
+      makeGame('g1', 's1', {
+        type: 'tournament',
+        status: 'active',
+        sequenceNumber: 1,
+        stage: 'group',
+      }),
+      makeGame('g2', 's1', {
+        type: 'tournament',
+        status: 'scheduled',
+        sequenceNumber: 2,
+        stage: 'group',
+      }),
+    ];
+    const { result } = renderHook(() => useHarness(buildTournamentFixture(initialGames)));
+
+    act(() => {
+      result.current.live.reorderScheduledGame('g1', 'down');
+    });
+
+    expect(result.current.games.map((g) => [g.id, g.sequenceNumber])).toEqual([
+      ['g2', 1],
+      ['g1', 2],
+    ]);
+  });
+
+  it('iniciar outro jogo de torneio abre o novo ativo e mantem o anterior pausado', () => {
+    const initialGames = [
+      makeGame('g1', 's1', { type: 'tournament', status: 'paused', sequenceNumber: 1 }),
+      makeGame('g2', 's1', { type: 'tournament', status: 'scheduled', sequenceNumber: 2 }),
+    ];
+    const { result } = renderHook(() => useHarness(buildTournamentFixture(initialGames)));
+
+    act(() => {
+      result.current.live.startNextGame(vi.fn());
+    });
+
+    expect(result.current.live.currentGame?.id).toBe('g2');
+    expect(result.current.games.find((g) => g.id === 'g1')?.status).toBe('paused');
+    expect(result.current.games.find((g) => g.id === 'g2')?.status).toBe('active');
   });
 });

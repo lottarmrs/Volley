@@ -12,6 +12,21 @@ const isCriticalFor = (pos: string, attr: keyof Attributes) =>
   (POSITION_CRITICAL[pos] || []).includes(attr);
 
 /**
+ * Exposição (rallies) de um jogo, ciente de multi-set:
+ * - set único: o próprio placar.
+ * - multi-set em andamento: soma dos sets fechados + o set atual.
+ * - multi-set finalizado: só os sets (o set final já está em `sets[]`, e
+ *   `scoreA/scoreB` o duplicam — não somar de novo).
+ */
+export const gameExposure = (game: Game): number => {
+  const hasSets = !!game.sets && game.sets.length > 0;
+  const fromSets = (game.sets || []).reduce((sum, s) => sum + (s.scoreA || 0) + (s.scoreB || 0), 0);
+  const current = (game.scoreA || 0) + (game.scoreB || 0);
+  if (!hasSets) return current;
+  return game.status === 'finished' ? fromSets : fromSets + current;
+};
+
+/**
  * Ajuste de consistência (facilitadores) para a nota: média do desvio de taxa
  * de erro dos fundamentos do papel vs. o baseline esperado, escalado e capado.
  * Espelha o motor de progressão — os erros desses fundamentos são tratados AQUI
@@ -61,9 +76,7 @@ export function calculateMatchRating({
   gamePoints,
   playerTeamId,
 }: MatchRatingParams): number {
-  const exposure = game.sets && game.sets.length > 0
-    ? game.sets.reduce((sum, s) => sum + s.scoreA + s.scoreB, 0)
-    : (game.scoreA || 0) + (game.scoreB || 0);
+  const exposure = gameExposure(game);
   if (exposure <= 0) return RATING.baseline;
 
   const pos = player.posicaoPrincipal || 'all-rounder';
@@ -149,7 +162,7 @@ export function calculateSessionRating({
     const playerTeamId = [game.teamAId, game.teamBId].find((id) => playerTeamIds.has(id));
     if (!playerTeamId) continue;
 
-    const exposure = (game.scoreA || 0) + (game.scoreB || 0);
+    const exposure = gameExposure(game);
     if (exposure < RATING.expMinGame) continue;
 
     const gamePoints = sessionPoints.filter((p) => p.gameId === game.id);

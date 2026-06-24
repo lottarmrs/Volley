@@ -15,7 +15,6 @@ interface PlayersViewProps {
   onBack: () => void;
   onAddPlayer: () => void;
   onEditPlayer: (player: Player) => void;
-  onResetAllData: () => void;
   onRestoreDemoPlayers: () => void;
   onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
 }

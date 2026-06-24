@@ -10,6 +10,11 @@ import {
   Info,
   Plus,
   Minus,
+  ShieldAlert,
+  UserCheck,
+  UserX,
+  Loader2,
+  Lock,
 } from 'lucide-react';
 import {
   Radar,
@@ -33,7 +38,9 @@ import {
   Team,
   Community,
   Session,
+  PlayerLinkProposal,
 } from '../../types';
+import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
   getBalancingRole,
   calculateGeneralOverall,
@@ -64,6 +71,16 @@ interface PlayerEditViewProps {
   validationErrors: Record<string, string>;
   showDeleteConfirm: boolean;
   setShowDeleteConfirm: React.Dispatch<React.SetStateAction<boolean>>;
+  permissions?: {
+    canEditPlayerProfile: boolean;
+    canEvaluatePlayer: boolean;
+  };
+  currentUserId?: string | null;
+  linkProposals?: PlayerLinkProposal[];
+  onProposeLink?: (playerId: string) => Promise<void> | void;
+  onReviewLink?: (proposalId: string, action: 'approve' | 'reject') => Promise<void> | void;
+  onCancelLink?: (proposalId: string) => Promise<void> | void;
+  onUnlinkPlayer?: (playerId: string) => Promise<void> | void;
 }
 
 export const PlayerEditView = ({
@@ -81,9 +98,49 @@ export const PlayerEditView = ({
   validationErrors,
   showDeleteConfirm,
   setShowDeleteConfirm,
+  permissions = {
+    canEditPlayerProfile: true,
+    canEvaluatePlayer: true,
+  },
+  currentUserId = null,
+  linkProposals = [],
+  onProposeLink,
+  onReviewLink,
+  onCancelLink,
+  onUnlinkPlayer,
 }: PlayerEditViewProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showVutCard, setShowVutCard] = useState(false);
+
+  const editingPlayerCommunity = useMemo(() => {
+    if (!editingPlayer || !editingPlayer.communityIds || editingPlayer.communityIds.length === 0) return null;
+    return communities.find((c) => editingPlayer.communityIds!.includes(c.id)) || null;
+  }, [editingPlayer, communities]);
+
+  const { members } = useCommunityMembers({
+    communityCloudId: editingPlayerCommunity?.cloudId,
+    communityLocalId: editingPlayerCommunity?.id,
+    currentUserId: currentUserId ?? null,
+    enabled: !!editingPlayerCommunity?.cloudId,
+  });
+
+  const linkedMember = useMemo(() => {
+    if (!editingPlayer.userId || !members) return null;
+    return members.find((m) => m.userId === editingPlayer.userId) || null;
+  }, [editingPlayer.userId, members]);
+
+  const activeProposals = useMemo(() => {
+    return linkProposals.filter(
+      (p) =>
+        (p.playerId === editingPlayer.id || (p.playerCloudId && editingPlayer.cloudId && p.playerCloudId === editingPlayer.cloudId)) &&
+        p.status === 'pending'
+    );
+  }, [linkProposals, editingPlayer.id, editingPlayer.cloudId]);
+
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
+  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
 
   // Track original player to allow "Revert" action
   const originalPlayer = useMemo(() => {
@@ -308,6 +365,23 @@ export const PlayerEditView = ({
         {/* COLUMN 2 & 3: Player Editor (Middle) */}
         <div className="lg:col-span-2 card bg-base-200 border border-base-300 p-6 h-auto lg:h-[780px] flex flex-col justify-between shadow-xl">
           <div className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            {!permissions.canEditPlayerProfile && permissions.canEvaluatePlayer && (
+              <div role="alert" className="alert alert-warning alert-soft">
+                <ShieldAlert className="w-4 h-4" />
+                <span className="text-sm">
+                  Modo de Avaliação: Você só pode editar as avaliações técnicas deste atleta. Ficha cadastral bloqueada.
+                </span>
+              </div>
+            )}
+            {!permissions.canEvaluatePlayer && !permissions.canEditPlayerProfile && (
+              <div role="alert" className="alert alert-error alert-soft">
+                <ShieldAlert className="w-4 h-4" />
+                <span className="text-sm">
+                  Modo de Leitura: Você não tem permissão para editar ou avaliar este atleta.
+                </span>
+              </div>
+            )}
+
             {/* Header info */}
             <div className="flex items-start gap-4 border-b border-base-300 pb-4">
               <AvatarUpload
@@ -317,6 +391,7 @@ export const PlayerEditView = ({
                   editingPlayer.nome ? editingPlayer.nome.substring(0, 2).toUpperCase() : 'AT'
                 }
                 onApplied={(newUrl) => setEditingPlayer({ ...editingPlayer, avatarUrl: newUrl })}
+                disabled={!permissions.canEditPlayerProfile}
               />
 
               <div className="flex-1 min-w-0 space-y-2">
@@ -327,6 +402,7 @@ export const PlayerEditView = ({
                       value={editingPlayer.nome}
                       onChange={(e) => setEditingPlayer({ ...editingPlayer, nome: e.target.value })}
                       placeholder="Nome Completo"
+                      disabled={!permissions.canEditPlayerProfile}
                       className="input input-bordered input-sm w-full font-bold text-base-content"
                     />
                     {validationErrors.nome && (
@@ -343,6 +419,7 @@ export const PlayerEditView = ({
                         setEditingPlayer({ ...editingPlayer, apelido: e.target.value })
                       }
                       placeholder="Apelido"
+                      disabled={!permissions.canEditPlayerProfile}
                       className="input input-bordered input-sm w-full font-bold text-base-content"
                     />
                   </div>
@@ -358,17 +435,23 @@ export const PlayerEditView = ({
                     return (
                       <label
                         key={pos}
-                        className={`px-1.5 py-0.5 rounded border text-[9px] font-bold cursor-pointer uppercase select-none transition-colors ${
+                        className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase select-none transition-colors ${
                           isPrimary
                             ? 'bg-accent/20 border-accent text-accent'
                             : 'bg-base-300 border-base-300 text-base-content/50 hover:border-base-content/20'
+                        } ${
+                          !permissions.canEditPlayerProfile
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer'
                         }`}
                       >
                         <input
                           type="radio"
                           name="posicaoPrincipal"
                           checked={isPrimary}
+                          disabled={!permissions.canEditPlayerProfile}
                           onChange={() => {
+                            if (!permissions.canEditPlayerProfile) return;
                             setEditingPlayer({
                               ...editingPlayer,
                               posicaoPrincipal: pos,
@@ -416,16 +499,22 @@ export const PlayerEditView = ({
                     return (
                       <label
                         key={pos}
-                        className={`px-1.5 py-0.5 rounded border text-[9px] font-bold cursor-pointer uppercase select-none transition-colors ${
+                        className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase select-none transition-colors ${
                           isSelected
                             ? 'bg-primary/20 border-primary text-primary'
                             : 'bg-base-300 border-base-300 text-base-content/50 hover:border-base-content/20'
+                        } ${
+                          !permissions.canEditPlayerProfile
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'cursor-pointer'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={isSelected}
+                          disabled={!permissions.canEditPlayerProfile}
                           onChange={(e) => {
+                            if (!permissions.canEditPlayerProfile) return;
                             const updated = e.target.checked
                               ? [...editingPlayer.posicoesSecundarias, pos]
                               : editingPlayer.posicoesSecundarias.filter((p) => p !== pos);
@@ -452,13 +541,15 @@ export const PlayerEditView = ({
                     Este atleta está cadastrado como convidado temporário.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditingPlayer({ ...editingPlayer, isGuest: false })}
-                  className="btn btn-primary btn-xs uppercase font-bold text-[9px] tracking-wide px-3"
-                >
-                  Promover a Atleta Fixo
-                </button>
+                {permissions.canEditPlayerProfile && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingPlayer({ ...editingPlayer, isGuest: false })}
+                    className="btn btn-primary btn-xs uppercase font-bold text-[9px] tracking-wide px-3"
+                  >
+                    Promover a Atleta Fixo
+                  </button>
+                )}
               </div>
             )}
 
@@ -479,6 +570,7 @@ export const PlayerEditView = ({
                       setEditingPlayer({ ...editingPlayer, genero: e.target.value as any })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
+                    disabled={!permissions.canEditPlayerProfile}
                   >
                     <option value="M">Masculino</option>
                     <option value="F">Feminino</option>
@@ -500,6 +592,7 @@ export const PlayerEditView = ({
                     }
                     className="input input-bordered input-xs w-full uppercase font-mono font-bold"
                     placeholder="Altura"
+                    disabled={!permissions.canEditPlayerProfile}
                   />
                   {validationErrors.alturaCm && (
                     <p className="text-[8px] text-error font-bold uppercase">
@@ -518,6 +611,7 @@ export const PlayerEditView = ({
                       setEditingPlayer({ ...editingPlayer, maoDominante: e.target.value as any })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
+                    disabled={!permissions.canEditPlayerProfile}
                   >
                     <option value="direita">Destro</option>
                     <option value="esquerda">Canhoto</option>
@@ -534,6 +628,7 @@ export const PlayerEditView = ({
                       setEditingPlayer({ ...editingPlayer, ativo: e.target.value === 'ativo' })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
+                    disabled={!permissions.canEditPlayerProfile}
                   >
                     <option value="ativo">Ativo</option>
                     <option value="inativo">Inativo</option>
@@ -557,6 +652,7 @@ export const PlayerEditView = ({
                       })
                     }
                     className="checkbox checkbox-error checkbox-sm"
+                    disabled={!permissions.canEditPlayerProfile}
                   />
                 </div>
                 <div className="flex items-center justify-between bg-base-300 p-2 rounded border border-base-300">
@@ -573,6 +669,7 @@ export const PlayerEditView = ({
                       })
                     }
                     className="checkbox checkbox-primary checkbox-sm"
+                    disabled={!permissions.canEditPlayerProfile}
                   />
                 </div>
               </div>
@@ -597,7 +694,221 @@ export const PlayerEditView = ({
                     }
                     className="input input-bordered input-xs w-full uppercase font-bold text-error placeholder:text-error/30"
                     placeholder="Ex: Lesão no joelho esquerdo"
+                    disabled={!permissions.canEditPlayerProfile}
                   />
+                </div>
+              )}
+            </div>
+
+            {/* Vínculo com Conta de Usuário (Supabase Auth) */}
+            <div className="bg-base-300/40 p-4 rounded-xl border border-base-300 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] font-bold text-base-content/40 uppercase block">
+                  Vínculo de Conta de Usuário
+                </span>
+                {editingPlayer.userId && (
+                  <span className="badge badge-success badge-xs font-bold uppercase tracking-wider gap-1">
+                    <UserCheck className="w-2.5 h-2.5" /> Verificado
+                  </span>
+                )}
+              </div>
+
+              {editingPlayer.isGuest ? (
+                <div className="bg-base-300 p-3 rounded-lg border border-base-300 flex items-start gap-3">
+                  <Lock className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+                  <div className="text-[10px] text-base-content/70">
+                    Atletas convidados não podem ser vinculados a contas de usuários. Promova este atleta a Fixo para habilitar o vínculo.
+                  </div>
+                </div>
+              ) : editingPlayer.userId ? (
+                <div className="space-y-3">
+                  <div className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-base-content">
+                        {linkedMember?.name || 'Usuário Autenticado'}
+                      </p>
+                      <p className="text-[9px] font-mono text-base-content/50">
+                        {linkedMember?.email || `ID: ${editingPlayer.userId}`}
+                      </p>
+                    </div>
+                    {/* Botão de desvincular */}
+                    {(editingPlayer.cloudOwnerId === currentUserId || permissions.canEditPlayerProfile) && (
+                      <div>
+                        {!showUnlinkConfirm ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowUnlinkConfirm(true)}
+                            className="btn btn-ghost hover:bg-error/15 hover:text-error btn-xs font-bold uppercase"
+                          >
+                            Desvincular
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[8px] text-error font-bold uppercase mr-1">Confirmar?</span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setUnlinking(true);
+                                try {
+                                  if (onUnlinkPlayer) await onUnlinkPlayer(editingPlayer.id);
+                                  setEditingPlayer(prev => prev ? { ...prev, userId: undefined } : null);
+                                } catch (e) {
+                                  console.error(e);
+                                } finally {
+                                  setUnlinking(false);
+                                  setShowUnlinkConfirm(false);
+                                }
+                              }}
+                              disabled={unlinking}
+                              className="btn btn-error btn-xs font-bold uppercase px-2 py-0"
+                            >
+                              {unlinking ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Sim'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowUnlinkConfirm(false)}
+                              className="btn btn-neutral btn-xs font-bold uppercase px-2 py-0"
+                            >
+                              Não
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Se houver solicitações pendentes */}
+                  {activeProposals.length > 0 ? (
+                    <div className="space-y-2">
+                      <span className="text-[8px] font-bold text-warning uppercase block">
+                        Solicitações Pendentes ({activeProposals.length})
+                      </span>
+                      {activeProposals.map((proposal) => {
+                        const proposer = members.find((m) => m.userId === proposal.userId);
+                        const isMyProposal = proposal.userId === currentUserId;
+                        const isReviewer = permissions.canEditPlayerProfile;
+
+                        return (
+                          <div key={proposal.id} className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center gap-2">
+                            <div>
+                              <p className="text-xs font-bold text-base-content">
+                                {proposer?.name || (isMyProposal ? 'Você' : 'Outro Usuário')}
+                              </p>
+                              <p className="text-[9px] font-mono text-base-content/50">
+                                {proposer?.email || proposal.userId}
+                              </p>
+                            </div>
+
+                            <div className="flex gap-1.5 shrink-0">
+                              {isReviewer ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setReviewingId(proposal.id);
+                                      try {
+                                        if (onReviewLink) await onReviewLink(proposal.id, 'approve');
+                                        setEditingPlayer(prev => prev ? { ...prev, userId: proposal.userId } : null);
+                                      } catch (e) {
+                                        console.error(e);
+                                      } finally {
+                                        setReviewingId(null);
+                                      }
+                                    }}
+                                    disabled={reviewingId !== null}
+                                    className="btn btn-success btn-xs font-bold uppercase gap-1"
+                                  >
+                                    {reviewingId === proposal.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <UserCheck className="w-3.5 h-3.5" />
+                                    )}
+                                    Aprovar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setReviewingId(proposal.id);
+                                      try {
+                                        if (onReviewLink) await onReviewLink(proposal.id, 'reject');
+                                      } catch (e) {
+                                        console.error(e);
+                                      } finally {
+                                        setReviewingId(null);
+                                      }
+                                    }}
+                                    disabled={reviewingId !== null}
+                                    className="btn btn-error btn-xs font-bold uppercase gap-1"
+                                  >
+                                    <UserX className="w-3.5 h-3.5" />
+                                    Rejeitar
+                                  </button>
+                                </>
+                              ) : isMyProposal ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[8px] text-warning font-bold uppercase">
+                                    Aguardando aprovação
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setReviewingId(proposal.id);
+                                      try {
+                                        if (onCancelLink) await onCancelLink(proposal.id);
+                                      } catch (e) {
+                                        console.error(e);
+                                      } finally {
+                                        setReviewingId(null);
+                                      }
+                                    }}
+                                    disabled={reviewingId !== null}
+                                    className="btn btn-ghost hover:bg-error/15 hover:text-error btn-xs font-bold uppercase"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[8px] text-base-content/40 font-bold uppercase">
+                                  Aguardando Admin
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center">
+                      <span className="text-[10px] text-base-content/50">
+                        Nenhuma conta vinculada a este atleta.
+                      </span>
+                      {currentUserId && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setClaiming(true);
+                            try {
+                              if (onProposeLink) await onProposeLink(editingPlayer.id);
+                              const isOwner = editingPlayer.cloudOwnerId === currentUserId || (!editingPlayer.cloudId && !editingPlayer.userId);
+                              if (isOwner) {
+                                setEditingPlayer(prev => prev ? { ...prev, userId: currentUserId } : null);
+                              }
+                            } catch (e) {
+                              console.error(e);
+                            } finally {
+                              setClaiming(false);
+                            }
+                          }}
+                          disabled={claiming}
+                          className="btn btn-primary btn-xs font-bold uppercase"
+                        >
+                          {claiming ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Vincular Minha Conta'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -660,6 +971,7 @@ export const PlayerEditView = ({
                         })
                       }
                       className="btn btn-xs btn-circle btn-ghost"
+                      disabled={!permissions.canEditPlayerProfile}
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
@@ -679,6 +991,7 @@ export const PlayerEditView = ({
                         })
                       }
                       className="range range-xs range-accent w-full"
+                      disabled={!permissions.canEditPlayerProfile}
                     />
                     <button
                       type="button"
@@ -692,6 +1005,7 @@ export const PlayerEditView = ({
                         })
                       }
                       className="btn btn-xs btn-circle btn-ghost"
+                      disabled={!permissions.canEditPlayerProfile}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -716,6 +1030,7 @@ export const PlayerEditView = ({
                     }
                     className="input input-bordered input-xs w-full font-bold text-base-content"
                     placeholder="Ex: Em plena evolução"
+                    disabled={!permissions.canEditPlayerProfile}
                   />
                 </div>
               </div>
@@ -856,6 +1171,7 @@ export const PlayerEditView = ({
                       max="10"
                       step="0.5"
                       value={editingPlayer.atributos[attr.key]}
+                      disabled={!permissions.canEvaluatePlayer}
                       onChange={(e) =>
                         setEditingPlayer({
                           ...editingPlayer,
@@ -940,6 +1256,7 @@ export const PlayerEditView = ({
                         max="10"
                         step="0.5"
                         value={editingPlayer.atributos[attr.key]}
+                        disabled={!permissions.canEvaluatePlayer}
                         onChange={(e) =>
                           setEditingPlayer({
                             ...editingPlayer,
@@ -991,34 +1308,44 @@ export const PlayerEditView = ({
           {/* Action buttons (Bottom) */}
           <div className="flex items-center justify-between border-t border-base-300 pt-4 mt-4">
             <div className="flex gap-2">
-              {!showDeleteConfirm ? (
-                <button onClick={() => setShowDeleteConfirm(true)} className="btn btn-error btn-sm">
-                  <Trash2 className="w-3.5 h-3.5" /> {hasHistory ? 'Desativar' : 'Excluir'}
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 bg-error/15 p-1 px-3 rounded-full border border-error/30 animate-fade-in">
-                  <span className="text-[8px] font-bold text-error uppercase">Confirmar?</span>
-                  <button
-                    onClick={onDelete}
-                    className="px-2 py-0.5 bg-error text-error-content rounded text-[8px] font-bold uppercase"
-                  >
-                    Sim
+              {permissions.canEditPlayerProfile && (
+                !showDeleteConfirm ? (
+                  <button onClick={() => setShowDeleteConfirm(true)} className="btn btn-error btn-sm">
+                    <Trash2 className="w-3.5 h-3.5" /> {hasHistory ? 'Desativar' : 'Excluir'}
                   </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-2 py-0.5 bg-base-300 text-base-content rounded text-[8px] font-bold uppercase"
-                  >
-                    Não
-                  </button>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-error/15 p-1 px-3 rounded-full border border-error/30 animate-fade-in">
+                    <span className="text-[8px] font-bold text-error uppercase">Confirmar?</span>
+                    <button
+                      onClick={onDelete}
+                      className="px-2 py-0.5 bg-error text-error-content rounded text-[8px] font-bold uppercase"
+                    >
+                      Sim
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-2 py-0.5 bg-base-300 text-base-content rounded text-[8px] font-bold uppercase"
+                    >
+                      Não
+                    </button>
+                  </div>
+                )
               )}
             </div>
 
             <div className="flex gap-2">
-              <button onClick={handleRevert} className="btn btn-neutral btn-sm">
+              <button
+                onClick={handleRevert}
+                disabled={!permissions.canEditPlayerProfile && !permissions.canEvaluatePlayer}
+                className="btn btn-neutral btn-sm"
+              >
                 Reverter
               </button>
-              <button onClick={onSave} className="btn btn-accent btn-sm">
+              <button
+                onClick={onSave}
+                disabled={!permissions.canEditPlayerProfile && !permissions.canEvaluatePlayer}
+                className="btn btn-accent btn-sm"
+              >
                 Salvar Alterações
               </button>
             </div>

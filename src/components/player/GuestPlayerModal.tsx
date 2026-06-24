@@ -3,6 +3,8 @@ import { X, Search, Sparkles, Check, Info } from 'lucide-react';
 import { Player, Attributes, Position, Gender } from '../../types';
 import { calculateGeneralOverall, getAttributeLabel } from '../../logic/calculations';
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
+import { generateUUID } from '../../logic/uuid';
+
 
 interface GuestPlayerModalProps {
   isOpen: boolean;
@@ -97,7 +99,7 @@ export function GuestPlayerModal({
 
     // Auto-calculate helper stats
     const newGuest: Player = {
-      id: `player-guest-${Date.now()}`,
+      id: generateUUID(),
       nome: nome.trim(),
       apelido: nome.trim(),
       genero,

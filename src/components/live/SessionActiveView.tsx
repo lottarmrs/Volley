@@ -32,6 +32,8 @@ import { PointModal } from './PointModal';
 import { HighlightFab } from './HighlightFab';
 import { calculateLiveGameRatings } from '../../logic/rating';
 import { openWhatsAppShare, copyToClipboard } from '../../logic/exporters';
+import { generateUUID } from '../../logic/uuid';
+
 
 interface SessionActiveViewProps {
   activeSession: Session;
@@ -308,7 +310,7 @@ export const SessionActiveView = ({
                   games.filter((g) => g.sessionId === activeSession.id).length + 1;
 
                 const newGame: Game = {
-                  id: `game-${Date.now()}`,
+                  id: generateUUID(),
                   sessionId: activeSession.id,
                   type: activeSession.type!,
                   sequenceNumber: nextSequenceNumber,

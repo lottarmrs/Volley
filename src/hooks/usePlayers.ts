@@ -5,6 +5,8 @@ import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
 import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
 import { resolveUsername } from '../logic/username';
 import { simulateLocalConsensus } from '../logic/playerEvaluations';
+import { generateUUID } from '../logic/uuid';
+
 
 function normalizePlayer(p: any): Player {
   return {
@@ -255,7 +257,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
   const handleAddPlayer = useCallback(() => {
     const now = new Date().toISOString();
     const newPlayer: Player = {
-      id: `player-${Date.now()}`,
+      id: generateUUID(),
       nome: '',
       apelido: '',
       genero: 'M',

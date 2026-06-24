@@ -165,32 +165,9 @@ function visible<T extends Syncable>(items: T[]) {
   return items.filter((item) => !item.deletedAt);
 }
 
-function createCommunityCloudIdResolver(
-  local: LocalSyncPayload,
-  uploadedMap: Record<string, string>,
-) {
-  return (communityLocalId?: string | null) => {
-    if (!communityLocalId) return null;
-    return (
-      uploadedMap[communityLocalId] ||
-      local.communities.find((community) => community.id === communityLocalId)?.cloudId ||
-      null
-    );
-  };
-}
-
-function getSessionCommunityCloudId(
-  session: Session | undefined,
-  resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
-) {
-  return session?.communityId ? resolveCommunityCloudId(session.communityId) : null;
-}
-
 async function bulkUploadSessionChildren<T extends Syncable>(
   items: T[],
   sessionsById: Map<string, Session>,
-  sessionCloudIds: Record<string, string>,
-  resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
   softDeleteTable: Parameters<typeof operationalCloudService.bulkSoftDelete>[0],
   bulkUpsertFn: (itemsToUpsert: T[]) => Promise<T[]>,
 ): Promise<T[]> {
@@ -210,8 +187,7 @@ async function bulkUploadSessionChildren<T extends Syncable>(
 
     const sessionId = item.sessionId;
     const session = sessionsById.get(sessionId);
-    const sessionCloudId = sessionCloudIds[sessionId] || session?.cloudId;
-    if (!sessionCloudId) {
+    if (!session) {
       updated.push(item);
       continue;
     }
@@ -250,8 +226,6 @@ export const syncService = {
     const syncedAt = nowIso();
 
     const updatedCommunities: Community[] = [];
-    const communityLocalToCloudIdMap: Record<string, string> = {};
-
     for (const community of local.communities) {
       if (community.deletedAt) {
         if (community.cloudId) {
@@ -262,20 +236,10 @@ export const syncService = {
       }
 
       const uploaded = await communityCloudService.upsert(community, ownerId);
-      if (uploaded.cloudId) {
-        communityLocalToCloudIdMap[community.id] = uploaded.cloudId;
-      }
       updatedCommunities.push(markSynced(community, uploaded.cloudId, syncedAt));
     }
 
-    const resolveCommunityCloudId = createCommunityCloudIdResolver(
-      local,
-      communityLocalToCloudIdMap,
-    );
-
     const updatedPlayers: Player[] = [];
-    const playerLocalToCloudIdMap: Record<string, string> = {};
-
     for (const player of local.players) {
       if (player.deletedAt) {
         const canDeleteGlobalPlayer =
@@ -291,25 +255,22 @@ export const syncService = {
         !!player.cloudId && !!player.cloudOwnerId && player.cloudOwnerId !== ownerId;
 
       if (isSharedPlayer) {
-        playerLocalToCloudIdMap[player.id] = player.cloudId!;
         updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
         continue;
       }
 
       const uploaded = await playerCloudService.upsert(player, ownerId);
-      if (uploaded.cloudId) playerLocalToCloudIdMap[player.id] = uploaded.cloudId;
       updatedPlayers.push(markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt));
     }
 
     await playerEvaluationCloudService.bulkUpsertForPlayers(
       updatedPlayers,
       ownerId,
-      playerLocalToCloudIdMap,
     );
 
     const updatedRules: CommunityRules[] = [];
     for (const rule of local.rules) {
-      const communityCloudId = resolveCommunityCloudId(rule.communityId);
+      const communityCloudId = rule.communityId;
       if (!communityCloudId) {
         updatedRules.push(rule);
         continue;
@@ -329,7 +290,7 @@ export const syncService = {
         continue;
       }
 
-      const communityCloudId = resolveCommunityCloudId(template.communityId);
+      const communityCloudId = template.communityId;
       if (!communityCloudId) {
         updatedTemplates.push(template);
         continue;
@@ -344,7 +305,6 @@ export const syncService = {
     }
 
     const updatedSessions: Session[] = [];
-    const sessionLocalToCloudIdMap: Record<string, string> = {};
     for (const session of local.sessions) {
       if (session.deletedAt) {
         if (session.cloudId) {
@@ -357,11 +317,7 @@ export const syncService = {
       const uploaded = await operationalCloudService.upsertSession(
         session,
         ownerId,
-        resolveCommunityCloudId(session.communityId),
       );
-      if (uploaded.cloudId) {
-        sessionLocalToCloudIdMap[session.id] = uploaded.cloudId;
-      }
       updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
     }
 
@@ -370,15 +326,11 @@ export const syncService = {
     const updatedTeams = await bulkUploadSessionChildren<Team>(
       local.teams,
       sessionsById,
-      sessionLocalToCloudIdMap,
-      resolveCommunityCloudId,
       'teams',
       (items) =>
         operationalCloudService.bulkUpsertTeams(
           items,
           ownerId,
-          sessionLocalToCloudIdMap,
-          resolveCommunityCloudId,
           sessionsById,
         ),
     );
@@ -386,15 +338,11 @@ export const syncService = {
     const updatedGames = await bulkUploadSessionChildren<Game>(
       local.games,
       sessionsById,
-      sessionLocalToCloudIdMap,
-      resolveCommunityCloudId,
       'games',
       (items) =>
         operationalCloudService.bulkUpsertGames(
           items,
           ownerId,
-          sessionLocalToCloudIdMap,
-          resolveCommunityCloudId,
           sessionsById,
         ),
     );
@@ -402,15 +350,11 @@ export const syncService = {
     const updatedPointEvents = await bulkUploadSessionChildren<PointEvent>(
       local.pointEvents,
       sessionsById,
-      sessionLocalToCloudIdMap,
-      resolveCommunityCloudId,
       'point_events',
       (items) =>
         operationalCloudService.bulkUpsertPointEvents(
           items,
           ownerId,
-          sessionLocalToCloudIdMap,
-          resolveCommunityCloudId,
           sessionsById,
         ),
     );
@@ -418,15 +362,11 @@ export const syncService = {
     const updatedGameReports = await bulkUploadSessionChildren<GameReport>(
       local.gameReports,
       sessionsById,
-      sessionLocalToCloudIdMap,
-      resolveCommunityCloudId,
       'game_reports',
       (items) =>
         operationalCloudService.bulkUpsertGameReports(
           items,
           ownerId,
-          sessionLocalToCloudIdMap,
-          resolveCommunityCloudId,
           sessionsById,
         ),
     );
@@ -434,15 +374,11 @@ export const syncService = {
     const updatedSessionReports = await bulkUploadSessionChildren<SessionReport>(
       local.sessionReports,
       sessionsById,
-      sessionLocalToCloudIdMap,
-      resolveCommunityCloudId,
       'session_reports',
       (items) =>
         operationalCloudService.bulkUpsertSessionReports(
           items,
           ownerId,
-          sessionLocalToCloudIdMap,
-          resolveCommunityCloudId,
           sessionsById,
         ),
     );
@@ -459,7 +395,7 @@ export const syncService = {
         continue;
       }
 
-      const communityCloudId = resolveCommunityCloudId(presence.communityId);
+      const communityCloudId = presence.communityId;
       if (!communityCloudId) {
         updatedPresenceRecords.push(presence);
         continue;
@@ -477,7 +413,6 @@ export const syncService = {
         const uploadedResults = await operationalCloudService.bulkUpsertPresence(
           presenceToUpsert,
           ownerId,
-          resolveCommunityCloudId,
         );
         for (const result of uploadedResults) {
           const key = `${result.communityId}:${result.date}`;
@@ -510,7 +445,7 @@ export const syncService = {
         continue;
       }
 
-      const communityCloudId = resolveCommunityCloudId(draft.communityId);
+      const communityCloudId = draft.communityId;
       if (!communityCloudId) {
         updatedDrafts.push(draft);
         continue;
@@ -528,7 +463,6 @@ export const syncService = {
         const uploadedResults = await operationalCloudService.bulkUpsertDrafts(
           draftsToUpsert,
           ownerId,
-          resolveCommunityCloudId,
         );
         for (const result of uploadedResults) {
           const original = draftsMap.get(result.id);
@@ -549,11 +483,11 @@ export const syncService = {
     const relationsToUpload: Omit<CommunityPlayerDb, 'id'>[] = [];
     for (const player of local.players) {
       if (player.deletedAt) continue;
-      const playerCloudId = playerLocalToCloudIdMap[player.id] || player.cloudId;
+      const playerCloudId = player.cloudId || player.id;
       if (!playerCloudId) continue;
 
       for (const localCommunityId of player.communityIds || []) {
-        const communityCloudId = resolveCommunityCloudId(localCommunityId);
+        const communityCloudId = localCommunityId;
         if (!communityCloudId) continue;
 
         relationsToUpload.push({
@@ -572,7 +506,7 @@ export const syncService = {
 
     const updatedProposals: PlayerLinkProposal[] = [];
     for (const proposal of local.linkProposals || []) {
-      const playerCloudId = playerLocalToCloudIdMap[proposal.playerId] || proposal.playerCloudId;
+      const playerCloudId = proposal.playerCloudId || proposal.playerId;
       if (!playerCloudId) {
         updatedProposals.push(proposal);
         continue;
@@ -581,7 +515,7 @@ export const syncService = {
         updatedProposals.push(markSynced(proposal, proposal.id, syncedAt));
         continue;
       }
-      const uploaded = await playerLinkProposalCloudService.upsert(proposal, playerLocalToCloudIdMap);
+      const uploaded = await playerLinkProposalCloudService.upsert(proposal);
       updatedProposals.push(markSynced(proposal, uploaded.id, syncedAt));
     }
 
@@ -606,33 +540,19 @@ export const syncService = {
     const cloudCommunities = await communityCloudService.fetchAll();
     const cloudPlayers = await playerCloudService.fetchAll();
 
-    const communityCloudToLocalIdMap: Record<string, string> = {};
-    cloudCommunities.forEach((community) => {
-      if (community.cloudId) {
-        communityCloudToLocalIdMap[community.cloudId] = community.id;
-      }
-    });
-
-    const playerCloudToLocalIdMap: Record<string, string> = {};
-    cloudPlayers.forEach((player) => {
-      if (player.cloudId) {
-        playerCloudToLocalIdMap[player.cloudId] = player.id;
-      }
-    });
-
     const [cloudRules, cloudTemplates, cloudRelations, cloudEvaluations, operational, cloudProposals] = await Promise.all([
-      communityRulesCloudService.fetchAll(communityCloudToLocalIdMap),
-      whatsappTemplateCloudService.fetchAll(communityCloudToLocalIdMap),
+      communityRulesCloudService.fetchAll(),
+      whatsappTemplateCloudService.fetchAll(),
       communityPlayerCloudService.fetchAll(),
-      playerEvaluationCloudService.fetchAll(playerCloudToLocalIdMap),
-      operationalCloudService.fetchAll(communityCloudToLocalIdMap),
-      playerLinkProposalCloudService.fetchAll(playerCloudToLocalIdMap),
+      playerEvaluationCloudService.fetchAll(),
+      operationalCloudService.fetchAll(),
+      playerLinkProposalCloudService.fetchAll(),
     ]);
 
     const playerMemberships: Record<string, string[]> = {};
     for (const relation of cloudRelations) {
-      const localPlayerId = playerCloudToLocalIdMap[relation.player_id];
-      const localCommunityId = communityCloudToLocalIdMap[relation.community_id];
+      const localPlayerId = relation.player_id;
+      const localCommunityId = relation.community_id;
       if (localPlayerId && localCommunityId && relation.active) {
         playerMemberships[localPlayerId] = playerMemberships[localPlayerId] || [];
         playerMemberships[localPlayerId].push(localCommunityId);

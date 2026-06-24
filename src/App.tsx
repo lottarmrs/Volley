@@ -67,6 +67,7 @@ import {
   normalizeGames,
   normalizeSessions,
   sanitizeImportedBackup,
+  migrateLocalDbToUuids,
 } from './logic/migrations';
 import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
@@ -75,6 +76,10 @@ import { calculateAttributeProgression } from './logic/progression';
 import { applySessionRatingToForm } from './logic/rating';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
+import { generateUUID } from './logic/uuid';
+
+// Execute UUID migration on startup before any state/hook initializes
+migrateLocalDbToUuids();
 
 type Page =
   | 'dashboard'
@@ -382,7 +387,7 @@ export default function App() {
     const config =
       type === 'tournament' ? buildTournamentConfig(rules) : buildFreePlayConfig(rules);
     const s: Session = {
-      id: `sessao-${Date.now()}`,
+      id: generateUUID(),
       communityId: community.id,
       name: `${community.name} - ${now.toLocaleDateString('pt-BR')}`,
       date: now.toISOString().split('T')[0],
@@ -411,7 +416,7 @@ export default function App() {
       play.rawPlayers.filter((p) => p.username).map((p) => p.username as string),
     );
     const player: Player = {
-      id: `player-${Date.now()}`,
+      id: generateUUID(),
       username,
       nome: trimmed,
       apelido: trimmed,
@@ -743,7 +748,7 @@ export default function App() {
             sessionDraft={sessionDraft}
             onNewSession={() => {
               const s: Session = {
-                id: `sessao-${Date.now()}`,
+                id: generateUUID(),
                 name: `Sessão — ${new Date().toLocaleDateString('pt-BR')}`,
                 date: new Date().toISOString().split('T')[0],
                 status: 'draft',
@@ -1038,8 +1043,6 @@ export default function App() {
             onSignIn={auth.signIn}
             onSignUp={auth.signUp}
             onSignOut={auth.signOut}
-            onUpload={cloudSync.uploadToCloud}
-            onDownload={cloudSync.downloadFromCloud}
             onSync={cloudSync.sync}
             lastSyncedAt={cloudSync.lastSyncedAt}
             syncLoading={cloudSync.syncLoading}
@@ -1066,7 +1069,7 @@ export default function App() {
           <button
             onClick={() => {
               const s: Session = {
-                id: `sessao-${Date.now()}`,
+                id: generateUUID(),
                 name: `Torneio — ${new Date().toLocaleDateString('pt-BR')}`,
                 date: new Date().toISOString().split('T')[0],
                 status: 'draft',

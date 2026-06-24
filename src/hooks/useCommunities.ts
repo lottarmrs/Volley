@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Community } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { normalizeCommunities } from '../logic/migrations';
+import { generateUUID } from '../logic/uuid';
+
 
 export function useCommunities() {
   const [communities, setCommunities] = useState<Community[]>(() =>
@@ -90,7 +92,7 @@ export function useCommunities() {
   const handleAddCommunity = useCallback(() => {
     const now = new Date().toISOString();
     const newCommunity: Community = {
-      id: `community-${Date.now()}`,
+      id: generateUUID(),
       name: '',
       description: '',
       defaultLocation: '',
@@ -126,7 +128,7 @@ export function useCommunities() {
   const addCommunity = useCallback((input: Partial<Community>) => {
     const now = new Date().toISOString();
     const community: Community = {
-      id: input.id || `community-${Date.now()}`,
+      id: input.id || generateUUID(),
       name: input.name || 'Nova comunidade',
       description: input.description || '',
       defaultLocation: input.defaultLocation || '',
@@ -152,7 +154,7 @@ export function useCommunities() {
       const now = new Date().toISOString();
       const duplicate: Community = {
         ...source,
-        id: `community-${Date.now()}`,
+        id: generateUUID(),
         name: `${source.name} (copia)`,
         archived: false,
         createdAt: now,

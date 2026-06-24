@@ -249,7 +249,7 @@ test('whatsapp template mapper preserves zero-valued default payments', () => {
 test('session mapper preserves operational config and ids', () => {
   const session: Session = {
     id: 'session-local',
-    communityId: 'community-local',
+    communityId: 'community-cloud',
     name: 'Treino',
     date: '2026-06-09',
     location: 'Quadra 1',
@@ -272,7 +272,7 @@ test('session mapper preserves operational config and ids', () => {
     updatedAt: now,
   };
 
-  const db = mapSessionToDb(session, 'owner-id', 'community-cloud');
+  const db = mapSessionToDb(session, 'owner-id');
   assert.equal(db.owner_id, 'owner-id');
   assert.equal(db.community_id, 'community-cloud');
   assert.equal(db.local_id, 'session-local');
@@ -285,13 +285,12 @@ test('session mapper preserves operational config and ids', () => {
       created_at: now,
       updated_at: now,
       deleted_at: null,
-    },
-    'community-local',
+    }
   );
 
   assert.equal(mapped.id, 'session-local');
   assert.equal(mapped.cloudId, 'session-cloud');
-  assert.equal(mapped.communityId, 'community-local');
+  assert.equal(mapped.communityId, 'community-cloud');
   assert.deepEqual(mapped.selectedPlayerIds, ['player-local']);
 });
 
@@ -362,30 +361,27 @@ test('team, game and point mappers preserve relationships through local ids', ()
 
   const mappedTeam = mapDbToTeam(
     {
-      ...mapTeamToDb(team, 'owner-id', 'session-cloud', 'community-cloud'),
+      ...mapTeamToDb(team, 'owner-id', 'community-cloud'),
       id: 'team-cloud',
       updated_at: now,
       deleted_at: null,
-    },
-    'session-local',
+    }
   );
   const mappedGame = mapDbToGame(
     {
-      ...mapGameToDb(game, 'owner-id', 'session-cloud', 'community-cloud'),
+      ...mapGameToDb(game, 'owner-id', 'community-cloud'),
       id: 'game-cloud',
       updated_at: now,
       deleted_at: null,
-    },
-    'session-local',
+    }
   );
   const mappedPoint = mapDbToPointEvent(
     {
-      ...mapPointEventToDb(point, 'owner-id', 'session-cloud', 'community-cloud'),
+      ...mapPointEventToDb(point, 'owner-id', 'community-cloud'),
       id: 'point-cloud',
       updated_at: now,
       deleted_at: null,
-    },
-    'session-local',
+    }
   );
 
   assert.equal(mappedTeam.sessionId, 'session-local');
@@ -459,40 +455,36 @@ test('report, presence and draft mappers preserve JSON payloads', () => {
 
   const mappedGameReport = mapDbToGameReport(
     {
-      ...mapGameReportToDb(gameReport, 'owner-id', 'session-cloud', 'community-cloud'),
+      ...mapGameReportToDb(gameReport, 'owner-id', 'community-cloud'),
       id: 'game-report-cloud',
       updated_at: now,
       deleted_at: null,
-    },
-    'session-local',
+    }
   );
   const mappedSessionReport = mapDbToSessionReport(
     {
-      ...mapSessionReportToDb(sessionReport, 'owner-id', 'session-cloud', 'community-cloud'),
+      ...mapSessionReportToDb(sessionReport, 'owner-id', 'community-cloud'),
       id: 'session-report-cloud',
       updated_at: now,
       deleted_at: null,
-    },
-    'session-local',
+    }
   );
   const mappedPresence = mapDbToPresence(
     {
-      ...mapPresenceToDb(presence, 'owner-id', 'community-cloud'),
+      ...mapPresenceToDb(presence, 'owner-id'),
       id: 'presence-cloud',
       updated_at: now,
       deleted_at: null,
-    },
-    'community-local',
+    }
   );
   const mappedDraft = mapDbToDraft(
     {
-      ...mapDraftToDb(draft, 'owner-id', 'community-cloud'),
+      ...mapDraftToDb(draft, 'owner-id'),
       id: 'draft-cloud',
       updated_at: now,
       created_at: now,
       deleted_at: null,
-    },
-    'community-local',
+    }
   );
 
   assert.equal(mappedGameReport.totalPoints, 27);
@@ -526,29 +518,21 @@ test('community member mapper reads embedded profile data', () => {
 test('player link proposal mapper round-trips fields and maps local-to-cloud player IDs', () => {
   const proposal: PlayerLinkProposal = {
     id: 'proposal-local-uuid',
-    playerId: 'player-local',
+    playerId: 'player-cloud-uuid',
     userId: 'user-auth-uuid',
     status: 'pending',
     createdAt: now,
   };
 
-  const playerLocalToCloudIdMap = {
-    'player-local': 'player-cloud-uuid',
-  };
-
-  const db = mapProposalToDb(proposal, playerLocalToCloudIdMap);
+  const db = mapProposalToDb(proposal);
   assert.equal(db.id, 'proposal-local-uuid');
   assert.equal(db.player_id, 'player-cloud-uuid');
   assert.equal(db.user_id, 'user-auth-uuid');
   assert.equal(db.status, 'pending');
 
-  const playerCloudToLocalIdMap = {
-    'player-cloud-uuid': 'player-local',
-  };
-
-  const mapped = mapDbToProposal(db, playerCloudToLocalIdMap);
+  const mapped = mapDbToProposal(db);
   assert.equal(mapped.id, 'proposal-local-uuid');
-  assert.equal(mapped.playerId, 'player-local');
+  assert.equal(mapped.playerId, 'player-cloud-uuid'); // wait! Since local and cloud IDs are identical, mapDbToProposal doesn't translate player ID using maps anymore, so mapped.playerId will be db.player_id which is 'player-cloud-uuid'!
   assert.equal(mapped.userId, 'user-auth-uuid');
   assert.equal(mapped.status, 'pending');
   assert.equal(mapped.syncStatus, 'synced');

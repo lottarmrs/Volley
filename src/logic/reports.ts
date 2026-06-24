@@ -1,4 +1,6 @@
 import { Game, PointEvent, Team, Player, GameReport, SessionReport, Session } from '../types';
+import { generateUUID } from './uuid';
+
 import { calculateTournamentStandings, isResultGame } from './tournament';
 import { calculateMatchRating, calculateSessionRating } from './rating';
 import { isCreditedPoint } from './match';
@@ -64,7 +66,7 @@ export function generateGameReport(
   const loserTeam = game.winnerTeamId === teamA.id ? teamB : teamA;
 
   return {
-    id: `report-${Date.now()}-${game.id}`,
+    id: generateUUID(),
     sessionId: game.sessionId,
     gameId: game.id,
     sequenceNumber: game.sequenceNumber || 0,
@@ -197,7 +199,7 @@ export function generateSessionReport(
     .sort((a, b) => b.totalPoints - a.totalPoints);
 
   return {
-    id: `session-report-${Date.now()}-${session.id}`,
+    id: generateUUID(),
     sessionId: session.id,
     generatedAt: new Date().toISOString(),
     sessionName: session.name,

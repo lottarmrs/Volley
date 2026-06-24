@@ -27,8 +27,6 @@ interface AccountSyncViewProps {
   onSignOut: () => Promise<void>;
 
   // Sync actions
-  onUpload: () => Promise<void>;
-  onDownload: () => Promise<void>;
   onSync: () => Promise<void>;
   lastSyncedAt: string | null;
   syncLoading: boolean;
@@ -47,8 +45,6 @@ export function AccountSyncView({
   onSignIn,
   onSignUp,
   onSignOut,
-  onUpload,
-  onDownload,
   onSync,
   lastSyncedAt,
   syncLoading,
@@ -234,40 +230,10 @@ export function AccountSyncView({
               Operações de Sincronização
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => handleAction('Enviar dados para nuvem', onUpload)}
-                disabled={actionLoading || syncLoading}
-                className="btn btn-outline hover:btn-primary justify-start gap-3 p-4 h-auto text-left uppercase text-xs tracking-wider"
-              >
-                <CloudUpload className="w-5 h-5 text-primary" />
-                <div>
-                  <div className="font-bold">Enviar para a Nuvem</div>
-                  <div className="text-[9px] opacity-60 lowercase font-normal mt-0.5">
-                    Envia dados locais (sobrescreve a nuvem)
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleAction('Baixar dados da nuvem', onDownload)}
-                disabled={actionLoading || syncLoading}
-                className="btn btn-outline hover:btn-secondary justify-start gap-3 p-4 h-auto text-left uppercase text-xs tracking-wider"
-              >
-                <CloudDownload className="w-5 h-5 text-secondary" />
-                <div>
-                  <div className="font-bold">Baixar da Nuvem</div>
-                  <div className="text-[9px] opacity-60 lowercase font-normal mt-0.5">
-                    Substitui os dados locais pelos da nuvem
-                  </div>
-                </div>
-              </button>
-            </div>
-
             <button
               onClick={() => handleAction('Sincronizar agora', onSync)}
               disabled={actionLoading || syncLoading}
-              className="btn btn-primary btn-block uppercase tracking-wider text-xs font-bold py-4 h-auto"
+              className="btn btn-primary btn-block justify-center gap-3 p-4 h-auto uppercase text-xs tracking-wider font-bold"
             >
               {actionLoading || syncLoading ? (
                 <>
@@ -275,8 +241,7 @@ export function AccountSyncView({
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar
-                  Dados)
+                  <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar Dados)
                 </>
               )}
             </button>

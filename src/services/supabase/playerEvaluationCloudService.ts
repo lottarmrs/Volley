@@ -25,11 +25,10 @@ export function mapPlayerEvaluationToDb(
 
 export function mapDbToPlayerEvaluation(
   db: DbRecord,
-  playerCloudToLocalIdMap: Record<string, string> = {},
 ): PlayerEvaluation {
   return {
     id: db.local_id || db.id,
-    playerId: playerCloudToLocalIdMap[db.player_id] || db.player_id,
+    playerId: db.player_id,
     playerCloudId: db.player_id,
     ownerId: db.owner_id,
     attributes: db.attributes || {},
@@ -46,9 +45,7 @@ export function mapDbToPlayerEvaluation(
 }
 
 export const playerEvaluationCloudService = {
-  async fetchAll(
-    playerCloudToLocalIdMap: Record<string, string> = {},
-  ): Promise<PlayerEvaluation[]> {
+  async fetchAll(): Promise<PlayerEvaluation[]> {
     const { data, error } = await supabase
       .from('player_evaluations')
       .select(
@@ -56,7 +53,7 @@ export const playerEvaluationCloudService = {
       );
 
     if (error) throw error;
-    return (data || []).map((row) => mapDbToPlayerEvaluation(row, playerCloudToLocalIdMap));
+    return (data || []).map(mapDbToPlayerEvaluation);
   },
 
   async upsertForPlayer(
@@ -73,17 +70,16 @@ export const playerEvaluationCloudService = {
       .single();
 
     if (error) throw error;
-    return mapDbToPlayerEvaluation(data, { [playerCloudId]: player.id });
+    return mapDbToPlayerEvaluation(data);
   },
 
   async bulkUpsertForPlayers(
     players: Player[],
     ownerId: string,
-    playerLocalToCloudIdMap: Record<string, string>,
   ): Promise<void> {
     const records = players
       .map((player) => {
-        const playerCloudId = playerLocalToCloudIdMap[player.id] || player.cloudId;
+        const playerCloudId = player.cloudId || player.id;
         return playerCloudId ? mapPlayerEvaluationToDb(player, ownerId, playerCloudId) : null;
       })
       .filter(Boolean) as DbRecord[];

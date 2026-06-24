@@ -29,6 +29,8 @@ import {
   isResultGame,
   getFinalStandingsKnockout,
 } from '../logic/tournament';
+import { generateUUID } from '../logic/uuid';
+
 
 export function useLiveSession(
   activeSession: Session | null,
@@ -181,7 +183,7 @@ export function useLiveSession(
         const currentGamePoints = sessionPoints.filter((p) => p.gameId === currentGame.id);
 
         const pointEvent: PointEvent = {
-          id: `point-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          id: generateUUID(),
           sessionId: activeSession.id,
           gameId: currentGame.id,
           sequenceNumber: currentGamePoints.length + 1,
@@ -292,7 +294,7 @@ export function useLiveSession(
       const score = { teamA: currentGame.scoreA, teamB: currentGame.scoreB };
 
       const highlight: PointEvent = {
-        id: `highlight-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        id: generateUUID(),
         sessionId: activeSession.id,
         gameId: currentGame.id,
         sequenceNumber: currentGamePoints.length + 1,
@@ -422,7 +424,7 @@ export function useLiveSession(
       }
 
       const newGame: Game = {
-        id: `game-${Date.now()}`,
+        id: generateUUID(),
         sessionId: activeSession.id,
         type: activeSession.type!,
         sequenceNumber: sessionGames.length + 1,

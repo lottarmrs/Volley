@@ -73,16 +73,14 @@ export function mapDbToTemplate(db: any, communityLocalId: string): WhatsAppList
 }
 
 export const whatsappTemplateCloudService = {
-  async fetchAll(communityLocalIdMap: Record<string, string>): Promise<WhatsAppListTemplate[]> {
+  async fetchAll(): Promise<WhatsAppListTemplate[]> {
     const { data, error } = await supabase
       .from('whatsapp_list_templates')
       .select('*');
 
     if (error) throw error;
 
-    return (data || [])
-      .filter((db) => communityLocalIdMap[db.community_id])
-      .map((db) => mapDbToTemplate(db, communityLocalIdMap[db.community_id]));
+    return (data || []).map((db) => mapDbToTemplate(db, db.community_id));
   },
 
   async upsert(

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Player, PlayerLinkProposal } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { playerLinkProposalCloudService } from '../services/supabase/playerLinkProposalCloudService';
+import { generateUUID } from '../logic/uuid';
 
 export function usePlayerLinkProposals(
   players: Player[],
@@ -26,7 +27,7 @@ export function usePlayerLinkProposals(
     const now = new Date().toISOString();
     const isOwner = player.cloudOwnerId === currentUserId || (!player.cloudId && !player.userId);
 
-    const tempProposalId = `proposal-${Date.now()}`;
+    const tempProposalId = generateUUID();
     const newProposal: PlayerLinkProposal = {
       id: tempProposalId,
       playerId,
@@ -79,7 +80,7 @@ export function usePlayerLinkProposals(
     if (!player) throw new Error('Atleta associado não encontrado.');
 
     const now = new Date().toISOString();
-    const isTemp = proposalId.startsWith('proposal-');
+    const isTemp = proposal.syncStatus === 'pending';
 
     if (action === 'approve') {
       setPlayers(prev =>
@@ -107,7 +108,7 @@ export function usePlayerLinkProposals(
               status: 'superseded',
               reviewedBy: currentUserId,
               reviewedAt: now,
-              syncStatus: p.id.startsWith('proposal-') ? 'pending' : 'synced',
+              syncStatus: p.syncStatus === 'pending' ? 'pending' : 'synced',
             };
           }
           return p;
@@ -156,7 +157,7 @@ export function usePlayerLinkProposals(
     if (!proposal) throw new Error('Solicitação não encontrada.');
 
     const now = new Date().toISOString();
-    const isTemp = proposalId.startsWith('proposal-');
+    const isTemp = proposal.syncStatus === 'pending';
 
     setLinkProposals(prev =>
       prev.map(p =>
@@ -213,7 +214,7 @@ export function usePlayerLinkProposals(
             status: 'superseded',
             reviewedBy: currentUserId,
             reviewedAt: now,
-            syncStatus: p.id.startsWith('proposal-') ? 'pending' : 'synced',
+            syncStatus: p.syncStatus === 'pending' ? 'pending' : 'synced',
           };
         }
         return p;

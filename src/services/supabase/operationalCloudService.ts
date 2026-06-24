@@ -41,11 +41,11 @@ function withoutCloudMeta<T extends DbRecord>(entity: T) {
   return rest;
 }
 
-export function mapSessionToDb(local: Session, ownerId: string, communityCloudId?: string | null) {
+export function mapSessionToDb(local: Session, ownerId: string) {
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId || null,
+    community_id: local.communityId || null,
     name: local.name,
     date: local.date,
     location: local.location || null,
@@ -62,10 +62,10 @@ export function mapSessionToDb(local: Session, ownerId: string, communityCloudId
   };
 }
 
-export function mapDbToSession(db: DbRecord, communityLocalId?: string | null): Session {
+export function mapDbToSession(db: DbRecord): Session {
   return {
     id: db.local_id || db.id,
-    communityId: communityLocalId ?? null,
+    communityId: db.community_id || null,
     name: db.name,
     date: db.date,
     location: db.location || null,
@@ -84,17 +84,12 @@ export function mapDbToSession(db: DbRecord, communityLocalId?: string | null): 
   };
 }
 
-export function mapTeamToDb(
-  local: Team,
-  ownerId: string,
-  sessionCloudId: string,
-  communityCloudId?: string | null,
-) {
+export function mapTeamToDb(local: Team, ownerId: string, communityId?: string | null) {
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId || null,
-    session_id: sessionCloudId,
+    community_id: communityId || null,
+    session_id: local.sessionId,
     name: local.name,
     color: local.color || null,
     player_ids: local.playerIds || [],
@@ -107,10 +102,10 @@ export function mapTeamToDb(
   };
 }
 
-export function mapDbToTeam(db: DbRecord, sessionLocalId: string): Team {
+export function mapDbToTeam(db: DbRecord): Team {
   return {
-    id: db.local_id || db.id,
-    sessionId: sessionLocalId,
+    id: db.id,
+    sessionId: db.session_id,
     name: db.name,
     color: db.color || undefined,
     playerIds: arrayOrEmpty<string>(db.player_ids),
@@ -125,22 +120,17 @@ export function mapDbToTeam(db: DbRecord, sessionLocalId: string): Team {
   };
 }
 
-export function mapGameToDb(
-  local: Game,
-  ownerId: string,
-  sessionCloudId: string,
-  communityCloudId?: string | null,
-) {
+export function mapGameToDb(local: Game, ownerId: string, communityId?: string | null) {
   const metadata = {
     ...(local.metadata || {}),
     sets: local.sets || null,
     setTargets: local.setTargets || null,
   };
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId || null,
-    session_id: sessionCloudId,
+    community_id: communityId || null,
+    session_id: local.sessionId,
     type: local.type,
     sequence_number: local.sequenceNumber,
     round: local.round || null,
@@ -164,11 +154,11 @@ export function mapGameToDb(
   };
 }
 
-export function mapDbToGame(db: DbRecord, sessionLocalId: string): Game {
+export function mapDbToGame(db: DbRecord): Game {
   const metadata = db.metadata || {};
   return {
-    id: db.local_id || db.id,
-    sessionId: sessionLocalId,
+    id: db.id,
+    sessionId: db.session_id,
     type: db.type,
     sequenceNumber: db.sequence_number,
     round: db.round ?? undefined,
@@ -196,17 +186,12 @@ export function mapDbToGame(db: DbRecord, sessionLocalId: string): Game {
   };
 }
 
-export function mapPointEventToDb(
-  local: PointEvent,
-  ownerId: string,
-  sessionCloudId: string,
-  communityCloudId?: string | null,
-) {
+export function mapPointEventToDb(local: PointEvent, ownerId: string, communityId?: string | null) {
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId || null,
-    session_id: sessionCloudId,
+    community_id: communityId || null,
+    session_id: local.sessionId,
     game_id: local.gameId,
     sequence_number: local.sequenceNumber,
     scoring_team_id: local.scoringTeamId,
@@ -228,10 +213,10 @@ export function mapPointEventToDb(
   };
 }
 
-export function mapDbToPointEvent(db: DbRecord, sessionLocalId: string): PointEvent {
+export function mapDbToPointEvent(db: DbRecord): PointEvent {
   return {
-    id: db.local_id || db.id,
-    sessionId: sessionLocalId,
+    id: db.id,
+    sessionId: db.session_id,
     gameId: db.game_id,
     sequenceNumber: db.sequence_number,
     scoringTeamId: db.scoring_team_id,
@@ -255,17 +240,12 @@ export function mapDbToPointEvent(db: DbRecord, sessionLocalId: string): PointEv
   };
 }
 
-export function mapGameReportToDb(
-  local: GameReport,
-  ownerId: string,
-  sessionCloudId: string,
-  communityCloudId?: string | null,
-) {
+export function mapGameReportToDb(local: GameReport, ownerId: string, communityId?: string | null) {
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId || null,
-    session_id: sessionCloudId,
+    community_id: communityId || null,
+    session_id: local.sessionId,
     game_id: local.gameId,
     sequence_number: local.sequenceNumber,
     generated_at: local.generatedAt,
@@ -276,12 +256,12 @@ export function mapGameReportToDb(
   };
 }
 
-export function mapDbToGameReport(db: DbRecord, sessionLocalId: string): GameReport {
+export function mapDbToGameReport(db: DbRecord): GameReport {
   const report = db.report || {};
   return {
     ...report,
-    id: db.local_id || report.id || db.id,
-    sessionId: sessionLocalId,
+    id: db.id,
+    sessionId: db.session_id,
     gameId: report.gameId || db.game_id,
     sequenceNumber: report.sequenceNumber ?? db.sequence_number,
     generatedAt: report.generatedAt || db.generated_at,
@@ -296,14 +276,13 @@ export function mapDbToGameReport(db: DbRecord, sessionLocalId: string): GameRep
 export function mapSessionReportToDb(
   local: SessionReport,
   ownerId: string,
-  sessionCloudId: string,
-  communityCloudId?: string | null,
+  communityId?: string | null,
 ) {
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId || null,
-    session_id: sessionCloudId,
+    community_id: communityId || null,
+    session_id: local.sessionId,
     generated_at: local.generatedAt,
     report: withoutCloudMeta(local),
     local_id: local.id,
@@ -312,12 +291,12 @@ export function mapSessionReportToDb(
   };
 }
 
-export function mapDbToSessionReport(db: DbRecord, sessionLocalId: string): SessionReport {
+export function mapDbToSessionReport(db: DbRecord): SessionReport {
   const report = db.report || {};
   return {
     ...report,
-    id: db.local_id || report.id || db.id,
-    sessionId: sessionLocalId,
+    id: db.id,
+    sessionId: db.session_id,
     generatedAt: report.generatedAt || db.generated_at,
     cloudId: db.id,
     syncStatus: 'synced',
@@ -327,15 +306,11 @@ export function mapDbToSessionReport(db: DbRecord, sessionLocalId: string): Sess
   };
 }
 
-export function mapPresenceToDb(
-  local: CommunityPresence,
-  ownerId: string,
-  communityCloudId: string,
-) {
+export function mapPresenceToDb(local: CommunityPresence, ownerId: string) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
-    community_id: communityCloudId,
+    community_id: local.communityId,
     date: local.date,
     items: local.items || [],
     local_id: `${local.communityId}:${local.date}`,
@@ -344,9 +319,9 @@ export function mapPresenceToDb(
   };
 }
 
-export function mapDbToPresence(db: DbRecord, communityLocalId: string): CommunityPresence {
+export function mapDbToPresence(db: DbRecord): CommunityPresence {
   return {
-    communityId: communityLocalId,
+    communityId: db.community_id,
     date: db.date,
     items: arrayOrEmpty(db.items),
     updatedAt: db.updated_at,
@@ -357,11 +332,11 @@ export function mapDbToPresence(db: DbRecord, communityLocalId: string): Communi
   };
 }
 
-export function mapDraftToDb(local: WhatsAppListDraft, ownerId: string, communityCloudId: string) {
+export function mapDraftToDb(local: WhatsAppListDraft, ownerId: string) {
   return {
-    id: local.cloudId || undefined,
+    id: local.id,
     owner_id: ownerId,
-    community_id: communityCloudId,
+    community_id: local.communityId,
     template_id: local.templateId || null,
     title: local.title,
     date: local.date,
@@ -389,10 +364,10 @@ export function mapDraftToDb(local: WhatsAppListDraft, ownerId: string, communit
   };
 }
 
-export function mapDbToDraft(db: DbRecord, communityLocalId: string): WhatsAppListDraft {
+export function mapDbToDraft(db: DbRecord): WhatsAppListDraft {
   return {
     id: db.local_id || db.id,
-    communityId: communityLocalId,
+    communityId: db.community_id,
     templateId: db.template_id || undefined,
     title: db.title,
     date: db.date,
@@ -522,32 +497,9 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
 }
 
 export const operationalCloudService = {
-  async fetchAll(
-    communityCloudToLocalIdMap: Record<string, string>,
-  ): Promise<OperationalSyncPayload> {
-    const sessionRows = await fetchRows('sessions');
-    const sessions = sessionRows.map((row) =>
-      mapDbToSession(row, row.community_id ? communityCloudToLocalIdMap[row.community_id] : null),
-    );
-
-    const sessionCloudToLocalIdMap: Record<string, string> = {};
-    const sessionCommunityCloudIds: Record<string, string | null> = {};
-    sessions.forEach((session, index) => {
-      const cloudId = session.cloudId;
-      if (!cloudId) return;
-      sessionCloudToLocalIdMap[cloudId] = session.id;
-      sessionCommunityCloudIds[cloudId] = sessionRows[index]?.community_id || null;
-    });
-
-    const mapSessionChild = <T>(
-      rows: DbRecord[],
-      mapper: (row: DbRecord, sessionLocalId: string) => T,
-    ) =>
-      rows
-        .filter((row) => sessionCloudToLocalIdMap[row.session_id])
-        .map((row) => mapper(row, sessionCloudToLocalIdMap[row.session_id]));
-
+  async fetchAll(): Promise<OperationalSyncPayload> {
     const [
+      sessionRows,
       teamRows,
       gameRows,
       pointRows,
@@ -556,6 +508,7 @@ export const operationalCloudService = {
       presenceRows,
       draftRows,
     ] = await Promise.all([
+      fetchRows('sessions'),
       fetchRows('teams'),
       fetchRows('games'),
       fetchRows('point_events'),
@@ -566,117 +519,102 @@ export const operationalCloudService = {
     ]);
 
     return {
-      sessions,
-      teams: mapSessionChild(teamRows, mapDbToTeam),
-      games: mapSessionChild(gameRows, mapDbToGame),
-      pointEvents: mapSessionChild(pointRows, mapDbToPointEvent),
-      gameReports: mapSessionChild(gameReportRows, mapDbToGameReport),
-      sessionReports: mapSessionChild(sessionReportRows, mapDbToSessionReport),
-      presenceRecords: presenceRows
-        .filter((row) => communityCloudToLocalIdMap[row.community_id])
-        .map((row) => mapDbToPresence(row, communityCloudToLocalIdMap[row.community_id])),
-      drafts: draftRows
-        .filter((row) => communityCloudToLocalIdMap[row.community_id])
-        .map((row) => mapDbToDraft(row, communityCloudToLocalIdMap[row.community_id])),
+      sessions: sessionRows.map(mapDbToSession),
+      teams: teamRows.map(mapDbToTeam),
+      games: gameRows.map(mapDbToGame),
+      pointEvents: pointRows.map(mapDbToPointEvent),
+      gameReports: gameReportRows.map(mapDbToGameReport),
+      sessionReports: sessionReportRows.map(mapDbToSessionReport),
+      presenceRecords: presenceRows.map(mapDbToPresence),
+      drafts: draftRows.map(mapDbToDraft),
     };
   },
 
-  async upsertSession(
-    local: Session,
-    ownerId: string,
-    communityCloudId?: string | null,
-  ): Promise<Session> {
-    const data = await upsertRow('sessions', mapSessionToDb(local, ownerId, communityCloudId));
-    return mapDbToSession(data, local.communityId ?? null);
+  async upsertSession(local: Session, ownerId: string): Promise<Session> {
+    const data = await upsertRow('sessions', mapSessionToDb(local, ownerId));
+    return mapDbToSession(data);
   },
 
   async upsertTeam(
     local: Team,
     ownerId: string,
-    sessionCloudId: string,
-    communityCloudId?: string | null,
+    communityId?: string | null,
   ): Promise<Team> {
     const data = await upsertRow(
       'teams',
-      mapTeamToDb(local, ownerId, sessionCloudId, communityCloudId),
+      mapTeamToDb(local, ownerId, communityId),
     );
-    return mapDbToTeam(data, local.sessionId);
+    return mapDbToTeam(data);
   },
 
   async upsertGame(
     local: Game,
     ownerId: string,
-    sessionCloudId: string,
-    communityCloudId?: string | null,
+    communityId?: string | null,
   ): Promise<Game> {
     const data = await upsertRow(
       'games',
-      mapGameToDb(local, ownerId, sessionCloudId, communityCloudId),
+      mapGameToDb(local, ownerId, communityId),
     );
-    return mapDbToGame(data, local.sessionId);
+    return mapDbToGame(data);
   },
 
   async upsertPointEvent(
     local: PointEvent,
     ownerId: string,
-    sessionCloudId: string,
-    communityCloudId?: string | null,
+    communityId?: string | null,
   ): Promise<PointEvent> {
     const data = await upsertRow(
       'point_events',
-      mapPointEventToDb(local, ownerId, sessionCloudId, communityCloudId),
+      mapPointEventToDb(local, ownerId, communityId),
     );
-    return mapDbToPointEvent(data, local.sessionId);
+    return mapDbToPointEvent(data);
   },
 
   async upsertGameReport(
     local: GameReport,
     ownerId: string,
-    sessionCloudId: string,
-    communityCloudId?: string | null,
+    communityId?: string | null,
   ): Promise<GameReport> {
     const data = await upsertRow(
       'game_reports',
-      mapGameReportToDb(local, ownerId, sessionCloudId, communityCloudId),
+      mapGameReportToDb(local, ownerId, communityId),
     );
-    return mapDbToGameReport(data, local.sessionId);
+    return mapDbToGameReport(data);
   },
 
   async upsertSessionReport(
     local: SessionReport,
     ownerId: string,
-    sessionCloudId: string,
-    communityCloudId?: string | null,
+    communityId?: string | null,
   ): Promise<SessionReport> {
     const data = await upsertRow(
       'session_reports',
-      mapSessionReportToDb(local, ownerId, sessionCloudId, communityCloudId),
+      mapSessionReportToDb(local, ownerId, communityId),
     );
-    return mapDbToSessionReport(data, local.sessionId);
+    return mapDbToSessionReport(data);
   },
 
   async upsertPresence(
     local: CommunityPresence,
     ownerId: string,
-    communityCloudId: string,
   ): Promise<CommunityPresence> {
     const data = await upsertRow(
       'community_presence',
-      mapPresenceToDb(local, ownerId, communityCloudId),
+      mapPresenceToDb(local, ownerId),
     );
-    return mapDbToPresence(data, local.communityId);
+    return mapDbToPresence(data);
   },
 
   async upsertDraft(
     local: WhatsAppListDraft,
     ownerId: string,
-    communityCloudId: string,
   ): Promise<WhatsAppListDraft> {
     const data = await upsertRow(
       'whatsapp_list_drafts',
-      mapDraftToDb(local, ownerId, communityCloudId),
+      mapDraftToDb(local, ownerId),
     );
-    return mapDbToDraft(data, local.communityId);
+    return mapDbToDraft(data);
   },
 
   async softDelete(table: OperationalTable, cloudId: string): Promise<void> {
@@ -701,144 +639,91 @@ export const operationalCloudService = {
   async bulkUpsertTeams(
     locals: Team[],
     ownerId: string,
-    sessionCloudIds: Record<string, string>,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
     sessionsById: Map<string, Session>,
   ): Promise<Team[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId
-        ? resolveCommunityCloudId(session.communityId)
-        : null;
-      return mapTeamToDb(local, ownerId, sessionCloudId!, communityCloudId);
+      return mapTeamToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('teams', records);
-    return data.map((row) =>
-      mapDbToTeam(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
-    );
+    return data.map(mapDbToTeam);
   },
 
   async bulkUpsertGames(
     locals: Game[],
     ownerId: string,
-    sessionCloudIds: Record<string, string>,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
     sessionsById: Map<string, Session>,
   ): Promise<Game[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId
-        ? resolveCommunityCloudId(session.communityId)
-        : null;
-      return mapGameToDb(local, ownerId, sessionCloudId!, communityCloudId);
+      return mapGameToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('games', records);
-    return data.map((row) =>
-      mapDbToGame(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
-    );
+    return data.map(mapDbToGame);
   },
 
   async bulkUpsertPointEvents(
     locals: PointEvent[],
     ownerId: string,
-    sessionCloudIds: Record<string, string>,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
     sessionsById: Map<string, Session>,
   ): Promise<PointEvent[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId
-        ? resolveCommunityCloudId(session.communityId)
-        : null;
-      return mapPointEventToDb(local, ownerId, sessionCloudId!, communityCloudId);
+      return mapPointEventToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('point_events', records);
-    return data.map((row) =>
-      mapDbToPointEvent(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
-    );
+    return data.map(mapDbToPointEvent);
   },
 
   async bulkUpsertGameReports(
     locals: GameReport[],
     ownerId: string,
-    sessionCloudIds: Record<string, string>,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
     sessionsById: Map<string, Session>,
   ): Promise<GameReport[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId
-        ? resolveCommunityCloudId(session.communityId)
-        : null;
-      return mapGameReportToDb(local, ownerId, sessionCloudId!, communityCloudId);
+      return mapGameReportToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('game_reports', records);
-    return data.map((row) =>
-      mapDbToGameReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
-    );
+    return data.map(mapDbToGameReport);
   },
 
   async bulkUpsertSessionReports(
     locals: SessionReport[],
     ownerId: string,
-    sessionCloudIds: Record<string, string>,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
     sessionsById: Map<string, Session>,
   ): Promise<SessionReport[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const sessionCloudId = sessionCloudIds[local.sessionId];
       const session = sessionsById.get(local.sessionId);
-      const communityCloudId = session?.communityId
-        ? resolveCommunityCloudId(session.communityId)
-        : null;
-      return mapSessionReportToDb(local, ownerId, sessionCloudId!, communityCloudId);
+      return mapSessionReportToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('session_reports', records);
-    return data.map((row) =>
-      mapDbToSessionReport(row, locals.find((l) => l.id === row.local_id)?.sessionId || ''),
-    );
+    return data.map(mapDbToSessionReport);
   },
 
   async bulkUpsertPresence(
     locals: CommunityPresence[],
     ownerId: string,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
   ): Promise<CommunityPresence[]> {
     if (locals.length === 0) return [];
-    const records = locals.map((local) => {
-      const communityCloudId = resolveCommunityCloudId(local.communityId);
-      return mapPresenceToDb(local, ownerId, communityCloudId!);
-    });
+    const records = locals.map((local) => mapPresenceToDb(local, ownerId));
     const data = await bulkUpsertRows('community_presence', records);
-    return data.map((row) => {
-      const local = locals.find((l) => `${l.communityId}:${l.date}` === row.local_id);
-      return mapDbToPresence(row, local?.communityId || '');
-    });
+    return data.map(mapDbToPresence);
   },
 
   async bulkUpsertDrafts(
     locals: WhatsAppListDraft[],
     ownerId: string,
-    resolveCommunityCloudId: (communityLocalId?: string | null) => string | null,
   ): Promise<WhatsAppListDraft[]> {
     if (locals.length === 0) return [];
-    const records = locals.map((local) => {
-      const communityCloudId = resolveCommunityCloudId(local.communityId);
-      return mapDraftToDb(local, ownerId, communityCloudId!);
-    });
+    const records = locals.map((local) => mapDraftToDb(local, ownerId));
     const data = await bulkUpsertRows('whatsapp_list_drafts', records);
-    return data.map((row) =>
-      mapDbToDraft(row, locals.find((l) => l.id === row.local_id)?.communityId || ''),
-    );
+    return data.map(mapDbToDraft);
   },
 
   async executeBulkUpsert(table: OperationalTable, payloads: DbRecord[]): Promise<DbRecord[]> {

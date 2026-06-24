@@ -13,6 +13,8 @@ import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages'
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
+import { generateUUID } from '../logic/uuid';
+
 
 interface UseSessionWizardProps {
   players: Player[];
@@ -367,7 +369,7 @@ export function useSessionWizard({
         const isPlayoff = match.stage === 'final' || match.stage === 'third_place';
         const setTargets = isPlayoff ? (cfg.playoffSetTargets || [12, 12, 7]) : undefined;
         return {
-          id: `game-${activeSession.id}-${idx}-${Date.now()}`,
+          id: generateUUID(),
           sessionId: activeSession.id,
           type: 'tournament' as const,
           sequenceNumber: idx + 1,

@@ -1,4 +1,6 @@
 import { WhatsAppListDraft, WhatsAppListSlot, WhatsAppListTemplate } from '../types';
+import { generateUUID } from './uuid';
+
 
 function formatDate(date: string) {
   const value = new Date(`${date}T12:00:00`);
@@ -36,7 +38,7 @@ export function createDraftFromTemplate(
 ): WhatsAppListDraft {
   const now = new Date().toISOString();
   return {
-    id: `wa-list-${Date.now()}`,
+    id: generateUUID(),
     communityId: template.communityId,
     templateId: template.id,
     title: template.title,
@@ -69,7 +71,7 @@ export function createDefaultTemplate(
 ): WhatsAppListTemplate {
   const now = new Date().toISOString();
   return {
-    id: `wa-template-${Date.now()}`,
+    id: generateUUID(),
     communityId,
     name: 'Lista padrao',
     title: communityName.toUpperCase(),

@@ -1,10 +1,10 @@
 import { supabase } from '../../lib/supabaseClient';
 import { PlayerLinkProposal } from '../../types';
 
-export function mapProposalToDb(local: PlayerLinkProposal, playerLocalToCloudIdMap: Record<string, string> = {}) {
+export function mapProposalToDb(local: PlayerLinkProposal) {
   return {
-    id: local.id || undefined,
-    player_id: playerLocalToCloudIdMap[local.playerId] || local.playerId,
+    id: local.id,
+    player_id: local.playerId,
     user_id: local.userId,
     status: local.status,
     reviewed_by: local.reviewedBy || null,
@@ -13,10 +13,10 @@ export function mapProposalToDb(local: PlayerLinkProposal, playerLocalToCloudIdM
   };
 }
 
-export function mapDbToProposal(db: any, playerCloudToLocalIdMap: Record<string, string> = {}): PlayerLinkProposal {
+export function mapDbToProposal(db: any): PlayerLinkProposal {
   return {
     id: db.id,
-    playerId: playerCloudToLocalIdMap[db.player_id] || db.player_id,
+    playerId: db.player_id,
     userId: db.user_id,
     status: db.status,
     reviewedBy: db.reviewed_by || undefined,
@@ -28,14 +28,14 @@ export function mapDbToProposal(db: any, playerCloudToLocalIdMap: Record<string,
 }
 
 export const playerLinkProposalCloudService = {
-  async fetchAll(playerCloudToLocalIdMap?: Record<string, string>): Promise<PlayerLinkProposal[]> {
+  async fetchAll(): Promise<PlayerLinkProposal[]> {
     const { data, error } = await supabase.from('player_link_proposals').select('*');
     if (error) throw error;
-    return (data || []).map((row) => mapDbToProposal(row, playerCloudToLocalIdMap));
+    return (data || []).map(mapDbToProposal);
   },
 
-  async upsert(local: PlayerLinkProposal, playerLocalToCloudIdMap?: Record<string, string>): Promise<PlayerLinkProposal> {
-    const dbRecord = mapProposalToDb(local, playerLocalToCloudIdMap);
+  async upsert(local: PlayerLinkProposal): Promise<PlayerLinkProposal> {
+    const dbRecord = mapProposalToDb(local);
     const { data, error } = await supabase
       .from('player_link_proposals')
       .upsert(dbRecord)
@@ -43,13 +43,7 @@ export const playerLinkProposalCloudService = {
       .single();
     if (error) throw error;
 
-    const cloudToLocalMap: Record<string, string> = {};
-    if (playerLocalToCloudIdMap) {
-      for (const [localId, cloudId] of Object.entries(playerLocalToCloudIdMap)) {
-        cloudToLocalMap[cloudId] = localId;
-      }
-    }
-    return mapDbToProposal(data, cloudToLocalMap);
+    return mapDbToProposal(data);
   },
 
   async propose(playerId: string): Promise<string> {

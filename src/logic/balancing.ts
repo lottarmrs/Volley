@@ -25,6 +25,8 @@ import {
 } from './calculations';
 import { OVERALL_SCALE, PENALTIES, THRESHOLDS, QUALITY } from './balancingConstants';
 import { PartnershipMatrix } from './partnershipHistory';
+import { generateUUID } from './uuid';
+
 
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
@@ -1452,7 +1454,7 @@ export const balanceTeams = (
       const strengthSnapshot = buildTeamStrengthSnapshot(teamMetrics);
 
       return {
-        id: `team-${sessionId}-${seed}-${i}`,
+        id: generateUUID(),
         sessionId,
         name: `Time ${i + 1}`,
         playerIds: teamAthletes.map((a) => a.id),

@@ -82,16 +82,22 @@ export function mergeEntityLists<T extends Syncable>(
   const processedCloudKeys = new Set<string>();
   const merged: T[] = [];
 
+  const norm = (s: string | undefined) => s?.trim().toLowerCase() || '';
+
   for (const localEntity of localEntities) {
     const localCloudId = localEntity.cloudId;
     const localId = options.getId(localEntity);
+    const normLocalCloudId = norm(localCloudId);
+    const normLocalId = norm(localId);
+
     const cloudEntity = cloudEntities.find(
       (cloud) =>
-        (!!localCloudId && cloud.cloudId === localCloudId) || options.getId(cloud) === localId,
+        (!!normLocalCloudId && norm(cloud.cloudId) === normLocalCloudId) ||
+        norm(options.getId(cloud)) === normLocalId,
     );
 
     if (cloudEntity) {
-      processedCloudKeys.add(cloudEntity.cloudId || options.getId(cloudEntity));
+      processedCloudKeys.add(norm(cloudEntity.cloudId || options.getId(cloudEntity)));
 
       if (localEntity.deletedAt || cloudEntity.deletedAt) {
         merged.push({
@@ -140,7 +146,7 @@ export function mergeEntityLists<T extends Syncable>(
 
   for (const cloudEntity of cloudEntities) {
     const cloudKey = cloudEntity.cloudId || options.getId(cloudEntity);
-    if (!processedCloudKeys.has(cloudKey)) {
+    if (!processedCloudKeys.has(norm(cloudKey))) {
       merged.push(cloudEntity);
     }
   }
@@ -186,14 +192,15 @@ async function bulkUploadSessionChildren<T extends Syncable>(
     }
 
     const sessionId = item.sessionId;
-    const session = sessionsById.get(sessionId);
+    const session = sessionsById.get(sessionId?.toLowerCase());
     if (!session) {
       updated.push(item);
       continue;
     }
 
     itemsToUpsert.push(item);
-    itemMap.set(item.id || item.cloudId || 'temp', item);
+    const key = (item.id || item.cloudId || 'temp').toLowerCase();
+    itemMap.set(key, item);
   }
 
   try {
@@ -204,7 +211,8 @@ async function bulkUploadSessionChildren<T extends Syncable>(
     if (itemsToUpsert.length > 0) {
       const uploadedResults = await bulkUpsertFn(itemsToUpsert);
       for (const result of uploadedResults) {
-        const originalItem = itemMap.get(result.id);
+        const key = (result.id || '').toLowerCase();
+        const originalItem = itemMap.get(key);
         if (originalItem) {
           updated.push(markSynced(originalItem, result.cloudId, syncedAt));
         }
@@ -321,7 +329,7 @@ export const syncService = {
       updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
     }
 
-    const sessionsById = new Map(updatedSessions.map((session) => [session.id, session]));
+    const sessionsById = new Map(updatedSessions.map((session) => [session.id.toLowerCase(), session]));
 
     const updatedTeams = await bulkUploadSessionChildren<Team>(
       local.teams,
@@ -402,7 +410,7 @@ export const syncService = {
       }
 
       presenceToUpsert.push(presence);
-      presenceMap.set(`${presence.communityId}:${presence.date}`, presence);
+      presenceMap.set(`${presence.communityId.toLowerCase()}:${presence.date}`, presence);
     }
 
     try {
@@ -415,7 +423,7 @@ export const syncService = {
           ownerId,
         );
         for (const result of uploadedResults) {
-          const key = `${result.communityId}:${result.date}`;
+          const key = `${result.communityId.toLowerCase()}:${result.date}`;
           const original = presenceMap.get(key);
           if (original) {
             updatedPresenceRecords.push(markSynced(original, result.cloudId, syncedAt));
@@ -426,7 +434,7 @@ export const syncService = {
       console.error('Falha no envio em lote para community_presence', error);
       local.presenceRecords.forEach((p) => {
         if (
-          !updatedPresenceRecords.some((u) => u.communityId === p.communityId && u.date === p.date)
+          !updatedPresenceRecords.some((u) => u.communityId.toLowerCase() === p.communityId.toLowerCase() && u.date === p.date)
         ) {
           updatedPresenceRecords.push(p);
         }
@@ -452,7 +460,7 @@ export const syncService = {
       }
 
       draftsToUpsert.push(draft);
-      draftsMap.set(draft.id, draft);
+      draftsMap.set(draft.id.toLowerCase(), draft);
     }
 
     try {
@@ -465,7 +473,7 @@ export const syncService = {
           ownerId,
         );
         for (const result of uploadedResults) {
-          const original = draftsMap.get(result.id);
+          const original = draftsMap.get(result.id.toLowerCase());
           if (original) {
             updatedDrafts.push(markSynced(original, result.cloudId, syncedAt));
           }
@@ -474,7 +482,7 @@ export const syncService = {
     } catch (error) {
       console.error('Falha no envio em lote para whatsapp_list_drafts', error);
       local.drafts.forEach((d) => {
-        if (!updatedDrafts.some((u) => u.id === d.id)) {
+        if (!updatedDrafts.some((u) => u.id.toLowerCase() === d.id.toLowerCase())) {
           updatedDrafts.push(d);
         }
       });
@@ -554,17 +562,18 @@ export const syncService = {
       const localPlayerId = relation.player_id;
       const localCommunityId = relation.community_id;
       if (localPlayerId && localCommunityId && relation.active) {
-        playerMemberships[localPlayerId] = playerMemberships[localPlayerId] || [];
-        playerMemberships[localPlayerId].push(localCommunityId);
+        const key = localPlayerId.toLowerCase();
+        playerMemberships[key] = playerMemberships[key] || [];
+        playerMemberships[key].push(localCommunityId);
       }
     }
 
     const mappedPlayers = cloudPlayers.map((player) => {
-      const playerEvaluations = cloudEvaluations.filter((evaluation) => evaluation.playerId === player.id);
+      const playerEvaluations = cloudEvaluations.filter((evaluation) => evaluation.playerId?.toLowerCase() === player.id.toLowerCase());
       return applyEvaluationAggregate(
         {
           ...player,
-          communityIds: playerMemberships[player.id] || [],
+          communityIds: playerMemberships[player.id.toLowerCase()] || [],
         },
         playerEvaluations,
         ownerId,

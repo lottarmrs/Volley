@@ -464,7 +464,9 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
 
   const seen = new Set<string>();
   const deduplicated = records.filter((r) => {
-    const key = `${r.owner_id}:${r.local_id}`;
+    const ownerId = String(r.owner_id || '').toLowerCase();
+    const localId = String(r.local_id || '').toLowerCase();
+    const key = `${ownerId}:${localId}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -651,7 +653,7 @@ export const operationalCloudService = {
   ): Promise<Team[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const session = sessionsById.get(local.sessionId);
+      const session = sessionsById.get(local.sessionId?.toLowerCase());
       return mapTeamToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('teams', records);
@@ -665,7 +667,7 @@ export const operationalCloudService = {
   ): Promise<Game[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const session = sessionsById.get(local.sessionId);
+      const session = sessionsById.get(local.sessionId?.toLowerCase());
       return mapGameToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('games', records);
@@ -679,7 +681,7 @@ export const operationalCloudService = {
   ): Promise<PointEvent[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const session = sessionsById.get(local.sessionId);
+      const session = sessionsById.get(local.sessionId?.toLowerCase());
       return mapPointEventToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('point_events', records);
@@ -693,7 +695,7 @@ export const operationalCloudService = {
   ): Promise<GameReport[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const session = sessionsById.get(local.sessionId);
+      const session = sessionsById.get(local.sessionId?.toLowerCase());
       return mapGameReportToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('game_reports', records);
@@ -707,7 +709,7 @@ export const operationalCloudService = {
   ): Promise<SessionReport[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
-      const session = sessionsById.get(local.sessionId);
+      const session = sessionsById.get(local.sessionId?.toLowerCase());
       return mapSessionReportToDb(local, ownerId, session?.communityId || null);
     });
     const data = await bulkUpsertRows('session_reports', records);

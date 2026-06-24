@@ -88,7 +88,7 @@ export const playerEvaluationCloudService = {
 
     const seen = new Set<string>();
     const deduplicated = records.filter((r) => {
-      const key = `${r.owner_id}:${r.player_id}`;
+      const key = `${r.owner_id.toLowerCase()}:${r.player_id.toLowerCase()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

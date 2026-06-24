@@ -28,7 +28,7 @@ export const communityPlayerCloudService = {
     if (relations.length === 0) return;
     const seen = new Set<string>();
     const deduplicated = relations.filter((r) => {
-      const key = `${r.community_id}:${r.player_id}`;
+      const key = `${r.community_id.toLowerCase()}:${r.player_id.toLowerCase()}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

@@ -24,6 +24,7 @@ import {
 } from './operationalCloudService';
 import { mapDbToCommunityMember } from './membershipCloudService';
 import { mapProposalToDb, mapDbToProposal } from './playerLinkProposalCloudService';
+import { mapPlayerEvaluationToDb } from './playerEvaluationCloudService';
 import {
   Community,
   CommunityPresence,
@@ -551,4 +552,16 @@ test('player link proposal mapper round-trips fields and maps local-to-cloud pla
   assert.equal(mapped.userId, 'user-auth-uuid');
   assert.equal(mapped.status, 'pending');
   assert.equal(mapped.syncStatus, 'synced');
+});
+
+test('player evaluation mapper omits the id key so the DB default applies', () => {
+  const db = mapPlayerEvaluationToDb(player, 'owner-id', 'player-cloud-uuid');
+
+  // Regressão: Object.keys({id: undefined}) ainda contém 'id', e o supabase-js
+  // (defaultToNull) enviaria id=null, violando o NOT NULL e o default
+  // gen_random_uuid(). A chave NÃO pode existir no objeto.
+  assert.equal(Object.prototype.hasOwnProperty.call(db, 'id'), false);
+  assert.equal(db.owner_id, 'owner-id');
+  assert.equal(db.player_id, 'player-cloud-uuid');
+  assert.equal(db.local_id, 'player-local');
 });

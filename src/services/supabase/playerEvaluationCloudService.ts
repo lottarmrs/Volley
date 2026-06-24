@@ -8,8 +8,10 @@ export function mapPlayerEvaluationToDb(
   ownerId: string,
   playerCloudId: string,
 ) {
+  // NÃO incluir a chave `id`: Object.keys({id: undefined}) ainda contém 'id',
+  // e o supabase-js (defaultToNull, sobretudo em upsert em lote) enviaria
+  // id=null, sobrescrevendo o default gen_random_uuid() e violando o NOT NULL.
   return {
-    id: undefined,
     owner_id: ownerId,
     player_id: playerCloudId,
     attributes: player.personalAttributes || player.atributos,

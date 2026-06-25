@@ -627,38 +627,12 @@ export const syncService = {
       }
     }
 
-    // Reconciliação de vínculos órfãos: só quando o payload representa o estado
-    // MESCLADO (syncNow). Num upload puro o estado local pode estar incompleto e
-    // a deleção apagaria vínculos válidos da nuvem (perda de dados entre devices).
-    if (options.reconcileRelations) {
-      try {
-        const desiredRelationKeys = new Set(
-          relationsToUpload.map((relation) =>
-            `${relation.community_id.toLowerCase()}:${relation.player_id.toLowerCase()}`,
-          ),
-        );
-        // Só tratamos como órfãs as relações de players REPRESENTADOS no payload;
-        // nunca apagamos vínculos de atletas que este device sequer carregou.
-        const payloadPlayerCloudIds = new Set(
-          updatedPlayers
-            .filter((player) => !player.deletedAt)
-            .map((player) => resolveCloudId(player.id, playerCloudIds))
-            .filter(Boolean)
-            .map((id) => (id as string).toLowerCase()),
-        );
-        const currentOwnedRelations = (await communityPlayerCloudService.fetchAll()).filter(
-          (relation) => relation.owner_id === ownerId,
-        );
-        const staleRelationIds = computeStaleRelationIds(
-          currentOwnedRelations,
-          desiredRelationKeys,
-          payloadPlayerCloudIds,
-        );
-        await communityPlayerCloudService.deleteByIdsForUser(ownerId, staleRelationIds);
-      } catch (error) {
-        onIssue('reconciliação de vínculos', error);
-      }
-    }
+    // Vínculos atleta↔comunidade são ADITIVOS no sync. A deleção automática de
+    // vínculos "órfãos" foi DESATIVADA: ela apagava vínculos válidos quando um
+    // device tinha estado local desatualizado (players sem communityIds vencendo
+    // o merge por timestamp). Remover atleta de comunidade deve ser ação explícita.
+    // (computeStaleRelationIds segue exportada/testada para uso futuro deliberado.)
+    void options.reconcileRelations;
 
     const updatedProposals: PlayerLinkProposal[] = [];
     for (const proposal of local.linkProposals || []) {

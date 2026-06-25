@@ -168,25 +168,7 @@ export default function App() {
     onToast: toasts.push,
   });
 
-  // ── Auto-sync on login ────────────────────────────────────────────────────
-  // Comunidades criadas localmente nascem sem cloudId; a filiação (community_members)
-  // e a busca por @username dependem dele. Sem um sync ao entrar, o app pedia para
-  // "vincular a comunidade" a cada abertura. Disparamos um sync one-shot por usuário
-  // assim que a sessão autentica, hidratando os cloudId e a filiação de owner.
   const autoSyncedForUser = useRef<string | null>(null);
-  useEffect(() => {
-    if (!auth.isSupabaseConfigured) return;
-    const uid = auth.user?.id ?? null;
-    if (!uid) {
-      autoSyncedForUser.current = null;
-      return;
-    }
-    if (autoSyncedForUser.current === uid) return;
-    autoSyncedForUser.current = uid;
-    // O próprio useCloudSync já emite toast em caso de erro; só evitamos unhandled.
-    cloudSync.sync().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.isSupabaseConfigured, auth.user?.id]);
 
   const pendingChanges = useMemo(() => {
     if (!auth.user) return 0;
@@ -221,6 +203,27 @@ export default function App() {
     communityPresence.presenceRecords,
     proposals.linkProposals,
   ]);
+
+  // ── Auto-sync on login (download-first) ───────────────────────────────────
+  // Na entrada, ADOTAMOS o estado da nuvem (fonte da verdade) baixando-o — isso
+  // hidrata cloudId/filiação e CONVERGE os ids entre dispositivos. NÃO empurramos
+  // o estado local na entrada: um device com localStorage desatualizado empurrava
+  // comunidades duplicadas e apagava vínculos. Só baixa quando NÃO há mudanças
+  // locais pendentes (senão deixamos o usuário sincronizar manualmente, para não
+  // sobrescrever trabalho offline). Uma vez por usuário.
+  useEffect(() => {
+    if (!auth.isSupabaseConfigured) return;
+    const uid = auth.user?.id ?? null;
+    if (!uid) {
+      autoSyncedForUser.current = null;
+      return;
+    }
+    if (autoSyncedForUser.current === uid) return;
+    if (pendingChanges > 0) return; // não baixa por cima de pendências locais
+    autoSyncedForUser.current = uid;
+    cloudSync.downloadFromCloud().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isSupabaseConfigured, auth.user?.id, pendingChanges]);
 
   // ── Backup actions ────────────────────────────────────────────────────────
 

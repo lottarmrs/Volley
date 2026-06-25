@@ -34,31 +34,9 @@ export const playerLinkProposalCloudService = {
     return (data || []).map(mapDbToProposal);
   },
 
-  async upsert(local: PlayerLinkProposal): Promise<PlayerLinkProposal> {
-    const dbRecord = mapProposalToDb(local);
-
-    if (local.status === 'pending') {
-      const { data: existing, error: existingError } = await supabase
-        .from('player_link_proposals')
-        .select('*')
-        .eq('player_id', dbRecord.player_id)
-        .eq('user_id', dbRecord.user_id)
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      if (existingError) throw existingError;
-      if (existing) return mapDbToProposal(existing);
-    }
-
-    const { data, error } = await supabase
-      .from('player_link_proposals')
-      .upsert(dbRecord)
-      .select()
-      .single();
-    if (error) throw error;
-
-    return mapDbToProposal(data);
-  },
+  // NOTA: escritas em player_link_proposals são feitas SOMENTE pelos RPCs abaixo
+  // (SECURITY DEFINER). Não existe upsert/insert direto: a tabela não tem policy
+  // de UPDATE/DELETE de propósito, e um upsert direto quebrava com RLS 42501.
 
   async propose(playerId: string): Promise<string> {
     const { data, error } = await supabase.rpc('propose_player_link', {

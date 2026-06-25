@@ -34,6 +34,8 @@ export function mapDbToCommunity(db: any): Community {
     color: db.color || undefined,
     icon: db.icon || undefined,
     archived: db.archived,
+    visibility: db.visibility || 'private',
+    joinCode: db.join_code ?? null,
     createdAt: db.created_at,
     updatedAt: db.updated_at,
     cloudId: db.id,

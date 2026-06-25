@@ -8,6 +8,7 @@ import {
   Copy,
   FileText,
   MapPin,
+  KeyRound,
   MoreVertical,
   Plus,
   RefreshCw,
@@ -76,6 +77,7 @@ import {
 import { createDefaultCommunityRules } from '../../hooks/useCommunityRules';
 import { ShareActions } from '../share/ShareActions';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
+import { JoinCommunityByCode } from './JoinCommunityByCode';
 import { AthleteUsernameSearch } from './AthleteUsernameSearch';
 
 type CommunityTab =
@@ -230,6 +232,7 @@ export function CommunitiesView({
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
 
   const [showArchived, setShowArchived] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
   const selectedCommunity =
     communities.find((community) => community.id === selectedCommunityId) || null;
 
@@ -290,11 +293,22 @@ export function CommunitiesView({
               onChange={(event) => setShowArchived(event.target.checked)}
             />
           </label>
+          {isSupabaseConfigured && currentUserId && (
+            <button
+              type="button"
+              onClick={() => setShowJoinModal(true)}
+              className="btn btn-ghost btn-sm"
+            >
+              <KeyRound className="w-4 h-4" /> Entrar com código
+            </button>
+          )}
           <button type="button" onClick={handleAdd} className="btn btn-primary btn-sm">
             <Plus className="w-4 h-4" /> Nova
           </button>
         </div>
       </div>
+
+      {showJoinModal && <JoinCommunityByCode onClose={() => setShowJoinModal(false)} />}
 
       <div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Comunidades</h2>
@@ -712,6 +726,7 @@ function CommunityDetailView({
           community={community}
           currentUserId={currentUserId}
           isSupabaseConfigured={isSupabaseConfigured}
+          players={communityPlayers}
         />
       )}
       {activeTab === 'rules' && (

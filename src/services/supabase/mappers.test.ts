@@ -159,6 +159,17 @@ test('player mapper round-trips structured fields and numeric values', () => {
   assert.deepEqual(mapped.atributos, player.atributos);
 });
 
+test('player mapper tolerates a missing metadata object (I1: no crash)', () => {
+  // Regressão: mapPlayerToDb usava local.metadata.atualizadoEm sem optional
+  // chaining. Um player sem metadata derrubava o upload inteiro (via C3).
+  const playerNoMeta = { ...player, updatedAt: undefined, metadata: undefined } as any;
+
+  assert.doesNotThrow(() => mapPlayerToDb(playerNoMeta, 'owner-id'));
+  const db = mapPlayerToDb(playerNoMeta, 'owner-id');
+  assert.equal(typeof db.updated_at, 'string');
+  assert.ok(!Number.isNaN(new Date(db.updated_at).getTime()));
+});
+
 test('community rules mapper preserves community ids and rule payloads', () => {
   const rules: CommunityRules = {
     communityId: 'community-local',
@@ -504,7 +515,8 @@ test('community member mapper reads embedded profile data', () => {
       id: 'member-cloud',
       community_id: 'community-cloud',
       user_id: 'user-id',
-      role: 'organizer',
+      role: 'moderator',
+      status: 'active',
       profiles: { name: 'Ana', email: 'ana@example.com' },
       created_at: now,
       updated_at: now,
@@ -514,6 +526,8 @@ test('community member mapper reads embedded profile data', () => {
 
   assert.equal(mapped.communityId, 'community-local');
   assert.equal(mapped.userId, 'user-id');
+  assert.equal(mapped.role, 'moderator');
+  assert.equal(mapped.status, 'active');
   assert.equal(mapped.name, 'Ana');
   assert.equal(mapped.email, 'ana@example.com');
 });

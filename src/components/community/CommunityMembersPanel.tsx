@@ -1,29 +1,53 @@
 import { FormEvent, useState } from 'react';
-import { Cloud, RefreshCw, ShieldAlert, Trash2, UserPlus } from 'lucide-react';
-import { Community, CommunityMember, CommunityMemberRole } from '../../types';
+import {
+  Cloud,
+  RefreshCw,
+  ShieldAlert,
+  Trash2,
+  UserPlus,
+  KeyRound,
+  Copy,
+  Check,
+  X,
+  LogOut,
+  Clock,
+  Volleyball,
+} from 'lucide-react';
+import { Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 
 interface CommunityMembersPanelProps {
   community: Community;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
+  /** Atletas desta comunidade, para casar membro↔ficha via player.userId. */
+  players?: Player[];
 }
 
 const ROLE_LABELS: Record<CommunityMemberRole, string> = {
   owner: 'Dono',
-  admin: 'Administrador',
-  organizer: 'Organizador',
+  admin: 'Admin',
+  moderator: 'Moderador',
+  member: 'Membro',
 };
 
 const ROLE_BADGE: Record<CommunityMemberRole, string> = {
   owner: 'badge-primary',
   admin: 'badge-accent badge-soft',
-  organizer: 'badge-outline',
+  moderator: 'badge-outline',
+  member: 'badge-ghost',
 };
 
-// Roles an owner/admin may assign. 'owner' is reserved for the community creator
-// and is managed by server-side triggers, not the invite UI.
-const ASSIGNABLE_ROLES: CommunityMemberRole[] = ['admin', 'organizer'];
+// Papéis que um dono/admin pode atribuir. 'owner' é reservado ao criador e
+// gerenciado por triggers no servidor, não pela UI.
+const ASSIGNABLE_ROLES: CommunityMemberRole[] = ['admin', 'moderator', 'member'];
+
+const ROLE_ORDER: Record<CommunityMemberRole, number> = {
+  owner: 0,
+  admin: 1,
+  moderator: 2,
+  member: 3,
+};
 
 function messageOf(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
@@ -31,24 +55,47 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function initials(member: CommunityMember): string {
+  const base = member.name || member.email || '?';
+  return base.slice(0, 2).toUpperCase();
+}
+
 export function CommunityMembersPanel({
   community,
   currentUserId,
   isSupabaseConfigured,
+  players = [],
 }: CommunityMembersPanelProps) {
   const enabled = isSupabaseConfigured && !!community.cloudId;
-  const { members, loading, error, canManage, reload, invite, changeRole, remove } =
-    useCommunityMembers({
-      communityCloudId: community.cloudId,
-      communityLocalId: community.id,
-      currentUserId,
-      enabled,
-    });
+  const {
+    activeMembers,
+    pendingRequests,
+    loading,
+    error,
+    currentMember,
+    canManage,
+    reload,
+    invite,
+    changeRole,
+    remove,
+    approveRequest,
+    rejectRequest,
+    generateJoinCode,
+    disableJoinCode,
+    leave,
+  } = useCommunityMembers({
+    communityCloudId: community.cloudId,
+    communityLocalId: community.id,
+    currentUserId,
+    enabled,
+  });
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<CommunityMemberRole>('organizer');
+  const [inviteRole, setInviteRole] = useState<CommunityMemberRole>('moderator');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [joinCode, setJoinCode] = useState<string | null>(community.joinCode ?? null);
+  const [copied, setCopied] = useState(false);
 
   if (!isSupabaseConfigured) {
     return (
@@ -67,13 +114,13 @@ export function CommunityMembersPanel({
         <Cloud className="w-8 h-8 mx-auto text-text-muted" />
         <p className="text-sm text-text-muted">
           Sincronize esta comunidade com a nuvem (aba <strong>Nuvem &amp; Conta</strong>) antes de
-          convidar membros.
+          gerenciar membros.
         </p>
       </div>
     );
   }
 
-  const runAction = async (action: () => Promise<void>, fallbackMessage: string) => {
+  const runAction = async (action: () => Promise<unknown>, fallbackMessage: string) => {
     setBusy(true);
     setActionError(null);
     try {
@@ -91,13 +138,33 @@ export function CommunityMembersPanel({
     event.preventDefault();
     const email = inviteEmail.trim();
     if (!email) return;
-    const ok = await runAction(
-      () => invite(email, inviteRole),
-      'Não foi possível convidar este membro.',
-    );
+    const ok = await runAction(() => invite(email, inviteRole), 'Não foi possível convidar.');
     if (ok) {
       setInviteEmail('');
-      setInviteRole('organizer');
+      setInviteRole('moderator');
+    }
+  };
+
+  const handleGenerateCode = () =>
+    runAction(async () => {
+      const code = await generateJoinCode();
+      setJoinCode(code);
+    }, 'Não foi possível gerar o código.');
+
+  const handleDisableCode = () =>
+    runAction(async () => {
+      await disableJoinCode();
+      setJoinCode(null);
+    }, 'Não foi possível desativar o código.');
+
+  const handleCopy = async () => {
+    if (!joinCode) return;
+    try {
+      await navigator.clipboard.writeText(joinCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard pode estar indisponível; o código segue visível */
     }
   };
 
@@ -110,31 +177,148 @@ export function CommunityMembersPanel({
     return runAction(() => remove(member.id), 'Não foi possível remover o membro.');
   };
 
+  const handleLeave = () => {
+    if (!window.confirm('Tem certeza que deseja sair desta comunidade?')) return;
+    return runAction(() => leave(), 'Não foi possível sair da comunidade.');
+  };
+
+  const sortedMembers = [...activeMembers].sort(
+    (a, b) =>
+      (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
+      (a.name || a.email || '').localeCompare(b.name || b.email || ''),
+  );
+
+  // Membro ↔ atleta: casa pela conta vinculada (player.userId).
+  const athleteByUserId = new Map(
+    players.filter((p) => p.userId && !p.deletedAt).map((p) => [p.userId as string, p]),
+  );
+
+  const canLeave = currentMember && currentMember.role !== 'owner';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-text-muted uppercase">Membros da comunidade</span>
+        <span className="text-xs font-bold text-text-muted uppercase">Área de membros</span>
         <button
           type="button"
           onClick={() => reload()}
           className="btn btn-ghost btn-sm btn-square"
-          aria-label="Recarregar membros"
+          aria-label="Recarregar"
           disabled={loading}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
+      {(error || actionError) && (
+        <div className="alert alert-error text-sm" role="alert">
+          <ShieldAlert className="w-4 h-4" />
+          <span>{actionError || error}</span>
+        </div>
+      )}
+
+      {/* ── Código de convite (dono/admin) ─────────────────────────────────── */}
       {canManage && (
-        <form
-          onSubmit={handleInvite}
-          className="bg-surface p-4 rounded-xl border border-border space-y-3"
-        >
+        <div className="bg-surface p-4 rounded-xl border border-border space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
-            <UserPlus className="w-4 h-4" /> Convidar organizador
+            <KeyRound className="w-4 h-4" /> Código de convite
           </p>
           <p className="text-xs text-text-muted">
-            O convidado precisa já ter uma conta cadastrada com este e-mail.
+            Compartilhe o código com quem você quer na comunidade. Quem entrar com ele fica{' '}
+            <strong>pendente</strong> até você aprovar abaixo.
+          </p>
+          {joinCode ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="px-3 py-2 rounded-lg bg-base-200 border border-base-300 font-mono text-base tracking-widest">
+                {joinCode}
+              </code>
+              <button type="button" onClick={handleCopy} className="btn btn-sm btn-outline">
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Copiado' : 'Copiar'}
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerateCode}
+                className="btn btn-sm btn-ghost"
+                disabled={busy}
+              >
+                Novo código
+              </button>
+              <button
+                type="button"
+                onClick={handleDisableCode}
+                className="btn btn-sm btn-ghost text-error"
+                disabled={busy}
+              >
+                Desativar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGenerateCode}
+              className="btn btn-primary btn-sm"
+              disabled={busy}
+            >
+              <KeyRound className="w-4 h-4" /> Gerar código de convite
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Pedidos pendentes (dono/admin) ─────────────────────────────────── */}
+      {canManage && pendingRequests.length > 0 && (
+        <div className="bg-surface p-4 rounded-xl border border-warning/40 space-y-3">
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <Clock className="w-4 h-4 text-warning" /> Pedidos para entrar
+            <span className="badge badge-warning">{pendingRequests.length}</span>
+          </p>
+          <ul className="space-y-2">
+            {pendingRequests.map((member) => (
+              <li
+                key={member.id}
+                className="flex items-center justify-between gap-3 p-2 rounded-lg bg-base-200 border border-base-300"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">
+                    {member.name || member.email || 'Solicitante'}
+                  </p>
+                  {member.email && member.name && (
+                    <p className="text-xs text-text-muted truncate">{member.email}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => runAction(() => approveRequest(member.id), 'Falha ao aprovar.')}
+                    className="btn btn-success btn-sm"
+                    disabled={busy}
+                  >
+                    <Check className="w-4 h-4" /> Aprovar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runAction(() => rejectRequest(member.id), 'Falha ao rejeitar.')}
+                    className="btn btn-ghost btn-sm text-error"
+                    disabled={busy}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ── Convite por e-mail (dono/admin) ────────────────────────────────── */}
+      {canManage && (
+        <form onSubmit={handleInvite} className="bg-surface p-4 rounded-xl border border-border space-y-3">
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <UserPlus className="w-4 h-4" /> Adicionar por e-mail
+          </p>
+          <p className="text-xs text-text-muted">
+            O convidado precisa já ter uma conta com este e-mail (entra direto, sem aprovação).
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
@@ -158,86 +342,105 @@ export function CommunityMembersPanel({
                 </option>
               ))}
             </select>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={busy || !inviteEmail.trim()}
-            >
-              Convidar
+            <button type="submit" className="btn btn-primary" disabled={busy || !inviteEmail.trim()}>
+              Adicionar
             </button>
           </div>
         </form>
       )}
 
-      {(error || actionError) && (
-        <div className="alert alert-error text-sm" role="alert">
-          <ShieldAlert className="w-4 h-4" />
-          <span>{actionError || error}</span>
-        </div>
-      )}
+      {/* ── Diretório de membros ───────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold text-text-muted uppercase px-1">
+          Membros {activeMembers.length > 0 && `(${activeMembers.length})`}
+        </p>
+        {loading && activeMembers.length === 0 ? (
+          <p className="text-sm text-text-muted px-1">Carregando…</p>
+        ) : activeMembers.length === 0 ? (
+          <p className="text-sm text-text-muted px-1">Nenhum membro ainda.</p>
+        ) : (
+          <ul className="space-y-2">
+            {sortedMembers.map((member) => {
+              const isSelf = member.userId === currentUserId;
+              const isOwner = member.role === 'owner';
+              const editable = canManage && !isSelf && !isOwner;
+              return (
+                <li
+                  key={member.id}
+                  className="bg-surface p-3 rounded-xl border border-border flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-base-300 flex items-center justify-center text-xs font-bold shrink-0">
+                      {initials(member)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">
+                        {member.name || member.email || 'Membro'}
+                        {isSelf && <span className="text-text-muted font-normal"> (você)</span>}
+                      </p>
+                      {member.email && member.name && (
+                        <p className="text-xs text-text-muted truncate">{member.email}</p>
+                      )}
+                      {athleteByUserId.has(member.userId) && (
+                        <span className="badge badge-sm badge-outline gap-1 mt-1">
+                          <Volleyball className="w-3 h-3" />
+                          {athleteByUserId.get(member.userId)!.apelido ||
+                            athleteByUserId.get(member.userId)!.nome}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {editable ? (
+                      <select
+                        value={member.role}
+                        onChange={(e) => handleRoleChange(member, e.target.value as CommunityMemberRole)}
+                        className="select select-bordered select-sm"
+                        disabled={busy}
+                        aria-label="Papel do membro"
+                      >
+                        {ASSIGNABLE_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {ROLE_LABELS[role]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={`badge ${ROLE_BADGE[member.role]}`}>
+                        {ROLE_LABELS[member.role]}
+                      </span>
+                    )}
+                    {editable && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(member)}
+                        className="btn btn-ghost btn-sm btn-square text-error"
+                        aria-label="Remover membro"
+                        disabled={busy}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
-      {loading && members.length === 0 ? (
-        <p className="text-sm text-text-muted px-1">Carregando membros…</p>
-      ) : members.length === 0 ? (
-        <p className="text-sm text-text-muted px-1">Nenhum membro encontrado.</p>
-      ) : (
-        <ul className="space-y-2">
-          {members.map((member) => {
-            const isSelf = member.userId === currentUserId;
-            const isOwner = member.role === 'owner';
-            const editable = canManage && !isSelf && !isOwner;
-            return (
-              <li
-                key={member.id}
-                className="bg-surface p-3 rounded-xl border border-border flex items-center justify-between gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">
-                    {member.name || member.email || 'Membro'}
-                    {isSelf && <span className="text-text-muted font-normal"> (você)</span>}
-                  </p>
-                  {member.email && member.name && (
-                    <p className="text-xs text-text-muted truncate">{member.email}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {editable ? (
-                    <select
-                      value={member.role}
-                      onChange={(e) =>
-                        handleRoleChange(member, e.target.value as CommunityMemberRole)
-                      }
-                      className="select select-bordered select-sm"
-                      disabled={busy}
-                      aria-label="Papel do membro"
-                    >
-                      {ASSIGNABLE_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {ROLE_LABELS[role]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className={`badge ${ROLE_BADGE[member.role]}`}>
-                      {ROLE_LABELS[member.role]}
-                    </span>
-                  )}
-                  {editable && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemove(member)}
-                      className="btn btn-ghost btn-sm btn-square text-error"
-                      aria-label="Remover membro"
-                      disabled={busy}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+      {/* ── Minha participação ─────────────────────────────────────────────── */}
+      {canLeave && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={handleLeave}
+            className="btn btn-ghost btn-sm text-error"
+            disabled={busy}
+          >
+            <LogOut className="w-4 h-4" /> Sair da comunidade
+          </button>
+        </div>
       )}
     </div>
   );

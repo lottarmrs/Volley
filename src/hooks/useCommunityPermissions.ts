@@ -66,9 +66,12 @@ export function useCommunityPermissions(community: Community | null) {
     };
   }
 
-  // Encontra o registro de membro do usuário logado na comunidade atual
-  const myMemberRecord = members.find((m) => m.userId === auth.user?.id);
-  const communityRole = myMemberRecord?.role || null; // 'owner' | 'admin' | 'organizer' | null
+  // Encontra o registro de membro ATIVO do usuário logado na comunidade atual.
+  // Membros 'pending'/'invited' não recebem permissões até serem aprovados.
+  const myMemberRecord = members.find(
+    (m) => m.userId === auth.user?.id && (m.status ?? 'active') === 'active',
+  );
+  const communityRole = myMemberRecord?.role || null; // 'owner' | 'admin' | 'moderator' | 'member' | null
 
   // Se a comunidade for local e sem cloudId, o criador tem acesso total
   if (!community?.cloudId) {
@@ -88,7 +91,8 @@ export function useCommunityPermissions(community: Community | null) {
 
   const isOwner = communityRole === 'owner';
   const isAdmin = communityRole === 'admin';
-  const isOrganizer = communityRole === 'organizer';
+  const isModerator = communityRole === 'moderator';
+  // 'member' é participante comum (atleta/usuário): sem ações de gestão.
 
   return {
     role: communityRole,
@@ -99,7 +103,7 @@ export function useCommunityPermissions(community: Community | null) {
     canManageMembers: isOwner || isAdmin,
     canEditRules: isOwner || isAdmin,
     canEditPlayerProfile: isOwner || isAdmin,
-    canEvaluatePlayer: isOwner || isAdmin || isOrganizer,
-    canCreateSession: isOwner || isAdmin || isOrganizer,
+    canEvaluatePlayer: isOwner || isAdmin || isModerator,
+    canCreateSession: isOwner || isAdmin || isModerator,
   };
 }

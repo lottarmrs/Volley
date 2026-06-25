@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { syncService, LocalSyncPayload } from '../services/supabase/syncService';
 import { normalizeGames, normalizeSessions } from '../logic/migrations';
 import { loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
@@ -112,19 +112,51 @@ export function useCloudSync(deps: CloudSyncDeps) {
     saveToStorage(LAST_SYNCED_AT_KEY, nowStr);
   };
 
+  // Trava de reentrância: o auto-sync no login e um clique manual podem disparar
+  // operações concorrentes. Sem isso, dois uploads em paralelo reconciliam sobre
+  // estados intermediários (corrida que pode apagar vínculos / duplicar escrita).
+  const inFlight = useRef(false);
+
   const run = async (
     label: string,
-    operation: (payload: LocalSyncPayload, userId: string) => Promise<LocalSyncPayload>,
+    operation: (
+      payload: LocalSyncPayload,
+      userId: string,
+      onIssue: (context: string, error: unknown) => void,
+    ) => Promise<LocalSyncPayload>,
   ) => {
     if (!deps.userId) throw new Error('Usuário não autenticado.');
+    if (inFlight.current) {
+      deps.onToast?.('Uma sincronização já está em andamento.', 'error');
+      return;
+    }
+    inFlight.current = true;
     setSyncLoading(true);
     setStatus('syncing');
     setError(null);
+
+    const issues: string[] = [];
+    const onIssue = (context: string, e: unknown) => {
+      const detail = e instanceof Error ? e.message : String(e);
+      issues.push(`${context}: ${detail}`);
+      console.error(`[sync] falha em ${context}`, e);
+    };
+
     try {
-      const result = await operation(buildPayload(), deps.userId);
+      const result = await operation(buildPayload(), deps.userId, onIssue);
       applyResult(result);
-      setStatus('success');
-      deps.onToast?.(`${label} concluído.`, 'success');
+      if (issues.length > 0) {
+        // O que deu certo foi aplicado; sinalizamos as falhas parciais.
+        setStatus('error');
+        setError(issues.join('\n'));
+        deps.onToast?.(
+          `${label} concluído com ${issues.length} falha(s). Itens não enviados serão tentados de novo.`,
+          'error',
+        );
+      } else {
+        setStatus('success');
+        deps.onToast?.(`${label} concluído.`, 'success');
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Falha na sincronização';
       setError(message);
@@ -132,20 +164,23 @@ export function useCloudSync(deps: CloudSyncDeps) {
       deps.onToast?.(`${label} falhou: ${message}`, 'error');
       throw e;
     } finally {
+      inFlight.current = false;
       setSyncLoading(false);
     }
   };
 
   const uploadToCloud = () =>
-    run('Envio para a nuvem', (payload, userId) =>
-      syncService.uploadLocalDataToCloud(payload, userId),
+    run('Envio para a nuvem', (payload, userId, onIssue) =>
+      syncService.uploadLocalDataToCloud(payload, userId, { onIssue }),
     );
 
   const downloadFromCloud = () =>
-    run('Download da nuvem', () => syncService.downloadCloudDataToLocal());
+    run('Download da nuvem', () => syncService.downloadCloudDataToLocal(deps.userId ?? undefined));
 
   const sync = () =>
-    run('Sincronização', (payload, userId) => syncService.syncNow(payload, userId));
+    run('Sincronização', (payload, userId, onIssue) =>
+      syncService.syncNow(payload, userId, { onIssue }),
+    );
 
   return {
     uploadToCloud,

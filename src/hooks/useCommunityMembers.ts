@@ -60,7 +60,12 @@ export function useCommunityMembers({
   }, [reload]);
 
   const currentMember = members.find((member) => member.userId === currentUserId) ?? null;
-  const canManage = currentMember?.role === 'owner' || currentMember?.role === 'admin';
+  const canManage =
+    (currentMember?.status ?? 'active') === 'active' &&
+    (currentMember?.role === 'owner' || currentMember?.role === 'admin');
+
+  const activeMembers = members.filter((m) => (m.status ?? 'active') === 'active');
+  const pendingRequests = members.filter((m) => m.status === 'pending');
 
   const invite = useCallback(
     async (email: string, role: CommunityMemberRole) => {
@@ -94,8 +99,45 @@ export function useCommunityMembers({
     [reload],
   );
 
+  const approveRequest = useCallback(
+    async (memberId: string) => {
+      await membershipCloudService.approveRequest(memberId);
+      await reload();
+    },
+    [reload],
+  );
+
+  const rejectRequest = useCallback(
+    async (memberId: string) => {
+      await membershipCloudService.rejectRequest(memberId);
+      await reload();
+    },
+    [reload],
+  );
+
+  const generateJoinCode = useCallback(async () => {
+    if (!communityCloudId) {
+      throw new Error('Sincronize a comunidade com a nuvem antes de gerar um código.');
+    }
+    const code = await membershipCloudService.generateJoinCode(communityCloudId);
+    return code;
+  }, [communityCloudId]);
+
+  const disableJoinCode = useCallback(async () => {
+    if (!communityCloudId) return;
+    await membershipCloudService.disableJoinCode(communityCloudId);
+  }, [communityCloudId]);
+
+  const leave = useCallback(async () => {
+    if (!communityCloudId) return;
+    await membershipCloudService.leaveCommunity(communityCloudId);
+    await reload();
+  }, [communityCloudId, reload]);
+
   return {
     members,
+    activeMembers,
+    pendingRequests,
     loading,
     error,
     currentMember,
@@ -104,5 +146,10 @@ export function useCommunityMembers({
     invite,
     changeRole,
     remove,
+    approveRequest,
+    rejectRequest,
+    generateJoinCode,
+    disableJoinCode,
+    leave,
   };
 }

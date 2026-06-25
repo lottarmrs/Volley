@@ -32,6 +32,23 @@ export interface LocalSyncPayload extends OperationalSyncPayload {
   linkProposals?: PlayerLinkProposal[];
 }
 
+export interface SyncOptions {
+  /**
+   * Reporta uma falha por item SEM abortar a operação inteira. O item que
+   * falhou é mantido como `pending` para uma próxima tentativa.
+   */
+  onIssue?: (context: string, error: unknown) => void;
+}
+
+interface UploadOptions extends SyncOptions {
+  /**
+   * Só reconcilia (deleta) relações community_players órfãs quando o payload
+   * representa o estado MESCLADO (syncNow). Num upload puro o estado local pode
+   * estar incompleto e a deleção apagaria vínculos válidos da nuvem.
+   */
+  reconcileRelations?: boolean;
+}
+
 type Syncable = {
   cloudId?: string;
   syncStatus?: CloudSyncStatus;
@@ -183,6 +200,35 @@ function resolveCloudId(
   return lookup.get(localOrCloudId.toLowerCase()) || localOrCloudId;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True para um uuid nativo (id de nuvem); false para ids locais/temporários. */
+export function isUuid(value: string | null | undefined): boolean {
+  return !!value && UUID_RE.test(value);
+}
+
+/**
+ * Decide quais relações community_players da nuvem são órfãs (devem ser deletadas)
+ * na reconciliação. Regra de segurança (C1): só considera relações de players
+ * REPRESENTADOS no payload — nunca apaga vínculos de atletas que este device não
+ * carregou —, e só apaga as que não estão no conjunto desejado.
+ */
+export function computeStaleRelationIds(
+  ownedRelations: { id?: string; community_id: string; player_id: string }[],
+  desiredRelationKeys: Set<string>,
+  payloadPlayerCloudIds: Set<string>,
+): string[] {
+  return ownedRelations
+    .filter((relation) => {
+      const playerKey = relation.player_id.toLowerCase();
+      if (!payloadPlayerCloudIds.has(playerKey)) return false;
+      const key = `${relation.community_id.toLowerCase()}:${playerKey}`;
+      return !desiredRelationKeys.has(key);
+    })
+    .map((relation) => relation.id)
+    .filter(Boolean) as string[];
+}
+
 async function bulkUploadSessionChildren<T extends Syncable>(
   items: T[],
   sessionsById: Map<string, Session>,
@@ -242,110 +288,138 @@ export const syncService = {
   async uploadLocalDataToCloud(
     local: LocalSyncPayload,
     ownerId: string,
+    options: UploadOptions = {},
   ): Promise<LocalSyncPayload> {
+    const onIssue = options.onIssue || (() => {});
     const syncedAt = nowIso();
 
     const updatedCommunities: Community[] = [];
     for (const community of local.communities) {
-      if (community.deletedAt) {
-        if (community.cloudId) {
-          await communityCloudService.softDelete(community.cloudId);
+      try {
+        if (community.deletedAt) {
+          if (community.cloudId) {
+            await communityCloudService.softDelete(community.cloudId);
+          }
+          updatedCommunities.push(markSynced(community, community.cloudId, syncedAt));
+          continue;
         }
-        updatedCommunities.push(markSynced(community, community.cloudId, syncedAt));
-        continue;
-      }
 
-      const uploaded = await communityCloudService.upsert(community, ownerId);
-      updatedCommunities.push(markSynced(community, uploaded.cloudId, syncedAt));
+        const uploaded = await communityCloudService.upsert(community, ownerId);
+        updatedCommunities.push(markSynced(community, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`comunidade "${community.name}"`, error);
+        updatedCommunities.push(community);
+      }
     }
 
     const updatedPlayers: Player[] = [];
     for (const player of local.players) {
-      if (player.deletedAt) {
-        const canDeleteGlobalPlayer =
-          player.cloudId && (!player.cloudOwnerId || player.cloudOwnerId === ownerId);
-        if (canDeleteGlobalPlayer) {
-          await playerCloudService.softDelete(player.cloudId);
+      try {
+        if (player.deletedAt) {
+          const canDeleteGlobalPlayer =
+            player.cloudId && (!player.cloudOwnerId || player.cloudOwnerId === ownerId);
+          if (canDeleteGlobalPlayer) {
+            await playerCloudService.softDelete(player.cloudId);
+          }
+          updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
+          continue;
         }
-        updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
-        continue;
+
+        const isSharedPlayer =
+          !!player.cloudId && !!player.cloudOwnerId && player.cloudOwnerId !== ownerId;
+
+        if (isSharedPlayer) {
+          updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
+          continue;
+        }
+
+        const uploaded = await playerCloudService.upsert(player, ownerId);
+        updatedPlayers.push(markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`atleta "${player.nome}"`, error);
+        updatedPlayers.push(player);
       }
-
-      const isSharedPlayer =
-        !!player.cloudId && !!player.cloudOwnerId && player.cloudOwnerId !== ownerId;
-
-      if (isSharedPlayer) {
-        updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
-        continue;
-      }
-
-      const uploaded = await playerCloudService.upsert(player, ownerId);
-      updatedPlayers.push(markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt));
     }
 
     const communityCloudIds = makeCloudIdLookup(updatedCommunities);
     const playerCloudIds = makeCloudIdLookup(updatedPlayers);
 
-    await playerEvaluationCloudService.bulkUpsertForPlayers(
-      updatedPlayers,
-      ownerId,
-    );
+    try {
+      await playerEvaluationCloudService.bulkUpsertForPlayers(updatedPlayers, ownerId);
+    } catch (error) {
+      onIssue('avaliações de atletas', error);
+    }
 
     const updatedRules: CommunityRules[] = [];
     for (const rule of local.rules) {
-      const communityCloudId = resolveCloudId(rule.communityId, communityCloudIds);
-      if (!communityCloudId) {
-        updatedRules.push(rule);
-        continue;
-      }
+      try {
+        const communityCloudId = resolveCloudId(rule.communityId, communityCloudIds);
+        if (!communityCloudId) {
+          updatedRules.push(rule);
+          continue;
+        }
 
-      const uploaded = await communityRulesCloudService.upsert(rule, ownerId, communityCloudId);
-      updatedRules.push(markSynced(rule, uploaded.cloudId, syncedAt));
+        const uploaded = await communityRulesCloudService.upsert(rule, ownerId, communityCloudId);
+        updatedRules.push(markSynced(rule, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue('regras de comunidade', error);
+        updatedRules.push(rule);
+      }
     }
 
     const updatedTemplates: WhatsAppListTemplate[] = [];
     for (const template of local.templates) {
-      if (template.deletedAt) {
-        if (template.cloudId) {
-          await whatsappTemplateCloudService.softDelete(template.cloudId);
+      try {
+        if (template.deletedAt) {
+          if (template.cloudId) {
+            await whatsappTemplateCloudService.softDelete(template.cloudId);
+          }
+          updatedTemplates.push(markSynced(template, template.cloudId, syncedAt));
+          continue;
         }
-        updatedTemplates.push(markSynced(template, template.cloudId, syncedAt));
-        continue;
-      }
 
-      const communityCloudId = resolveCloudId(template.communityId, communityCloudIds);
-      if (!communityCloudId) {
+        const communityCloudId = resolveCloudId(template.communityId, communityCloudIds);
+        if (!communityCloudId) {
+          updatedTemplates.push(template);
+          continue;
+        }
+
+        const uploaded = await whatsappTemplateCloudService.upsert(
+          template,
+          ownerId,
+          communityCloudId,
+        );
+        updatedTemplates.push(markSynced(template, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`modelo "${template.title || template.id}"`, error);
         updatedTemplates.push(template);
-        continue;
       }
-
-      const uploaded = await whatsappTemplateCloudService.upsert(
-        template,
-        ownerId,
-        communityCloudId,
-      );
-      updatedTemplates.push(markSynced(template, uploaded.cloudId, syncedAt));
     }
 
     const updatedSessions: Session[] = [];
     for (const session of local.sessions) {
-      if (session.deletedAt) {
-        if (session.cloudId) {
-          await operationalCloudService.softDelete('sessions', session.cloudId);
+      try {
+        if (session.deletedAt) {
+          if (session.cloudId) {
+            await operationalCloudService.softDelete('sessions', session.cloudId);
+          }
+          updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
+          continue;
         }
-        updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
-        continue;
-      }
 
-      const sessionForUpload = {
-        ...session,
-        communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
-      };
-      const uploaded = await operationalCloudService.upsertSession(
-        sessionForUpload,
-        ownerId,
-      );
-      updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
+        const sessionForUpload = {
+          ...session,
+          communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
+        };
+        const uploaded = await operationalCloudService.upsertSession(
+          sessionForUpload,
+          ownerId,
+        );
+        updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`sessão "${session.name}"`, error);
+        updatedSessions.push(session);
+      }
     }
 
     const sessionsById = new Map(
@@ -535,44 +609,89 @@ export const syncService = {
     }
 
     if (relationsToUpload.length > 0) {
-      await communityPlayerCloudService.bulkUpsert(relationsToUpload);
+      try {
+        await communityPlayerCloudService.bulkUpsert(relationsToUpload);
+      } catch (error) {
+        onIssue('vínculos atleta↔comunidade', error);
+      }
     }
-    const desiredRelationKeys = new Set(
-      relationsToUpload.map((relation) =>
-        `${relation.community_id.toLowerCase()}:${relation.player_id.toLowerCase()}`,
-      ),
-    );
-    const currentOwnedRelations = (await communityPlayerCloudService.fetchAll()).filter(
-      (relation) => relation.owner_id === ownerId,
-    );
-    const staleRelationIds = currentOwnedRelations
-      .filter((relation) => {
-        const key = `${relation.community_id.toLowerCase()}:${relation.player_id.toLowerCase()}`;
-        return !desiredRelationKeys.has(key);
-      })
-      .map((relation) => relation.id)
-      .filter(Boolean) as string[];
-    await communityPlayerCloudService.deleteByIdsForUser(ownerId, staleRelationIds);
+
+    // Reconciliação de vínculos órfãos: só quando o payload representa o estado
+    // MESCLADO (syncNow). Num upload puro o estado local pode estar incompleto e
+    // a deleção apagaria vínculos válidos da nuvem (perda de dados entre devices).
+    if (options.reconcileRelations) {
+      try {
+        const desiredRelationKeys = new Set(
+          relationsToUpload.map((relation) =>
+            `${relation.community_id.toLowerCase()}:${relation.player_id.toLowerCase()}`,
+          ),
+        );
+        // Só tratamos como órfãs as relações de players REPRESENTADOS no payload;
+        // nunca apagamos vínculos de atletas que este device sequer carregou.
+        const payloadPlayerCloudIds = new Set(
+          updatedPlayers
+            .filter((player) => !player.deletedAt)
+            .map((player) => resolveCloudId(player.id, playerCloudIds))
+            .filter(Boolean)
+            .map((id) => (id as string).toLowerCase()),
+        );
+        const currentOwnedRelations = (await communityPlayerCloudService.fetchAll()).filter(
+          (relation) => relation.owner_id === ownerId,
+        );
+        const staleRelationIds = computeStaleRelationIds(
+          currentOwnedRelations,
+          desiredRelationKeys,
+          payloadPlayerCloudIds,
+        );
+        await communityPlayerCloudService.deleteByIdsForUser(ownerId, staleRelationIds);
+      } catch (error) {
+        onIssue('reconciliação de vínculos', error);
+      }
+    }
 
     const updatedProposals: PlayerLinkProposal[] = [];
     for (const proposal of local.linkProposals || []) {
-      const playerCloudId =
-        proposal.playerCloudId ||
-        resolveCloudId(proposal.playerId, playerCloudIds);
-      if (!playerCloudId) {
+      try {
+        const playerCloudId =
+          proposal.playerCloudId ||
+          resolveCloudId(proposal.playerId, playerCloudIds);
+        if (!playerCloudId) {
+          updatedProposals.push(proposal);
+          continue;
+        }
+        if (proposal.deletedAt) {
+          updatedProposals.push({ ...proposal, syncStatus: 'synced', lastSyncedAt: syncedAt });
+          continue;
+        }
+
+        if (isUuid(proposal.id)) {
+          // Já existe na nuvem: o status é gerido pelos RPCs approve/reject/cancel
+          // (chamados pelo hook) e o download traz o estado autoritativo. Não
+          // reupsertamos — evita brigar com os triggers e o índice único de
+          // proposta pendente.
+          updatedProposals.push({
+            ...proposal,
+            playerCloudId,
+            syncStatus: 'synced',
+            lastSyncedAt: syncedAt,
+          });
+        } else {
+          // Proposta local que nunca chegou à nuvem (id temporário). Cria via RPC,
+          // que aplica a lógica de aprovação correta no servidor. (Antes o id temp
+          // era enviado como uuid e quebrava o upsert — erro 22P02, o bug I2.)
+          const cloudId = await playerLinkProposalCloudService.propose(playerCloudId);
+          updatedProposals.push({
+            ...proposal,
+            id: cloudId,
+            playerCloudId,
+            syncStatus: 'synced',
+            lastSyncedAt: syncedAt,
+          });
+        }
+      } catch (error) {
+        onIssue('proposta de vínculo', error);
         updatedProposals.push(proposal);
-        continue;
       }
-      if (proposal.deletedAt) {
-        updatedProposals.push(markSynced(proposal, proposal.id, syncedAt));
-        continue;
-      }
-      const uploaded = await playerLinkProposalCloudService.upsert({
-        ...proposal,
-        playerId: playerCloudId,
-        playerCloudId,
-      });
-      updatedProposals.push(markSynced(proposal, uploaded.id, syncedAt));
     }
 
     return {
@@ -638,7 +757,11 @@ export const syncService = {
     };
   },
 
-  async syncNow(local: LocalSyncPayload, ownerId: string): Promise<LocalSyncPayload> {
+  async syncNow(
+    local: LocalSyncPayload,
+    ownerId: string,
+    options: SyncOptions = {},
+  ): Promise<LocalSyncPayload> {
     const cloud = await this.downloadCloudDataToLocal(ownerId);
 
     const merged: LocalSyncPayload = {
@@ -672,6 +795,9 @@ export const syncService = {
       }),
     };
 
-    return this.uploadLocalDataToCloud(merged, ownerId);
+    return this.uploadLocalDataToCloud(merged, ownerId, {
+      ...options,
+      reconcileRelations: true,
+    });
   },
 };

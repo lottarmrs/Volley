@@ -22,7 +22,7 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
     status: local.status,
     local_id: local.id,
     deleted_at: local.deletedAt || null,
-    updated_at: local.updatedAt || local.metadata.atualizadoEm || new Date().toISOString(),
+    updated_at: local.updatedAt || local.metadata?.atualizadoEm || new Date().toISOString(),
   };
 }
 

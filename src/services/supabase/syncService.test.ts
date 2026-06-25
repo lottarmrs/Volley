@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeEntityLists } from './syncService';
+import { mergeEntityLists, computeStaleRelationIds, isUuid } from './syncService';
 import { CloudSyncStatus } from '../../types';
 
 interface TestEntity {
@@ -108,5 +108,48 @@ test('mergeEntityLists preserves local records with cloudId if missing from clou
   assert.equal(merged[0].id, 'session-local');
   assert.equal(merged[0].cloudId, 'session-cloud');
   assert.equal(merged[0].deletedAt, undefined);
+});
+
+test('computeStaleRelationIds deletes only undesired relations of payload players', () => {
+  const owned = [
+    { id: 'rel-keep', community_id: 'comm-1', player_id: 'player-1' },
+    { id: 'rel-stale', community_id: 'comm-2', player_id: 'player-1' },
+  ];
+  const desired = new Set(['comm-1:player-1']);
+  const payloadPlayers = new Set(['player-1']);
+
+  const stale = computeStaleRelationIds(owned, desired, payloadPlayers);
+
+  assert.deepEqual(stale, ['rel-stale']);
+});
+
+test('computeStaleRelationIds NEVER deletes relations of players absent from the payload (C1)', () => {
+  // player-2 não está no payload deste device (ex.: nunca carregado). Mesmo não
+  // estando no conjunto desejado, a sua relação não pode ser apagada.
+  const owned = [
+    { id: 'rel-other-device', community_id: 'comm-9', player_id: 'player-2' },
+  ];
+  const desired = new Set<string>(); // nada desejado neste device
+  const payloadPlayers = new Set(['player-1']);
+
+  const stale = computeStaleRelationIds(owned, desired, payloadPlayers);
+
+  assert.deepEqual(stale, []);
+});
+
+test('computeStaleRelationIds is case-insensitive on ids', () => {
+  const owned = [{ id: 'rel-1', community_id: 'COMM-1', player_id: 'PLAYER-1' }];
+  const desired = new Set(['comm-1:player-1']);
+  const payloadPlayers = new Set(['player-1']);
+
+  assert.deepEqual(computeStaleRelationIds(owned, desired, payloadPlayers), []);
+});
+
+test('isUuid distinguishes native uuids from temporary/local ids (I2)', () => {
+  assert.equal(isUuid('0f2b679a-680e-486a-871e-e8d2c6052bff'), true);
+  assert.equal(isUuid('proposal-1782082372208'), false);
+  assert.equal(isUuid('community-123'), false);
+  assert.equal(isUuid(''), false);
+  assert.equal(isUuid(undefined), false);
 });
 

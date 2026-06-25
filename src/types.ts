@@ -745,6 +745,10 @@ export interface Community {
   color?: string;
   icon?: string;
   archived?: boolean;
+  /** Privacidade da comunidade (Fase E: descoberta de públicas). */
+  visibility?: 'private' | 'public';
+  /** Código/link de convite compartilhável (null quando desativado). */
+  joinCode?: string | null;
   createdAt: string;
   updatedAt: string;
   cloudId?: string;
@@ -920,13 +924,22 @@ export interface UserProfile {
   updatedAt: string;
 }
 
-export type CommunityMemberRole = 'owner' | 'admin' | 'organizer';
+export type CommunityMemberRole = 'owner' | 'admin' | 'moderator' | 'member';
+
+/**
+ * Estado da filiação. 'active' = membro pleno; 'pending' = pediu pra entrar e
+ * aguarda aprovação; 'invited' = convidado, ainda não aceitou; 'rejected' =
+ * pedido recusado.
+ */
+export type CommunityMemberStatus = 'active' | 'pending' | 'invited' | 'rejected';
 
 export interface CommunityMember {
   id: string;
   communityId: string;
   userId: string;
   role: CommunityMemberRole;
+  status?: CommunityMemberStatus;
+  invitedBy?: string | null;
   name?: string | null;
   email?: string | null;
   createdAt: string;

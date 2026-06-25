@@ -304,8 +304,19 @@ export const syncService = {
           continue;
         }
 
+        // Comunidade de OUTRO dono (entrei como membro): não reenviar — só o
+        // dono/admin pode escrever (RLS), e o estado autoritativo vem do download.
+        const isSharedCommunity =
+          !!community.cloudId && !!community.cloudOwnerId && community.cloudOwnerId !== ownerId;
+        if (isSharedCommunity) {
+          updatedCommunities.push(markSynced(community, community.cloudId, syncedAt));
+          continue;
+        }
+
         const uploaded = await communityCloudService.upsert(community, ownerId);
-        updatedCommunities.push(markSynced(community, uploaded.cloudId, syncedAt));
+        updatedCommunities.push(
+          markSynced({ ...community, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt),
+        );
       } catch (error) {
         onIssue(`comunidade "${community.name}"`, error);
         updatedCommunities.push(community);

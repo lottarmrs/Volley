@@ -749,6 +749,12 @@ export interface Community {
   visibility?: 'private' | 'public';
   /** Código/link de convite compartilhável (null quando desativado). */
   joinCode?: string | null;
+  /**
+   * Dono na nuvem (auth user id). Quando presente e diferente do usuário logado,
+   * a comunidade é de OUTRO dono (entrei como membro) — o sync não deve tentar
+   * reenviá-la. undefined = comunidade local/própria.
+   */
+  cloudOwnerId?: string;
   createdAt: string;
   updatedAt: string;
   cloudId?: string;

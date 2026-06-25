@@ -210,13 +210,27 @@ O usuário precisa Importar Backup + Sincronizar no app.
   (hoje o default é `[]`).
 
 ### Fase E — Visibilidade / descoberta + notificações
-- `communities.visibility` já existe. Falta: comunidades públicas numa busca/descoberta;
-  badge de pendências (nº de pedidos) na aba Membros; (opcional) notificações.
-- Considerar a visibilidade cross-owner: um `member` de comunidade de outro dono precisa
-  **ver** a comunidade no app dele. RLS de `communities` já permite leitura por membro ativo
-  (`owner_id = auth.uid() OR current_user_has_community_role(id)`), mas o app trata comunidades
-  como owner-scoped no modelo local — validar download/render de comunidade não-própria e
-  garantir que o upload NÃO tente alterá-la (o C3 já isola erros de RLS).
+**E1 (cross-owner) ✅ FEITO e commitado** (`a3d17a6`): `Community.cloudOwnerId` (do `owner_id`
+da nuvem); `mapDbToCommunity` preenche; no `syncService` o upload **pula comunidades de outro
+dono** (`isSharedCommunity`, espelha `isSharedPlayer`). Assim uma comunidade em que entrei como
+membro baixa (RLS permite leitura por membro ativo) e aparece, sem o sync brigar com a RLS.
+
+**E2 (descoberta de públicas) ✅ backend + componentes feitos** (migration
+`20260625192530_community_discovery`, aplicada): opt-in, **mantém padrão privado**; entrar em
+pública também passa por aprovação (cria `pending`). RPCs: `set_community_visibility`,
+`search_public_communities`, `request_to_join_public`. Frontend novo (parallel-safe):
+`services/supabase/communityDiscoveryService.ts` e `components/community/CommunityDiscovery.tsx`
+(modal de busca + pedir entrada).
+- ⏳ **FALTA WIRAR (1 edição na `CommunitiesView`, deixada pra você p/ não conflitar):**
+  1. `import { CommunityDiscovery } from './CommunityDiscovery';`
+  2. estado `const [showDiscovery, setShowDiscovery] = useState(false);`
+  3. botão no cabeçalho (ao lado de "Entrar com código"): `Descobrir` → `setShowDiscovery(true)`.
+  4. render: `{showDiscovery && <CommunityDiscovery onClose={() => setShowDiscovery(false)} />}`.
+  5. (opcional) toggle público/privado nas configurações da comunidade via
+     `communityDiscoveryService.setVisibility(community.cloudId, 'public'|'private')`.
+
+**Ainda pendente em E:** badge de nº de pedidos na aba Membros (vive na CommunitiesView/painel
+— você está editando); notificações (separado, maior).
 
 ---
 

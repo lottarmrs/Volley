@@ -153,7 +153,13 @@ Estado de verificação no commit: **typecheck OK, build OK, 109 testes unit + 2
 
 ## 5. ⚠️ ISSUES ABERTOS (prioridade)
 
-### 5.1 🔴 React "change in order of Hooks" no `App` (ENCONTRADO, NÃO RESOLVIDO)
+### 5.1 🟢 React "change in order of Hooks" no `App` (NÃO REPRODUZ MAIS — monitorar)
+> ATUALIZAÇÃO 2026-06-24: após corrigir o 5.2 (I2), recarreguei o preview logado
+> (sessão ativa, dados reais) e o **console ficou 100% limpo** — sem o erro de Hooks
+> e sem a tempestade de propostas. Confirma a hipótese de que era artefato dos
+> múltiplos `setState` em loop do bug 5.2. Mantido aqui para monitoramento; se voltar,
+> seguir o roteiro abaixo.
+
 No preview (dados reais, sync ativo), o console mostra, **após reload limpo**:
 `React has detected a change in the order of Hooks called by App`.
 Divergência no **hook #116**: render anterior `useState`, próximo `useCallback`.
@@ -169,15 +175,25 @@ Divergência no **hook #116**: render anterior `useState`, próximo `useCallback
   dentro de `if/&&/?:/.map`, ou contagem de hooks dependente de props/estado. O cluster
   ~#108–116 (3×useState, useCallback, useEffect, vários useCallback) **bate com
   `useCommunityMembers`** — começar por ele e por `useCommunityPermissions`.
+- **Investigação feita (2026-06-24):** `App.tsx` tem todos os hooks no topo, incondicionais
+  (grep confirmado). Todos os `src/hooks/*.ts` também — sem hook condicional, sem `&& use`/`? use`,
+  sem `return` antes de hook (os `return useMemo(...)` em useWhatsAppListTemplates/useCommunityRules/
+  useCommunityPresence são o **return final**, válido). As adições desta leva (useRef no useCloudSync,
+  useCallbacks no useCommunityMembers) são incondicionais → **este commit NÃO introduziu o erro**.
+- **Suspeitos restantes (não auditados linha-a-linha):** `useLiveSession.ts` (~720 linhas) e
+  `useSessionWizard.ts` (~480) — verificar contagem de hooks dependente de estado/props.
+- **Hipótese alternativa:** o erro surgiu durante a *tempestade* de `setState` do bug 5.2 (falhas
+  de proposta em loop). **Recomendo corrigir 5.2 primeiro** e reproduzir — pode reduzir os
+  re-renders e isolar/sumir o aviso.
 - Impacto: pode causar bugs/crash de render. **Tratar antes de confiar na UI nova.**
 
-### 5.2 🟠 Sync de propostas de vínculo falhando (I2)
-Console mostra repetidos `[sync] falha em proposta de vínculo`. É o **I2** do plano de sync:
-`playerLinkProposalCloudService.upsert` recebe propostas com `id` temporário (`proposal-…`)
-e tenta enviá-lo como `uuid` → erro. O C3 **isola** (não aborta), mas o vínculo não sincroniza.
-- **Fix (Fase 2 do plano de sync):** no upload, para propostas com id não-uuid usar a RPC
-  `propose_player_link` (ou omitir o `id` no mapper, como foi feito em `player_evaluations`),
-  e mapear o id retornado. Mesma classe do bug de evaluations já corrigido.
+### 5.2 🟢 Sync de propostas de vínculo falhando (I2) — CORRIGIDO
+Era: `playerLinkProposalCloudService.upsert` recebia propostas com `id` temporário
+(`proposal-…`) e tentava enviá-lo como `uuid` → erro 22P02.
+**Corrigido (commitado):** no `syncService`, o loop de propostas usa `isUuid(proposal.id)`
+(função exportada no próprio arquivo): se já é uuid, não reupserta (status vem dos RPCs +
+download); se é id temporário, cria via RPC `propose_player_link` e adota o id retornado.
+Console limpo após o fix.
 
 ### 5.3 🟡 Reseed da nuvem pendente (ver seção 2)
 O usuário precisa Importar Backup + Sincronizar no app.

@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadFromStorage, removeFromStorage, saveToStorage } from './localStorageRepository';
+import {
+  LOCAL_CACHE_OWNER_KEY,
+  getLocalCacheOwnerId,
+  loadFromStorage,
+  markLocalCacheOwner,
+  removeFromStorage,
+  saveToStorage,
+} from './localStorageRepository';
 
 describe('localStorageRepository', () => {
   beforeEach(() => {
@@ -25,5 +32,14 @@ describe('localStorageRepository', () => {
     saveToStorage('vpg_spec_key', 'valor');
     removeFromStorage('vpg_spec_key');
     expect(loadFromStorage('vpg_spec_key', 'apagado')).toBe('apagado');
+  });
+
+  it('marca e limpa o dono do cache local', () => {
+    markLocalCacheOwner('user-1');
+    expect(getLocalCacheOwnerId()).toBe('user-1');
+    expect(localStorage.getItem(LOCAL_CACHE_OWNER_KEY)).toBe('user-1');
+
+    markLocalCacheOwner(null);
+    expect(getLocalCacheOwnerId()).toBeNull();
   });
 });

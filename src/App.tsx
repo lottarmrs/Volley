@@ -69,7 +69,12 @@ import {
   sanitizeImportedBackup,
   migrateLocalDbToUuids,
 } from './logic/migrations';
-import { STORAGE_KEYS, saveToStorage, loadFromStorage } from './storage/localStorageRepository';
+import {
+  STORAGE_KEYS,
+  getLocalCacheOwnerId,
+  loadFromStorage,
+  saveToStorage,
+} from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
 import { calculateAttributeProgression } from './logic/progression';
@@ -219,6 +224,13 @@ export default function App() {
       return;
     }
     if (autoSyncedForUser.current === uid) return;
+
+    const cacheOwnerId = getLocalCacheOwnerId();
+    if (cacheOwnerId && cacheOwnerId !== uid) {
+      autoSyncedForUser.current = uid;
+      cloudSync.downloadFromCloud().catch(() => {});
+      return;
+    }
     if (pendingChanges > 0) return; // não baixa por cima de pendências locais
     autoSyncedForUser.current = uid;
     cloudSync.downloadFromCloud().catch(() => {});
@@ -1047,6 +1059,7 @@ export default function App() {
             onSignUp={auth.signUp}
             onSignOut={auth.signOut}
             onSync={cloudSync.sync}
+            onRepairDuplicates={cloudSync.repairDuplicateCloudData}
             lastSyncedAt={cloudSync.lastSyncedAt}
             syncLoading={cloudSync.syncLoading}
             players={play.players}

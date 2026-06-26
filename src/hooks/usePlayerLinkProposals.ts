@@ -27,7 +27,7 @@ export function usePlayerLinkProposals(
     const now = new Date().toISOString();
     const isOwner = player.cloudOwnerId === currentUserId || (!player.cloudId && !player.userId);
 
-    const tempProposalId = generateUUID();
+    const tempProposalId = `proposal-${generateUUID()}`;
     const newProposal: PlayerLinkProposal = {
       id: tempProposalId,
       playerId,

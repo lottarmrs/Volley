@@ -14,6 +14,7 @@ import {
   UserCheck,
   Loader2,
   Users,
+  Wrench,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 
@@ -28,6 +29,7 @@ interface AccountSyncViewProps {
 
   // Sync actions
   onSync: () => Promise<void>;
+  onRepairDuplicates: () => Promise<void>;
   lastSyncedAt: string | null;
   syncLoading: boolean;
 
@@ -46,6 +48,7 @@ export function AccountSyncView({
   onSignUp,
   onSignOut,
   onSync,
+  onRepairDuplicates,
   lastSyncedAt,
   syncLoading,
   players = [],
@@ -242,6 +245,22 @@ export function AccountSyncView({
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar Dados)
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleAction('Sanear duplicatas antigas', onRepairDuplicates)}
+              disabled={actionLoading || syncLoading}
+              className="btn btn-outline btn-block justify-center gap-3 p-4 h-auto uppercase text-xs tracking-wider font-bold"
+            >
+              {actionLoading || syncLoading ? (
+                <>
+                  <span className="loading loading-spinner loading-xs"></span> Processando...
+                </>
+              ) : (
+                <>
+                  <Wrench className="w-4 h-4" /> Sanear Duplicatas Antigas
                 </>
               )}
             </button>

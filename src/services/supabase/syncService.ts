@@ -40,6 +40,17 @@ export interface SyncOptions {
   onIssue?: (context: string, error: unknown) => void;
 }
 
+export interface DuplicateConsolidationSummary {
+  communitiesMerged: number;
+  playersMerged: number;
+  referencesRemapped: number;
+}
+
+export interface DuplicateConsolidationResult {
+  payload: LocalSyncPayload;
+  summary: DuplicateConsolidationSummary;
+}
+
 interface UploadOptions extends SyncOptions {
   /**
    * Só reconcilia (deleta) relações community_players órfãs quando o payload
@@ -60,9 +71,42 @@ type Syncable = {
 interface MergeOptions<T> {
   getId: (entity: T) => string;
   getUpdatedAt?: (entity: T) => string | undefined;
+  getSemanticKey?: (entity: T) => string | undefined;
 }
 
 const nowIso = () => new Date().toISOString();
+
+function normalizeSemanticText(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+export function communitySemanticKey(community: Pick<Community, 'name'>): string | undefined {
+  const name = normalizeSemanticText(community.name);
+  return name ? `community:${name}` : undefined;
+}
+
+export function playerSemanticKey(
+  player: Pick<Player, 'username' | 'nome' | 'genero' | 'posicaoPrincipal' | 'alturaCm'>,
+): string | undefined {
+  const username = normalizeSemanticText(player.username);
+  if (username) return `player:username:${username}`;
+
+  const name = normalizeSemanticText(player.nome);
+  if (!name) return undefined;
+
+  return [
+    'player:profile',
+    name,
+    normalizeSemanticText(player.genero),
+    normalizeSemanticText(player.posicaoPrincipal),
+    player.alturaCm ?? '',
+  ].join(':');
+}
 
 export function getSyncTimestamp(entity: any): string | undefined {
   return (
@@ -78,6 +122,275 @@ export function getSyncTimestamp(entity: any): string | undefined {
 function timestampMs(value: string | undefined) {
   const time = value ? new Date(value).getTime() : 0;
   return Number.isFinite(time) ? time : 0;
+}
+
+function normalizeIdValue(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() || '';
+}
+
+function canConsolidateOwnedEntity(
+  entity: { cloudOwnerId?: string },
+  ownerId: string | undefined,
+): boolean {
+  return !ownerId || !entity.cloudOwnerId || entity.cloudOwnerId === ownerId;
+}
+
+function addIdMapping(
+  map: Map<string, string>,
+  from: string | null | undefined,
+  to: string | null | undefined,
+) {
+  const sourceKey = normalizeIdValue(from);
+  if (!sourceKey || !to || sourceKey === normalizeIdValue(to)) return;
+  map.set(sourceKey, to);
+}
+
+function remapId<T extends string | null | undefined>(
+  value: T,
+  map: Map<string, string>,
+  summary?: DuplicateConsolidationSummary,
+): T {
+  const key = normalizeIdValue(value);
+  const mapped = key ? map.get(key) : undefined;
+  if (!mapped) return value;
+  if (summary && mapped !== value) summary.referencesRemapped += 1;
+  return mapped as T;
+}
+
+function remapIdArray(
+  values: string[] | null | undefined,
+  map: Map<string, string>,
+  summary?: DuplicateConsolidationSummary,
+): string[] {
+  const unique = new Map<string, string>();
+  for (const value of values || []) {
+    const mapped = remapId(value, map, summary);
+    const key = normalizeIdValue(mapped);
+    if (key && !unique.has(key)) {
+      unique.set(key, mapped);
+    }
+  }
+  return Array.from(unique.values());
+}
+
+function remapRecordKeys<T>(
+  record: Record<string, T> | undefined,
+  map: Map<string, string>,
+  summary?: DuplicateConsolidationSummary,
+): Record<string, T> | undefined {
+  if (!record) return record;
+  const next: Record<string, T> = {};
+  for (const [key, value] of Object.entries(record)) {
+    next[remapId(key, map, summary)] = value;
+  }
+  return next;
+}
+
+function remapPlayerPairs(
+  pairs: [string, string][] | undefined,
+  map: Map<string, string>,
+  summary?: DuplicateConsolidationSummary,
+): [string, string][] | undefined {
+  if (!pairs) return pairs;
+  const unique = new Map<string, [string, string]>();
+  for (const pair of pairs) {
+    const first = remapId(pair[0], map, summary);
+    const second = remapId(pair[1], map, summary);
+    if (!first || !second || normalizeIdValue(first) === normalizeIdValue(second)) continue;
+    const key = [first, second].map(normalizeIdValue).sort().join(':');
+    if (!unique.has(key)) unique.set(key, [first, second]);
+  }
+  return Array.from(unique.values());
+}
+
+function remapSessionConfig<T extends Session['config']>(
+  config: T,
+  playerIdMap: Map<string, string>,
+  summary: DuplicateConsolidationSummary,
+): T {
+  if (!config) return config;
+  return {
+    ...config,
+    playerPositions: remapRecordKeys(config.playerPositions, playerIdMap, summary),
+    balanceConstraints: config.balanceConstraints
+      ? {
+          ...config.balanceConstraints,
+          lockedPlayerIdxs: remapRecordKeys(
+            config.balanceConstraints.lockedPlayerIdxs,
+            playerIdMap,
+            summary,
+          ),
+          pairsTogether: remapPlayerPairs(
+            config.balanceConstraints.pairsTogether,
+            playerIdMap,
+            summary,
+          ),
+          pairsSeparated: remapPlayerPairs(
+            config.balanceConstraints.pairsSeparated,
+            playerIdMap,
+            summary,
+          ),
+        }
+      : config.balanceConstraints,
+  } as T;
+}
+
+function markDuplicateForMerge<T extends Syncable>(entity: T, deletedAt: string): T {
+  return {
+    ...entity,
+    deletedAt: entity.deletedAt || deletedAt,
+    updatedAt: deletedAt,
+    syncStatus: 'pending',
+  };
+}
+
+function isMappedDuplicate(
+  entity: { id: string; cloudId?: string },
+  map: Map<string, string>,
+): boolean {
+  return map.has(normalizeIdValue(entity.id)) || map.has(normalizeIdValue(entity.cloudId));
+}
+
+function chooseCommunityCanonical(group: Community[]): Community {
+  return [...group].sort((a, b) => {
+    const timeDelta = timestampMs(getSyncTimestamp(b)) - timestampMs(getSyncTimestamp(a));
+    if (timeDelta !== 0) return timeDelta;
+    return a.id.localeCompare(b.id);
+  })[0];
+}
+
+function choosePlayerCanonical(group: Player[]): Player {
+  return [...group].sort((a, b) => {
+    const linkedDelta = Number(!!b.userId) - Number(!!a.userId);
+    if (linkedDelta !== 0) return linkedDelta;
+
+    const avatarDelta = Number(!!b.avatarUrl) - Number(!!a.avatarUrl);
+    if (avatarDelta !== 0) return avatarDelta;
+
+    const usernameDelta = Number(!!b.username) - Number(!!a.username);
+    if (usernameDelta !== 0) return usernameDelta;
+
+    const timeDelta = timestampMs(getSyncTimestamp(b)) - timestampMs(getSyncTimestamp(a));
+    if (timeDelta !== 0) return timeDelta;
+
+    return a.id.localeCompare(b.id);
+  })[0];
+}
+
+function groupActiveDuplicates<T extends Syncable>(
+  items: T[],
+  getSemanticKey: (item: T) => string | undefined,
+  getScope: (item: T) => string,
+): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    if (item.deletedAt) continue;
+    const semanticKey = getSemanticKey(item);
+    if (!semanticKey) continue;
+    const key = `${getScope(item)}:${semanticKey}`;
+    const current = groups.get(key) || [];
+    current.push(item);
+    groups.set(key, current);
+  }
+  return Array.from(groups.values()).filter((group) => group.length > 1);
+}
+
+function dedupeByLatest<T extends Syncable>(
+  items: T[],
+  getKey: (item: T) => string | undefined,
+): T[] {
+  const byKey = new Map<string, T>();
+  const passthrough: T[] = [];
+
+  for (const item of items) {
+    const key = getKey(item);
+    if (!key) {
+      passthrough.push(item);
+      continue;
+    }
+
+    const current = byKey.get(key);
+    if (
+      !current ||
+      (!!current.deletedAt && !item.deletedAt) ||
+      timestampMs(getSyncTimestamp(item)) >= timestampMs(getSyncTimestamp(current))
+    ) {
+      byKey.set(key, item);
+    }
+  }
+
+  return [...passthrough, ...byKey.values()];
+}
+
+function remapGameReportPlayers(
+  report: GameReport,
+  playerIdMap: Map<string, string>,
+  summary: DuplicateConsolidationSummary,
+): GameReport {
+  return {
+    ...report,
+    teamA: {
+      ...report.teamA,
+      playerIds: remapIdArray(report.teamA?.playerIds, playerIdMap, summary),
+    },
+    teamB: {
+      ...report.teamB,
+      playerIds: remapIdArray(report.teamB?.playerIds, playerIdMap, summary),
+    },
+    playerStats: (report.playerStats || []).map((stat) => ({
+      ...stat,
+      playerId: remapId(stat.playerId, playerIdMap, summary),
+    })),
+  };
+}
+
+function remapDraftSlots(
+  slots: WhatsAppListDraft['mainSlots'],
+  playerIdMap: Map<string, string>,
+  summary: DuplicateConsolidationSummary,
+): WhatsAppListDraft['mainSlots'] {
+  return (slots || []).map((slot) => ({
+    ...slot,
+    playerId: remapId(slot.playerId, playerIdMap, summary),
+  }));
+}
+
+function mergePresenceRecords(records: CommunityPresence[]): CommunityPresence[] {
+  const byKey = new Map<string, CommunityPresence>();
+
+  for (const record of records) {
+    const key = `${normalizeIdValue(record.communityId)}:${record.date}`;
+    const current = byKey.get(key);
+    if (!current) {
+      byKey.set(key, record);
+      continue;
+    }
+
+    const items = new Map<string, CommunityPresence['items'][number]>();
+    for (const item of current.items || []) {
+      const itemKey = item.playerId
+        ? `player:${normalizeIdValue(item.playerId)}`
+        : `guest:${normalizeSemanticText(item.temporaryName)}`;
+      items.set(itemKey, item);
+    }
+    for (const item of record.items || []) {
+      const itemKey = item.playerId
+        ? `player:${normalizeIdValue(item.playerId)}`
+        : `guest:${normalizeSemanticText(item.temporaryName)}`;
+      items.set(itemKey, item);
+    }
+
+    byKey.set(key, {
+      ...(timestampMs(record.updatedAt) >= timestampMs(current.updatedAt) ? record : current),
+      items: Array.from(items.values()),
+      updatedAt:
+        timestampMs(record.updatedAt) >= timestampMs(current.updatedAt)
+          ? record.updatedAt
+          : current.updatedAt,
+    });
+  }
+
+  return Array.from(byKey.values());
 }
 
 function preserveLocalIdentity<T extends Syncable>(cloudEntity: T, localEntity: T): T {
@@ -107,11 +420,20 @@ export function mergeEntityLists<T extends Syncable>(
     const normLocalCloudId = norm(localCloudId);
     const normLocalId = norm(localId);
 
-    const cloudEntity = cloudEntities.find(
+    let cloudEntity = cloudEntities.find(
       (cloud) =>
         (!!normLocalCloudId && norm(cloud.cloudId) === normLocalCloudId) ||
         norm(options.getId(cloud)) === normLocalId,
     );
+
+    if (!cloudEntity && !localEntity.cloudId && options.getSemanticKey) {
+      const localSemanticKey = options.getSemanticKey(localEntity);
+      if (localSemanticKey) {
+        cloudEntity = cloudEntities.find(
+          (cloud) => options.getSemanticKey?.(cloud) === localSemanticKey,
+        );
+      }
+    }
 
     if (cloudEntity) {
       processedCloudKeys.add(norm(cloudEntity.cloudId || options.getId(cloudEntity)));
@@ -207,6 +529,12 @@ export function isUuid(value: string | null | undefined): boolean {
   return !!value && UUID_RE.test(value);
 }
 
+export function isCloudBackedPlayerLinkProposal(
+  proposal: Pick<PlayerLinkProposal, 'id' | 'syncStatus'>,
+): boolean {
+  return isUuid(proposal.id) && proposal.syncStatus !== 'pending' && proposal.syncStatus !== 'local';
+}
+
 /**
  * Decide quais relações community_players da nuvem são órfãs (devem ser deletadas)
  * na reconciliação. Regra de segurança (C1): só considera relações de players
@@ -227,6 +555,236 @@ export function computeStaleRelationIds(
     })
     .map((relation) => relation.id)
     .filter(Boolean) as string[];
+}
+
+export function consolidateDuplicateRecords(
+  local: LocalSyncPayload,
+  options: { ownerId?: string; deletedAt?: string } = {},
+): DuplicateConsolidationResult {
+  const deletedAt = options.deletedAt || nowIso();
+  const summary: DuplicateConsolidationSummary = {
+    communitiesMerged: 0,
+    playersMerged: 0,
+    referencesRemapped: 0,
+  };
+
+  const communityIdMap = new Map<string, string>();
+  const duplicateCommunityIdMap = new Map<string, string>();
+  const playerIdMap = new Map<string, string>();
+  const duplicatePlayerIdMap = new Map<string, string>();
+  const playerCloudIdMap = new Map<string, string>();
+  const canonicalPlayerCommunityIds = new Map<string, string[]>();
+
+  for (const community of local.communities) {
+    if (!community.deletedAt) {
+      addIdMapping(communityIdMap, community.cloudId, community.id);
+    }
+  }
+
+  for (const player of local.players) {
+    if (!player.deletedAt) {
+      addIdMapping(playerIdMap, player.cloudId, player.id);
+    }
+  }
+
+  const communityGroups = groupActiveDuplicates(
+    local.communities.filter((community) =>
+      canConsolidateOwnedEntity(community, options.ownerId),
+    ),
+    communitySemanticKey,
+    (community) => community.cloudOwnerId || options.ownerId || 'local',
+  );
+
+  for (const group of communityGroups) {
+    const canonical = chooseCommunityCanonical(group);
+    summary.communitiesMerged += group.length - 1;
+    for (const duplicate of group) {
+      if (duplicate === canonical) continue;
+      addIdMapping(communityIdMap, duplicate.id, canonical.id);
+      addIdMapping(communityIdMap, duplicate.cloudId, canonical.id);
+      addIdMapping(duplicateCommunityIdMap, duplicate.id, canonical.id);
+      addIdMapping(duplicateCommunityIdMap, duplicate.cloudId, canonical.id);
+    }
+  }
+
+  const playerGroups = groupActiveDuplicates(
+    local.players.filter((player) => canConsolidateOwnedEntity(player, options.ownerId)),
+    playerSemanticKey,
+    (player) => player.cloudOwnerId || options.ownerId || 'local',
+  ).filter((group) => {
+    const linkedUsers = new Set(group.map((player) => player.userId).filter(Boolean));
+    return linkedUsers.size <= 1;
+  });
+
+  for (const group of playerGroups) {
+    const canonical = choosePlayerCanonical(group);
+    const communityIds = new Set<string>();
+    for (const player of group) {
+      for (const communityId of player.communityIds || []) {
+        const mappedCommunityId = remapId(communityId, communityIdMap);
+        if (mappedCommunityId) communityIds.add(mappedCommunityId);
+      }
+    }
+    canonicalPlayerCommunityIds.set(normalizeIdValue(canonical.id), Array.from(communityIds));
+    summary.playersMerged += group.length - 1;
+
+    for (const duplicate of group) {
+      if (duplicate === canonical) continue;
+      addIdMapping(playerIdMap, duplicate.id, canonical.id);
+      addIdMapping(playerIdMap, duplicate.cloudId, canonical.id);
+      addIdMapping(duplicatePlayerIdMap, duplicate.id, canonical.id);
+      addIdMapping(duplicatePlayerIdMap, duplicate.cloudId, canonical.id);
+      addIdMapping(playerCloudIdMap, duplicate.cloudId, canonical.cloudId || canonical.id);
+    }
+  }
+
+  const communities = local.communities.map((community) => {
+    if (isMappedDuplicate(community, duplicateCommunityIdMap)) {
+      return markDuplicateForMerge(community, deletedAt);
+    }
+    return {
+      ...community,
+      syncStatus:
+        communityIdMap.size > 0 && !community.deletedAt ? 'pending' : community.syncStatus,
+    };
+  });
+
+  const players = local.players.map((player) => {
+    if (isMappedDuplicate(player, duplicatePlayerIdMap)) {
+      return markDuplicateForMerge(player, deletedAt);
+    }
+
+    const mergedCommunityIds =
+      canonicalPlayerCommunityIds.get(normalizeIdValue(player.id)) ||
+      remapIdArray(player.communityIds, communityIdMap, summary);
+
+    return {
+      ...player,
+      communityIds: mergedCommunityIds,
+      syncStatus:
+        (playerIdMap.size > 0 || communityIdMap.size > 0) && !player.deletedAt
+          ? 'pending'
+          : player.syncStatus,
+    };
+  });
+
+  const rules = dedupeByLatest(
+    local.rules.map((rule) => {
+      const communityId = remapId(rule.communityId, communityIdMap, summary);
+      return {
+        ...rule,
+        communityId,
+        cloudId: communityId !== rule.communityId ? undefined : rule.cloudId,
+        syncStatus: communityId !== rule.communityId ? 'pending' : rule.syncStatus,
+      };
+    }),
+    (rule) => normalizeIdValue(rule.communityId),
+  );
+
+  const templates = local.templates.map((template) => ({
+    ...template,
+    communityId: remapId(template.communityId, communityIdMap, summary),
+    syncStatus: communityIdMap.size > 0 && !template.deletedAt ? 'pending' : template.syncStatus,
+  }));
+
+  const sessions = local.sessions.map((session) => ({
+    ...session,
+    communityId: remapId(session.communityId, communityIdMap, summary),
+    selectedPlayerIds: remapIdArray(session.selectedPlayerIds, playerIdMap, summary),
+    config: remapSessionConfig(session.config, playerIdMap, summary),
+    syncStatus:
+      (communityIdMap.size > 0 || playerIdMap.size > 0) && !session.deletedAt
+        ? 'pending'
+        : session.syncStatus,
+  }));
+
+  const teams = local.teams.map((team) => ({
+    ...team,
+    playerIds: remapIdArray(team.playerIds, playerIdMap, summary),
+    syncStatus: playerIdMap.size > 0 && !team.deletedAt ? 'pending' : team.syncStatus,
+  }));
+
+  const pointEvents = local.pointEvents.map((point) => ({
+    ...point,
+    playerId: remapId(point.playerId, playerIdMap, summary),
+    assistPlayerId: remapId(point.assistPlayerId, playerIdMap, summary),
+    syncStatus: playerIdMap.size > 0 && !point.deletedAt ? 'pending' : point.syncStatus,
+  }));
+
+  const gameReports = local.gameReports.map((report) => ({
+    ...remapGameReportPlayers(report, playerIdMap, summary),
+    syncStatus: playerIdMap.size > 0 && !report.deletedAt ? 'pending' : report.syncStatus,
+  }));
+
+  const sessionReports = local.sessionReports.map((report) => ({
+    ...report,
+    playerRanking: (report.playerRanking || []).map((row) => ({
+      ...row,
+      playerId: remapId(row.playerId, playerIdMap, summary),
+    })),
+    games: (report.games || []).map((gameReport) =>
+      remapGameReportPlayers(gameReport, playerIdMap, summary),
+    ),
+    syncStatus: playerIdMap.size > 0 && !report.deletedAt ? 'pending' : report.syncStatus,
+  }));
+
+  const presenceRecords = mergePresenceRecords(
+    local.presenceRecords.map((presence) => ({
+      ...presence,
+      communityId: remapId(presence.communityId, communityIdMap, summary),
+      items: (presence.items || []).map((item) => ({
+        ...item,
+        playerId: remapId(item.playerId, playerIdMap, summary),
+      })),
+      syncStatus:
+        (communityIdMap.size > 0 || playerIdMap.size > 0) && !presence.deletedAt
+          ? 'pending'
+          : presence.syncStatus,
+    })),
+  );
+
+  const drafts = local.drafts.map((draft) => ({
+    ...draft,
+    communityId: remapId(draft.communityId, communityIdMap, summary),
+    setters: remapDraftSlots(draft.setters, playerIdMap, summary),
+    mainSlots: remapDraftSlots(draft.mainSlots, playerIdMap, summary),
+    reserveSlots: remapDraftSlots(draft.reserveSlots, playerIdMap, summary),
+    syncStatus:
+      (communityIdMap.size > 0 || playerIdMap.size > 0) && !draft.deletedAt
+        ? 'pending'
+        : draft.syncStatus,
+  }));
+
+  const linkProposals = (local.linkProposals || []).map((proposal) => ({
+    ...proposal,
+    playerId: remapId(proposal.playerId, playerIdMap, summary),
+    playerCloudId: remapId(proposal.playerCloudId, playerCloudIdMap, summary),
+    syncStatus:
+      playerIdMap.size > 0 &&
+      !proposal.deletedAt &&
+      !isCloudBackedPlayerLinkProposal(proposal)
+        ? 'pending'
+        : proposal.syncStatus,
+  }));
+
+  return {
+    payload: {
+      communities,
+      players,
+      rules,
+      templates,
+      sessions,
+      teams,
+      games: local.games,
+      pointEvents,
+      gameReports,
+      sessionReports,
+      presenceRecords,
+      drafts,
+      linkProposals,
+    },
+    summary,
+  };
 }
 
 async function bulkUploadSessionChildren<T extends Syncable>(
@@ -649,7 +1207,7 @@ export const syncService = {
           continue;
         }
 
-        if (isUuid(proposal.id)) {
+        if (isCloudBackedPlayerLinkProposal(proposal)) {
           // Já existe na nuvem: o status é gerido pelos RPCs approve/reject/cancel
           // (chamados pelo hook) e o download traz o estado autoritativo. Não
           // reupsertamos — evita brigar com os triggers e o índice único de
@@ -752,10 +1310,12 @@ export const syncService = {
     const merged: LocalSyncPayload = {
       communities: mergeEntityLists(local.communities, cloud.communities, {
         getId: (item) => item.id,
+        getSemanticKey: communitySemanticKey,
       }),
       players: mergeEntityLists(local.players, cloud.players, {
         getId: (item) => item.id,
         getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
+        getSemanticKey: playerSemanticKey,
       }),
       rules: mergeEntityLists(local.rules, cloud.rules, { getId: (item) => item.communityId }),
       templates: mergeEntityLists(local.templates, cloud.templates, { getId: (item) => item.id }),
@@ -781,6 +1341,27 @@ export const syncService = {
     };
 
     return this.uploadLocalDataToCloud(merged, ownerId, {
+      ...options,
+      reconcileRelations: true,
+    });
+  },
+
+  async repairDuplicateCloudData(
+    ownerId: string,
+    options: SyncOptions = {},
+  ): Promise<LocalSyncPayload> {
+    const cloud = await this.downloadCloudDataToLocal(ownerId);
+    const { payload, summary } = consolidateDuplicateRecords(cloud, { ownerId });
+
+    if (
+      summary.communitiesMerged === 0 &&
+      summary.playersMerged === 0 &&
+      summary.referencesRemapped === 0
+    ) {
+      return cloud;
+    }
+
+    return this.uploadLocalDataToCloud(payload, ownerId, {
       ...options,
       reconcileRelations: true,
     });

@@ -6,7 +6,7 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   name text,
   email text,
-  role text not null check (role in ('admin', 'organizer')) default 'organizer',
+  role text not null check (role in ('master', 'programmer', 'user')) default 'user',
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
@@ -312,7 +312,7 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
     new.email,
-    'organizer'
+    'user'
   );
   return new;
 end;

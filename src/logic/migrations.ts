@@ -122,6 +122,7 @@ export function normalizeSessionDraft(draft: any) {
 export function normalizeCommunity(community: any): Community {
   const now = new Date().toISOString();
   return {
+    ...community,
     id: community?.id || `community-${Date.now()}`,
     name: community?.name || 'Comunidade',
     description: community?.description || '',

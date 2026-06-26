@@ -57,6 +57,33 @@ test('normalizeSessionDraft and normalizeCommunities handle missing legacy field
   assert.equal(community.archived, false);
 });
 
+test('normalizeCommunities preserves cloud metadata and sync state', () => {
+  const [community] = normalizeCommunities([
+    {
+      id: 'community-local',
+      name: 'Quinta Forte',
+      cloudId: '4da17d42-0532-4fde-987e-a503827b57ab',
+      cloudOwnerId: 'owner-cloud-id',
+      visibility: 'public',
+      joinCode: 'ABC123',
+      syncStatus: 'synced',
+      lastSyncedAt: '2026-06-24T18:00:00.000Z',
+      deletedAt: '2026-06-25T10:00:00.000Z',
+      createdAt: '2026-06-20T10:00:00.000Z',
+      updatedAt: '2026-06-24T17:59:00.000Z',
+    },
+  ]);
+
+  assert.equal(community.cloudId, '4da17d42-0532-4fde-987e-a503827b57ab');
+  assert.equal(community.cloudOwnerId, 'owner-cloud-id');
+  assert.equal(community.visibility, 'public');
+  assert.equal(community.joinCode, 'ABC123');
+  assert.equal(community.syncStatus, 'synced');
+  assert.equal(community.lastSyncedAt, '2026-06-24T18:00:00.000Z');
+  assert.equal(community.deletedAt, '2026-06-25T10:00:00.000Z');
+  assert.equal(community.defaultFormat, 'free_play');
+});
+
 test('normalizers return empty arrays for invalid collection inputs', () => {
   assert.deepEqual(normalizeSessions(null as unknown as []), []);
   assert.deepEqual(normalizeGames(undefined as unknown as []), []);

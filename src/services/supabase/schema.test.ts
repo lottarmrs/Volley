@@ -18,6 +18,19 @@ const playerEvaluationsMigration = readFileSync(
   'utf8',
 );
 
+const baseSchema = readFileSync(
+  new URL('../../../supabase/migrations/schema.sql', import.meta.url),
+  'utf8',
+);
+
+const profileSignupFixMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260625182618_fix_profile_signup_role.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const requiredTables = [
   'community_members',
   'sessions',
@@ -111,5 +124,30 @@ test('player evaluations migration defines per-organizer athlete evaluations', (
   assert.match(
     playerEvaluationsMigration,
     /current_user_can_access_player\(player_id\)/i,
+  );
+});
+
+test('profile signup trigger creates a valid default RBAC user role', () => {
+  assert.match(
+    baseSchema,
+    /role text not null check \(role in \('master', 'programmer', 'user'\)\) default 'user'/i,
+  );
+  assert.match(
+    baseSchema,
+    /create or replace function public\.handle_new_user\(\)[\s\S]*new\.email,\s*'user'/i,
+  );
+  assert.doesNotMatch(
+    baseSchema,
+    /create or replace function public\.handle_new_user\(\)[\s\S]*new\.email,\s*'organizer'/i,
+  );
+
+  assert.match(
+    profileSignupFixMigration,
+    /create or replace function public\.handle_new_user\(\)/i,
+  );
+  assert.match(profileSignupFixMigration, /new\.email,\s*'user'/i);
+  assert.match(
+    profileSignupFixMigration,
+    /revoke execute on function public\.handle_new_user\(\) from public, anon, authenticated;/i,
   );
 });

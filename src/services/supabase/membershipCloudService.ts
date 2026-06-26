@@ -4,10 +4,22 @@ import { CommunityMember, CommunityMemberRole } from '../../types';
 type DbRecord = Record<string, any>;
 
 const MEMBER_COLUMNS =
-  'id, community_id, user_id, role, status, invited_by, created_at, updated_at, profiles(name, email)';
+  'id, community_id, user_id, role, status, invited_by, created_at, updated_at';
+const PROFILE_COLUMNS = 'id, name, email';
 
-export function mapDbToCommunityMember(db: DbRecord, communityLocalId?: string): CommunityMember {
-  const profile = Array.isArray(db.profiles) ? db.profiles[0] : db.profiles;
+type ProfileRecord = {
+  id: string;
+  name: string | null;
+  email: string | null;
+};
+
+export function mapDbToCommunityMember(
+  db: DbRecord,
+  communityLocalId?: string,
+  profileRecord?: Partial<ProfileRecord> | null,
+): CommunityMember {
+  const embeddedProfile = Array.isArray(db.profiles) ? db.profiles[0] : db.profiles;
+  const profile = profileRecord || embeddedProfile;
   return {
     id: db.id,
     communityId: communityLocalId || db.community_id,
@@ -22,6 +34,39 @@ export function mapDbToCommunityMember(db: DbRecord, communityLocalId?: string):
   };
 }
 
+async function fetchProfilesByUserIds(userIds: string[]): Promise<Map<string, ProfileRecord>> {
+  const ids = Array.from(new Set(userIds.filter(Boolean)));
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(PROFILE_COLUMNS)
+    .in('id', ids);
+
+  if (error) {
+    console.warn('[membership] NÃ£o foi possÃ­vel carregar perfis dos membros.', error);
+    return new Map();
+  }
+
+  return new Map((data || []).map((profile) => [profile.id, profile]));
+}
+
+async function mapMembersWithProfiles(
+  rows: DbRecord[],
+  communityLocalId?: string,
+): Promise<CommunityMember[]> {
+  const profiles = await fetchProfilesByUserIds(rows.map((row) => row.user_id));
+  return rows.map((row) => mapDbToCommunityMember(row, communityLocalId, profiles.get(row.user_id)));
+}
+
+async function mapMemberWithProfile(
+  row: DbRecord,
+  communityLocalId?: string,
+): Promise<CommunityMember> {
+  const profiles = await fetchProfilesByUserIds([row.user_id]);
+  return mapDbToCommunityMember(row, communityLocalId, profiles.get(row.user_id));
+}
+
 export const membershipCloudService = {
   async fetchByCommunity(
     communityCloudId: string,
@@ -34,7 +79,7 @@ export const membershipCloudService = {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return (data || []).map((row) => mapDbToCommunityMember(row, communityLocalId));
+    return mapMembersWithProfiles(data || [], communityLocalId);
   },
 
   async addOrganizerByEmail(
@@ -50,7 +95,7 @@ export const membershipCloudService = {
     });
 
     if (error) throw error;
-    return mapDbToCommunityMember(data, communityLocalId);
+    return mapMemberWithProfile(data, communityLocalId);
   },
 
   async updateRole(memberId: string, role: CommunityMemberRole): Promise<CommunityMember> {
@@ -62,7 +107,7 @@ export const membershipCloudService = {
       .single();
 
     if (error) throw error;
-    return mapDbToCommunityMember(data);
+    return mapMemberWithProfile(data);
   },
 
   async removeMember(memberId: string): Promise<void> {
@@ -111,7 +156,7 @@ export const membershipCloudService = {
   async requestToJoin(code: string, communityLocalId?: string): Promise<CommunityMember> {
     const { data, error } = await supabase.rpc('request_to_join_community', { p_code: code });
     if (error) throw error;
-    return mapDbToCommunityMember(data, communityLocalId);
+    return mapMemberWithProfile(data, communityLocalId);
   },
 
   /** Aprova um pedido pendente (dono/admin). */

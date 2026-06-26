@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react';
 import { syncService, LocalSyncPayload } from '../services/supabase/syncService';
 import { normalizeGames, normalizeSessions } from '../logic/migrations';
-import { loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
+import {
+  loadFromStorage,
+  markLocalCacheOwner,
+  saveToStorage,
+} from '../storage/localStorageRepository';
 import {
   Community,
   CommunityPresence,
@@ -110,6 +114,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     const nowStr = new Date().toISOString();
     setLastSyncedAt(nowStr);
     saveToStorage(LAST_SYNCED_AT_KEY, nowStr);
+    markLocalCacheOwner(deps.userId);
   };
 
   // Trava de reentrância: o auto-sync no login e um clique manual podem disparar
@@ -182,10 +187,16 @@ export function useCloudSync(deps: CloudSyncDeps) {
       syncService.syncNow(payload, userId, { onIssue }),
     );
 
+  const repairDuplicateCloudData = () =>
+    run('Saneamento de duplicatas', (_payload, userId, onIssue) =>
+      syncService.repairDuplicateCloudData(userId, { onIssue }),
+    );
+
   return {
     uploadToCloud,
     downloadFromCloud,
     sync,
+    repairDuplicateCloudData,
     syncLoading,
     lastSyncedAt,
     status,

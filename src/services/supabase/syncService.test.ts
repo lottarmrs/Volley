@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeEntityLists, computeStaleRelationIds, isUuid } from './syncService';
+import {
+  mergeEntityLists,
+  computeStaleRelationIds,
+  communitySemanticKey,
+  isUuid,
+  isCloudBackedPlayerLinkProposal,
+  playerSemanticKey,
+  consolidateDuplicateRecords,
+} from './syncService';
 import { CloudSyncStatus } from '../../types';
 
 interface TestEntity {
@@ -11,6 +19,12 @@ interface TestEntity {
   deletedAt?: string;
   syncStatus?: CloudSyncStatus;
   scoreA?: number;
+  name?: string;
+  nome?: string;
+  username?: string;
+  genero?: string;
+  posicaoPrincipal?: string;
+  alturaCm?: number;
 }
 
 test('mergeEntityLists keeps newer local records pending with cloud id attached', () => {
@@ -97,6 +111,72 @@ test('mergeEntityLists adds cloud-only records to the local payload', () => {
   assert.equal(merged[1].cloudId, 'session-cloud');
 });
 
+test('mergeEntityLists matches communities by semantic name to prevent cross-device duplicates', () => {
+  const [merged] = mergeEntityLists<TestEntity>(
+    [{ id: 'community-device-b', name: 'Terça do Vôlei', updatedAt: '2026-06-09T12:00:00.000Z' }],
+    [
+      {
+        id: 'community-device-a',
+        cloudId: 'community-cloud',
+        name: 'Terca do Volei',
+        updatedAt: '2026-06-09T11:00:00.000Z',
+      },
+    ],
+    {
+      getId: (item) => item.id,
+      getSemanticKey: (item) => communitySemanticKey({ name: item.name || '' }),
+    },
+  );
+
+  assert.equal(merged.id, 'community-device-b');
+  assert.equal(merged.cloudId, 'community-cloud');
+  assert.equal(merged.syncStatus, 'pending');
+});
+
+test('mergeEntityLists matches players by username/profile to prevent cross-device duplicates', () => {
+  const [merged] = mergeEntityLists<TestEntity>(
+    [
+      {
+        id: 'player-device-b',
+        nome: 'Ana Souza',
+        username: 'ana-souza',
+        genero: 'F',
+        posicaoPrincipal: 'levantador',
+        alturaCm: 171,
+        updatedAt: '2026-06-09T10:00:00.000Z',
+      },
+    ],
+    [
+      {
+        id: 'player-device-a',
+        cloudId: 'player-cloud',
+        nome: 'Ana Souza',
+        username: 'ANA-SOUZA',
+        genero: 'F',
+        posicaoPrincipal: 'levantador',
+        alturaCm: 171,
+        updatedAt: '2026-06-09T12:00:00.000Z',
+      },
+    ],
+    {
+      getId: (item) => item.id,
+      getUpdatedAt: (item) => item.updatedAt,
+      getSemanticKey: (item) =>
+        playerSemanticKey({
+          username: item.username,
+          nome: item.nome || '',
+          genero: item.genero as any,
+          posicaoPrincipal: item.posicaoPrincipal as any,
+          alturaCm: item.alturaCm,
+        }),
+    },
+  );
+
+  assert.equal(merged.id, 'player-device-b');
+  assert.equal(merged.cloudId, 'player-cloud');
+  assert.equal(merged.syncStatus, 'synced');
+});
+
 test('mergeEntityLists preserves local records with cloudId if missing from cloud response (avoiding deletion)', () => {
   const merged = mergeEntityLists<TestEntity>(
     [{ id: 'session-local', cloudId: 'session-cloud', updatedAt: '2026-06-09T10:00:00.000Z' }],
@@ -108,6 +188,227 @@ test('mergeEntityLists preserves local records with cloudId if missing from clou
   assert.equal(merged[0].id, 'session-local');
   assert.equal(merged[0].cloudId, 'session-cloud');
   assert.equal(merged[0].deletedAt, undefined);
+});
+
+test('consolidateDuplicateRecords merges old duplicates and remaps historical references', () => {
+  const { payload, summary } = consolidateDuplicateRecords(
+    {
+      communities: [
+        {
+          id: 'comm-old-local',
+          cloudId: 'comm-old-cloud',
+          cloudOwnerId: 'owner-1',
+          name: 'Terca do Volei',
+          createdAt: '2026-06-01T10:00:00.000Z',
+          updatedAt: '2026-06-01T10:00:00.000Z',
+        },
+        {
+          id: 'comm-new-local',
+          cloudId: 'comm-new-cloud',
+          cloudOwnerId: 'owner-1',
+          name: ' terca do volei ',
+          createdAt: '2026-06-02T10:00:00.000Z',
+          updatedAt: '2026-06-02T10:00:00.000Z',
+        },
+      ],
+      players: [
+        {
+          id: 'player-old-local',
+          cloudId: 'player-old-cloud',
+          cloudOwnerId: 'owner-1',
+          username: 'ana-souza',
+          nome: 'Ana Souza',
+          genero: 'F',
+          posicaoPrincipal: 'levantador',
+          alturaCm: 171,
+          communityIds: ['comm-old-cloud'],
+          updatedAt: '2026-06-01T10:00:00.000Z',
+          metadata: { atualizadoEm: '2026-06-01T10:00:00.000Z' },
+        },
+        {
+          id: 'player-new-local',
+          cloudId: 'player-new-cloud',
+          cloudOwnerId: 'owner-1',
+          username: 'ANA-SOUZA',
+          nome: 'Ana Souza',
+          genero: 'F',
+          posicaoPrincipal: 'levantador',
+          alturaCm: 171,
+          communityIds: ['comm-new-cloud'],
+          userId: 'auth-user',
+          updatedAt: '2026-06-02T10:00:00.000Z',
+          metadata: { atualizadoEm: '2026-06-02T10:00:00.000Z' },
+        },
+      ],
+      rules: [],
+      templates: [],
+      sessions: [
+        {
+          id: 'session-1',
+          communityId: 'comm-old-cloud',
+          name: 'Treino',
+          date: '2026-06-03',
+          status: 'active',
+          selectedPlayerIds: ['player-old-cloud', 'player-new-local'],
+          teamIds: ['team-1'],
+          createdAt: '2026-06-03T10:00:00.000Z',
+          updatedAt: '2026-06-03T10:00:00.000Z',
+          config: {
+            type: 'free_play',
+            teamCount: 2,
+            maxPoints: 15,
+            tieBreakMethod: 'direct_3',
+            rotationSystem: 'winner_stays',
+            initialCourtTeams: ['team-1', 'team-2'],
+            initialQueue: [],
+            queuePolicy: 'fifo',
+            playerPositions: {
+              'player-old-cloud': 'levantador',
+            },
+            balanceConstraints: {
+              lockedPlayerIdxs: { 'player-old-cloud': 0 },
+              pairsTogether: [['player-old-cloud', 'player-new-local']],
+            },
+          },
+        },
+      ],
+      teams: [
+        {
+          id: 'team-1',
+          sessionId: 'session-1',
+          name: 'Time A',
+          playerIds: ['player-old-cloud', 'player-new-local'],
+          generatedByAlgorithm: true,
+          locked: false,
+          strengthSnapshot: {},
+        },
+      ],
+      games: [],
+      pointEvents: [
+        {
+          id: 'point-1',
+          sessionId: 'session-1',
+          gameId: 'game-1',
+          sequenceNumber: 1,
+          scoringTeamId: 'team-1',
+          concedingTeamId: 'team-2',
+          playerId: 'player-old-cloud',
+          assistPlayerId: 'player-old-local',
+          scoreBefore: { teamA: 0, teamB: 0 },
+          scoreAfter: { teamA: 1, teamB: 0 },
+          timestamp: '2026-06-03T10:05:00.000Z',
+        },
+      ],
+      gameReports: [
+        {
+          id: 'report-1',
+          sessionId: 'session-1',
+          gameId: 'game-1',
+          sequenceNumber: 1,
+          generatedAt: '2026-06-03T11:00:00.000Z',
+          teamA: {
+            id: 'team-1',
+            name: 'Time A',
+            playerIds: ['player-old-cloud'],
+            playerNames: ['Ana Souza'],
+            score: 15,
+          },
+          teamB: {
+            id: 'team-2',
+            name: 'Time B',
+            playerIds: [],
+            playerNames: [],
+            score: 12,
+          },
+          winnerTeamId: 'team-1',
+          winnerTeamName: 'Time A',
+          loserTeamId: 'team-2',
+          loserTeamName: 'Time B',
+          totalPoints: 27,
+          playerStats: [
+            {
+              playerId: 'player-old-cloud',
+              playerName: 'Ana Souza',
+              teamId: 'team-1',
+              teamName: 'Time A',
+              totalPoints: 1,
+              attacks: 1,
+              blocks: 0,
+              aces: 0,
+              tips: 0,
+              counterAttacks: 0,
+            },
+          ],
+        },
+      ],
+      sessionReports: [],
+      presenceRecords: [
+        {
+          communityId: 'comm-old-cloud',
+          date: '2026-06-03',
+          items: [{ playerId: 'player-old-cloud', status: 'present' }],
+          updatedAt: '2026-06-03T09:00:00.000Z',
+        },
+      ],
+      drafts: [
+        {
+          id: 'draft-1',
+          communityId: 'comm-old-cloud',
+          title: 'Lista',
+          date: '2026-06-03',
+          setters: [{ index: 0, playerId: 'player-old-cloud' }],
+          mainSlots: [{ index: 0, playerId: 'player-old-local' }],
+          reserveSlots: [],
+          settersSectionTitle: 'Levantadores',
+          reserveSectionTitle: 'Reserva',
+          showLockIcon: true,
+          paymentSymbol: '$',
+          createdAt: '2026-06-03T08:00:00.000Z',
+          updatedAt: '2026-06-03T08:00:00.000Z',
+        },
+      ],
+      linkProposals: [
+        {
+          id: 'proposal-1',
+          playerId: 'player-old-local',
+          playerCloudId: 'player-old-cloud',
+          userId: 'auth-user',
+          status: 'pending',
+          createdAt: '2026-06-03T08:00:00.000Z',
+        },
+      ],
+    } as any,
+    { ownerId: 'owner-1', deletedAt: '2026-06-04T00:00:00.000Z' },
+  );
+
+  assert.equal(summary.communitiesMerged, 1);
+  assert.equal(summary.playersMerged, 1);
+  assert.equal(
+    payload.communities.find((community) => community.id === 'comm-old-local')?.deletedAt,
+    '2026-06-04T00:00:00.000Z',
+  );
+  assert.equal(
+    payload.players.find((player) => player.id === 'player-old-local')?.deletedAt,
+    '2026-06-04T00:00:00.000Z',
+  );
+  assert.deepEqual(
+    payload.players.find((player) => player.id === 'player-new-local')?.communityIds,
+    ['comm-new-local'],
+  );
+  assert.equal(payload.sessions[0].communityId, 'comm-new-local');
+  assert.deepEqual(payload.sessions[0].selectedPlayerIds, ['player-new-local']);
+  assert.deepEqual(payload.teams[0].playerIds, ['player-new-local']);
+  assert.equal(payload.pointEvents[0].playerId, 'player-new-local');
+  assert.equal(payload.pointEvents[0].assistPlayerId, 'player-new-local');
+  assert.deepEqual(payload.gameReports[0].teamA.playerIds, ['player-new-local']);
+  assert.equal(payload.gameReports[0].playerStats[0].playerId, 'player-new-local');
+  assert.equal(payload.presenceRecords[0].communityId, 'comm-new-local');
+  assert.equal(payload.presenceRecords[0].items[0].playerId, 'player-new-local');
+  assert.equal(payload.drafts[0].communityId, 'comm-new-local');
+  assert.equal(payload.drafts[0].setters[0].playerId, 'player-new-local');
+  assert.equal(payload.drafts[0].mainSlots[0].playerId, 'player-new-local');
+  assert.equal(payload.linkProposals?.[0].playerId, 'player-new-local');
+  assert.equal(payload.linkProposals?.[0].playerCloudId, 'player-new-cloud');
 });
 
 test('computeStaleRelationIds deletes only undesired relations of payload players', () => {
@@ -148,8 +449,21 @@ test('computeStaleRelationIds is case-insensitive on ids', () => {
 test('isUuid distinguishes native uuids from temporary/local ids (I2)', () => {
   assert.equal(isUuid('0f2b679a-680e-486a-871e-e8d2c6052bff'), true);
   assert.equal(isUuid('proposal-1782082372208'), false);
+  assert.equal(isUuid('proposal-0f2b679a-680e-486a-871e-e8d2c6052bff'), false);
   assert.equal(isUuid('community-123'), false);
   assert.equal(isUuid(''), false);
   assert.equal(isUuid(undefined), false);
 });
 
+test('pending player link proposals are local even with legacy uuid ids', () => {
+  const uuid = '0f2b679a-680e-486a-871e-e8d2c6052bff';
+
+  assert.equal(isCloudBackedPlayerLinkProposal({ id: uuid, syncStatus: 'synced' }), true);
+  assert.equal(isCloudBackedPlayerLinkProposal({ id: uuid }), true);
+  assert.equal(isCloudBackedPlayerLinkProposal({ id: uuid, syncStatus: 'pending' }), false);
+  assert.equal(isCloudBackedPlayerLinkProposal({ id: uuid, syncStatus: 'local' }), false);
+  assert.equal(
+    isCloudBackedPlayerLinkProposal({ id: `proposal-${uuid}`, syncStatus: 'pending' }),
+    false,
+  );
+});

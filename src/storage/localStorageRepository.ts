@@ -20,6 +20,37 @@ export const STORAGE_KEYS = {
   playerLinkProposals: 'vpg_player_link_proposals',
 };
 
+export const LOCAL_CACHE_OWNER_KEY = 'vpg_cache_owner_id';
+
+export const STORAGE_METADATA_KEYS = [
+  LOCAL_CACHE_OWNER_KEY,
+  'vpg_last_synced_at',
+  'vpg_uuid_migration_completed',
+  'vpg_players_schema_version',
+  'vpg_selected_division_index',
+];
+
+export function getLocalCacheOwnerId(): string | null {
+  try {
+    return localStorage.getItem(LOCAL_CACHE_OWNER_KEY);
+  } catch (err) {
+    console.error(`Error loading ${LOCAL_CACHE_OWNER_KEY} from storage:`, err);
+    return null;
+  }
+}
+
+export function markLocalCacheOwner(userId: string | null | undefined) {
+  try {
+    if (userId) {
+      localStorage.setItem(LOCAL_CACHE_OWNER_KEY, userId);
+    } else {
+      localStorage.removeItem(LOCAL_CACHE_OWNER_KEY);
+    }
+  } catch (err) {
+    console.error(`Error saving ${LOCAL_CACHE_OWNER_KEY} to storage:`, err);
+  }
+}
+
 export function loadFromStorage<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);

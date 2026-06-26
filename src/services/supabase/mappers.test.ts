@@ -532,6 +532,28 @@ test('community member mapper reads embedded profile data', () => {
   assert.equal(mapped.email, 'ana@example.com');
 });
 
+test('community member mapper accepts profile data fetched separately', () => {
+  const mapped = mapDbToCommunityMember(
+    {
+      id: 'member-cloud',
+      community_id: 'community-cloud',
+      user_id: 'user-id',
+      role: 'owner',
+      status: 'active',
+      created_at: now,
+      updated_at: now,
+    },
+    'community-local',
+    { name: 'Lottar', email: 'lottar@example.com' },
+  );
+
+  assert.equal(mapped.communityId, 'community-local');
+  assert.equal(mapped.userId, 'user-id');
+  assert.equal(mapped.role, 'owner');
+  assert.equal(mapped.name, 'Lottar');
+  assert.equal(mapped.email, 'lottar@example.com');
+});
+
 test('player link proposal mapper round-trips fields and maps local-to-cloud player IDs', () => {
   const proposal: PlayerLinkProposal = {
     id: 'proposal-local-uuid',

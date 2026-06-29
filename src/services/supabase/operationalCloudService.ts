@@ -503,14 +503,23 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
     if (isCardinalityViolation(error)) {
       console.warn(`[Bulk] Duplicate conflict keys in ${table}. Falling back to individual upserts.`);
       const results: DbRecord[] = [];
+      const fallbackErrors: unknown[] = [];
+
       for (const record of deduplicated) {
         try {
           const row = await upsertRow(table, record);
           results.push(row);
         } catch (individualError) {
-          console.error(`[Bulk] Failed individual upsert in ${table}:`, individualError);
+          fallbackErrors.push(individualError);
         }
       }
+
+      if (fallbackErrors.length > 0) {
+        throw new AggregateError(fallbackErrors,
+          `[Bulk] ${fallbackErrors.length} individual upserts failed in ${table}`,
+        );
+      }
+
       return results;
     }
 
@@ -524,14 +533,23 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
       // each row gets an UPDATE-by-PK if needed.
       console.warn(`[Bulk] PK collision in ${table}. Falling back to individual upserts.`);
       const results: DbRecord[] = [];
+      const fallbackErrors: unknown[] = [];
+
       for (const record of deduplicated) {
         try {
           const row = await upsertRow(table, record);
           results.push(row);
         } catch (individualError) {
-          console.error(`[Bulk] Failed individual upsert in ${table}:`, individualError);
+          fallbackErrors.push(individualError);
         }
       }
+
+      if (fallbackErrors.length > 0) {
+        throw new AggregateError(fallbackErrors,
+          `[Bulk] ${fallbackErrors.length} individual upserts failed in ${table}`,
+        );
+      }
+
       return results;
     }
     throw error;

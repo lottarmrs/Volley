@@ -517,6 +517,7 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
       if (fallbackErrors.length > 0) {
         throw new AggregateError(fallbackErrors,
           `[Bulk] ${fallbackErrors.length} individual upserts failed in ${table}`,
+          { cause: error },
         );
       }
 
@@ -547,6 +548,7 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
       if (fallbackErrors.length > 0) {
         throw new AggregateError(fallbackErrors,
           `[Bulk] ${fallbackErrors.length} individual upserts failed in ${table}`,
+          { cause: error },
         );
       }
 

@@ -18,6 +18,14 @@ const playerEvaluationsMigration = readFileSync(
   'utf8',
 );
 
+const avatarApprovalMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260624133117_player_avatars_approval.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const baseSchema = readFileSync(
   new URL('../../../supabase/migrations/schema.sql', import.meta.url),
   'utf8',
@@ -125,6 +133,28 @@ test('player evaluations migration defines per-organizer athlete evaluations', (
     playerEvaluationsMigration,
     /current_user_can_access_player\(player_id\)/i,
   );
+});
+
+test('avatar candidate update policy includes WITH CHECK for Storage upserts', () => {
+  const updatePolicy = avatarApprovalMigration.match(
+    /create policy "Player admins can replace avatar candidates" on storage\.objects[\s\S]*?;\s*/i,
+  )?.[0];
+
+  assert.ok(updatePolicy, 'missing avatar candidate update policy');
+  assert.match(updatePolicy, /for update to authenticated/i);
+
+  const usingClause = updatePolicy.match(/using\s*\(([\s\S]*?)\)\s*with check/i)?.[1];
+  const withCheckClause = updatePolicy.match(/with check\s*\(([\s\S]*?)\);/i)?.[1];
+
+  assert.ok(usingClause, 'missing avatar candidate update USING clause');
+  assert.ok(withCheckClause, 'missing avatar candidate update WITH CHECK clause');
+
+  for (const clause of [usingClause, withCheckClause]) {
+    assert.match(clause, /bucket_id\s*=\s*'avatars'/i);
+    assert.match(clause, /\(storage\.foldername\(name\)\)\[1\]\s*=\s*'proposals'/i);
+    assert.match(clause, /public\.current_user_is_player_admin/i);
+    assert.match(clause, /\(\(storage\.foldername\(name\)\)\[2\]\)::uuid/i);
+  }
 });
 
 test('profile signup trigger creates a valid default RBAC user role', () => {

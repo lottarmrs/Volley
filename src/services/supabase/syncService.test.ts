@@ -8,8 +8,18 @@ import {
   isCloudBackedPlayerLinkProposal,
   playerSemanticKey,
   consolidateDuplicateRecords,
+  syncService,
+  type LocalSyncPayload,
 } from './syncService';
-import { CloudSyncStatus } from '../../types';
+import { operationalCloudService } from './operationalCloudService';
+import {
+  CloudSyncStatus,
+  Community,
+  CommunityPresence,
+  Session,
+  Team,
+  WhatsAppListDraft,
+} from '../../types';
 
 interface TestEntity {
   id: string;
@@ -26,6 +36,397 @@ interface TestEntity {
   posicaoPrincipal?: string;
   alturaCm?: number;
 }
+
+function emptyPayload(overrides: Partial<LocalSyncPayload> = {}): LocalSyncPayload {
+  return {
+    communities: [],
+    players: [],
+    rules: [],
+    templates: [],
+    sessions: [],
+    teams: [],
+    games: [],
+    pointEvents: [],
+    gameReports: [],
+    sessionReports: [],
+    presenceRecords: [],
+    drafts: [],
+    linkProposals: [],
+    ...overrides,
+  };
+}
+
+function makeSession(overrides: Partial<Session> = {}): Session {
+  return {
+    id: 'session-local',
+    name: 'Treino',
+    date: '2026-06-28',
+    status: 'draft',
+    selectedPlayerIds: [],
+    teamIds: [],
+    createdAt: '2026-06-28T20:00:00.000Z',
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'pending',
+    ...overrides,
+  };
+}
+
+function makeTeam(overrides: Partial<Team> = {}): Team {
+  return {
+    id: 'team-local',
+    sessionId: 'session-local',
+    name: 'Time A',
+    playerIds: [],
+    generatedByAlgorithm: true,
+    locked: false,
+    strengthSnapshot: {} as Team['strengthSnapshot'],
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'pending',
+    ...overrides,
+  };
+}
+
+function makeSharedCommunity(overrides: Partial<Community> = {}): Community {
+  return {
+    id: 'community-local',
+    cloudId: 'community-cloud',
+    cloudOwnerId: 'other-owner',
+    name: 'Terca do Volei',
+    createdAt: '2026-06-28T20:00:00.000Z',
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'synced',
+    ...overrides,
+  };
+}
+
+function silenceConsoleError() {
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  return () => {
+    console.error = originalConsoleError;
+  };
+}
+
+test('uploadLocalDataToCloud reports thrown bulk session child failures through onIssue', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalBulkUpsertTeams = operationalCloudService.bulkUpsertTeams;
+  const restoreConsoleError = silenceConsoleError();
+
+  const issues: string[] = [];
+  const session = makeSession();
+  const team = makeTeam();
+
+  try {
+    operationalCloudService.upsertSession = async (item: Session) => ({
+      ...item,
+      cloudId: 'session-cloud',
+    });
+    operationalCloudService.bulkUpsertTeams = async () => {
+      throw new Error('network down');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({ sessions: [session], teams: [team] }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.teams.length, 1);
+    assert.equal(result.teams[0].id, 'team-local');
+    assert.equal(result.teams[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /teams/i);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    operationalCloudService.bulkUpsertTeams = originalBulkUpsertTeams;
+    restoreConsoleError();
+  }
+});
+
+test('uploadLocalDataToCloud keeps child items pending when bulk returns no matching result', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalBulkUpsertTeams = operationalCloudService.bulkUpsertTeams;
+
+  const issues: string[] = [];
+  const session = makeSession();
+  const team = makeTeam();
+
+  try {
+    operationalCloudService.upsertSession = async (item: Session) => ({
+      ...item,
+      cloudId: 'session-cloud',
+    });
+    operationalCloudService.bulkUpsertTeams = async () => [];
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({ sessions: [session], teams: [team] }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.teams.length, 1);
+    assert.equal(result.teams[0].id, 'team-local');
+    assert.equal(result.teams[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /teams/i);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    operationalCloudService.bulkUpsertTeams = originalBulkUpsertTeams;
+  }
+});
+
+test('uploadLocalDataToCloud reports presence bulk failures through onIssue', async () => {
+  const originalBulkUpsertPresence = operationalCloudService.bulkUpsertPresence;
+  const restoreConsoleError = silenceConsoleError();
+  const issues: string[] = [];
+  const presence: CommunityPresence = {
+    communityId: 'community-local',
+    date: '2026-06-28',
+    items: [],
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'pending',
+  };
+
+  try {
+    operationalCloudService.bulkUpsertPresence = async () => {
+      throw new Error('presence upload failed');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        presenceRecords: [presence],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.presenceRecords.length, 1);
+    assert.equal(result.presenceRecords[0].communityId, 'community-local');
+    assert.equal(result.presenceRecords[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /community_presence|presenca/i);
+  } finally {
+    operationalCloudService.bulkUpsertPresence = originalBulkUpsertPresence;
+    restoreConsoleError();
+  }
+});
+
+test('uploadLocalDataToCloud keeps presence records pending when bulk returns no matching result', async () => {
+  const originalBulkUpsertPresence = operationalCloudService.bulkUpsertPresence;
+  const issues: string[] = [];
+  const presence: CommunityPresence = {
+    communityId: 'community-local',
+    date: '2026-06-28',
+    items: [],
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'pending',
+  };
+
+  try {
+    operationalCloudService.bulkUpsertPresence = async () => [];
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        presenceRecords: [presence],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.presenceRecords.length, 1);
+    assert.equal(result.presenceRecords[0].communityId, 'community-local');
+    assert.equal(result.presenceRecords[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /community_presence|presenca/i);
+  } finally {
+    operationalCloudService.bulkUpsertPresence = originalBulkUpsertPresence;
+  }
+});
+
+test('uploadLocalDataToCloud preserves pending presence deletes when bulk delete fails', async () => {
+  const originalBulkSoftDelete = operationalCloudService.bulkSoftDelete;
+  const restoreConsoleError = silenceConsoleError();
+  const issues: string[] = [];
+  const presence: CommunityPresence = {
+    communityId: 'community-local',
+    date: '2026-06-28',
+    cloudId: 'presence-cloud',
+    items: [],
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    deletedAt: '2026-06-28T21:00:00.000Z',
+    syncStatus: 'pending',
+  };
+
+  try {
+    operationalCloudService.bulkSoftDelete = async (table, ids) => {
+      if (table === 'community_presence') {
+        throw new Error('presence delete failed');
+      }
+      return originalBulkSoftDelete(table, ids);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        presenceRecords: [presence],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.presenceRecords.length, 1);
+    assert.equal(result.presenceRecords[0].communityId, 'community-local');
+    assert.equal(result.presenceRecords[0].deletedAt, '2026-06-28T21:00:00.000Z');
+    assert.equal(result.presenceRecords[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /community_presence|presenca/i);
+  } finally {
+    operationalCloudService.bulkSoftDelete = originalBulkSoftDelete;
+    restoreConsoleError();
+  }
+});
+
+test('uploadLocalDataToCloud reports WhatsApp draft bulk failures through onIssue', async () => {
+  const originalBulkUpsertDrafts = operationalCloudService.bulkUpsertDrafts;
+  const restoreConsoleError = silenceConsoleError();
+  const issues: string[] = [];
+  const draft: WhatsAppListDraft = {
+    id: 'draft-local',
+    communityId: 'community-local',
+    title: 'Lista',
+    date: '2026-06-28',
+    setters: [],
+    mainSlots: [],
+    reserveSlots: [],
+    settersSectionTitle: 'Levantadores',
+    reserveSectionTitle: 'Reserva',
+    showLockIcon: true,
+    paymentSymbol: '$',
+    createdAt: '2026-06-28T20:00:00.000Z',
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'pending',
+  };
+
+  try {
+    operationalCloudService.bulkUpsertDrafts = async () => {
+      throw new Error('draft upload failed');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        drafts: [draft],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.drafts.length, 1);
+    assert.equal(result.drafts[0].id, 'draft-local');
+    assert.equal(result.drafts[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /whatsapp_list_drafts|rascunho/i);
+  } finally {
+    operationalCloudService.bulkUpsertDrafts = originalBulkUpsertDrafts;
+    restoreConsoleError();
+  }
+});
+
+test('uploadLocalDataToCloud keeps WhatsApp drafts pending when bulk returns no matching result', async () => {
+  const originalBulkUpsertDrafts = operationalCloudService.bulkUpsertDrafts;
+  const issues: string[] = [];
+  const draft: WhatsAppListDraft = {
+    id: 'draft-local',
+    communityId: 'community-local',
+    title: 'Lista',
+    date: '2026-06-28',
+    setters: [],
+    mainSlots: [],
+    reserveSlots: [],
+    settersSectionTitle: 'Levantadores',
+    reserveSectionTitle: 'Reserva',
+    showLockIcon: true,
+    paymentSymbol: '$',
+    createdAt: '2026-06-28T20:00:00.000Z',
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    syncStatus: 'pending',
+  };
+
+  try {
+    operationalCloudService.bulkUpsertDrafts = async () => [];
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        drafts: [draft],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.drafts.length, 1);
+    assert.equal(result.drafts[0].id, 'draft-local');
+    assert.equal(result.drafts[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /whatsapp_list_drafts|rascunho/i);
+  } finally {
+    operationalCloudService.bulkUpsertDrafts = originalBulkUpsertDrafts;
+  }
+});
+
+test('uploadLocalDataToCloud preserves pending WhatsApp draft deletes when bulk delete fails', async () => {
+  const originalBulkSoftDelete = operationalCloudService.bulkSoftDelete;
+  const restoreConsoleError = silenceConsoleError();
+  const issues: string[] = [];
+  const draft: WhatsAppListDraft = {
+    id: 'draft-local',
+    cloudId: 'draft-cloud',
+    communityId: 'community-local',
+    title: 'Lista',
+    date: '2026-06-28',
+    setters: [],
+    mainSlots: [],
+    reserveSlots: [],
+    settersSectionTitle: 'Levantadores',
+    reserveSectionTitle: 'Reserva',
+    showLockIcon: true,
+    paymentSymbol: '$',
+    createdAt: '2026-06-28T20:00:00.000Z',
+    updatedAt: '2026-06-28T20:00:00.000Z',
+    deletedAt: '2026-06-28T21:00:00.000Z',
+    syncStatus: 'pending',
+  };
+
+  try {
+    operationalCloudService.bulkSoftDelete = async (table, ids) => {
+      if (table === 'whatsapp_list_drafts') {
+        throw new Error('draft delete failed');
+      }
+      return originalBulkSoftDelete(table, ids);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        drafts: [draft],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.drafts.length, 1);
+    assert.equal(result.drafts[0].id, 'draft-local');
+    assert.equal(result.drafts[0].deletedAt, '2026-06-28T21:00:00.000Z');
+    assert.equal(result.drafts[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /whatsapp_list_drafts|rascunho/i);
+  } finally {
+    operationalCloudService.bulkSoftDelete = originalBulkSoftDelete;
+    restoreConsoleError();
+  }
+});
 
 test('mergeEntityLists keeps newer local records pending with cloud id attached', () => {
   const [merged] = mergeEntityLists<TestEntity>(

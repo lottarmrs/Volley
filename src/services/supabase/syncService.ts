@@ -76,6 +76,14 @@ interface MergeOptions<T> {
 
 const nowIso = () => new Date().toISOString();
 
+function missingUploadResultError(table: string, id: string) {
+  return new Error(`Bulk upload for ${table} did not return a result for ${id}`);
+}
+
+function reportIssue(onIssue: SyncOptions['onIssue'], context: string, error: unknown) {
+  if (onIssue) onIssue(context, error);
+}
+
 function normalizeSemanticText(value: unknown): string {
   return String(value ?? '')
     .normalize('NFD')
@@ -510,6 +518,10 @@ function visible<T extends Syncable>(items: T[]) {
   return items.filter((item) => !item.deletedAt);
 }
 
+function visibleOrPendingDelete<T extends Syncable>(items: T[]) {
+  return items.filter((item) => !item.deletedAt || item.syncStatus === 'pending');
+}
+
 function makeCloudIdLookup<T extends { id: string; cloudId?: string }>(items: T[]) {
   return new Map(items.map((item) => [item.id.toLowerCase(), item.cloudId || item.id]));
 }
@@ -792,6 +804,7 @@ async function bulkUploadSessionChildren<T extends Syncable>(
   sessionsById: Map<string, Session>,
   softDeleteTable: Parameters<typeof operationalCloudService.bulkSoftDelete>[0],
   bulkUpsertFn: (itemsToUpsert: T[]) => Promise<T[]>,
+  options: SyncOptions = {},
 ): Promise<T[]> {
   const syncedAt = nowIso();
   const updated: T[] = [];
@@ -799,6 +812,7 @@ async function bulkUploadSessionChildren<T extends Syncable>(
   const itemsToDelete: string[] = [];
   const itemsToUpsert: T[] = [];
   const itemMap = new Map<string, T>();
+  const uploadedItemKeys = new Set<string>();
 
   for (const item of items) {
     if (item.deletedAt) {
@@ -830,12 +844,26 @@ async function bulkUploadSessionChildren<T extends Syncable>(
         const key = (result.id || '').toLowerCase();
         const originalItem = itemMap.get(key);
         if (originalItem) {
+          uploadedItemKeys.add(key);
           updated.push(markSynced(originalItem, result.cloudId, syncedAt));
+        }
+      }
+      for (const item of itemsToUpsert) {
+        const itemId = item.id || item.cloudId || 'sem-id';
+        const key = itemId.toLowerCase();
+        if (!uploadedItemKeys.has(key)) {
+          reportIssue(
+            options.onIssue,
+            `upload ${softDeleteTable} "${itemId}"`,
+            missingUploadResultError(softDeleteTable, itemId),
+          );
+          updated.push(item);
         }
       }
     }
   } catch (error) {
     console.error(`Falha no envio em lote para a tabela ${softDeleteTable}`, error);
+    reportIssue(options.onIssue, `upload ${softDeleteTable}`, error);
     return items;
   }
 
@@ -1011,6 +1039,7 @@ export const syncService = {
           ownerId,
           sessionsById,
         ),
+      options,
     );
 
     const updatedGames = await bulkUploadSessionChildren<Game>(
@@ -1023,6 +1052,7 @@ export const syncService = {
           ownerId,
           sessionsById,
         ),
+      options,
     );
 
     const updatedPointEvents = await bulkUploadSessionChildren<PointEvent>(
@@ -1035,6 +1065,7 @@ export const syncService = {
           ownerId,
           sessionsById,
         ),
+      options,
     );
 
     const updatedGameReports = await bulkUploadSessionChildren<GameReport>(
@@ -1047,6 +1078,7 @@ export const syncService = {
           ownerId,
           sessionsById,
         ),
+      options,
     );
 
     const updatedSessionReports = await bulkUploadSessionChildren<SessionReport>(
@@ -1059,17 +1091,22 @@ export const syncService = {
           ownerId,
           sessionsById,
         ),
+      options,
     );
 
     const updatedPresenceRecords: CommunityPresence[] = [];
-    const presenceToDelete: string[] = [];
+    const presenceToDelete: CommunityPresence[] = [];
     const presenceToUpsert: CommunityPresence[] = [];
     const presenceMap = new Map<string, CommunityPresence>();
+    const uploadedPresenceKeys = new Set<string>();
 
     for (const presence of local.presenceRecords) {
       if (presence.deletedAt) {
-        if (presence.cloudId) presenceToDelete.push(presence.cloudId);
-        updatedPresenceRecords.push(markSynced(presence, presence.cloudId, syncedAt));
+        if (presence.cloudId) {
+          presenceToDelete.push(presence);
+        } else {
+          updatedPresenceRecords.push(markSynced(presence, presence.cloudId, syncedAt));
+        }
         continue;
       }
 
@@ -1085,7 +1122,13 @@ export const syncService = {
 
     try {
       if (presenceToDelete.length > 0) {
-        await operationalCloudService.bulkSoftDelete('community_presence', presenceToDelete);
+        await operationalCloudService.bulkSoftDelete(
+          'community_presence',
+          presenceToDelete.map((presence) => presence.cloudId!),
+        );
+        presenceToDelete.forEach((presence) => {
+          updatedPresenceRecords.push(markSynced(presence, presence.cloudId, syncedAt));
+        });
       }
       if (presenceToUpsert.length > 0) {
         const uploadedResults = await operationalCloudService.bulkUpsertPresence(
@@ -1096,12 +1139,26 @@ export const syncService = {
           const key = `${result.communityId.toLowerCase()}:${result.date}`;
           const original = presenceMap.get(key);
           if (original) {
+            uploadedPresenceKeys.add(key);
             updatedPresenceRecords.push(markSynced(original, result.cloudId, syncedAt));
+          }
+        }
+        for (const presence of presenceToUpsert) {
+          const key = `${presence.communityId.toLowerCase()}:${presence.date}`;
+          const original = presenceMap.get(key);
+          if (original && !uploadedPresenceKeys.has(key)) {
+            reportIssue(
+              options.onIssue,
+              `upload community_presence "${key}"`,
+              missingUploadResultError('community_presence', key),
+            );
+            updatedPresenceRecords.push(original);
           }
         }
       }
     } catch (error) {
       console.error('Falha no envio em lote para community_presence', error);
+      reportIssue(options.onIssue, 'upload community_presence', error);
       local.presenceRecords.forEach((p) => {
         if (
           !updatedPresenceRecords.some((u) => u.communityId.toLowerCase() === p.communityId.toLowerCase() && u.date === p.date)
@@ -1112,14 +1169,18 @@ export const syncService = {
     }
 
     const updatedDrafts: WhatsAppListDraft[] = [];
-    const draftsToDelete: string[] = [];
+    const draftsToDelete: WhatsAppListDraft[] = [];
     const draftsToUpsert: WhatsAppListDraft[] = [];
     const draftsMap = new Map<string, WhatsAppListDraft>();
+    const uploadedDraftKeys = new Set<string>();
 
     for (const draft of local.drafts) {
       if (draft.deletedAt) {
-        if (draft.cloudId) draftsToDelete.push(draft.cloudId);
-        updatedDrafts.push(markSynced(draft, draft.cloudId, syncedAt));
+        if (draft.cloudId) {
+          draftsToDelete.push(draft);
+        } else {
+          updatedDrafts.push(markSynced(draft, draft.cloudId, syncedAt));
+        }
         continue;
       }
 
@@ -1135,7 +1196,13 @@ export const syncService = {
 
     try {
       if (draftsToDelete.length > 0) {
-        await operationalCloudService.bulkSoftDelete('whatsapp_list_drafts', draftsToDelete);
+        await operationalCloudService.bulkSoftDelete(
+          'whatsapp_list_drafts',
+          draftsToDelete.map((draft) => draft.cloudId!),
+        );
+        draftsToDelete.forEach((draft) => {
+          updatedDrafts.push(markSynced(draft, draft.cloudId, syncedAt));
+        });
       }
       if (draftsToUpsert.length > 0) {
         const uploadedResults = await operationalCloudService.bulkUpsertDrafts(
@@ -1143,14 +1210,29 @@ export const syncService = {
           ownerId,
         );
         for (const result of uploadedResults) {
-          const original = draftsMap.get(result.id.toLowerCase());
+          const key = result.id.toLowerCase();
+          const original = draftsMap.get(key);
           if (original) {
+            uploadedDraftKeys.add(key);
             updatedDrafts.push(markSynced(original, result.cloudId, syncedAt));
+          }
+        }
+        for (const draft of draftsToUpsert) {
+          const key = draft.id.toLowerCase();
+          const original = draftsMap.get(key);
+          if (original && !uploadedDraftKeys.has(key)) {
+            reportIssue(
+              options.onIssue,
+              `upload whatsapp_list_drafts "${draft.id}"`,
+              missingUploadResultError('whatsapp_list_drafts', draft.id),
+            );
+            updatedDrafts.push(original);
           }
         }
       }
     } catch (error) {
       console.error('Falha no envio em lote para whatsapp_list_drafts', error);
+      reportIssue(options.onIssue, 'upload whatsapp_list_drafts', error);
       local.drafts.forEach((d) => {
         if (!updatedDrafts.some((u) => u.id.toLowerCase() === d.id.toLowerCase())) {
           updatedDrafts.push(d);
@@ -1248,8 +1330,8 @@ export const syncService = {
       pointEvents: updatedPointEvents,
       gameReports: updatedGameReports,
       sessionReports: updatedSessionReports,
-      presenceRecords: visible(updatedPresenceRecords),
-      drafts: visible(updatedDrafts),
+      presenceRecords: visibleOrPendingDelete(updatedPresenceRecords),
+      drafts: visibleOrPendingDelete(updatedDrafts),
       linkProposals: visible(updatedProposals),
     };
   },

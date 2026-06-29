@@ -354,6 +354,25 @@ Principios:
 - Mobile prioriza acao semanal: confirmar, montar time, pontuar.
 - Desktop pode ser mais denso para administracao e historico.
 - Acessibilidade: botoes nomeados, foco, contraste e texto legivel.
+- A direcao visual deve trabalhar com esqueuomorfismo funcional: elementos inspirados em objetos reais do volei e da organizacao de jogo, como quadra, placar, prancheta, cartoes, fichas de atleta e listas de chamada.
+- O esqueuomorfismo deve ajudar orientacao, hierarquia e manipulacao direta, nao virar decoracao pesada ou nostalgia gratuita.
+
+Direcao esqueuomorfica:
+
+- `Ao vivo`: placar com presenca fisica, sets como painel de jogo e eventos com sensacao de mesa de controle.
+- `Organizar`: prancheta/lista de chamada, fila de presenca e montagem de times com manipulacao clara.
+- `Elenco`: fichas de atleta, atributos visuais e estados de disponibilidade como marcadores legiveis.
+- `Historico`: sumulas, cartoes de partida e linha do tempo com aparencia de registro esportivo.
+- `Nuvem e conta`: status de sync como painel de saude/backup, sem esconder erro tecnico em texto pequeno.
+- `Administracao`: area mais contida e operacional, com menos textura e mais densidade.
+
+Limites:
+
+- Preservar performance e responsividade em mobile.
+- Nao usar textura, sombra ou profundidade se piorar leitura.
+- Manter contraste, foco visivel e nomes acessiveis.
+- Preferir icones reais da biblioteca ja adotada quando eles comunicarem melhor que ornamentos.
+- Validar visualmente com screenshots antes/depois nas telas principais.
 
 Gate:
 
@@ -362,6 +381,7 @@ Gate:
 - Testes UI para hooks/componentes que carregam estado critico.
 - Revisao de acessibilidade basica.
 - Nenhum texto estoura container em mobile.
+- A linguagem esqueuomorfica melhora compreensao do fluxo sem reduzir legibilidade, acessibilidade ou velocidade de acao.
 
 ## Bibliotecas candidatas
 
@@ -427,6 +447,7 @@ Uma fase so fecha quando:
 - Supabase/RLS/migrations foram revisados quando aplicavel.
 - Bibliotecas adotadas ou recusadas foram justificadas.
 - A UI mostra estados importantes ao usuario, principalmente em sync.
+- Mudancas de experiencia respeitam a direcao de esqueuomorfismo funcional aprovada para a interface.
 
 ## Riscos
 

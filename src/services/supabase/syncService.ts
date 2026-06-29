@@ -587,11 +587,11 @@ export function consolidateDuplicateRecords(
     }
   }
 
-  const communityGroups = groupActiveDuplicates(
+  const communityGroups = groupActiveDuplicates<Community>(
     local.communities.filter((community) =>
       canConsolidateOwnedEntity(community, options.ownerId),
     ),
-    communitySemanticKey,
+    (community) => communitySemanticKey(community),
     (community) => community.cloudOwnerId || options.ownerId || 'local',
   );
 
@@ -607,9 +607,9 @@ export function consolidateDuplicateRecords(
     }
   }
 
-  const playerGroups = groupActiveDuplicates(
+  const playerGroups = groupActiveDuplicates<Player>(
     local.players.filter((player) => canConsolidateOwnedEntity(player, options.ownerId)),
-    playerSemanticKey,
+    (player) => playerSemanticKey(player),
     (player) => player.cloudOwnerId || options.ownerId || 'local',
   ).filter((group) => {
     const linkedUsers = new Set(group.map((player) => player.userId).filter(Boolean));
@@ -1308,14 +1308,14 @@ export const syncService = {
     const cloud = await this.downloadCloudDataToLocal(ownerId);
 
     const merged: LocalSyncPayload = {
-      communities: mergeEntityLists(local.communities, cloud.communities, {
+      communities: mergeEntityLists<Community>(local.communities, cloud.communities, {
         getId: (item) => item.id,
-        getSemanticKey: communitySemanticKey,
+        getSemanticKey: (community) => communitySemanticKey(community),
       }),
-      players: mergeEntityLists(local.players, cloud.players, {
+      players: mergeEntityLists<Player>(local.players, cloud.players, {
         getId: (item) => item.id,
         getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
-        getSemanticKey: playerSemanticKey,
+        getSemanticKey: (player) => playerSemanticKey(player),
       }),
       rules: mergeEntityLists(local.rules, cloud.rules, { getId: (item) => item.communityId }),
       templates: mergeEntityLists(local.templates, cloud.templates, { getId: (item) => item.id }),

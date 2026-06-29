@@ -463,7 +463,7 @@ export function useLiveSession(
       prev.map((g) => {
         if (g.id !== currentGame.id) return g;
         
-        let newSets = g.sets ? [...g.sets] : [];
+        const newSets = g.sets ? [...g.sets] : [];
         if (newSets.length > 0) {
           const lastSet = newSets[newSets.length - 1];
           if (

@@ -161,6 +161,11 @@ create policy "Users can delete own communities" on public.communities
 -- Create Policies for Players
 create policy "Users can read own players" on public.players
   for select to authenticated using (owner_id = (select auth.uid()));
+create policy "Linked users can read their own player" on public.players
+  for select to authenticated using (
+    user_id = (select auth.uid())
+    and deleted_at is null
+  );
 create policy "Users can insert own players" on public.players
   for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Users can update own players" on public.players

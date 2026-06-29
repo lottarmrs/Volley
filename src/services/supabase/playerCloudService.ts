@@ -75,6 +75,20 @@ export const playerCloudService = {
     return data ? mapDbToPlayer(data) : null;
   },
 
+  async fetchLinkedToUser(userId: string): Promise<Player | null> {
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ? mapDbToPlayer(data) : null;
+  },
+
   async upsert(local: Player, ownerId: string): Promise<Player> {
     const dbRecord = mapPlayerToDb(local, ownerId);
     if (local.cloudId) {

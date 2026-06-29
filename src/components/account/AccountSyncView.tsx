@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { UserProfile, Player, PlayerLinkProposal } from '../../types';
 import {
   Cloud,
@@ -17,6 +17,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
+import { playerCloudService } from '../../services/supabase/playerCloudService';
+import { playerLinkProposalCloudService } from '../../services/supabase/playerLinkProposalCloudService';
 
 interface AccountSyncViewProps {
   user: any;
@@ -63,6 +65,10 @@ export function AccountSyncView({
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cloudLinkedPlayer, setCloudLinkedPlayer] = useState<Player | null>(null);
+  const [cloudPendingProposal, setCloudPendingProposal] = useState<PlayerLinkProposal | null>(null);
+  const [checkingLinkedPlayer, setCheckingLinkedPlayer] = useState(false);
+  const [linkedPlayerCheckFailed, setLinkedPlayerCheckFailed] = useState(false);
 
   // Encontra atleta vinculado
   const myLinkedPlayer = useMemo(() => {
@@ -70,20 +76,62 @@ export function AccountSyncView({
     return players.find((p) => p.userId === user.id);
   }, [players, user]);
 
+  useEffect(() => {
+    if (!user || !isSupabaseConfigured || myLinkedPlayer) {
+      setCloudLinkedPlayer(null);
+      setCloudPendingProposal(null);
+      setCheckingLinkedPlayer(false);
+      setLinkedPlayerCheckFailed(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingLinkedPlayer(true);
+    setLinkedPlayerCheckFailed(false);
+
+    Promise.all([
+      playerCloudService.fetchLinkedToUser(user.id),
+      playerLinkProposalCloudService.fetchPendingForUser(user.id),
+    ])
+      .then(([player, proposal]) => {
+        if (cancelled) return;
+        setCloudLinkedPlayer(player);
+        setCloudPendingProposal(proposal);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[account] Falha ao verificar vinculo/proposta na nuvem:', err);
+        setCloudLinkedPlayer(null);
+        setCloudPendingProposal(null);
+        setLinkedPlayerCheckFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingLinkedPlayer(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupabaseConfigured, myLinkedPlayer, user]);
+
+  const linkedPlayer = myLinkedPlayer || cloudLinkedPlayer;
+
   // Encontra proposta pendente
   const myPendingProposal = useMemo(() => {
     if (!user) return null;
     return linkProposals.find((p) => p.userId === user.id && p.status === 'pending');
   }, [linkProposals, user]);
 
+  const pendingProposal = myPendingProposal || cloudPendingProposal;
+
   const pendingPlayer = useMemo(() => {
-    if (!myPendingProposal) return null;
+    if (!pendingProposal) return null;
     return players.find(
       (p) =>
-        p.id === myPendingProposal.playerId ||
-        (p.cloudId && myPendingProposal.playerCloudId && p.cloudId === myPendingProposal.playerCloudId)
+        p.id === pendingProposal.playerId ||
+        (p.cloudId && pendingProposal.playerCloudId && p.cloudId === pendingProposal.playerCloudId)
     );
-  }, [myPendingProposal, players]);
+  }, [pendingProposal, players]);
 
   // Filtra atletas disponíveis para se vincular (sem userId e que não sejam convidados)
   const availablePlayers = useMemo(() => {
@@ -278,26 +326,38 @@ export function AccountSyncView({
             </h3>
           </div>
 
-          {myLinkedPlayer ? (
+          {checkingLinkedPlayer || syncLoading ? (
+            <div className="bg-base-100 border border-base-300 p-4 rounded-xl flex items-center gap-3">
+              <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-base-content uppercase">
+                  Verificando vinculo de atleta
+                </p>
+                <p className="text-[10px] text-base-content/55 mt-0.5">
+                  Buscando o estado da nuvem antes de oferecer uma nova solicitacao.
+                </p>
+              </div>
+            </div>
+          ) : linkedPlayer ? (
             <div className="bg-success/10 border border-success/20 p-4 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-success/25 border border-success/35 flex items-center justify-center font-bold text-success text-xs">
-                  {myLinkedPlayer.nome.slice(0, 2).toUpperCase()}
+                  {linkedPlayer.nome.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-base-content flex items-center gap-1.5">
-                    {myLinkedPlayer.apelido || myLinkedPlayer.nome}
+                    {linkedPlayer.apelido || linkedPlayer.nome}
                     <span className="badge badge-success badge-xs font-bold uppercase tracking-wider gap-0.5">
                       <UserCheck className="w-2.5 h-2.5" /> Vinculado
                     </span>
                   </p>
                   <p className="text-[9px] text-base-content/50 uppercase font-mono mt-0.5">
-                    {myLinkedPlayer.posicaoPrincipal} • {myLinkedPlayer.genero}
+                    {linkedPlayer.posicaoPrincipal} • {linkedPlayer.genero}
                   </p>
                 </div>
               </div>
             </div>
-          ) : myPendingProposal ? (
+          ) : pendingProposal ? (
             <div className="bg-warning/10 border border-warning/20 p-4 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-warning/25 border border-warning/35 flex items-center justify-center font-bold text-warning text-xs">
@@ -321,7 +381,7 @@ export function AccountSyncView({
                   onClick={async () => {
                     setCancelling(true);
                     try {
-                      if (onCancelLink) await onCancelLink(myPendingProposal.id);
+                      if (onCancelLink) await onCancelLink(pendingProposal.id);
                     } catch (e) {
                       console.error(e);
                     } finally {
@@ -337,6 +397,16 @@ export function AccountSyncView({
             </div>
           ) : (
             <div className="space-y-4">
+              {linkedPlayerCheckFailed && (
+                <div className="alert alert-warning alert-soft text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Nao foi possivel verificar o vinculo ou uma solicitacao pendente na nuvem
+                    agora. Sincronize antes de solicitar um novo vinculo.
+                  </span>
+                </div>
+              )}
+
               <p className="text-xs text-base-content/75 leading-relaxed">
                 Você não possui um perfil de jogador vinculado a esta conta de usuário. 
                 Selecione a sua ficha abaixo para solicitar o vínculo com a sua conta.
@@ -347,7 +417,7 @@ export function AccountSyncView({
                   value={selectedPlayerId}
                   onChange={(e) => setSelectedPlayerId(e.target.value)}
                   className="select select-bordered select-sm flex-1 font-bold text-xs uppercase"
-                  disabled={claiming}
+                  disabled={claiming || linkedPlayerCheckFailed}
                 >
                   <option value="">-- Selecione sua Ficha de Atleta --</option>
                   {availablePlayers.map((player) => (
@@ -370,7 +440,7 @@ export function AccountSyncView({
                       setClaiming(false);
                     }
                   }}
-                  disabled={!selectedPlayerId || claiming}
+                  disabled={!selectedPlayerId || claiming || linkedPlayerCheckFailed}
                   className="btn btn-primary btn-sm font-bold uppercase"
                 >
                   {claiming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Solicitar Vínculo'}

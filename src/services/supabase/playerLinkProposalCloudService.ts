@@ -34,6 +34,20 @@ export const playerLinkProposalCloudService = {
     return (data || []).map(mapDbToProposal);
   },
 
+  async fetchPendingForUser(userId: string): Promise<PlayerLinkProposal | null> {
+    const { data, error } = await supabase
+      .from('player_link_proposals')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ? mapDbToProposal(data) : null;
+  },
+
   // NOTA: escritas em player_link_proposals são feitas SOMENTE pelos RPCs abaixo
   // (SECURITY DEFINER). Não existe upsert/insert direto: a tabela não tem policy
   // de UPDATE/DELETE de propósito, e um upsert direto quebrava com RLS 42501.

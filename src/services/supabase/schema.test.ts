@@ -39,6 +39,14 @@ const profileSignupFixMigration = readFileSync(
   'utf8',
 );
 
+const linkedPlayerSelfReadMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260629212554_linked_player_self_read.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const requiredTables = [
   'community_members',
   'sessions',
@@ -180,4 +188,16 @@ test('profile signup trigger creates a valid default RBAC user role', () => {
     profileSignupFixMigration,
     /revoke execute on function public\.handle_new_user\(\) from public, anon, authenticated;/i,
   );
+});
+
+test('linked player self-read policy supports fresh browser account checks', () => {
+  assert.match(
+    linkedPlayerSelfReadMigration,
+    /create policy "Linked users can read their own player"/i,
+  );
+  assert.match(linkedPlayerSelfReadMigration, /for select\s+to authenticated/i);
+  assert.match(linkedPlayerSelfReadMigration, /user_id\s*=\s*\(select auth\.uid\(\)\)/i);
+  assert.match(linkedPlayerSelfReadMigration, /and deleted_at is null/i);
+
+  assert.match(baseSchema, /create policy "Linked users can read their own player"/i);
 });

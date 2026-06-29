@@ -68,7 +68,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 
 ```text
 1. supabase/migrations/schema.sql
-2. supabase/migrations/20260609120000_backend_operational_sync.sql
+2. supabase/migrations/20260610161203_backend_operational_sync.sql
 ```
 
 > ⚠️ Running only `schema.sql` leaves the sync of sessions, teams, games and point events broken — the second migration creates the operational tables and the community membership model.
@@ -99,7 +99,7 @@ modification_logs (Audit trail for inserts, updates, and deletes)
 | `node: bad option: --import` when running `npm test`    | Node < 20.6. Run `nvm use` (or `nvm install 22`).                                                                                         |
 | `npm run dev` fails or Vite errors on startup           | Node < 20. Run `nvm use`.                                                                                                                 |
 | "Supabase environment variables are missing" in console | Expected without `.env`. Harmless in local mode; create `.env` to enable cloud sync.                                                      |
-| Cloud sync fails for sessions/games                     | The second migration was not applied. Run `20260609120000_backend_operational_sync.sql`.                                                  |
+| Cloud sync fails for sessions/games                     | The second migration was not applied. Run `20260610161203_backend_operational_sync.sql`.                                                  |
 | Data disappeared after clearing browser data            | Local data lives in `localStorage`. Use **Configurações → Exportar Backup (JSON)** regularly, or create an account and sync to the cloud. |
 
 ## Features

@@ -55,6 +55,7 @@ import {
   getPresenceStatus,
   getPresenceSummary,
 } from '../../logic/communityPresence';
+import { formatLocalDateInput } from '../../logic/date';
 import {
   createDefaultTemplate,
   createDraftFromTemplate,
@@ -1364,7 +1365,7 @@ function CommunityWhatsAppListTab({
   const [draft, setDraft] = useState<WhatsAppListDraft>(
     () =>
       whatsAppApi.getLatestDraft(community.id) ||
-      createDraftFromTemplate(initialTemplate, new Date().toISOString().split('T')[0]),
+      createDraftFromTemplate(initialTemplate, formatLocalDateInput()),
   );
   const text = formatWhatsAppList(draft);
 

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommunityPresence, CommunityPresenceStatus, Player } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { addGuestToPresence, setPresenceItemStatus } from '../logic/communityPresence';
+import { formatLocalDateInput } from '../logic/date';
 
 function today() {
-  return new Date().toISOString().split('T')[0];
+  return formatLocalDateInput();
 }
 
 function createPresence(communityId: string): CommunityPresence {

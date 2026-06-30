@@ -59,7 +59,7 @@ test('operational fallback upserts surface individual failures', () => {
   const source = readFileSync(new URL('./operationalCloudService.ts', import.meta.url), 'utf8');
 
   assert.match(source, /fallbackErrors:\s*unknown\[\]/);
-  assert.match(source, /throw new AggregateError\(fallbackErrors/);
+  assert.match(source, /throw new AggregateError\(\s*fallbackErrors/);
   assert.doesNotMatch(
     source,
     /catch \(individualError\) \{[\s\S]*?console\.error\(`\[Bulk\] Failed individual upsert in \$\{table\}:`, individualError\);[\s\S]*?\}[\s\S]*?return results;/,

@@ -26,14 +26,18 @@ import {
   SessionReport,
 } from '../../types';
 import { useLiveSession } from '../../hooks/useLiveSession';
-import { getPointLabel, POINT_REASON_LABELS, calculateSessionRecognition, isCreditedPoint } from '../../logic/match';
+import {
+  getPointLabel,
+  POINT_REASON_LABELS,
+  calculateSessionRecognition,
+  isCreditedPoint,
+} from '../../logic/match';
 import { TeamScoreCard } from './TeamScoreCard';
 import { PointModal } from './PointModal';
 import { HighlightFab } from './HighlightFab';
 import { calculateLiveGameRatings } from '../../logic/rating';
 import { openWhatsAppShare, copyToClipboard } from '../../logic/exporters';
 import { generateUUID } from '../../logic/uuid';
-
 
 interface SessionActiveViewProps {
   activeSession: Session;
@@ -716,7 +720,9 @@ export const SessionActiveView = ({
               <div className="p-2 space-y-1">
                 {scoringRanking.slice(0, 5).map((rank, i) => {
                   const p = players.find((player) => player.id === rank.playerId);
-                  const pPoints = sessionPoints.filter((pt) => pt.playerId === rank.playerId && isCreditedPoint(pt));
+                  const pPoints = sessionPoints.filter(
+                    (pt) => pt.playerId === rank.playerId && isCreditedPoint(pt),
+                  );
                   const reasons = pPoints.reduce(
                     (acc, curr) => {
                       const r = curr.reason || 'unknown';

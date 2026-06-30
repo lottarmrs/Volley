@@ -440,7 +440,9 @@ function CommunityCard({
                 <li>
                   <button
                     type="button"
-                    onClick={() => onUpdateCommunity(community.id, { archived: !community.archived })}
+                    onClick={() =>
+                      onUpdateCommunity(community.id, { archived: !community.archived })
+                    }
                   >
                     {community.archived ? 'Desarquivar' : 'Arquivar'}
                   </button>

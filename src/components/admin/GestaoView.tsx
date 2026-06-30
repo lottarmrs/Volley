@@ -89,7 +89,10 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
   const handleChangeRole = useCallback(
     async (userId: string, role: AuthRole) => {
       const ok = await changeRole(userId, role);
-      onToast?.(ok ? 'Papel atualizado.' : 'Não foi possível alterar o papel.', ok ? 'success' : 'error');
+      onToast?.(
+        ok ? 'Papel atualizado.' : 'Não foi possível alterar o papel.',
+        ok ? 'success' : 'error',
+      );
     },
     [changeRole, onToast],
   );
@@ -118,7 +121,11 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
             className="btn btn-ghost btn-sm rounded-full"
             title="Atualizar"
           >
-            {loadingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {loadingPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
           </button>
         </div>
 
@@ -151,7 +158,11 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
                     disabled={acting}
                     className="btn btn-success btn-sm rounded-full"
                   >
-                    {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {acting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
                     Aprovar
                   </button>
                   <button
@@ -215,7 +226,9 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
                         <option value="user">Usuário</option>
                       </select>
                     ) : (
-                      <span className={`badge ${ROLE_BADGE[profile.role]}`}>{ROLE_LABEL[profile.role]}</span>
+                      <span className={`badge ${ROLE_BADGE[profile.role]}`}>
+                        {ROLE_LABEL[profile.role]}
+                      </span>
                     )}
                     {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   </div>

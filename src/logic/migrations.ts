@@ -207,19 +207,19 @@ export function migrateLocalDbToUuids() {
   const lastSessionConfig = loadFromStorage<any | null>(STORAGE_KEYS.lastSessionConfig, null);
 
   // 1. Populate mapping dictionary
-  players.forEach(p => register(p.id, p.cloudId));
-  communities.forEach(c => register(c.id, c.cloudId));
-  sessions.forEach(s => register(s.id, s.cloudId));
+  players.forEach((p) => register(p.id, p.cloudId));
+  communities.forEach((c) => register(c.id, c.cloudId));
+  sessions.forEach((s) => register(s.id, s.cloudId));
   if (activeSession) register(activeSession.id, activeSession.cloudId);
   if (sessionDraft?.session) register(sessionDraft.session.id, sessionDraft.session.cloudId);
-  teams.forEach(t => register(t.id, t.cloudId));
-  games.forEach(g => register(g.id, g.cloudId));
-  points.forEach(pt => register(pt.id, pt.cloudId));
-  gameReports.forEach(r => register(r.id, r.cloudId));
-  sessionReports.forEach(sr => register(sr.id, sr.cloudId));
-  whatsAppTemplates.forEach(t => register(t.id, undefined));
-  whatsAppDrafts.forEach(d => register(d.id, undefined));
-  playerLinkProposals.forEach(p => register(p.id, undefined));
+  teams.forEach((t) => register(t.id, t.cloudId));
+  games.forEach((g) => register(g.id, g.cloudId));
+  points.forEach((pt) => register(pt.id, pt.cloudId));
+  gameReports.forEach((r) => register(r.id, r.cloudId));
+  sessionReports.forEach((sr) => register(sr.id, sr.cloudId));
+  whatsAppTemplates.forEach((t) => register(t.id, undefined));
+  whatsAppDrafts.forEach((d) => register(d.id, undefined));
+  playerLinkProposals.forEach((p) => register(p.id, undefined));
 
   // Helper map functions
   function getMapped(oldId: string | undefined | null): string {
@@ -232,16 +232,16 @@ export function migrateLocalDbToUuids() {
   }
 
   // 2. Perform the replacements
-  
+
   // Players
-  const migratedPlayers = players.map(p => ({
+  const migratedPlayers = players.map((p) => ({
     ...p,
     id: getMapped(p.id),
     communityIds: Array.isArray(p.communityIds) ? p.communityIds.map(getMapped) : p.communityIds,
   }));
 
   // Communities
-  const migratedCommunities = communities.map(c => ({
+  const migratedCommunities = communities.map((c) => ({
     ...c,
     id: getMapped(c.id),
   }));
@@ -280,13 +280,13 @@ export function migrateLocalDbToUuids() {
         bc.lockedPlayerIdxs = mappedLocked;
       }
       if (bc.pairsTogether && Array.isArray(bc.pairsTogether)) {
-        bc.pairsTogether = bc.pairsTogether.map((pair: any) => 
-          Array.isArray(pair) ? pair.map(getMapped) : pair
+        bc.pairsTogether = bc.pairsTogether.map((pair: any) =>
+          Array.isArray(pair) ? pair.map(getMapped) : pair,
         );
       }
       if (bc.pairsSeparated && Array.isArray(bc.pairsSeparated)) {
-        bc.pairsSeparated = bc.pairsSeparated.map((pair: any) => 
-          Array.isArray(pair) ? pair.map(getMapped) : pair
+        bc.pairsSeparated = bc.pairsSeparated.map((pair: any) =>
+          Array.isArray(pair) ? pair.map(getMapped) : pair,
         );
       }
       mappedConfig.balanceConstraints = bc;
@@ -300,7 +300,9 @@ export function migrateLocalDbToUuids() {
       ...s,
       id: getMapped(s.id),
       communityId: getMappedOrNull(s.communityId),
-      selectedPlayerIds: Array.isArray(s.selectedPlayerIds) ? s.selectedPlayerIds.map(getMapped) : s.selectedPlayerIds,
+      selectedPlayerIds: Array.isArray(s.selectedPlayerIds)
+        ? s.selectedPlayerIds.map(getMapped)
+        : s.selectedPlayerIds,
       teamIds: Array.isArray(s.teamIds) ? s.teamIds.map(getMapped) : s.teamIds,
       config: mapSessionConfig(s.config),
     };
@@ -336,12 +338,14 @@ export function migrateLocalDbToUuids() {
     migratedSessionDraft = {
       ...sessionDraft,
       session: mapSession(sessionDraft.session),
-      bestDivisions: Array.isArray(sessionDraft.bestDivisions) ? sessionDraft.bestDivisions.map(mapDivision) : sessionDraft.bestDivisions,
+      bestDivisions: Array.isArray(sessionDraft.bestDivisions)
+        ? sessionDraft.bestDivisions.map(mapDivision)
+        : sessionDraft.bestDivisions,
     };
   }
 
   // Games
-  const migratedGames = games.map(g => {
+  const migratedGames = games.map((g) => {
     const meta = g.metadata ? { ...g.metadata } : g.metadata;
     if (meta) {
       if (meta.originalTeamAId) meta.originalTeamAId = getMappedOrNull(meta.originalTeamAId);
@@ -361,7 +365,7 @@ export function migrateLocalDbToUuids() {
   });
 
   // Points
-  const migratedPoints = points.map(pt => ({
+  const migratedPoints = points.map((pt) => ({
     ...pt,
     id: getMapped(pt.id),
     sessionId: getMapped(pt.sessionId),
@@ -381,62 +385,78 @@ export function migrateLocalDbToUuids() {
       id: getMapped(r.id),
       sessionId: getMapped(r.sessionId),
       gameId: getMapped(r.gameId),
-      teamA: r.teamA ? {
-        ...r.teamA,
-        id: getMapped(r.teamA.id),
-        playerIds: Array.isArray(r.teamA.playerIds) ? r.teamA.playerIds.map(getMapped) : r.teamA.playerIds,
-      } : r.teamA,
-      teamB: r.teamB ? {
-        ...r.teamB,
-        id: getMapped(r.teamB.id),
-        playerIds: Array.isArray(r.teamB.playerIds) ? r.teamB.playerIds.map(getMapped) : r.teamB.playerIds,
-      } : r.teamB,
+      teamA: r.teamA
+        ? {
+            ...r.teamA,
+            id: getMapped(r.teamA.id),
+            playerIds: Array.isArray(r.teamA.playerIds)
+              ? r.teamA.playerIds.map(getMapped)
+              : r.teamA.playerIds,
+          }
+        : r.teamA,
+      teamB: r.teamB
+        ? {
+            ...r.teamB,
+            id: getMapped(r.teamB.id),
+            playerIds: Array.isArray(r.teamB.playerIds)
+              ? r.teamB.playerIds.map(getMapped)
+              : r.teamB.playerIds,
+          }
+        : r.teamB,
       winnerTeamId: getMapped(r.winnerTeamId),
       loserTeamId: getMapped(r.loserTeamId),
-      playerStats: Array.isArray(r.playerStats) ? r.playerStats.map((stat: any) => ({
-        ...stat,
-        playerId: getMapped(stat.playerId),
-        teamId: getMapped(stat.teamId),
-      })) : r.playerStats,
+      playerStats: Array.isArray(r.playerStats)
+        ? r.playerStats.map((stat: any) => ({
+            ...stat,
+            playerId: getMapped(stat.playerId),
+            teamId: getMapped(stat.teamId),
+          }))
+        : r.playerStats,
     };
   }
 
   const migratedGameReports = gameReports.map(mapGameReport);
 
   // Session Reports
-  const migratedSessionReports = sessionReports.map(sr => ({
+  const migratedSessionReports = sessionReports.map((sr) => ({
     ...sr,
     id: getMapped(sr.id),
     sessionId: getMapped(sr.sessionId),
-    teamStandings: Array.isArray(sr.teamStandings) ? sr.teamStandings.map((standing: any) => ({
-      ...standing,
-      teamId: getMapped(standing.teamId),
-    })) : sr.teamStandings,
-    playerRanking: Array.isArray(sr.playerRanking) ? sr.playerRanking.map((rank: any) => ({
-      ...rank,
-      playerId: getMapped(rank.playerId),
-    })) : sr.playerRanking,
+    teamStandings: Array.isArray(sr.teamStandings)
+      ? sr.teamStandings.map((standing: any) => ({
+          ...standing,
+          teamId: getMapped(standing.teamId),
+        }))
+      : sr.teamStandings,
+    playerRanking: Array.isArray(sr.playerRanking)
+      ? sr.playerRanking.map((rank: any) => ({
+          ...rank,
+          playerId: getMapped(rank.playerId),
+        }))
+      : sr.playerRanking,
     games: Array.isArray(sr.games) ? sr.games.map(mapGameReport) : sr.games,
   }));
 
   // Community Presence
-  const migratedCommunityPresences = communityPresences.map(cp => ({
+  const migratedCommunityPresences = communityPresences.map((cp) => ({
     ...cp,
     communityId: getMapped(cp.communityId),
-    items: Array.isArray(cp.items) ? cp.items.map((item: any) => ({
-      ...item,
-      playerId: getMappedOrNull(item.playerId),
-    })) : cp.items,
+    items: Array.isArray(cp.items)
+      ? cp.items.map((item: any) => ({
+          ...item,
+          playerId: getMappedOrNull(item.playerId),
+        }))
+      : cp.items,
   }));
 
   // WhatsApp list templates & drafts
-  const migratedWhatsAppTemplates = whatsAppTemplates.map(t => ({
+  const migratedWhatsAppTemplates = whatsAppTemplates.map((t) => ({
     ...t,
     id: getMapped(t.id),
     communityId: getMapped(t.communityId),
   }));
 
-  const migratedWhatsAppDrafts = whatsAppDrafts.map(d => ({
+  const migratedWhatsAppDrafts = whatsAppDrafts.map((d) => ({
     ...d,
     id: getMapped(d.id),
     communityId: getMapped(d.communityId),
@@ -446,7 +466,7 @@ export function migrateLocalDbToUuids() {
   }));
 
   // Player link proposals
-  const migratedPlayerLinkProposals = playerLinkProposals.map(p => ({
+  const migratedPlayerLinkProposals = playerLinkProposals.map((p) => ({
     ...p,
     id: getMapped(p.id),
     playerId: getMapped(p.playerId),
@@ -456,7 +476,7 @@ export function migrateLocalDbToUuids() {
   const migratedLastSelectedPlayerIds = lastSelectedPlayerIds.map(getMapped);
 
   // Community rules list
-  const migratedCommunityRules = communityRules.map(cr => ({
+  const migratedCommunityRules = communityRules.map((cr) => ({
     ...cr,
     communityId: getMapped(cr.communityId),
   }));

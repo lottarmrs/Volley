@@ -95,9 +95,7 @@ export function useSessions() {
     const now = new Date().toISOString();
     setSessions((prev) =>
       prev.map((s) =>
-        s.id === sessionId
-          ? { ...s, deletedAt: now, syncStatus: 'pending' as const }
-          : s,
+        s.id === sessionId ? { ...s, deletedAt: now, syncStatus: 'pending' as const } : s,
       ),
     );
 

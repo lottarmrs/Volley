@@ -37,10 +37,10 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
     >
       {/* Outer Glow & Rarity Border Wrapper */}
       <div className={`w-full h-full p-[3px] vut-card-shield ${borderClass}`}>
-        
         {/* Inner Card content container */}
-        <div className={`w-full h-full vut-card-shield ${bgClass} ${styleKeyClass} relative overflow-hidden flex flex-col justify-between p-4`}>
-          
+        <div
+          className={`w-full h-full vut-card-shield ${bgClass} ${styleKeyClass} relative overflow-hidden flex flex-col justify-between p-4`}
+        >
           {/* Top-Left Details: OVR, Position, Country, Crest */}
           <div className="absolute top-[35px] left-[15px] flex flex-col items-center z-20 font-sans">
             <span className="text-[38px] font-black leading-none tracking-tighter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
@@ -51,19 +51,30 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
             </span>
             <div className="w-[14px] h-[1px] bg-white/30 my-2" />
             {/* Vector Brazil Flag SVG (resolves OS/Browser flag rendering issues) */}
-            <svg className="w-5 h-3.5 rounded-xs shadow-sm mt-0.5" viewBox="0 0 720 504" fill="none" title="Brasil">
+            <svg
+              className="w-5 h-3.5 rounded-xs shadow-sm mt-0.5"
+              viewBox="0 0 720 504"
+              fill="none"
+              title="Brasil"
+            >
               <rect width="720" height="504" fill="#009c3b" />
               <polygon points="360,40 680,252 360,464 40,252" fill="#ffdf00" />
               <circle cx="360" cy="252" r="102" fill="#002776" />
-              <path d="M265,280 C300,260 380,260 455,280" stroke="white" strokeWidth="16" strokeLinecap="round" fill="none" />
+              <path
+                d="M265,280 C300,260 380,260 455,280"
+                stroke="white"
+                strokeWidth="16"
+                strokeLinecap="round"
+                fill="none"
+              />
             </svg>
             {/* Volleyball Shield Crest */}
-            <svg 
-              className="w-3.5 h-3.5 text-current mt-1.5 opacity-80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" 
-              viewBox="0 0 24 24" 
-              fill="currentColor" 
+            <svg
+              className="w-3.5 h-3.5 text-current mt-1.5 opacity-80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+              viewBox="0 0 24 24"
+              fill="currentColor"
               fillOpacity="0.2"
-              stroke="currentColor" 
+              stroke="currentColor"
               strokeWidth="2"
             >
               <path d="M12 2L3 5v6c0 5.5 4.5 10 9 10s9-4.5 9-10V5l-9-3z" />
@@ -75,13 +86,17 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
           <div className="absolute top-[35px] right-[15px] flex flex-col items-end gap-2 z-20">
             {/* Form Score hexagon */}
             {formBadge.value !== null && (
-              <div 
+              <div
                 className={`w-7 h-8 flex items-center justify-center font-mono text-[10px] font-black text-white relative shadow-lg ${
-                  formBadge.color === 'green' ? 'bg-success/80 border border-success' :
-                  formBadge.color === 'yellow' ? 'bg-warning/80 border border-warning' :
-                  formBadge.color === 'red' ? 'bg-error/80 border border-error' : 'bg-neutral/80 border border-neutral'
+                  formBadge.color === 'green'
+                    ? 'bg-success/80 border border-success'
+                    : formBadge.color === 'yellow'
+                      ? 'bg-warning/80 border border-warning'
+                      : formBadge.color === 'red'
+                        ? 'bg-error/80 border border-error'
+                        : 'bg-neutral/80 border border-neutral'
                 }`}
-                style={{ 
+                style={{
                   clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
                 }}
                 title={`Forma física: média de ${formBadge.value.toFixed(1)} nas últimas partidas`}
@@ -92,7 +107,7 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
 
             {/* Special Edition Round Badge */}
             {edition.kind !== 'base' && (
-              <div 
+              <div
                 className="w-7 h-7 bg-amber-500/90 border border-amber-300 rounded-full flex items-center justify-center text-sm shadow-md animate-pulse"
                 title={`Edição Especial: ${edition.label}`}
               >
@@ -104,16 +119,16 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
           {/* Left Badges Stack: Playstyles (Hand, Versatility) */}
           <div className="absolute left-[15px] top-[150px] flex flex-col gap-1.5 z-20 font-mono text-[9px] font-black">
             {/* Handedness Badge */}
-            <div 
-              className="w-6 h-6 bg-black/60 border border-white/10 rounded flex items-center justify-center text-white drop-shadow" 
+            <div
+              className="w-6 h-6 bg-black/60 border border-white/10 rounded flex items-center justify-center text-white drop-shadow"
               title={`Mão dominante: ${stats.hand === 'direita' ? 'Destra' : 'Canhota'}`}
             >
               {stats.hand === 'direita' ? 'D' : 'E'}
             </div>
-            
+
             {/* Versatility Badge */}
-            <div 
-              className="w-6 h-6 bg-black/60 border border-white/10 rounded flex items-center justify-center text-amber-400 drop-shadow" 
+            <div
+              className="w-6 h-6 bg-black/60 border border-white/10 rounded flex items-center justify-center text-amber-400 drop-shadow"
               title={`Versatilidade em quadra: ${stats.versatility} posições`}
             >
               {stats.versatility}★
@@ -139,11 +154,11 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
                 <span className="text-[78px] font-black tracking-tighter text-white/5 select-none font-sans mt-4">
                   {initials}
                 </span>
-                <svg 
-                  className="w-20 h-20 text-white/5 absolute opacity-80 bottom-0" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className="w-20 h-20 text-white/5 absolute opacity-80 bottom-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
                   strokeWidth="0.75"
                 >
                   <circle cx="12" cy="12" r="10" />
@@ -210,7 +225,11 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
               <div className="flex items-center gap-1.5 overflow-hidden max-w-[170px] justify-end font-bold">
                 {chemistry.length > 0 ? (
                   chemistry.map((partner, i) => (
-                    <span key={partner.playerId} className="truncate text-white/80" title={partner.name}>
+                    <span
+                      key={partner.playerId}
+                      className="truncate text-white/80"
+                      title={partner.name}
+                    >
                       🤝 {partner.name}
                       {i < chemistry.length - 1 && <span className="text-white/20 ml-1">·</span>}
                     </span>
@@ -221,7 +240,6 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
               </div>
             </div>
           </div>
-          
         </div>
       </div>
     </motion.div>

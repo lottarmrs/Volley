@@ -828,9 +828,7 @@ test('computeStaleRelationIds deletes only undesired relations of payload player
 test('computeStaleRelationIds NEVER deletes relations of players absent from the payload (C1)', () => {
   // player-2 não está no payload deste device (ex.: nunca carregado). Mesmo não
   // estando no conjunto desejado, a sua relação não pode ser apagada.
-  const owned = [
-    { id: 'rel-other-device', community_id: 'comm-9', player_id: 'player-2' },
-  ];
+  const owned = [{ id: 'rel-other-device', community_id: 'comm-9', player_id: 'player-2' }];
   const desired = new Set<string>(); // nada desejado neste device
   const payloadPlayers = new Set(['player-1']);
 

@@ -417,10 +417,7 @@ async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .range(from, to);
+    const { data, error } = await supabase.from(table).select('*').range(from, to);
 
     if (error) throw error;
     if (data && data.length > 0) {
@@ -479,8 +476,12 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
 
   const byOwnerAndLocalId = new Map<string, DbRecord>();
   for (const r of records) {
-    const ownerId = String(r.owner_id || '').trim().toLowerCase();
-    const localId = String(r.local_id || '').trim().toLowerCase();
+    const ownerId = String(r.owner_id || '')
+      .trim()
+      .toLowerCase();
+    const localId = String(r.local_id || '')
+      .trim()
+      .toLowerCase();
     if (!ownerId || !localId) continue;
     const key = `${ownerId}:${localId}`;
     const existing = byOwnerAndLocalId.get(key);
@@ -501,7 +502,9 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
     return data || [];
   } catch (error: any) {
     if (isCardinalityViolation(error)) {
-      console.warn(`[Bulk] Duplicate conflict keys in ${table}. Falling back to individual upserts.`);
+      console.warn(
+        `[Bulk] Duplicate conflict keys in ${table}. Falling back to individual upserts.`,
+      );
       const results: DbRecord[] = [];
       const fallbackErrors: unknown[] = [];
 
@@ -515,7 +518,8 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
       }
 
       if (fallbackErrors.length > 0) {
-        throw new AggregateError(fallbackErrors,
+        throw new AggregateError(
+          fallbackErrors,
           `[Bulk] ${fallbackErrors.length} individual upserts failed in ${table}`,
           { cause: error },
         );
@@ -546,7 +550,8 @@ async function bulkUpsertRows(table: OperationalTable, records: DbRecord[]): Pro
       }
 
       if (fallbackErrors.length > 0) {
-        throw new AggregateError(fallbackErrors,
+        throw new AggregateError(
+          fallbackErrors,
           `[Bulk] ${fallbackErrors.length} individual upserts failed in ${table}`,
           { cause: error },
         );
@@ -597,27 +602,13 @@ export const operationalCloudService = {
     return mapDbToSession(data);
   },
 
-  async upsertTeam(
-    local: Team,
-    ownerId: string,
-    communityId?: string | null,
-  ): Promise<Team> {
-    const data = await upsertRow(
-      'teams',
-      mapTeamToDb(local, ownerId, communityId),
-    );
+  async upsertTeam(local: Team, ownerId: string, communityId?: string | null): Promise<Team> {
+    const data = await upsertRow('teams', mapTeamToDb(local, ownerId, communityId));
     return mapDbToTeam(data);
   },
 
-  async upsertGame(
-    local: Game,
-    ownerId: string,
-    communityId?: string | null,
-  ): Promise<Game> {
-    const data = await upsertRow(
-      'games',
-      mapGameToDb(local, ownerId, communityId),
-    );
+  async upsertGame(local: Game, ownerId: string, communityId?: string | null): Promise<Game> {
+    const data = await upsertRow('games', mapGameToDb(local, ownerId, communityId));
     return mapDbToGame(data);
   },
 
@@ -626,10 +617,7 @@ export const operationalCloudService = {
     ownerId: string,
     communityId?: string | null,
   ): Promise<PointEvent> {
-    const data = await upsertRow(
-      'point_events',
-      mapPointEventToDb(local, ownerId, communityId),
-    );
+    const data = await upsertRow('point_events', mapPointEventToDb(local, ownerId, communityId));
     return mapDbToPointEvent(data);
   },
 
@@ -638,10 +626,7 @@ export const operationalCloudService = {
     ownerId: string,
     communityId?: string | null,
   ): Promise<GameReport> {
-    const data = await upsertRow(
-      'game_reports',
-      mapGameReportToDb(local, ownerId, communityId),
-    );
+    const data = await upsertRow('game_reports', mapGameReportToDb(local, ownerId, communityId));
     return mapDbToGameReport(data);
   },
 
@@ -657,25 +642,13 @@ export const operationalCloudService = {
     return mapDbToSessionReport(data);
   },
 
-  async upsertPresence(
-    local: CommunityPresence,
-    ownerId: string,
-  ): Promise<CommunityPresence> {
-    const data = await upsertRow(
-      'community_presence',
-      mapPresenceToDb(local, ownerId),
-    );
+  async upsertPresence(local: CommunityPresence, ownerId: string): Promise<CommunityPresence> {
+    const data = await upsertRow('community_presence', mapPresenceToDb(local, ownerId));
     return mapDbToPresence(data);
   },
 
-  async upsertDraft(
-    local: WhatsAppListDraft,
-    ownerId: string,
-  ): Promise<WhatsAppListDraft> {
-    const data = await upsertRow(
-      'whatsapp_list_drafts',
-      mapDraftToDb(local, ownerId),
-    );
+  async upsertDraft(local: WhatsAppListDraft, ownerId: string): Promise<WhatsAppListDraft> {
+    const data = await upsertRow('whatsapp_list_drafts', mapDraftToDb(local, ownerId));
     return mapDbToDraft(data);
   },
 

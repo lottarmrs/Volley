@@ -5,7 +5,6 @@ import { calculateGeneralOverall, getAttributeLabel } from '../../logic/calculat
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
 import { generateUUID } from '../../logic/uuid';
 
-
 interface GuestPlayerModalProps {
   isOpen: boolean;
   onClose: () => void;

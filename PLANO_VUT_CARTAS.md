@@ -17,18 +17,18 @@ não é o número na carta — é que a carta é:
 2. **Viva** — OVR e brilho mudam conforme o atleta joga.
 3. **Profunda** — frente colecionável, verso analítico (verso fica no v2).
 
-**Regra de ouro (não violar):** a carta é uma *representação visual* de dados que
+**Regra de ouro (não violar):** a carta é uma _representação visual_ de dados que
 já existem. Ela **não** cria nem grava atributos novos. Tudo é **derivado** em
 tempo de leitura. Nenhuma migração de banco no v1.
 
 ### Separação de camadas (o erro a evitar)
 
-| Camada | O que é | Origem | Eixo da carta |
-|---|---|---|---|
-| Habilidade | `atributos` 0–10 | progressão | **OVR + 6 stats + Tier** |
-| Desempenho | nota 0–10 da partida | motor de rating | **Badge verde + edição In-Form** |
-| Reconhecimento | Maestro/Muralha/MVP | `calculateSessionRecognition` | **Edição especial + selos** |
-| Sinergia | quem joga junto | `partnershipHistory` | **Química** |
+| Camada         | O que é              | Origem                        | Eixo da carta                    |
+| -------------- | -------------------- | ----------------------------- | -------------------------------- |
+| Habilidade     | `atributos` 0–10     | progressão                    | **OVR + 6 stats + Tier**         |
+| Desempenho     | nota 0–10 da partida | motor de rating               | **Badge verde + edição In-Form** |
+| Reconhecimento | Maestro/Muralha/MVP  | `calculateSessionRecognition` | **Edição especial + selos**      |
+| Sinergia       | quem joga junto      | `partnershipHistory`          | **Química**                      |
 
 > **Tier ≠ Edição especial.** Tier (bronze/prata/ouro) vem do OVR (habilidade).
 > Edição especial (In-Form, MVP, Maestro, Muralha) vem do desempenho recente.
@@ -58,13 +58,13 @@ const ovr = Math.min(99, calculatePositionOverall(player, player.posicaoPrincipa
 
 Mapeamento dos `atributos` (0–10) para os 6 stats da carta:
 
-| Macro | Fórmula |
-|---|---|
-| **ATQ** | `ataque` |
-| **BLO** | `bloqueio` |
-| **SAQ** | `saque` |
-| **LEV** | `levantamento` |
-| **DEF** | média(`defesa`, `recepcao`) |
+| Macro   | Fórmula                            |
+| ------- | ---------------------------------- |
+| **ATQ** | `ataque`                           |
+| **BLO** | `bloqueio`                         |
+| **SAQ** | `saque`                            |
+| **LEV** | `levantamento`                     |
+| **DEF** | média(`defesa`, `recepcao`)        |
 | **FÍS** | média(`velocidade`, `resistencia`) |
 
 Conversão 0–10 → 0–99 com **curva de calibração** (não linear):
@@ -110,13 +110,13 @@ function tierFromOvr(ovr: number): 'bronze' | 'silver' | 'gold' | 'elite' {
 Resolvidas a partir do **contexto recente** (última sessão finalizada do atleta).
 Prioridade quando mais de uma se aplica:
 
-| Prioridade | Edição | Gatilho | Fonte |
-|---|---|---|---|
-| 1 | 🏆 **MVP da Noite** | maior nota da última sessão | rating por sessão |
-| 2 | 🎯 **Maestro** | top assists da sessão | `calculateSessionRecognition` |
-| 2 | 🧱 **Muralha** | top defesas/🌟 da sessão | `calculateSessionRecognition` |
-| 3 | 🟣 **Em Alta (In-Form)** | sequência de notas altas (ex.: últimas 3 ≥ 7.0) | `ultimasPartidas` |
-| — | ⚪ **Base** | nenhuma acima | — |
+| Prioridade | Edição                   | Gatilho                                         | Fonte                         |
+| ---------- | ------------------------ | ----------------------------------------------- | ----------------------------- |
+| 1          | 🏆 **MVP da Noite**      | maior nota da última sessão                     | rating por sessão             |
+| 2          | 🎯 **Maestro**           | top assists da sessão                           | `calculateSessionRecognition` |
+| 2          | 🧱 **Muralha**           | top defesas/🌟 da sessão                        | `calculateSessionRecognition` |
+| 3          | 🟣 **Em Alta (In-Form)** | sequência de notas altas (ex.: últimas 3 ≥ 7.0) | `ultimasPartidas`             |
+| —          | ⚪ **Base**              | nenhuma acima                                   | —                             |
 
 - Maestro e Muralha são **a glória do levantador/líbero** — fecham a tese do projeto.
 - A edição é **efêmera/viva**: recalculada a cada leitura; some quando o desempenho
@@ -150,16 +150,18 @@ Ordem segura — cada etapa fecha com `tsc` + testes; no fim, build + validaçã
 visual (desktop e mobile). Lógica pura primeiro; UI depois.
 
 ### Etapa 1 — Motor `src/logic/futCards.ts` (lógica + testes)
+
 - `futConstants` (curva, limiares de tier, limiares de versatilidade/In-Form) —
   preferir um bloco em [`balancingConstants.ts`](src/logic/balancingConstants.ts)
   ou um arquivo próprio, para tudo ficar afinável.
 - `generateFutStats(player): FutStats` → `{ ovr, atq, blo, saq, lev, def, fis,
-  tier, versatility, hand }`.
+tier, versatility, hand }`.
 - **Arquivo de teste** `src/logic/futCards.test.ts` (registrar no `test:unit` do
   `package.json`): limites 0–99 (sem overflow), tiers por faixa, versatilidade
   1–5, curva nos pontos-chave.
 
 ### Etapa 2 — Contexto: edição especial + química
+
 - `resolvePlayerEdition(player, ctx): VutEdition` — usa `calculateSessionRecognition`
   da última sessão + `autoFormFromHistory`/últimas notas para In-Form.
 - `playerChemistry(...)` — top-N via `buildPartnershipMatrix`.
@@ -169,6 +171,7 @@ visual (desktop e mobile). Lógica pura primeiro; UI depois.
   química top-N com desempate.
 
 ### Etapa 3 — Componente `src/components/player/FutCard.tsx`
+
 - **No tema do app** (tokens `base-200/300`, `accent`, `warning` etc.) — **não**
   cores cruas (`amber-700`, `gray-300`).
 - Frente: OVR, sigla da posição, 6 stats, mão R/L, ⭐ versatilidade, badge verde
@@ -178,6 +181,7 @@ visual (desktop e mobile). Lógica pura primeiro; UI depois.
 - Forma da carta: `clip-path`/máscara — validar no mobile.
 
 ### Etapa 4 — Modal "Ver carta" + exportar imagem
+
 - Botão "Ver carta" na lista/perfil → modal com `<FutCard />`.
 - Export: **`html-to-image`** (`toPng`) → `navigator.share({ files: [...] })` no
   mobile; **download** (anchor + object URL) no desktop, reaproveitando o padrão de
@@ -185,6 +189,7 @@ visual (desktop e mobile). Lógica pura primeiro; UI depois.
 - Aguardar `document.fonts.ready` e usar `pixelRatio` ≥ 2 para nitidez.
 
 ### Etapa 5 — Momento de revelação
+
 - No `handleFinishSession` ([`App.tsx`](src/App.tsx)): após a sessão, computar quem
   ganhou edição especial **nesta** sessão e abrir um reveal ("Você desbloqueou:
   Maestro 🎯") com a carta. É o "abrir pacote".
@@ -230,7 +235,7 @@ visual (desktop e mobile). Lógica pura primeiro; UI depois.
    e reusar, nunca por carta.
 10. **Reveal idempotente.** Só no evento de encerramento; evitar loop de re-render.
 11. **Aditivo, não destrutivo.** A carta é uma **nova** representação (modal/coleção
-    + export). **Não** substituir a lista de gestão detalhada.
+    - export). **Não** substituir a lista de gestão detalhada.
 12. **Sem persistência no v1.** Cartas e edições são derivadas. Persistir "edições
     conquistadas" (histórico/álbum) é escopo de v2.
 
@@ -239,7 +244,7 @@ visual (desktop e mobile). Lógica pura primeiro; UI depois.
 ## 8. Decisões já tomadas
 
 - ✅ Escopo **VUT v1**: carta viva + 2 grupos de especiais (In-Form + reconhecimento)
-  + reveal + export.
+  - reveal + export.
 - ✅ **Química de quadra** entra no **v1** (via `partnershipHistory`).
 - ✅ Export via **`html-to-image`**.
 - ✅ **Curva** de calibração (não linear) para os 6 macro.

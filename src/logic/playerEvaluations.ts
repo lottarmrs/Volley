@@ -145,11 +145,8 @@ export function simulateLocalConsensus(
     newConsensus[key] = roundAttribute(clampAttribute(newVal));
   }
 
-  const newEvaluatorCount = isNewPlayer || oldEvaluatorCount === 0
-    ? 1
-    : hasOwn
-    ? oldEvaluatorCount
-    : oldEvaluatorCount + 1;
+  const newEvaluatorCount =
+    isNewPlayer || oldEvaluatorCount === 0 ? 1 : hasOwn ? oldEvaluatorCount : oldEvaluatorCount + 1;
 
   return {
     atributos: newConsensus,

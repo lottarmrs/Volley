@@ -27,7 +27,6 @@ import { OVERALL_SCALE, PENALTIES, THRESHOLDS, QUALITY } from './balancingConsta
 import { PartnershipMatrix } from './partnershipHistory';
 import { generateUUID } from './uuid';
 
-
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
 // Pesos recalibrados para a escala normalizada (Fase A): com overall e

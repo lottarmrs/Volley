@@ -31,7 +31,6 @@ import {
 } from '../logic/tournament';
 import { generateUUID } from '../logic/uuid';
 
-
 export function useLiveSession(
   activeSession: Session | null,
   games: Game[],
@@ -223,7 +222,7 @@ export function useLiveSession(
             currentGame.sets || [],
             scoreAfter.teamA,
             scoreAfter.teamB,
-            matchRules
+            matchRules,
           );
           updatedGame.sets = matchState.sets;
           updatedGame.scoreA = matchState.scoreA;
@@ -334,7 +333,7 @@ export function useLiveSession(
       currentGame.scoreA > currentGame.scoreB ? currentGame.teamAId : currentGame.teamBId;
     const loserTeamId =
       currentGame.scoreA > currentGame.scoreB ? currentGame.teamBId : currentGame.teamAId;
-    
+
     let sets = currentGame.sets || [];
     if (currentGame.setTargets && currentGame.setTargets.length > 1) {
       sets = [...sets, { scoreA: currentGame.scoreA, scoreB: currentGame.scoreB }];
@@ -462,7 +461,7 @@ export function useLiveSession(
     setGames((prev) =>
       prev.map((g) => {
         if (g.id !== currentGame.id) return g;
-        
+
         const newSets = g.sets ? [...g.sets] : [];
         if (newSets.length > 0) {
           const lastSet = newSets[newSets.length - 1];

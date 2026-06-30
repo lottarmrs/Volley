@@ -135,7 +135,12 @@ export default function App() {
   const proposals = usePlayerLinkProposals(play.rawPlayers, play.setPlayers, auth.user?.id ?? null);
 
   const editingPlayerCommunity = useMemo(() => {
-    if (!play.editingPlayer || !play.editingPlayer.communityIds || play.editingPlayer.communityIds.length === 0) return null;
+    if (
+      !play.editingPlayer ||
+      !play.editingPlayer.communityIds ||
+      play.editingPlayer.communityIds.length === 0
+    )
+      return null;
     return comm.communities.find((c) => play.editingPlayer!.communityIds!.includes(c.id)) || null;
   }, [play.editingPlayer, comm.communities]);
 
@@ -526,7 +531,7 @@ export default function App() {
         status: 'finished',
         updatedAt: new Date().toISOString(),
       };
-      
+
       const report = generateSessionReport(
         finished,
         sessionGames,
@@ -568,11 +573,15 @@ export default function App() {
 
         // Special card edition?
         if (after.edition.kind !== 'base') {
-          reasons.push(`${after.edition.emoji} EDIÇÃO ESPECIAL: ${after.edition.label.toUpperCase()}`);
+          reasons.push(
+            `${after.edition.emoji} EDIÇÃO ESPECIAL: ${after.edition.label.toUpperCase()}`,
+          );
         }
 
         // New achievement unlocked?
-        const beforeUnlocked = new Set(before.achievements.filter((a) => a.unlocked).map((a) => a.id));
+        const beforeUnlocked = new Set(
+          before.achievements.filter((a) => a.unlocked).map((a) => a.id),
+        );
         const afterUnlocked = after.achievements.filter((a) => a.unlocked);
 
         for (const ach of afterUnlocked) {
@@ -955,13 +964,13 @@ export default function App() {
                   ),
                 );
               }}
-                            currentUserId={auth.user?.id ?? null}
+              currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
               onLinkedCloudPlayer={(player, communityId) => {
                 play.setPlayers((prev) => {
                   const exists = prev.find((p) => p.id === player.id);
                   const updatedCommunityIds = Array.from(
-                    new Set([...(player.communityIds ?? []), communityId])
+                    new Set([...(player.communityIds ?? []), communityId]),
                   );
                   const updatedPlayer = {
                     ...player,
@@ -1315,20 +1324,36 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-center">
                   <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">Jogos</span>
-                    <span className="text-xs font-black font-mono text-base-content/80">{p.stats.gamesPlayed}</span>
+                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
+                      Jogos
+                    </span>
+                    <span className="text-xs font-black font-mono text-base-content/80">
+                      {p.stats.gamesPlayed}
+                    </span>
                   </div>
                   <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">Win%</span>
-                    <span className="text-xs font-black font-mono text-success">{p.stats.winRate.toFixed(0)}%</span>
+                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
+                      Win%
+                    </span>
+                    <span className="text-xs font-black font-mono text-success">
+                      {p.stats.winRate.toFixed(0)}%
+                    </span>
                   </div>
                   <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">Pontos</span>
-                    <span className="text-xs font-black font-mono text-accent">{p.stats.totalPoints}</span>
+                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
+                      Pontos
+                    </span>
+                    <span className="text-xs font-black font-mono text-accent">
+                      {p.stats.totalPoints}
+                    </span>
                   </div>
                   <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">Bloq</span>
-                    <span className="text-xs font-black font-mono text-base-content/70">{p.stats.blocks}</span>
+                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
+                      Bloq
+                    </span>
+                    <span className="text-xs font-black font-mono text-base-content/70">
+                      {p.stats.blocks}
+                    </span>
                   </div>
                 </div>
               </div>

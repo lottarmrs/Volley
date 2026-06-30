@@ -144,7 +144,7 @@ export function calculateTournamentStandings(
   games: Game[],
   teamIds: string[],
   classPoints: { win: number; loss: number; walkoverWin?: number; walkoverLoss?: number },
- ): TournamentStanding[] {
+): TournamentStanding[] {
   const map = new Map<string, TournamentStanding>(
     teamIds.map((id) => [
       id,
@@ -173,12 +173,14 @@ export function calculateTournamentStandings(
     a.gamesPlayed++;
     b.gamesPlayed++;
 
-    const pointsA = game.sets && game.sets.length > 0
-      ? game.sets.reduce((sum, s) => sum + s.scoreA, 0)
-      : game.scoreA;
-    const pointsB = game.sets && game.sets.length > 0
-      ? game.sets.reduce((sum, s) => sum + s.scoreB, 0)
-      : game.scoreB;
+    const pointsA =
+      game.sets && game.sets.length > 0
+        ? game.sets.reduce((sum, s) => sum + s.scoreA, 0)
+        : game.scoreA;
+    const pointsB =
+      game.sets && game.sets.length > 0
+        ? game.sets.reduce((sum, s) => sum + s.scoreB, 0)
+        : game.scoreB;
 
     a.pointsFor += pointsA;
     a.pointsAgainst += pointsB;

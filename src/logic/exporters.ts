@@ -41,9 +41,10 @@ export function formatGameReportForWhatsApp(report: GameReport): string {
     })
     .join('\n');
 
-  const parciais = report.sets && report.sets.length > 0
-    ? ` (${report.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
-    : '';
+  const parciais =
+    report.sets && report.sets.length > 0
+      ? ` (${report.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
+      : '';
 
   return [
     `🏐 *Panelinha — Jogo ${report.sequenceNumber}*`,
@@ -85,14 +86,13 @@ export function formatSessionReportForWhatsApp(report: SessionReport): string {
     .join('\n');
 
   const gamesList = report.games
-    .map(
-      (game) => {
-        const parciais = game.sets && game.sets.length > 0
+    .map((game) => {
+      const parciais =
+        game.sets && game.sets.length > 0
           ? ` (${game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
           : '';
-        return `#${game.sequenceNumber} — ${game.teamA.name} ${game.teamA.score} x ${game.teamB.score} ${game.teamB.name}${parciais}`;
-      },
-    )
+      return `#${game.sequenceNumber} — ${game.teamA.name} ${game.teamA.score} x ${game.teamB.score} ${game.teamB.name}${parciais}`;
+    })
     .join('\n');
 
   const tieBreakLabel = report.rules.tieBreakMethod === 'direct_3' ? '3 direto' : 'vai a 2';
@@ -283,9 +283,10 @@ export function formatTournamentGameForWhatsApp(input: {
     })
     .join('\n');
 
-  const parciais = input.game.sets && input.game.sets.length > 0
-    ? ` (${input.game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
-    : '';
+  const parciais =
+    input.game.sets && input.game.sets.length > 0
+      ? ` (${input.game.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})`
+      : '';
 
   return [
     `🏐 Resultado do jogo`,

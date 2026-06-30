@@ -80,7 +80,10 @@ export const PlayersView = ({
           >
             <Plus className="w-4 h-4" /> Convidado
           </button>
-          <button onClick={onAddPlayer} className="btn btn-primary btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs">
+          <button
+            onClick={onAddPlayer}
+            className="btn btn-primary btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
+          >
             <Plus className="w-4 h-4" /> Cadastrar
           </button>
         </div>

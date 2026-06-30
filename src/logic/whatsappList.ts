@@ -1,7 +1,6 @@
 import { WhatsAppListDraft, WhatsAppListSlot, WhatsAppListTemplate } from '../types';
 import { generateUUID } from './uuid';
 
-
 function formatDate(date: string) {
   const value = new Date(`${date}T12:00:00`);
   const weekday = value.toLocaleDateString('pt-BR', { weekday: 'long' }).toUpperCase();

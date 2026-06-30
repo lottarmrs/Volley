@@ -313,7 +313,10 @@ export function CommunityMembersPanel({
 
       {/* ── Convite por e-mail (dono/admin) ────────────────────────────────── */}
       {canManage && (
-        <form onSubmit={handleInvite} className="bg-surface p-4 rounded-xl border border-border space-y-3">
+        <form
+          onSubmit={handleInvite}
+          className="bg-surface p-4 rounded-xl border border-border space-y-3"
+        >
           <p className="text-sm font-semibold flex items-center gap-2">
             <UserPlus className="w-4 h-4" /> Adicionar por e-mail
           </p>
@@ -342,7 +345,11 @@ export function CommunityMembersPanel({
                 </option>
               ))}
             </select>
-            <button type="submit" className="btn btn-primary" disabled={busy || !inviteEmail.trim()}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={busy || !inviteEmail.trim()}
+            >
               Adicionar
             </button>
           </div>
@@ -394,7 +401,9 @@ export function CommunityMembersPanel({
                     {editable ? (
                       <select
                         value={member.role}
-                        onChange={(e) => handleRoleChange(member, e.target.value as CommunityMemberRole)}
+                        onChange={(e) =>
+                          handleRoleChange(member, e.target.value as CommunityMemberRole)
+                        }
                         className="select select-bordered select-sm"
                         disabled={busy}
                         aria-label="Papel do membro"

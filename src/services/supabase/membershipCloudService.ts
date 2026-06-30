@@ -38,10 +38,7 @@ async function fetchProfilesByUserIds(userIds: string[]): Promise<Map<string, Pr
   const ids = Array.from(new Set(userIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PROFILE_COLUMNS)
-    .in('id', ids);
+  const { data, error } = await supabase.from('profiles').select(PROFILE_COLUMNS).in('id', ids);
 
   if (error) {
     console.warn('[membership] NÃ£o foi possÃ­vel carregar perfis dos membros.', error);
@@ -56,7 +53,9 @@ async function mapMembersWithProfiles(
   communityLocalId?: string,
 ): Promise<CommunityMember[]> {
   const profiles = await fetchProfilesByUserIds(rows.map((row) => row.user_id));
-  return rows.map((row) => mapDbToCommunityMember(row, communityLocalId, profiles.get(row.user_id)));
+  return rows.map((row) =>
+    mapDbToCommunityMember(row, communityLocalId, profiles.get(row.user_id)),
+  );
 }
 
 async function mapMemberWithProfile(
@@ -136,9 +135,13 @@ export const membershipCloudService = {
   },
 
   /** Preview da comunidade a partir de um código (sem entrar). */
-  async findByCode(
-    code: string,
-  ): Promise<{ id: string; name: string; description: string | null; memberCount: number; myStatus: string | null } | null> {
+  async findByCode(code: string): Promise<{
+    id: string;
+    name: string;
+    description: string | null;
+    memberCount: number;
+    myStatus: string | null;
+  } | null> {
     const { data, error } = await supabase.rpc('find_community_by_code', { p_code: code });
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;

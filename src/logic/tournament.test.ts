@@ -80,7 +80,7 @@ test('generateTournamentSchedule sorts matches by round ascending', () => {
     for (let i = 1; i < schedule.length; i++) {
       assert.ok(
         schedule[i].round >= schedule[i - 1].round,
-        `Format ${format} matches not sorted by round: index ${i} has round ${schedule[i].round} while index ${i - 1} has round ${schedule[i - 1].round}`
+        `Format ${format} matches not sorted by round: index ${i} has round ${schedule[i].round} while index ${i - 1} has round ${schedule[i - 1].round}`,
       );
     }
   }

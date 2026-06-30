@@ -35,7 +35,11 @@ import {
   SessionReport,
   TournamentConfig,
 } from '../../types';
-import { calculateTeamSessionStats, calculatePlayerScoringRanking, getPointLabel } from '../../logic/match';
+import {
+  calculateTeamSessionStats,
+  calculatePlayerScoringRanking,
+  getPointLabel,
+} from '../../logic/match';
 import { generateSessionReport } from '../../logic/reports';
 import {
   formatSessionReportForWhatsApp,
@@ -748,9 +752,7 @@ function SessionDetailView({
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-text-muted text-[10px] w-4">{i + 1}º</span>
-                      <span className="text-xs font-bold text-white">
-                        {p?.nome || 'Atleta'}
-                      </span>
+                      <span className="text-xs font-bold text-white">{p?.nome || 'Atleta'}</span>
                     </div>
                     <div className="flex gap-4 items-center">
                       <div className="flex gap-1 items-center">
@@ -775,7 +777,9 @@ function SessionDetailView({
                           </span>
                         )}
                       </div>
-                      <span className="font-mono font-black text-white">{rank.totalPoints} pts</span>
+                      <span className="font-mono font-black text-white">
+                        {rank.totalPoints} pts
+                      </span>
                     </div>
                   </div>
                 );
@@ -1200,15 +1204,18 @@ function SessionDetailView({
                   >
                     <div>
                       <p className="font-black uppercase text-white">
-                        J{game?.sequenceNumber || '-'} | #{point.sequenceNumber} |{' '}
-                        {label.teamName}
+                        J{game?.sequenceNumber || '-'} | #{point.sequenceNumber} | {label.teamName}
                       </p>
                       <p className="text-text-muted uppercase">
                         {label.playerName} | {label.reason}
                       </p>
                     </div>
-                    <p className={`font-mono font-black ${point.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}>
-                      {point.eventKind === 'highlight' ? '🌟' : `${point.scoreAfter.teamA}x${point.scoreAfter.teamB}`}
+                    <p
+                      className={`font-mono font-black ${point.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}
+                    >
+                      {point.eventKind === 'highlight'
+                        ? '🌟'
+                        : `${point.scoreAfter.teamA}x${point.scoreAfter.teamB}`}
                     </p>
                   </div>
                 );

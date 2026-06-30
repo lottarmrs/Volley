@@ -12,8 +12,12 @@ export function deduplicatePlayerEvaluationRecords(records: DbRecord[]): DbRecor
   const byOwnerAndPlayer = new Map<string, DbRecord>();
 
   for (const record of records) {
-    const ownerId = String(record.owner_id || '').trim().toLowerCase();
-    const playerId = String(record.player_id || '').trim().toLowerCase();
+    const ownerId = String(record.owner_id || '')
+      .trim()
+      .toLowerCase();
+    const playerId = String(record.player_id || '')
+      .trim()
+      .toLowerCase();
     if (!ownerId || !playerId) continue;
 
     const key = `${ownerId}:${playerId}`;
@@ -26,11 +30,7 @@ export function deduplicatePlayerEvaluationRecords(records: DbRecord[]): DbRecor
   return Array.from(byOwnerAndPlayer.values());
 }
 
-export function mapPlayerEvaluationToDb(
-  player: Player,
-  ownerId: string,
-  playerCloudId: string,
-) {
+export function mapPlayerEvaluationToDb(player: Player, ownerId: string, playerCloudId: string) {
   // NÃO incluir a chave `id`: Object.keys({id: undefined}) ainda contém 'id',
   // e o supabase-js (defaultToNull, sobretudo em upsert em lote) enviaria
   // id=null, sobrescrevendo o default gen_random_uuid() e violando o NOT NULL.
@@ -46,9 +46,7 @@ export function mapPlayerEvaluationToDb(
   };
 }
 
-export function mapDbToPlayerEvaluation(
-  db: DbRecord,
-): PlayerEvaluation {
+export function mapDbToPlayerEvaluation(db: DbRecord): PlayerEvaluation {
   return {
     id: db.local_id || db.id,
     playerId: db.player_id,
@@ -96,10 +94,7 @@ export const playerEvaluationCloudService = {
     return mapDbToPlayerEvaluation(data);
   },
 
-  async bulkUpsertForPlayers(
-    players: Player[],
-    ownerId: string,
-  ): Promise<void> {
+  async bulkUpsertForPlayers(players: Player[], ownerId: string): Promise<void> {
     const records = players
       .map((player) => {
         const playerCloudId = player.cloudId || player.id;

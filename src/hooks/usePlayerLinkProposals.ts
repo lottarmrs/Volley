@@ -3,6 +3,11 @@ import { Player, PlayerLinkProposal } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { playerLinkProposalCloudService } from '../services/supabase/playerLinkProposalCloudService';
 import { generateUUID } from '../logic/uuid';
+import {
+  buildPlayerLinkProposal,
+  linkPlayerToUser,
+  supersedePendingProposalsForLink,
+} from '../domain/playerLink';
 
 export function usePlayerLinkProposals(
   players: Player[],
@@ -26,18 +31,8 @@ export function usePlayerLinkProposals(
       if (player.isGuest) throw new Error('Não é possível vincular atletas convidados.');
 
       const now = new Date().toISOString();
-      const isOwner = player.cloudOwnerId === currentUserId || (!player.cloudId && !player.userId);
-
       const tempProposalId = `proposal-${generateUUID()}`;
-      const newProposal: PlayerLinkProposal = {
-        id: tempProposalId,
-        playerId,
-        playerCloudId: player.cloudId,
-        userId: currentUserId,
-        status: isOwner ? 'approved' : 'pending',
-        createdAt: now,
-        syncStatus: 'pending',
-      };
+      const newProposal = buildPlayerLinkProposal(player, currentUserId, now, tempProposalId);
 
       // Atualiza localmente
       setLinkProposals((prev) => [
@@ -47,14 +42,8 @@ export function usePlayerLinkProposals(
         newProposal,
       ]);
 
-      if (isOwner) {
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === playerId
-              ? { ...p, userId: currentUserId, syncStatus: 'pending', updatedAt: now }
-              : p,
-          ),
-        );
+      if (newProposal.status === 'approved') {
+        setPlayers((prev) => linkPlayerToUser(prev, playerId, currentUserId, now));
       }
 
       try {
@@ -96,16 +85,15 @@ export function usePlayerLinkProposals(
       const isTemp = proposal.syncStatus === 'pending';
 
       if (action === 'approve') {
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === player.id
-              ? { ...p, userId: proposal.userId, syncStatus: 'pending', updatedAt: now }
-              : p,
-          ),
-        );
+        setPlayers((prev) => linkPlayerToUser(prev, player.id, proposal.userId, now));
 
         setLinkProposals((prev) =>
-          prev.map((p) => {
+          supersedePendingProposalsForLink(
+            prev,
+            { playerId: player.id, playerCloudId: player.cloudId, userId: proposal.userId },
+            currentUserId,
+            now,
+          ).map((p) => {
             if (p.id === proposalId) {
               return {
                 ...p,
@@ -113,18 +101,6 @@ export function usePlayerLinkProposals(
                 reviewedBy: currentUserId,
                 reviewedAt: now,
                 syncStatus: isTemp ? 'pending' : 'synced',
-              };
-            }
-            if (
-              (p.playerId === player.id || p.userId === proposal.userId) &&
-              p.status === 'pending'
-            ) {
-              return {
-                ...p,
-                status: 'superseded',
-                reviewedBy: currentUserId,
-                reviewedAt: now,
-                syncStatus: p.syncStatus === 'pending' ? 'pending' : 'synced',
               };
             }
             return p;

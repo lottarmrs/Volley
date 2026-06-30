@@ -32,6 +32,19 @@ test('free play step 3 requires enough players and at least three teams', () => 
   assert.equal(errors.teamCount, 'Jogo livre exige pelo menos 3 times.');
 });
 
+test('free play step 3 requires enough selected players for team count', () => {
+  const errors = validateSessionWizardStep(
+    makeSession('s1', {
+      type: 'free_play',
+      selectedPlayerIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'],
+      config: makeFreePlayConfig({ teamCount: 3 }),
+    }),
+    3,
+  );
+
+  assert.equal(errors.teamCount, 'Para 3 times, selecione pelo menos 9 jogadores.');
+});
+
 test('tournament group formats require at least four teams', () => {
   const errors = validateSessionWizardStep(
     makeSession('s1', {

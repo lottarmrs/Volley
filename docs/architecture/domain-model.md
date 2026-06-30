@@ -53,3 +53,16 @@ business rules out of React components and IO services without changing behavior
 - Failed upload items must remain local and pending.
 - Cloud adapters may throw technical errors; domain modules return deterministic
   product decisions.
+
+## Application Layer
+
+- Application commands and queries live in `src/application/*`.
+- Commands receive user intentions, current local state, timestamps, and IO gateways.
+- Commands may update local state even when cloud IO fails, but must report recoverable
+  technical issues.
+- Product errors such as missing auth, missing athlete, or invalid link attempts are not
+  logged as technical failures.
+- Account-link UI renders a View Model from the application layer rather than deriving
+  cloud/local state directly in JSX.
+- Supabase services remain adapters; React components should not call them directly for
+  flows that have commands or queries.

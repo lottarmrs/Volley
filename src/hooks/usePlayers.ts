@@ -7,7 +7,6 @@ import { resolveUsername } from '../logic/username';
 import { simulateLocalConsensus } from '../logic/playerEvaluations';
 import { generateUUID } from '../logic/uuid';
 
-
 function normalizePlayer(p: any): Player {
   return {
     ...p,
@@ -102,148 +101,155 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     [games, pointEvents, teams],
   );
 
-  const handleSavePlayer = useCallback((permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean }) => {
-    if (!editingPlayer) return false;
+  const handleSavePlayer = useCallback(
+    (permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean }) => {
+      if (!editingPlayer) return false;
 
-    const original = players.find((p) => p.id === editingPlayer.id);
+      const original = players.find((p) => p.id === editingPlayer.id);
 
-    // Impedir edição direta da propriedade userId
-    if (original && original.userId !== editingPlayer.userId) {
-      throw new Error('PERMISSION_DENIED');
-    }
-    if (!original && editingPlayer.userId) {
-      throw new Error('PERMISSION_DENIED');
-    }
-
-    if (permissions) {
-      if (!permissions.canEvaluatePlayer) {
+      // Impedir edição direta da propriedade userId
+      if (original && original.userId !== editingPlayer.userId) {
+        throw new Error('PERMISSION_DENIED');
+      }
+      if (!original && editingPlayer.userId) {
         throw new Error('PERMISSION_DENIED');
       }
 
-      if (!permissions.canEditPlayerProfile && original) {
-        const profileFieldsChanged =
-          original.nome !== editingPlayer.nome ||
-          original.apelido !== editingPlayer.apelido ||
-          original.posicaoPrincipal !== editingPlayer.posicaoPrincipal ||
-          JSON.stringify(original.posicoesSecundarias) !== JSON.stringify(editingPlayer.posicoesSecundarias) ||
-          original.genero !== editingPlayer.genero ||
-          original.alturaCm !== editingPlayer.alturaCm ||
-          original.maoDominante !== editingPlayer.maoDominante ||
-          original.ativo !== editingPlayer.ativo ||
-          original.isGuest !== editingPlayer.isGuest ||
-          original.status.lesionado !== editingPlayer.status.lesionado ||
-          original.status.presencaFrequente !== editingPlayer.status.presencaFrequente ||
-          original.status.limitacaoFisica !== editingPlayer.status.limitacaoFisica ||
-          original.formaAtual.valor !== editingPlayer.formaAtual.valor ||
-          original.formaAtual.observacao !== editingPlayer.formaAtual.observacao;
-
-        if (profileFieldsChanged) {
+      if (permissions) {
+        if (!permissions.canEvaluatePlayer) {
           throw new Error('PERMISSION_DENIED');
         }
+
+        if (!permissions.canEditPlayerProfile && original) {
+          const profileFieldsChanged =
+            original.nome !== editingPlayer.nome ||
+            original.apelido !== editingPlayer.apelido ||
+            original.posicaoPrincipal !== editingPlayer.posicaoPrincipal ||
+            JSON.stringify(original.posicoesSecundarias) !==
+              JSON.stringify(editingPlayer.posicoesSecundarias) ||
+            original.genero !== editingPlayer.genero ||
+            original.alturaCm !== editingPlayer.alturaCm ||
+            original.maoDominante !== editingPlayer.maoDominante ||
+            original.ativo !== editingPlayer.ativo ||
+            original.isGuest !== editingPlayer.isGuest ||
+            original.status.lesionado !== editingPlayer.status.lesionado ||
+            original.status.presencaFrequente !== editingPlayer.status.presencaFrequente ||
+            original.status.limitacaoFisica !== editingPlayer.status.limitacaoFisica ||
+            original.formaAtual.valor !== editingPlayer.formaAtual.valor ||
+            original.formaAtual.observacao !== editingPlayer.formaAtual.observacao;
+
+          if (profileFieldsChanged) {
+            throw new Error('PERMISSION_DENIED');
+          }
+        }
       }
-    }
 
-    const errors: Record<string, string> = {};
-    if (!editingPlayer.nome.trim()) errors.nome = 'O nome do atleta é obrigatório.';
-    if (
-      editingPlayer.alturaCm !== undefined &&
-      editingPlayer.alturaCm !== null &&
-      editingPlayer.alturaCm <= 0
-    )
-      errors.alturaCm = 'A altura deve ser um valor positivo.';
+      const errors: Record<string, string> = {};
+      if (!editingPlayer.nome.trim()) errors.nome = 'O nome do atleta é obrigatório.';
+      if (
+        editingPlayer.alturaCm !== undefined &&
+        editingPlayer.alturaCm !== null &&
+        editingPlayer.alturaCm <= 0
+      )
+        errors.alturaCm = 'A altura deve ser um valor positivo.';
 
-    const invalidAttrs = (
-      Object.entries(editingPlayer.atributos) as Array<[keyof Attributes, number]>
-    ).filter(([, val]) => val < 0 || val > 10);
-    if (invalidAttrs.length > 0)
-      errors.atributos = 'Alguns atributos estão fora do intervalo (0–10).';
+      const invalidAttrs = (
+        Object.entries(editingPlayer.atributos) as Array<[keyof Attributes, number]>
+      ).filter(([, val]) => val < 0 || val > 10);
+      if (invalidAttrs.length > 0)
+        errors.atributos = 'Alguns atributos estão fora do intervalo (0–10).';
 
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
-      return false;
-    }
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors);
+        return false;
+      }
 
-    const now = new Date().toISOString();
-    const username = resolveUsername(
-      editingPlayer,
-      players
-        .filter((p) => p.id !== editingPlayer.id && p.username)
-        .map((p) => p.username as string),
-    );
-    const originalPlayer = players.find((p) => p.id === editingPlayer.id) || editingPlayer;
-    const simulated = simulateLocalConsensus(originalPlayer, editingPlayer.atributos);
+      const now = new Date().toISOString();
+      const username = resolveUsername(
+        editingPlayer,
+        players
+          .filter((p) => p.id !== editingPlayer.id && p.username)
+          .map((p) => p.username as string),
+      );
+      const originalPlayer = players.find((p) => p.id === editingPlayer.id) || editingPlayer;
+      const simulated = simulateLocalConsensus(originalPlayer, editingPlayer.atributos);
 
-    const savedPlayerTemp: Player = {
-      ...editingPlayer,
-      username,
-      personalAttributes: editingPlayer.atributos,
-      atributos: simulated.atributos,
-      evaluationAggregate: simulated.evaluationAggregate,
-      hasOwnEvaluation: simulated.hasOwnEvaluation,
-      syncStatus: 'pending',
-      updatedAt: now,
-    };
+      const savedPlayerTemp: Player = {
+        ...editingPlayer,
+        username,
+        personalAttributes: editingPlayer.atributos,
+        atributos: simulated.atributos,
+        evaluationAggregate: simulated.evaluationAggregate,
+        hasOwnEvaluation: simulated.hasOwnEvaluation,
+        syncStatus: 'pending',
+        updatedAt: now,
+      };
 
-    const savedPlayer: Player = {
-      ...savedPlayerTemp,
-      perfil: {
-        ...editingPlayer.perfil,
-        especialidade: getAutoSpecialty(savedPlayerTemp),
-        fraqueza: getAutoWeakness(savedPlayerTemp),
-      },
-    };
+      const savedPlayer: Player = {
+        ...savedPlayerTemp,
+        perfil: {
+          ...editingPlayer.perfil,
+          especialidade: getAutoSpecialty(savedPlayerTemp),
+          fraqueza: getAutoWeakness(savedPlayerTemp),
+        },
+      };
 
-    const exists = players.some((p) => p.id === savedPlayer.id);
-    const updated = exists
-      ? players.map((p) =>
-          p.id === savedPlayer.id
-            ? { ...savedPlayer, metadata: { ...savedPlayer.metadata, atualizadoEm: now } }
+      const exists = players.some((p) => p.id === savedPlayer.id);
+      const updated = exists
+        ? players.map((p) =>
+            p.id === savedPlayer.id
+              ? { ...savedPlayer, metadata: { ...savedPlayer.metadata, atualizadoEm: now } }
+              : p,
+          )
+        : [...players, savedPlayer];
+
+      setPlayers(updated);
+      setEditingPlayer(null);
+      setValidationErrors({});
+      return true;
+    },
+    [editingPlayer, players],
+  );
+
+  const handleDeletePlayer = useCallback(
+    (permissions?: { canEditPlayerProfile: boolean }) => {
+      if (!editingPlayer) return;
+
+      if (permissions && !permissions.canEditPlayerProfile) {
+        throw new Error('PERMISSION_DENIED');
+      }
+
+      const usage = getPlayerHistoryUsage(editingPlayer.id);
+      const hasCloud = !!editingPlayer.cloudId;
+
+      let updated: Player[];
+      if (hasCloud) {
+        updated = players.map((p) =>
+          p.id === editingPlayer.id
+            ? { ...p, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
             : p,
-        )
-      : [...players, savedPlayer];
+        );
+      } else if (usage.hasHistory) {
+        updated = players.map((p) =>
+          p.id === editingPlayer.id
+            ? {
+                ...p,
+                ativo: false,
+                syncStatus: 'pending' as const,
+                metadata: { ...p.metadata, atualizadoEm: new Date().toISOString() },
+              }
+            : p,
+        );
+      } else {
+        updated = players.filter((p) => p.id !== editingPlayer.id);
+      }
 
-    setPlayers(updated);
-    setEditingPlayer(null);
-    setValidationErrors({});
-    return true;
-  }, [editingPlayer, players]);
-
-  const handleDeletePlayer = useCallback((permissions?: { canEditPlayerProfile: boolean }) => {
-    if (!editingPlayer) return;
-
-    if (permissions && !permissions.canEditPlayerProfile) {
-      throw new Error('PERMISSION_DENIED');
-    }
-
-    const usage = getPlayerHistoryUsage(editingPlayer.id);
-    const hasCloud = !!editingPlayer.cloudId;
-
-    let updated: Player[];
-    if (hasCloud) {
-      updated = players.map((p) =>
-        p.id === editingPlayer.id
-          ? { ...p, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
-          : p,
-      );
-    } else if (usage.hasHistory) {
-      updated = players.map((p) =>
-        p.id === editingPlayer.id
-          ? {
-              ...p,
-              ativo: false,
-              syncStatus: 'pending' as const,
-              metadata: { ...p.metadata, atualizadoEm: new Date().toISOString() },
-            }
-          : p,
-      );
-    } else {
-      updated = players.filter((p) => p.id !== editingPlayer.id);
-    }
-
-    setPlayers(updated);
-    setEditingPlayer(null);
-    setShowDeleteConfirm(false);
-  }, [editingPlayer, players, getPlayerHistoryUsage]);
+      setPlayers(updated);
+      setEditingPlayer(null);
+      setShowDeleteConfirm(false);
+    },
+    [editingPlayer, players, getPlayerHistoryUsage],
+  );
 
   const handleEditPlayer = useCallback((player: Player) => {
     setEditingPlayer({

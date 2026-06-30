@@ -124,9 +124,7 @@ export function getCommunitySummary(params: {
     activeAthletes: communityPlayers.filter((player) => player && player.ativo).length,
     totalSessions: finishedSessions.length,
     totalMatches: finishedGames.length,
-    totalPoints: communityPoints.filter(
-      (point) => point && isCreditedPoint(point),
-    ).length,
+    totalPoints: communityPoints.filter((point) => point && isCreditedPoint(point)).length,
     lastSession: finishedSessions[0],
     lastMvpName: getLastMvpName(params.sessionReports || [], communitySessions),
     mostFrequentPlayerName: getMostFrequentPlayerName(communitySessions, params.players || []),
@@ -237,8 +235,12 @@ export function getCommunityRanking(params: {
       attendances,
       wins,
       mvpCount,
-      aces: creditedPoints.filter((point) => point.reason === 'serve_ace' || point.skill === 'saque').length,
-      blocks: creditedPoints.filter((point) => point.reason === 'block' || point.skill === 'bloqueio').length,
+      aces: creditedPoints.filter(
+        (point) => point.reason === 'serve_ace' || point.skill === 'saque',
+      ).length,
+      blocks: creditedPoints.filter(
+        (point) => point.reason === 'block' || point.skill === 'bloqueio',
+      ).length,
       attacks: creditedPoints.filter(
         (point) =>
           point.reason === 'attack' ||

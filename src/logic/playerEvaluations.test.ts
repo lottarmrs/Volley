@@ -108,7 +108,7 @@ test('simulateLocalConsensus Scenario A: User already evaluated, replaces old pe
   assert.equal(simulated.hasOwnEvaluation, true);
 });
 
-test('simulateLocalConsensus Scenario B: User hasn\'t evaluated before, adds new personal value', () => {
+test("simulateLocalConsensus Scenario B: User hasn't evaluated before, adds new personal value", () => {
   const player: Player = {
     id: 'player-y',
     nome: 'Atleta Y',

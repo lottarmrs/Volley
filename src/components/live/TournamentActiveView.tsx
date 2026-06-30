@@ -281,11 +281,7 @@ export const TournamentActiveView = ({
               onClick={() => setTournamentPaused(!isPaused)}
               className={`btn btn-xs font-bold uppercase ${isPaused ? 'btn-success btn-soft' : 'btn-outline'}`}
             >
-              {isPaused ? (
-                <Play className="w-3 h-3 mr-1" />
-              ) : (
-                <Pause className="w-3 h-3 mr-1" />
-              )}
+              {isPaused ? <Play className="w-3 h-3 mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
               {isPaused ? 'Retomar' : 'Pausar'}
             </button>
             <button
@@ -875,11 +871,7 @@ export const TournamentActiveView = ({
                     const isDone = g.status === 'finished' || g.status === 'walkover';
                     const isCancelled = g.status === 'cancelled';
                     const statusLabel =
-                      g.status === 'active'
-                        ? 'Em jogo'
-                        : g.status === 'paused'
-                          ? 'Pausado'
-                          : null;
+                      g.status === 'active' ? 'Em jogo' : g.status === 'paused' ? 'Pausado' : null;
                     return (
                       <div
                         key={g.id}

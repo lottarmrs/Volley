@@ -39,23 +39,20 @@ export function useProfilesAdmin(enabled: boolean) {
     reload();
   }, [reload]);
 
-  const changeRole = useCallback(
-    async (userId: string, role: AuthRole) => {
-      setSavingId(userId);
-      setError(null);
-      try {
-        const updated = await profilesAdminCloudService.setRole(userId, role);
-        setProfiles((prev) => prev.map((p) => (p.id === userId ? updated : p)));
-        return true;
-      } catch (e) {
-        setError(messageOf(e, 'Não foi possível alterar o papel.'));
-        return false;
-      } finally {
-        setSavingId(null);
-      }
-    },
-    [],
-  );
+  const changeRole = useCallback(async (userId: string, role: AuthRole) => {
+    setSavingId(userId);
+    setError(null);
+    try {
+      const updated = await profilesAdminCloudService.setRole(userId, role);
+      setProfiles((prev) => prev.map((p) => (p.id === userId ? updated : p)));
+      return true;
+    } catch (e) {
+      setError(messageOf(e, 'Não foi possível alterar o papel.'));
+      return false;
+    } finally {
+      setSavingId(null);
+    }
+  }, []);
 
   return { profiles, loading, error, savingId, reload, changeRole };
 }

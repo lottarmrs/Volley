@@ -11,10 +11,7 @@ const migration = readFileSync(
 );
 
 const playerEvaluationsMigration = readFileSync(
-  new URL(
-    '../../../supabase/migrations/20260624133200_player_evaluations.sql',
-    import.meta.url,
-  ),
+  new URL('../../../supabase/migrations/20260624133200_player_evaluations.sql', import.meta.url),
   'utf8',
 );
 
@@ -137,10 +134,7 @@ test('player evaluations migration defines per-organizer athlete evaluations', (
     playerEvaluationsMigration,
     /grant select, insert, update, delete on public\.player_evaluations to authenticated/i,
   );
-  assert.match(
-    playerEvaluationsMigration,
-    /current_user_can_access_player\(player_id\)/i,
-  );
+  assert.match(playerEvaluationsMigration, /current_user_can_access_player\(player_id\)/i);
 });
 
 test('avatar candidate update policy includes WITH CHECK for Storage upserts', () => {

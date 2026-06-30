@@ -12,7 +12,8 @@ interface MaybeSyncable {
 export function countPendingChanges(collections: MaybeSyncable[][]): number {
   return collections.reduce(
     (total, list) =>
-      total + list.filter((item) => item?.syncStatus === 'local' || item?.syncStatus === 'pending').length,
+      total +
+      list.filter((item) => item?.syncStatus === 'local' || item?.syncStatus === 'pending').length,
     0,
   );
 }

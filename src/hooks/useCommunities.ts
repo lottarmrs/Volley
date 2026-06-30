@@ -4,7 +4,6 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localSt
 import { normalizeCommunities } from '../logic/migrations';
 import { generateUUID } from '../logic/uuid';
 
-
 export function useCommunities() {
   const [communities, setCommunities] = useState<Community[]>(() =>
     normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, [])),
@@ -18,39 +17,42 @@ export function useCommunities() {
     saveToStorage(STORAGE_KEYS.communities, communities);
   }, [communities]);
 
-  const handleSaveCommunity = useCallback((allowed = true) => {
-    if (!allowed) {
-      throw new Error('PERMISSION_DENIED');
-    }
-    if (!editingCommunity) return false;
+  const handleSaveCommunity = useCallback(
+    (allowed = true) => {
+      if (!allowed) {
+        throw new Error('PERMISSION_DENIED');
+      }
+      if (!editingCommunity) return false;
 
-    const errors: Record<string, string> = {};
-    if (!editingCommunity.name.trim()) {
-      errors.name = 'O nome da comunidade é obrigatório.';
-    }
+      const errors: Record<string, string> = {};
+      if (!editingCommunity.name.trim()) {
+        errors.name = 'O nome da comunidade é obrigatório.';
+      }
 
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
-      return false;
-    }
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors);
+        return false;
+      }
 
-    const now = new Date().toISOString();
-    const savedCommunity: Community = {
-      ...editingCommunity,
-      syncStatus: 'pending',
-      updatedAt: now,
-    };
+      const now = new Date().toISOString();
+      const savedCommunity: Community = {
+        ...editingCommunity,
+        syncStatus: 'pending',
+        updatedAt: now,
+      };
 
-    const exists = communities.some((c) => c.id === savedCommunity.id);
-    const updated = exists
-      ? communities.map((c) => (c.id === savedCommunity.id ? savedCommunity : c))
-      : [...communities, savedCommunity];
+      const exists = communities.some((c) => c.id === savedCommunity.id);
+      const updated = exists
+        ? communities.map((c) => (c.id === savedCommunity.id ? savedCommunity : c))
+        : [...communities, savedCommunity];
 
-    setCommunities(updated);
-    setEditingCommunity(null);
-    setValidationErrors({});
-    return true;
-  }, [editingCommunity, communities]);
+      setCommunities(updated);
+      setEditingCommunity(null);
+      setValidationErrors({});
+      return true;
+    },
+    [editingCommunity, communities],
+  );
 
   const handleDeleteCommunity = useCallback(
     (onCascadeDelete?: (communityId: string) => void, allowed = true) => {
@@ -112,18 +114,21 @@ export function useCommunities() {
     setShowDeleteConfirm(false);
   }, []);
 
-  const updateCommunity = useCallback((communityId: string, patch: Partial<Community>, allowed = true) => {
-    if (!allowed) {
-      throw new Error('PERMISSION_DENIED');
-    }
-    setCommunities((prev) =>
-      prev.map((community) =>
-        community.id === communityId
-          ? { ...community, ...patch, syncStatus: 'pending', updatedAt: new Date().toISOString() }
-          : community,
-      ),
-    );
-  }, []);
+  const updateCommunity = useCallback(
+    (communityId: string, patch: Partial<Community>, allowed = true) => {
+      if (!allowed) {
+        throw new Error('PERMISSION_DENIED');
+      }
+      setCommunities((prev) =>
+        prev.map((community) =>
+          community.id === communityId
+            ? { ...community, ...patch, syncStatus: 'pending', updatedAt: new Date().toISOString() }
+            : community,
+        ),
+      );
+    },
+    [],
+  );
 
   const addCommunity = useCallback((input: Partial<Community>) => {
     const now = new Date().toISOString();

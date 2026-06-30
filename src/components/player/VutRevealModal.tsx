@@ -15,11 +15,7 @@ interface VutRevealModalProps {
   revealItems: RevealItem[];
 }
 
-export const VutRevealModal: React.FC<VutRevealModalProps> = ({
-  isOpen,
-  onClose,
-  revealItems,
-}) => {
+export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose, revealItems }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isOpened, setIsOpened] = useState(false);
 
@@ -29,13 +25,17 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
   const isLast = currentIndex === revealItems.length - 1;
   const unlocked = currentItem.card.achievements.filter((achievement) => achievement.unlocked);
   const near = currentItem.card.achievements
-    .filter((achievement) => !achievement.unlocked && achievement.target > 0 && achievement.current > 0)
+    .filter(
+      (achievement) => !achievement.unlocked && achievement.target > 0 && achievement.current > 0,
+    )
     .sort((a, b) => b.current / b.target - a.current / a.target)
     .slice(0, 2);
   const packSummary = revealItems.reduce(
     (acc, item) => {
       if (item.card.edition.kind !== 'base') acc.specials += 1;
-      acc.achievements += item.card.achievements.filter((achievement) => achievement.unlocked).length;
+      acc.achievements += item.card.achievements.filter(
+        (achievement) => achievement.unlocked,
+      ).length;
       return acc;
     },
     { specials: 0, achievements: 0 },
@@ -46,7 +46,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
     if (isLast) {
       onClose();
     } else {
-      setCurrentIndex(prev => prev + 1);
+      setCurrentIndex((prev) => prev + 1);
     }
   };
 
@@ -67,14 +67,15 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
         >
           <X className="w-4 h-4" />
         </button>
-        
+
         {/* Subtle decorative background light */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-accent/15 rounded-full filter blur-[80px] pointer-events-none" />
 
         {/* Header */}
         <div className="w-full text-center z-10 space-y-1">
           <span className="text-[10px] font-black tracking-widest text-accent uppercase flex items-center justify-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Volley Ultimate Team <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+            <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Volley Ultimate Team{' '}
+            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
           </span>
           <h2 className="text-xl font-black uppercase text-white tracking-wide">
             {isOpened ? 'Carta Revelada!' : 'Nova Carta Especial!'}
@@ -112,11 +113,15 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                 </div>
                 <div className="flex flex-col items-center space-y-3">
                   <Trophy className="w-16 h-16 text-white/90 animate-bounce" />
-                  <span className="text-lg font-black text-white uppercase tracking-widest leading-none">VUT</span>
+                  <span className="text-lg font-black text-white uppercase tracking-widest leading-none">
+                    VUT
+                  </span>
                   <span className="text-[10px] font-black text-white/80 uppercase tracking-widest text-center leading-tight">
                     {currentItem.card.player.apelido || currentItem.card.player.nome}
                   </span>
-                  <span className="text-[8px] font-black text-white/60 uppercase tracking-widest bg-black/40 px-2 py-0.5 rounded-full">Clique para Abrir</span>
+                  <span className="text-[8px] font-black text-white/60 uppercase tracking-widest bg-black/40 px-2 py-0.5 rounded-full">
+                    Clique para Abrir
+                  </span>
                 </div>
                 <div className="w-full flex justify-between text-white/40">
                   <Star className="w-5 h-5 fill-white/10" />
@@ -135,7 +140,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                 <div className="vut-card-container origin-top transition-transform">
                   <FutCard card={currentItem.card} />
                 </div>
-                
+
                 {/* Highlight Reasons */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -143,7 +148,9 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                   transition={{ delay: 0.3 }}
                   className="bg-black/50 border border-white/10 p-3.5 rounded-xl text-center space-y-1.5 max-w-[280px]"
                 >
-                  <span className="text-[8px] font-black uppercase text-accent tracking-widest font-mono">Destaques da Sessão</span>
+                  <span className="text-[8px] font-black uppercase text-accent tracking-widest font-mono">
+                    Destaques da Sessão
+                  </span>
                   {currentItem.reasons.map((reason, idx) => (
                     <p key={idx} className="text-xs font-bold text-white uppercase leading-tight">
                       {reason}
@@ -192,7 +199,9 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
                         <div key={achievement.id} className="space-y-1">
                           <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase">
                             <span className="text-white truncate">{achievement.name}</span>
-                            <span className="text-warning">{achievementProgress(achievement)}%</span>
+                            <span className="text-warning">
+                              {achievementProgress(achievement)}%
+                            </span>
                           </div>
                           <progress
                             className="progress progress-warning h-1 w-full"
@@ -227,7 +236,6 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({
             </button>
           )}
         </div>
-
       </div>
     </div>
   );

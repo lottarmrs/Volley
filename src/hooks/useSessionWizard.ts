@@ -15,7 +15,6 @@ import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 
-
 interface UseSessionWizardProps {
   players: Player[];
   activeSession: Session | null;
@@ -367,7 +366,7 @@ export function useSessionWizard({
       );
       const scheduledGames = schedule.map((match, idx) => {
         const isPlayoff = match.stage === 'final' || match.stage === 'third_place';
-        const setTargets = isPlayoff ? (cfg.playoffSetTargets || [12, 12, 7]) : undefined;
+        const setTargets = isPlayoff ? cfg.playoffSetTargets || [12, 12, 7] : undefined;
         return {
           id: generateUUID(),
           sessionId: activeSession.id,

@@ -28,6 +28,7 @@ locais foram renomeados para as versões reais registradas (histórico reconcili
 `supabase migration list` deve bater 1:1).
 
 Migrations relevantes desta leva (em ordem):
+
 - `20260624133117_player_avatars_approval`
 - `20260624133200_player_evaluations`
 - `20260624133252_link_user_to_player_with_approval`
@@ -43,6 +44,7 @@ Migrations relevantes desta leva (em ordem):
 > e, se preciso, `supabase migration repair --status applied <versão>`.
 
 ### Conta master
+
 `lottarmrs@gmail.com` foi promovido a `master` (via UPDATE direto, antes da trava).
 A coluna `profiles.role` agora é travada por trigger: só muda via RPC `set_user_role`
 (master-only). Para mexer manualmente em SQL é preciso `set session_replication_role = replica`.
@@ -57,6 +59,7 @@ duplicatas** em vez de atualizar. A nuvem chegou a: players 289 (real 91), commu
 16 (real 4), point_events 1100 (real 550), evaluations 337.
 
 **Ação tomada (autorizada pelo usuário):**
+
 1. Snapshot de segurança das tabelas exclusivas da nuvem em
    `C:\Users\Matheus Silva\Downloads\panelinha_cloud_snapshot_2026-06-24.json`.
 2. **Limpeza total dos dados da conta** `lottarmrs` na nuvem (DELETE escopado a
@@ -67,9 +70,11 @@ duplicatas** em vez de atualizar. A nuvem chegou a: players 289 (real 91), commu
    4 comunidades, íntegro).
 
 ### ⚠️ PENDENTE: reseed ainda NÃO foi feito
+
 O usuário precisa, no app, **Importar Backup** (o JSON acima) e depois **Sincronizar**
 (NÃO "Baixar da nuvem" — isso apagaria o local com a nuvem vazia). Com os fixes do sync,
-o upload recria tudo sem duplicar e syncs futuros passam a *atualizar* no lugar.
+o upload recria tudo sem duplicar e syncs futuros passam a _atualizar_ no lugar.
+
 - 1 vínculo a refazer: o atleta `0f2b679a-680e-486a-871e-e8d2c6052bff` estava ligado à
   conta do dono; o `user_id` não volta pelo sync (precisa religar pelo app).
 
@@ -84,7 +89,9 @@ o upload recria tudo sem duplicar e syncs futuros passam a *atualizar* no lugar.
 - **Membro ↔ atleta:** unificar via `player.userId` (a Área de Membros casa membro↔ficha).
 
 ### Backend (aplicado)
+
 `community_model_v2`:
+
 - `community_members.role` check → `owner/admin/moderator/member` (migrou `organizer`→`moderator`).
 - `community_members` ganhou `status` (active/pending/invited/rejected) e `invited_by`.
 - `communities` ganhou `visibility` (private/public) e `join_code` (unique).
@@ -93,6 +100,7 @@ o upload recria tudo sem duplicar e syncs futuros passam a *atualizar* no lugar.
 - `add_community_member_by_email` aceita os 4 papéis e marca `status='active'`.
 
 `community_join_system`:
+
 - Política RLS: "Users can read their own membership" (membro pending lê a própria linha).
 - RPCs (todas SECURITY DEFINER, authenticated):
   - `generate_join_code(community_id)` / `disable_join_code(community_id)` — dono/admin.
@@ -102,6 +110,7 @@ o upload recria tudo sem duplicar e syncs futuros passam a *atualizar* no lugar.
   - `leave_community(community_id)` — sai (owner não pode sair).
 
 ### Frontend (no working tree, ver seção 4)
+
 - `types.ts`: `CommunityMemberRole` (4 papéis), `CommunityMemberStatus`, `CommunityMember.status/invitedBy`,
   `Community.visibility/joinCode`.
 - `useCommunityPermissions`: `moderator` = nível organizador; `member` = sem gestão; só conta filiação ativa.
@@ -139,6 +148,7 @@ A supabase/migrations/20260624204113_community_join_system.sql
 Estado de verificação no commit: **typecheck OK, build OK, 109 testes unit + 24 UI verdes.**
 
 ### Fase 1 do sync (detalhe — já no working tree)
+
 - **C1**: reconciliação de `community_players` órfãos só roda no `syncNow` (flag
   `reconcileRelations`), nunca no `uploadToCloud` puro; e só apaga vínculos de players
   presentes no payload (`computeStaleRelationIds`, com teste). Evita apagar vínculos válidos.
@@ -154,6 +164,7 @@ Estado de verificação no commit: **typecheck OK, build OK, 109 testes unit + 2
 ## 5. ⚠️ ISSUES ABERTOS (prioridade)
 
 ### 5.1 🟢 React "change in order of Hooks" no `App` (NÃO REPRODUZ MAIS — monitorar)
+
 > ATUALIZAÇÃO 2026-06-24: após corrigir o 5.2 (I2), recarreguei o preview logado
 > (sessão ativa, dados reais) e o **console ficou 100% limpo** — sem o erro de Hooks
 > e sem a tempestade de propostas. Confirma a hipótese de que era artefato dos
@@ -163,12 +174,13 @@ Estado de verificação no commit: **typecheck OK, build OK, 109 testes unit + 2
 No preview (dados reais, sync ativo), o console mostra, **após reload limpo**:
 `React has detected a change in the order of Hooks called by App`.
 Divergência no **hook #116**: render anterior `useState`, próximo `useCallback`.
+
 - Significa um hook chamado **condicionalmente** em algum hook custom que o `App` chama
   (a lista de 116 é o App + todos os custom hooks achatados).
 - Minhas adições (useRef no `useCloudSync`, useCallbacks no `useCommunityMembers`) são
   **incondicionais** → não causam variância por si. Suspeita: hook condicional pré-existente
   exposto pelo deslocamento de posições, OU um custom hook que muda contagem entre renders.
-- **Como depurar:** rodar dev, reproduzir, e no React DevTools/erro pegar o *component stack*
+- **Como depurar:** rodar dev, reproduzir, e no React DevTools/erro pegar o _component stack_
   completo. Conferir cada custom hook chamado pelo `App` (`useSessions`, `usePlayers`,
   `useSessionWizard`, `useCommunityPermissions`→`useAuth`/`useCommunityMembers`,
   `usePlayerLinkProposals`, `useCloudSync`) procurando: hook após `return` antecipado, hook
@@ -182,12 +194,13 @@ Divergência no **hook #116**: render anterior `useState`, próximo `useCallback
   useCallbacks no useCommunityMembers) são incondicionais → **este commit NÃO introduziu o erro**.
 - **Suspeitos restantes (não auditados linha-a-linha):** `useLiveSession.ts` (~720 linhas) e
   `useSessionWizard.ts` (~480) — verificar contagem de hooks dependente de estado/props.
-- **Hipótese alternativa:** o erro surgiu durante a *tempestade* de `setState` do bug 5.2 (falhas
+- **Hipótese alternativa:** o erro surgiu durante a _tempestade_ de `setState` do bug 5.2 (falhas
   de proposta em loop). **Recomendo corrigir 5.2 primeiro** e reproduzir — pode reduzir os
   re-renders e isolar/sumir o aviso.
 - Impacto: pode causar bugs/crash de render. **Tratar antes de confiar na UI nova.**
 
 ### 5.2 🟢 Sync de propostas de vínculo falhando (I2) — CORRIGIDO
+
 Era: `playerLinkProposalCloudService.upsert` recebia propostas com `id` temporário
 (`proposal-…`) e tentava enviá-lo como `uuid` → erro 22P02.
 **Corrigido (commitado):** no `syncService`, o loop de propostas usa `isUuid(proposal.id)`
@@ -196,6 +209,7 @@ download); se é id temporário, cria via RPC `propose_player_link` e adota o id
 Console limpo após o fix.
 
 ### 5.3 🟡 Reseed da nuvem pendente (ver seção 2)
+
 O usuário precisa Importar Backup + Sincronizar no app.
 
 ---
@@ -203,6 +217,7 @@ O usuário precisa Importar Backup + Sincronizar no app.
 ## 6. Fases pendentes da Comunidade v2
 
 ### Fase D — Membro ↔ Atleta (iniciada)
+
 - Já há `players` + `athleteByUserId` no `CommunityMembersPanel`. Falta: mostrar a ficha do
   atleta vinculada a cada membro (avatar/posição/stats) e o card "minha ficha" do usuário logado;
   permitir reivindicar/vincular ali (reusa `usePlayerLinkProposals` / RPC `propose_player_link`).
@@ -210,6 +225,7 @@ O usuário precisa Importar Backup + Sincronizar no app.
   (hoje o default é `[]`).
 
 ### Fase E — Visibilidade / descoberta + notificações
+
 **E1 (cross-owner) ✅ FEITO e commitado** (`a3d17a6`): `Community.cloudOwnerId` (do `owner_id`
 da nuvem); `mapDbToCommunity` preenche; no `syncService` o upload **pula comunidades de outro
 dono** (`isSharedCommunity`, espelha `isSharedPlayer`). Assim uma comunidade em que entrei como
@@ -221,6 +237,7 @@ pública também passa por aprovação (cria `pending`). RPCs: `set_community_vi
 `search_public_communities`, `request_to_join_public`. Frontend novo (parallel-safe):
 `services/supabase/communityDiscoveryService.ts` e `components/community/CommunityDiscovery.tsx`
 (modal de busca + pedir entrada).
+
 - ⏳ **FALTA WIRAR (1 edição na `CommunitiesView`, deixada pra você p/ não conflitar):**
   1. `import { CommunityDiscovery } from './CommunityDiscovery';`
   2. estado `const [showDiscovery, setShowDiscovery] = useState(false);`

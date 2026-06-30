@@ -6,7 +6,7 @@ notas, UI, mobile e bugs de travamento/reordenacao.
 ## Status atual
 
 - [x] Nucleo puro: `Game.sets[]`/`Game.setTargets`, `evaluateMatchState`,
-  melhor-de-N e tiebreak.
+      melhor-de-N e tiebreak.
 - [x] Persistencia via `metadata` no Supabase, sem migracao de colunas dedicadas.
 - [x] Pontuacao ao vivo multi-set ligada no `registerPoint`.
 - [x] Nota multi-set com `gameExposure(game)`.

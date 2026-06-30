@@ -544,7 +544,9 @@ export function isUuid(value: string | null | undefined): boolean {
 export function isCloudBackedPlayerLinkProposal(
   proposal: Pick<PlayerLinkProposal, 'id' | 'syncStatus'>,
 ): boolean {
-  return isUuid(proposal.id) && proposal.syncStatus !== 'pending' && proposal.syncStatus !== 'local';
+  return (
+    isUuid(proposal.id) && proposal.syncStatus !== 'pending' && proposal.syncStatus !== 'local'
+  );
 }
 
 /**
@@ -600,9 +602,7 @@ export function consolidateDuplicateRecords(
   }
 
   const communityGroups = groupActiveDuplicates<Community>(
-    local.communities.filter((community) =>
-      canConsolidateOwnedEntity(community, options.ownerId),
-    ),
+    local.communities.filter((community) => canConsolidateOwnedEntity(community, options.ownerId)),
     (community) => communitySemanticKey(community),
     (community) => community.cloudOwnerId || options.ownerId || 'local',
   );
@@ -772,9 +772,7 @@ export function consolidateDuplicateRecords(
     playerId: remapId(proposal.playerId, playerIdMap, summary),
     playerCloudId: remapId(proposal.playerCloudId, playerCloudIdMap, summary),
     syncStatus:
-      playerIdMap.size > 0 &&
-      !proposal.deletedAt &&
-      !isCloudBackedPlayerLinkProposal(proposal)
+      playerIdMap.size > 0 && !proposal.deletedAt && !isCloudBackedPlayerLinkProposal(proposal)
         ? 'pending'
         : proposal.syncStatus,
   }));
@@ -931,7 +929,9 @@ export const syncService = {
         }
 
         const uploaded = await playerCloudService.upsert(player, ownerId);
-        updatedPlayers.push(markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt));
+        updatedPlayers.push(
+          markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt),
+        );
       } catch (error) {
         onIssue(`atleta "${player.nome}"`, error);
         updatedPlayers.push(player);
@@ -1008,10 +1008,7 @@ export const syncService = {
           ...session,
           communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
         };
-        const uploaded = await operationalCloudService.upsertSession(
-          sessionForUpload,
-          ownerId,
-        );
+        const uploaded = await operationalCloudService.upsertSession(sessionForUpload, ownerId);
         updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
       } catch (error) {
         onIssue(`sessão "${session.name}"`, error);
@@ -1033,12 +1030,7 @@ export const syncService = {
       local.teams,
       sessionsById,
       'teams',
-      (items) =>
-        operationalCloudService.bulkUpsertTeams(
-          items,
-          ownerId,
-          sessionsById,
-        ),
+      (items) => operationalCloudService.bulkUpsertTeams(items, ownerId, sessionsById),
       options,
     );
 
@@ -1046,12 +1038,7 @@ export const syncService = {
       local.games,
       sessionsById,
       'games',
-      (items) =>
-        operationalCloudService.bulkUpsertGames(
-          items,
-          ownerId,
-          sessionsById,
-        ),
+      (items) => operationalCloudService.bulkUpsertGames(items, ownerId, sessionsById),
       options,
     );
 
@@ -1059,12 +1046,7 @@ export const syncService = {
       local.pointEvents,
       sessionsById,
       'point_events',
-      (items) =>
-        operationalCloudService.bulkUpsertPointEvents(
-          items,
-          ownerId,
-          sessionsById,
-        ),
+      (items) => operationalCloudService.bulkUpsertPointEvents(items, ownerId, sessionsById),
       options,
     );
 
@@ -1072,12 +1054,7 @@ export const syncService = {
       local.gameReports,
       sessionsById,
       'game_reports',
-      (items) =>
-        operationalCloudService.bulkUpsertGameReports(
-          items,
-          ownerId,
-          sessionsById,
-        ),
+      (items) => operationalCloudService.bulkUpsertGameReports(items, ownerId, sessionsById),
       options,
     );
 
@@ -1085,12 +1062,7 @@ export const syncService = {
       local.sessionReports,
       sessionsById,
       'session_reports',
-      (items) =>
-        operationalCloudService.bulkUpsertSessionReports(
-          items,
-          ownerId,
-          sessionsById,
-        ),
+      (items) => operationalCloudService.bulkUpsertSessionReports(items, ownerId, sessionsById),
       options,
     );
 
@@ -1161,7 +1133,9 @@ export const syncService = {
       reportIssue(options.onIssue, 'upload community_presence', error);
       local.presenceRecords.forEach((p) => {
         if (
-          !updatedPresenceRecords.some((u) => u.communityId.toLowerCase() === p.communityId.toLowerCase() && u.date === p.date)
+          !updatedPresenceRecords.some(
+            (u) => u.communityId.toLowerCase() === p.communityId.toLowerCase() && u.date === p.date,
+          )
         ) {
           updatedPresenceRecords.push(p);
         }
@@ -1278,8 +1252,7 @@ export const syncService = {
     for (const proposal of local.linkProposals || []) {
       try {
         const playerCloudId =
-          proposal.playerCloudId ||
-          resolveCloudId(proposal.playerId, playerCloudIds);
+          proposal.playerCloudId || resolveCloudId(proposal.playerId, playerCloudIds);
         if (!playerCloudId) {
           updatedProposals.push(proposal);
           continue;
@@ -1340,7 +1313,14 @@ export const syncService = {
     const cloudCommunities = await communityCloudService.fetchAll();
     const cloudPlayers = await playerCloudService.fetchAll();
 
-    const [cloudRules, cloudTemplates, cloudRelations, cloudEvaluations, operational, cloudProposals] = await Promise.all([
+    const [
+      cloudRules,
+      cloudTemplates,
+      cloudRelations,
+      cloudEvaluations,
+      operational,
+      cloudProposals,
+    ] = await Promise.all([
       communityRulesCloudService.fetchAll(),
       whatsappTemplateCloudService.fetchAll(),
       communityPlayerCloudService.fetchAll(),
@@ -1361,7 +1341,9 @@ export const syncService = {
     }
 
     const mappedPlayers = cloudPlayers.map((player) => {
-      const playerEvaluations = cloudEvaluations.filter((evaluation) => evaluation.playerId?.toLowerCase() === player.id.toLowerCase());
+      const playerEvaluations = cloudEvaluations.filter(
+        (evaluation) => evaluation.playerId?.toLowerCase() === player.id.toLowerCase(),
+      );
       return applyEvaluationAggregate(
         {
           ...player,

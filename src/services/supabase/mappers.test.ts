@@ -292,15 +292,13 @@ test('session mapper preserves operational config and ids', () => {
   assert.equal(db.local_id, 'session-local');
   assert.deepEqual(db.config, session.config);
 
-  const mapped = mapDbToSession(
-    {
-      ...db,
-      id: 'session-cloud',
-      created_at: now,
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
+  const mapped = mapDbToSession({
+    ...db,
+    id: 'session-cloud',
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
+  });
 
   assert.equal(mapped.id, 'session-local');
   assert.equal(mapped.cloudId, 'session-cloud');
@@ -373,30 +371,24 @@ test('team, game and point mappers preserve relationships through local ids', ()
     timestamp: now,
   };
 
-  const mappedTeam = mapDbToTeam(
-    {
-      ...mapTeamToDb(team, 'owner-id', 'community-cloud'),
-      id: 'team-cloud',
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
-  const mappedGame = mapDbToGame(
-    {
-      ...mapGameToDb(game, 'owner-id', 'community-cloud'),
-      id: 'game-cloud',
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
-  const mappedPoint = mapDbToPointEvent(
-    {
-      ...mapPointEventToDb(point, 'owner-id', 'community-cloud'),
-      id: 'point-cloud',
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
+  const mappedTeam = mapDbToTeam({
+    ...mapTeamToDb(team, 'owner-id', 'community-cloud'),
+    id: 'team-cloud',
+    updated_at: now,
+    deleted_at: null,
+  });
+  const mappedGame = mapDbToGame({
+    ...mapGameToDb(game, 'owner-id', 'community-cloud'),
+    id: 'game-cloud',
+    updated_at: now,
+    deleted_at: null,
+  });
+  const mappedPoint = mapDbToPointEvent({
+    ...mapPointEventToDb(point, 'owner-id', 'community-cloud'),
+    id: 'point-cloud',
+    updated_at: now,
+    deleted_at: null,
+  });
 
   assert.equal(mappedTeam.sessionId, 'session-local');
   assert.equal(mappedTeam.cloudId, 'team-cloud');
@@ -467,39 +459,31 @@ test('report, presence and draft mappers preserve JSON payloads', () => {
     updatedAt: now,
   };
 
-  const mappedGameReport = mapDbToGameReport(
-    {
-      ...mapGameReportToDb(gameReport, 'owner-id', 'community-cloud'),
-      id: 'game-report-cloud',
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
-  const mappedSessionReport = mapDbToSessionReport(
-    {
-      ...mapSessionReportToDb(sessionReport, 'owner-id', 'community-cloud'),
-      id: 'session-report-cloud',
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
-  const mappedPresence = mapDbToPresence(
-    {
-      ...mapPresenceToDb(presence, 'owner-id'),
-      id: 'presence-cloud',
-      updated_at: now,
-      deleted_at: null,
-    }
-  );
-  const mappedDraft = mapDbToDraft(
-    {
-      ...mapDraftToDb(draft, 'owner-id'),
-      id: 'draft-cloud',
-      updated_at: now,
-      created_at: now,
-      deleted_at: null,
-    }
-  );
+  const mappedGameReport = mapDbToGameReport({
+    ...mapGameReportToDb(gameReport, 'owner-id', 'community-cloud'),
+    id: 'game-report-cloud',
+    updated_at: now,
+    deleted_at: null,
+  });
+  const mappedSessionReport = mapDbToSessionReport({
+    ...mapSessionReportToDb(sessionReport, 'owner-id', 'community-cloud'),
+    id: 'session-report-cloud',
+    updated_at: now,
+    deleted_at: null,
+  });
+  const mappedPresence = mapDbToPresence({
+    ...mapPresenceToDb(presence, 'owner-id'),
+    id: 'presence-cloud',
+    updated_at: now,
+    deleted_at: null,
+  });
+  const mappedDraft = mapDbToDraft({
+    ...mapDraftToDb(draft, 'owner-id'),
+    id: 'draft-cloud',
+    updated_at: now,
+    created_at: now,
+    deleted_at: null,
+  });
 
   assert.equal(mappedGameReport.totalPoints, 27);
   assert.equal(mappedGameReport.cloudId, 'game-report-cloud');

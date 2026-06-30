@@ -158,9 +158,15 @@ describe('useLiveSession multi-set and tournament scheduling', () => {
   });
 
   it('registerPoint fecha set multi-set e zera o placar do proximo set', () => {
-    const config = { ...makeSession('s1').config!, maxPoints: 12, tieBreakMethod: 'direct_3' as const };
+    const config = {
+      ...makeSession('s1').config!,
+      maxPoints: 12,
+      tieBreakMethod: 'direct_3' as const,
+    };
     const { result } = renderHook(() =>
-      useHarness(buildFixture({ config }, { scoreA: 11, scoreB: 9, setTargets: [12, 12, 7], sets: [] })),
+      useHarness(
+        buildFixture({ config }, { scoreA: 11, scoreB: 9, setTargets: [12, 12, 7], sets: [] }),
+      ),
     );
 
     act(() => {
@@ -180,7 +186,11 @@ describe('useLiveSession multi-set and tournament scheduling', () => {
   });
 
   it('undoLastPoint remove o set final e reabre a partida multi-set', () => {
-    const config = { ...makeSession('s1').config!, maxPoints: 12, tieBreakMethod: 'direct_3' as const };
+    const config = {
+      ...makeSession('s1').config!,
+      maxPoints: 12,
+      tieBreakMethod: 'direct_3' as const,
+    };
     const { result } = renderHook(() =>
       useHarness(
         buildFixture(

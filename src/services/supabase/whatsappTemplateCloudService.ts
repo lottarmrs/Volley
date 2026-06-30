@@ -74,9 +74,7 @@ export function mapDbToTemplate(db: any, communityLocalId: string): WhatsAppList
 
 export const whatsappTemplateCloudService = {
   async fetchAll(): Promise<WhatsAppListTemplate[]> {
-    const { data, error } = await supabase
-      .from('whatsapp_list_templates')
-      .select('*');
+    const { data, error } = await supabase.from('whatsapp_list_templates').select('*');
 
     if (error) throw error;
 
@@ -119,7 +117,9 @@ export const whatsappTemplateCloudService = {
         (error.code === '23505' || error.statusCode === '23505') &&
         error.message?.includes('whatsapp_list_templates_pkey')
       ) {
-        console.warn(`Primary key collision for template ${local.name}. Updating existing row by PK.`);
+        console.warn(
+          `Primary key collision for template ${local.name}. Updating existing row by PK.`,
+        );
         const updateRecord = { ...dbRecord };
         delete (updateRecord as any).id;
 

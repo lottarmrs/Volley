@@ -89,7 +89,9 @@ export const communityCloudService = {
         // PK collision means the row already exists in the cloud with this id
         // but has a different local_id (pre-migration value). Update it in place
         // so that local_id is aligned with the new UUID scheme.
-        console.warn(`Primary key collision for community ${local.name}. Updating existing row by PK.`);
+        console.warn(
+          `Primary key collision for community ${local.name}. Updating existing row by PK.`,
+        );
         const updateRecord = { ...dbRecord };
         delete (updateRecord as any).id;
 

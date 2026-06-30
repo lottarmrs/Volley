@@ -125,11 +125,7 @@ export function JoinCommunityByCode({ onClose }: JoinCommunityByCodeProps) {
                 className="btn btn-primary btn-sm w-full mt-1"
                 disabled={loading}
               >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>Pedir para entrar</>
-                )}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Pedir para entrar</>}
               </button>
             )}
           </div>

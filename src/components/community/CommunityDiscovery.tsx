@@ -88,8 +88,17 @@ export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
             className="input input-bordered flex-1"
             autoFocus
           />
-          <button type="button" onClick={() => search(query)} className="btn btn-outline" disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+          <button
+            type="button"
+            onClick={() => search(query)}
+            className="btn btn-outline"
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
           </button>
         </div>
 
@@ -108,7 +117,9 @@ export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">{c.name}</p>
-                {c.description && <p className="text-xs text-text-muted truncate">{c.description}</p>}
+                {c.description && (
+                  <p className="text-xs text-text-muted truncate">{c.description}</p>
+                )}
                 <p className="text-xs text-text-muted flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" /> {c.memberCount} membro(s)
                 </p>
@@ -126,7 +137,11 @@ export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
                     className="btn btn-primary btn-sm"
                     disabled={actingId === c.id}
                   >
-                    {actingId === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pedir entrada'}
+                    {actingId === c.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Pedir entrada'
+                    )}
                   </button>
                 )}
               </div>

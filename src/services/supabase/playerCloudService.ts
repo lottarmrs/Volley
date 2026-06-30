@@ -152,7 +152,9 @@ export const playerCloudService = {
       ) {
         // PK collision means the row already exists in the cloud with this id
         // but has a different local_id (pre-migration value). Update it in place.
-        console.warn(`Primary key collision for player ${local.nome}. Updating existing row by PK.`);
+        console.warn(
+          `Primary key collision for player ${local.nome}. Updating existing row by PK.`,
+        );
         const updateRecord = { ...dbRecord };
         delete (updateRecord as any).id;
 
@@ -174,7 +176,9 @@ export const playerCloudService = {
             updateError.message?.includes('players_username_lower_idx')
           ) {
             const ownerSuffix = ownerId.slice(0, 4);
-            const fallbackUsername = local.username ? `${local.username}-${ownerSuffix}` : undefined;
+            const fallbackUsername = local.username
+              ? `${local.username}-${ownerSuffix}`
+              : undefined;
             console.warn(
               `Username collision during PK-update for ${local.nome} (${local.username}). Retrying with fallback: ${fallbackUsername}`,
             );

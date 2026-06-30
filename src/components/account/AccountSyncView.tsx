@@ -129,7 +129,7 @@ export function AccountSyncView({
     return players.find(
       (p) =>
         p.id === pendingProposal.playerId ||
-        (p.cloudId && pendingProposal.playerCloudId && p.cloudId === pendingProposal.playerCloudId)
+        (p.cloudId && pendingProposal.playerCloudId && p.cloudId === pendingProposal.playerCloudId),
     );
   }, [pendingProposal, players]);
 
@@ -292,7 +292,8 @@ export function AccountSyncView({
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar Dados)
+                  <RefreshCw className="w-4 h-4 animate-spin-slow" /> Sincronizar Agora (Mesclar
+                  Dados)
                 </>
               )}
             </button>
@@ -401,15 +402,15 @@ export function AccountSyncView({
                 <div className="alert alert-warning alert-soft text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
-                    Nao foi possivel verificar o vinculo ou uma solicitacao pendente na nuvem
-                    agora. Sincronize antes de solicitar um novo vinculo.
+                    Nao foi possivel verificar o vinculo ou uma solicitacao pendente na nuvem agora.
+                    Sincronize antes de solicitar um novo vinculo.
                   </span>
                 </div>
               )}
 
               <p className="text-xs text-base-content/75 leading-relaxed">
-                Você não possui um perfil de jogador vinculado a esta conta de usuário. 
-                Selecione a sua ficha abaixo para solicitar o vínculo com a sua conta.
+                Você não possui um perfil de jogador vinculado a esta conta de usuário. Selecione a
+                sua ficha abaixo para solicitar o vínculo com a sua conta.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">

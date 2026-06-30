@@ -16,7 +16,11 @@ import {
 } from './futCards';
 import { PartnershipMatrix } from './partnershipHistory';
 
-const createPlayer = (id: string, mainPos: Position, overAtributos: Partial<Player['atributos']> = {}): Player =>
+const createPlayer = (
+  id: string,
+  mainPos: Position,
+  overAtributos: Partial<Player['atributos']> = {},
+): Player =>
   ({
     id,
     nome: `Player ${id}`,
@@ -62,7 +66,11 @@ test('tierFromOvr maps OVR to correct VUT tier', () => {
 });
 
 test('generateFutStats computes OVR, macro stats and versatility', () => {
-  const player = createPlayer('p1', 'levantador', { levantamento: 8, velocidade: 6, resistencia: 8 });
+  const player = createPlayer('p1', 'levantador', {
+    levantamento: 8,
+    velocidade: 6,
+    resistencia: 8,
+  });
   const stats = generateFutStats(player);
 
   assert.equal(stats.lev, toFut(8));
@@ -179,7 +187,13 @@ test('buildVutCard runs end-to-end and returns complete structure', () => {
     name: 'Session 1',
     date: '2026-06-19',
     status: 'finished',
-    config: { maxGames: 5, pointsToWin: 25, balanceMode: 'social', qualityCheck: false, isTournament: false },
+    config: {
+      maxGames: 5,
+      pointsToWin: 25,
+      balanceMode: 'social',
+      qualityCheck: false,
+      isTournament: false,
+    },
   } as unknown as Session;
 
   const team = {

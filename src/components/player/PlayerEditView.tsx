@@ -113,7 +113,8 @@ export const PlayerEditView = ({
   const [showVutCard, setShowVutCard] = useState(false);
 
   const editingPlayerCommunity = useMemo(() => {
-    if (!editingPlayer || !editingPlayer.communityIds || editingPlayer.communityIds.length === 0) return null;
+    if (!editingPlayer || !editingPlayer.communityIds || editingPlayer.communityIds.length === 0)
+      return null;
     return communities.find((c) => editingPlayer.communityIds!.includes(c.id)) || null;
   }, [editingPlayer, communities]);
 
@@ -132,8 +133,11 @@ export const PlayerEditView = ({
   const activeProposals = useMemo(() => {
     return linkProposals.filter(
       (p) =>
-        (p.playerId === editingPlayer.id || (p.playerCloudId && editingPlayer.cloudId && p.playerCloudId === editingPlayer.cloudId)) &&
-        p.status === 'pending'
+        (p.playerId === editingPlayer.id ||
+          (p.playerCloudId &&
+            editingPlayer.cloudId &&
+            p.playerCloudId === editingPlayer.cloudId)) &&
+        p.status === 'pending',
     );
   }, [linkProposals, editingPlayer.id, editingPlayer.cloudId]);
 
@@ -369,7 +373,8 @@ export const PlayerEditView = ({
               <div role="alert" className="alert alert-warning alert-soft">
                 <ShieldAlert className="w-4 h-4" />
                 <span className="text-sm">
-                  Modo de Avaliação: Você só pode editar as avaliações técnicas deste atleta. Ficha cadastral bloqueada.
+                  Modo de Avaliação: Você só pode editar as avaliações técnicas deste atleta. Ficha
+                  cadastral bloqueada.
                 </span>
               </div>
             )}
@@ -717,7 +722,8 @@ export const PlayerEditView = ({
                 <div className="bg-base-300 p-3 rounded-lg border border-base-300 flex items-start gap-3">
                   <Lock className="w-4 h-4 text-warning mt-0.5 shrink-0" />
                   <div className="text-[10px] text-base-content/70">
-                    Atletas convidados não podem ser vinculados a contas de usuários. Promova este atleta a Fixo para habilitar o vínculo.
+                    Atletas convidados não podem ser vinculados a contas de usuários. Promova este
+                    atleta a Fixo para habilitar o vínculo.
                   </div>
                 </div>
               ) : editingPlayer.userId ? (
@@ -732,7 +738,8 @@ export const PlayerEditView = ({
                       </p>
                     </div>
                     {/* Botão de desvincular */}
-                    {(editingPlayer.cloudOwnerId === currentUserId || permissions.canEditPlayerProfile) && (
+                    {(editingPlayer.cloudOwnerId === currentUserId ||
+                      permissions.canEditPlayerProfile) && (
                       <div>
                         {!showUnlinkConfirm ? (
                           <button
@@ -744,14 +751,18 @@ export const PlayerEditView = ({
                           </button>
                         ) : (
                           <div className="flex items-center gap-1">
-                            <span className="text-[8px] text-error font-bold uppercase mr-1">Confirmar?</span>
+                            <span className="text-[8px] text-error font-bold uppercase mr-1">
+                              Confirmar?
+                            </span>
                             <button
                               type="button"
                               onClick={async () => {
                                 setUnlinking(true);
                                 try {
                                   if (onUnlinkPlayer) await onUnlinkPlayer(editingPlayer.id);
-                                  setEditingPlayer(prev => prev ? { ...prev, userId: undefined } : null);
+                                  setEditingPlayer((prev) =>
+                                    prev ? { ...prev, userId: undefined } : null,
+                                  );
                                 } catch (e) {
                                   console.error(e);
                                 } finally {
@@ -791,7 +802,10 @@ export const PlayerEditView = ({
                         const isReviewer = permissions.canEditPlayerProfile;
 
                         return (
-                          <div key={proposal.id} className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center gap-2">
+                          <div
+                            key={proposal.id}
+                            className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center gap-2"
+                          >
                             <div>
                               <p className="text-xs font-bold text-base-content">
                                 {proposer?.name || (isMyProposal ? 'Você' : 'Outro Usuário')}
@@ -809,8 +823,11 @@ export const PlayerEditView = ({
                                     onClick={async () => {
                                       setReviewingId(proposal.id);
                                       try {
-                                        if (onReviewLink) await onReviewLink(proposal.id, 'approve');
-                                        setEditingPlayer(prev => prev ? { ...prev, userId: proposal.userId } : null);
+                                        if (onReviewLink)
+                                          await onReviewLink(proposal.id, 'approve');
+                                        setEditingPlayer((prev) =>
+                                          prev ? { ...prev, userId: proposal.userId } : null,
+                                        );
                                       } catch (e) {
                                         console.error(e);
                                       } finally {
@@ -891,9 +908,13 @@ export const PlayerEditView = ({
                             setClaiming(true);
                             try {
                               if (onProposeLink) await onProposeLink(editingPlayer.id);
-                              const isOwner = editingPlayer.cloudOwnerId === currentUserId || (!editingPlayer.cloudId && !editingPlayer.userId);
+                              const isOwner =
+                                editingPlayer.cloudOwnerId === currentUserId ||
+                                (!editingPlayer.cloudId && !editingPlayer.userId);
                               if (isOwner) {
-                                setEditingPlayer(prev => prev ? { ...prev, userId: currentUserId } : null);
+                                setEditingPlayer((prev) =>
+                                  prev ? { ...prev, userId: currentUserId } : null,
+                                );
                               }
                             } catch (e) {
                               console.error(e);
@@ -904,7 +925,11 @@ export const PlayerEditView = ({
                           disabled={claiming}
                           className="btn btn-primary btn-xs font-bold uppercase"
                         >
-                          {claiming ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Vincular Minha Conta'}
+                          {claiming ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'Vincular Minha Conta'
+                          )}
                         </button>
                       )}
                     </div>
@@ -1308,9 +1333,12 @@ export const PlayerEditView = ({
           {/* Action buttons (Bottom) */}
           <div className="flex items-center justify-between border-t border-base-300 pt-4 mt-4">
             <div className="flex gap-2">
-              {permissions.canEditPlayerProfile && (
-                !showDeleteConfirm ? (
-                  <button onClick={() => setShowDeleteConfirm(true)} className="btn btn-error btn-sm">
+              {permissions.canEditPlayerProfile &&
+                (!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="btn btn-error btn-sm"
+                  >
                     <Trash2 className="w-3.5 h-3.5" /> {hasHistory ? 'Desativar' : 'Excluir'}
                   </button>
                 ) : (
@@ -1329,8 +1357,7 @@ export const PlayerEditView = ({
                       Não
                     </button>
                   </div>
-                )
-              )}
+                ))}
             </div>
 
             <div className="flex gap-2">

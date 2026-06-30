@@ -17,8 +17,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
-import { playerCloudService } from '../../services/supabase/playerCloudService';
-import { playerLinkProposalCloudService } from '../../services/supabase/playerLinkProposalCloudService';
+import { fetchAccountPlayerLinkQuery } from '../../application/playerLinkUseCases';
+import { buildAccountPlayerLinkViewModel } from '../../application/playerLinkViewModel';
 
 interface AccountSyncViewProps {
   user: any;
@@ -71,13 +71,13 @@ export function AccountSyncView({
   const [linkedPlayerCheckFailed, setLinkedPlayerCheckFailed] = useState(false);
 
   // Encontra atleta vinculado
-  const myLinkedPlayer = useMemo(() => {
+  const localLinkedPlayer = useMemo(() => {
     if (!user) return null;
-    return players.find((p) => p.userId === user.id);
+    return players.find((p) => p.userId === user.id) ?? null;
   }, [players, user]);
 
   useEffect(() => {
-    if (!user || !isSupabaseConfigured || myLinkedPlayer) {
+    if (!user || !isSupabaseConfigured || localLinkedPlayer) {
       setCloudLinkedPlayer(null);
       setCloudPendingProposal(null);
       setCheckingLinkedPlayer(false);
@@ -89,18 +89,20 @@ export function AccountSyncView({
     setCheckingLinkedPlayer(true);
     setLinkedPlayerCheckFailed(false);
 
-    Promise.all([
-      playerCloudService.fetchLinkedToUser(user.id),
-      playerLinkProposalCloudService.fetchPendingForUser(user.id),
-    ])
-      .then(([player, proposal]) => {
+    fetchAccountPlayerLinkQuery(user.id)
+      .then((result) => {
         if (cancelled) return;
-        setCloudLinkedPlayer(player);
-        setCloudPendingProposal(proposal);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('[account] Falha ao verificar vinculo/proposta na nuvem:', err);
+
+        if (result.ok) {
+          setCloudLinkedPlayer(result.value.linkedPlayer);
+          setCloudPendingProposal(result.value.pendingProposal);
+          setLinkedPlayerCheckFailed(!!result.issues?.length);
+          if (result.issues?.length) {
+            console.warn('[account] Falha recuperavel ao verificar vinculo:', result.issues[0]);
+          }
+          return;
+        }
+
         setCloudLinkedPlayer(null);
         setCloudPendingProposal(null);
         setLinkedPlayerCheckFailed(true);
@@ -112,31 +114,27 @@ export function AccountSyncView({
     return () => {
       cancelled = true;
     };
-  }, [isSupabaseConfigured, myLinkedPlayer, user]);
+  }, [isSupabaseConfigured, localLinkedPlayer, user]);
 
-  const linkedPlayer = myLinkedPlayer || cloudLinkedPlayer;
+  const playerLinkVm = buildAccountPlayerLinkViewModel({
+    user,
+    isSupabaseConfigured,
+    syncLoading,
+    checkingLinkedPlayer,
+    linkedPlayerCheckFailed,
+    players,
+    linkProposals,
+    cloudLinkedPlayer,
+    cloudPendingProposal,
+  });
+  const linkedPlayer = playerLinkVm.linkedPlayer;
 
-  // Encontra proposta pendente
-  const myPendingProposal = useMemo(() => {
-    if (!user) return null;
-    return linkProposals.find((p) => p.userId === user.id && p.status === 'pending');
-  }, [linkProposals, user]);
+  const pendingProposal = playerLinkVm.pendingProposal;
 
-  const pendingProposal = myPendingProposal || cloudPendingProposal;
-
-  const pendingPlayer = useMemo(() => {
-    if (!pendingProposal) return null;
-    return players.find(
-      (p) =>
-        p.id === pendingProposal.playerId ||
-        (p.cloudId && pendingProposal.playerCloudId && p.cloudId === pendingProposal.playerCloudId),
-    );
-  }, [pendingProposal, players]);
+  const pendingPlayer = playerLinkVm.pendingPlayer;
 
   // Filtra atletas disponíveis para se vincular (sem userId e que não sejam convidados)
-  const availablePlayers = useMemo(() => {
-    return players.filter((p) => !p.userId && !p.isGuest && p.ativo);
-  }, [players]);
+  const availablePlayers = playerLinkVm.availablePlayers;
 
   const handleAction = async (name: string, fn: () => Promise<void>) => {
     setError(null);
@@ -327,7 +325,7 @@ export function AccountSyncView({
             </h3>
           </div>
 
-          {checkingLinkedPlayer || syncLoading ? (
+          {playerLinkVm.state === 'checking' ? (
             <div className="bg-base-100 border border-base-300 p-4 rounded-xl flex items-center gap-3">
               <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
               <div>
@@ -398,7 +396,7 @@ export function AccountSyncView({
             </div>
           ) : (
             <div className="space-y-4">
-              {linkedPlayerCheckFailed && (
+              {playerLinkVm.state === 'check_failed' && (
                 <div className="alert alert-warning alert-soft text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
@@ -418,7 +416,7 @@ export function AccountSyncView({
                   value={selectedPlayerId}
                   onChange={(e) => setSelectedPlayerId(e.target.value)}
                   className="select select-bordered select-sm flex-1 font-bold text-xs uppercase"
-                  disabled={claiming || linkedPlayerCheckFailed}
+                  disabled={claiming || !playerLinkVm.canRequestLink}
                 >
                   <option value="">-- Selecione sua Ficha de Atleta --</option>
                   {availablePlayers.map((player) => (
@@ -441,7 +439,7 @@ export function AccountSyncView({
                       setClaiming(false);
                     }
                   }}
-                  disabled={!selectedPlayerId || claiming || linkedPlayerCheckFailed}
+                  disabled={!selectedPlayerId || claiming || !playerLinkVm.canRequestLink}
                   className="btn btn-primary btn-sm font-bold uppercase"
                 >
                   {claiming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Solicitar Vínculo'}

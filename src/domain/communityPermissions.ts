@@ -1,9 +1,4 @@
-import type {
-  AuthRole,
-  Community,
-  CommunityMember,
-  CommunityMemberRole,
-} from '../types';
+import type { AuthRole, Community, CommunityMember, CommunityMemberRole } from '../types';
 
 export interface CommunityPermissionInput {
   isSupabaseConfigured: boolean;

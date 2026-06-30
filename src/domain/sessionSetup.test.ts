@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateSessionWizardStep, hasPlayableRuleSnapshot, getFreePlaySetupConfig } from './sessionSetup';
+import {
+  validateSessionWizardStep,
+  hasPlayableRuleSnapshot,
+  getFreePlaySetupConfig,
+} from './sessionSetup';
 import { makeFreePlayConfig, makeSession } from '../test/fixtures';
 import type { TournamentConfig } from '../types';
 

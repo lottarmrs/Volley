@@ -25,10 +25,7 @@ function proposal(overrides: Partial<PlayerLinkProposal> = {}): PlayerLinkPropos
 }
 
 test('direct player linking is allowed only for owner-owned or local unlinked players', () => {
-  assert.equal(
-    canDirectlyLinkPlayer(makePlayer('p1', { cloudOwnerId: 'user-1' }), 'user-1'),
-    true,
-  );
+  assert.equal(canDirectlyLinkPlayer(makePlayer('p1', { cloudOwnerId: 'user-1' }), 'user-1'), true);
   assert.equal(canDirectlyLinkPlayer(makePlayer('p2', { cloudId: undefined }), 'user-1'), true);
   assert.equal(
     canDirectlyLinkPlayer(makePlayer('p3', { cloudId: 'cloud', cloudOwnerId: 'other' }), 'user-1'),
@@ -79,7 +76,12 @@ test('supersedePendingProposalsForLink closes competing pending proposals', () =
     proposal({ id: 'same-player', playerId: 'player-1', userId: 'other-user' }),
     proposal({ id: 'same-cloud', playerId: 'player-3', userId: 'other-user' }),
     proposal({ id: 'same-user', playerId: 'player-2', userId: 'user-1' }),
-    proposal({ id: 'already-rejected', playerId: 'player-4', userId: 'user-3', status: 'rejected' }),
+    proposal({
+      id: 'already-rejected',
+      playerId: 'player-4',
+      userId: 'user-3',
+      status: 'rejected',
+    }),
   ];
   const updated = supersedePendingProposalsForLink(
     proposals,

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateSessionWizardStep, hasPlayableRuleSnapshot } from './sessionSetup';
+import { validateSessionWizardStep, hasPlayableRuleSnapshot, getFreePlaySetupConfig } from './sessionSetup';
 import { makeFreePlayConfig, makeSession } from '../test/fixtures';
+import type { TournamentConfig } from '../types';
 
 test('step 0 requires name and date', () => {
   const errors = validateSessionWizardStep(makeSession('s1', { name: ' ', date: '' }), 0);
@@ -90,3 +91,47 @@ test('hasPlayableRuleSnapshot requires matching session and config types', () =>
     false,
   );
 });
+
+test('getFreePlaySetupConfig returns matching free play config', () => {
+  const config = makeFreePlayConfig({ teamCount: 4 });
+  const session = makeSession('s1', {
+    type: 'free_play',
+    config,
+  });
+
+  assert.equal(getFreePlaySetupConfig(session), config);
+});
+
+test('getFreePlaySetupConfig returns null for free play session with tournament config', () => {
+  const session = makeSession('s1', {
+    type: 'free_play',
+    config: makeTournamentConfig(),
+  });
+
+  assert.equal(getFreePlaySetupConfig(session), null);
+});
+
+test('getFreePlaySetupConfig returns null for tournament session', () => {
+  const session = makeSession('s1', {
+    type: 'tournament',
+    config: makeTournamentConfig(),
+  });
+
+  assert.equal(getFreePlaySetupConfig(session), null);
+});
+
+function makeTournamentConfig(): TournamentConfig {
+  return {
+    type: 'tournament',
+    format: 'knockout',
+    teamCount: 4,
+    useGroupStage: false,
+    roundTrip: false,
+    maxPoints: 12,
+    tieBreakMethod: 'direct_3',
+    hasFinal: true,
+    hasThirdPlaceMatch: true,
+    classificationPoints: { win: 3, loss: 0 },
+    standingsRules: ['wins'],
+  };
+}

@@ -115,6 +115,11 @@ export function useSessionWizard({
   };
 
   const validateCurrentStep = () => {
+    if (!activeSession) {
+      setValidationErrors({});
+      return false;
+    }
+
     const errors = validateSessionWizardStep(activeSession, wizardStep);
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;

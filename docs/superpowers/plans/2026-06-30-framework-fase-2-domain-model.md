@@ -1083,4 +1083,3 @@ Library decision:
 - No new dependency is introduced in Fase 2.
 - Zod remains recommended for Fase 3/4 command/query and cloud/local boundary validation.
 - TanStack Query remains deferred until cloud state is moved out of components/hooks.
-

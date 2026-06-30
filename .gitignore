@@ -7,3 +7,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local agent/tool state
+.claude/settings.local.json
+.superpowers/
+
+# Generated audit artifacts
+audit-output/

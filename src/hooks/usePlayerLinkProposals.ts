@@ -90,7 +90,11 @@ export function usePlayerLinkProposals(
         setLinkProposals((prev) =>
           supersedePendingProposalsForLink(
             prev,
-            { playerId: player.id, playerCloudId: player.cloudId, userId: proposal.userId },
+            {
+              playerId: player.id,
+              playerCloudId: proposal.playerCloudId ?? player.cloudId,
+              userId: proposal.userId,
+            },
             currentUserId,
             now,
           ).map((p) => {

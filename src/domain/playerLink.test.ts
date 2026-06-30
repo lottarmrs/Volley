@@ -34,6 +34,10 @@ test('direct player linking is allowed only for owner-owned or local unlinked pl
     canDirectlyLinkPlayer(makePlayer('p3', { cloudId: 'cloud', cloudOwnerId: 'other' }), 'user-1'),
     false,
   );
+  assert.equal(
+    canDirectlyLinkPlayer(makePlayer('p4', { cloudId: undefined, userId: 'other-user' }), 'user-1'),
+    false,
+  );
 });
 
 test('buildPlayerLinkProposal rejects missing user and guest players', () => {
@@ -73,8 +77,9 @@ test('linkPlayerToUser changes only the target player and preserves sync intent'
 test('supersedePendingProposalsForLink closes competing pending proposals', () => {
   const proposals = [
     proposal({ id: 'same-player', playerId: 'player-1', userId: 'other-user' }),
+    proposal({ id: 'same-cloud', playerId: 'player-3', userId: 'other-user' }),
     proposal({ id: 'same-user', playerId: 'player-2', userId: 'user-1' }),
-    proposal({ id: 'already-rejected', playerId: 'player-3', userId: 'user-3', status: 'rejected' }),
+    proposal({ id: 'already-rejected', playerId: 'player-4', userId: 'user-3', status: 'rejected' }),
   ];
   const updated = supersedePendingProposalsForLink(
     proposals,
@@ -84,6 +89,7 @@ test('supersedePendingProposalsForLink closes competing pending proposals', () =
   );
 
   assert.equal(updated.find((item) => item.id === 'same-player')?.status, 'superseded');
+  assert.equal(updated.find((item) => item.id === 'same-cloud')?.status, 'superseded');
   assert.equal(updated.find((item) => item.id === 'same-user')?.status, 'superseded');
   assert.equal(updated.find((item) => item.id === 'already-rejected')?.status, 'rejected');
 });

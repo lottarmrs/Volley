@@ -1324,11 +1324,11 @@ export function SessionWizard({
                   {/* End of balance rules */}
                 </div>
 
-                {validationErrors.teamCount && (
+                {(validationErrors.config || validationErrors.teamCount) && (
                   <div role="alert" className="alert alert-error alert-soft mt-4">
                     <AlertTriangle className="w-5 h-5" />
                     <span className="text-[10px] font-bold uppercase tracking-tight">
-                      {validationErrors.teamCount}
+                      {validationErrors.config ?? validationErrors.teamCount}
                     </span>
                   </div>
                 )}

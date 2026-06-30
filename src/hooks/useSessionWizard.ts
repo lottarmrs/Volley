@@ -14,6 +14,7 @@ import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/
 import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
+import { validateSessionWizardStep } from '../domain/sessionSetup';
 
 interface UseSessionWizardProps {
   players: Player[];
@@ -114,33 +115,12 @@ export function useSessionWizard({
   };
 
   const validateCurrentStep = () => {
-    if (!activeSession) return false;
-    const errors: Record<string, string> = {};
-    if (wizardStep === 0) {
-      if (!activeSession.name.trim()) errors.name = 'O nome da sessão é obrigatório.';
-      if (!activeSession.date) errors.date = 'A data é obrigatória.';
-    } else if (wizardStep === 1) {
-      if (activeSession.selectedPlayerIds.length < 4)
-        errors.players = 'Selecione pelo menos 4 atletas.';
-    } else if (wizardStep === 3) {
-      const teamCount = activeSession.config?.teamCount ?? 0;
-      const minPlayers = activeSession.type === 'tournament' ? 3 : 3;
-      if (activeSession.selectedPlayerIds.length < teamCount * minPlayers) {
-        errors.teamCount = `Para ${teamCount} times, selecione pelo menos ${teamCount * minPlayers} jogadores.`;
-      }
-      if (activeSession.type === 'free_play' && teamCount < 3) {
-        errors.teamCount = 'Jogo livre exige pelo menos 3 times.';
-      }
-      if (activeSession.type === 'tournament' && teamCount < 2) {
-        errors.teamCount = 'Torneio exige pelo menos 2 times.';
-      }
-      if (activeSession.type === 'tournament' && activeSession.config?.type === 'tournament') {
-        const cfg = activeSession.config as TournamentConfig;
-        if ((cfg.format === 'groups_knockout' || cfg.format === 'group_stage') && teamCount < 4) {
-          errors.teamCount = 'Fase de grupos exige pelo menos 4 times.';
-        }
-      }
+    if (!activeSession) {
+      setValidationErrors({});
+      return false;
     }
+
+    const errors = validateSessionWizardStep(activeSession, wizardStep);
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };

@@ -192,6 +192,7 @@ test('cancelPlayerLinkCommand rejects the proposal locally and tolerates cloud f
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.value.linkProposals[0].status, 'rejected');
+  assert.equal(result.value.linkProposals[0].syncStatus, 'pending');
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
 });
 

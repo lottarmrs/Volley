@@ -242,6 +242,7 @@ export async function cancelPlayerLinkCommand(
       await gateway.cancel?.(input.proposalId);
       linkProposals = markProposalSynced(linkProposals, input.proposalId);
     } catch (error) {
+      linkProposals = markProposalPending(linkProposals, input.proposalId);
       return appOk({ linkProposals }, [
         recoverableIssue(
           'cloud_unavailable',

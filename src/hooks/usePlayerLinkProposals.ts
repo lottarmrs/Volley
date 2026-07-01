@@ -4,10 +4,24 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localSt
 import { generateUUID } from '../logic/uuid';
 import {
   cancelPlayerLinkCommand,
+  fetchAllPlayerLinkProposalsQuery,
   proposePlayerLinkCommand,
   reviewPlayerLinkCommand,
   unlinkPlayerCommand,
 } from '../application/playerLinkUseCases';
+
+function mergeLinkProposalRefresh(
+  current: PlayerLinkProposal[],
+  incoming: PlayerLinkProposal[],
+): PlayerLinkProposal[] {
+  const byId = new Map<string, PlayerLinkProposal>();
+  for (const proposal of incoming) byId.set(proposal.id, proposal);
+  for (const proposal of current) {
+    const localPending = proposal.syncStatus === 'pending' || proposal.syncStatus === 'local';
+    if (localPending || !byId.has(proposal.id)) byId.set(proposal.id, proposal);
+  }
+  return Array.from(byId.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
 
 export function usePlayerLinkProposals(
   players: Player[],
@@ -21,6 +35,17 @@ export function usePlayerLinkProposals(
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.playerLinkProposals, linkProposals);
   }, [linkProposals]);
+
+  const handleRefreshPlayerLinkProposals = useCallback(async () => {
+    const result = await fetchAllPlayerLinkProposalsQuery();
+
+    if (result.ok === false) throw new Error(result.error.message);
+    if (result.issues?.length) throw new Error(result.issues[0].message);
+
+    setLinkProposals((current) =>
+      mergeLinkProposalRefresh(current, result.value.linkProposals),
+    );
+  }, []);
 
   const handleProposePlayerLink = useCallback(
     async (playerId: string) => {
@@ -105,5 +130,6 @@ export function usePlayerLinkProposals(
     handleReviewPlayerLink,
     handleCancelPlayerLink,
     handleUnlinkPlayer,
+    handleRefreshPlayerLinkProposals,
   };
 }

@@ -898,7 +898,7 @@ test('uploadLocalDataToCloud replays direct owner-approved local proposal with p
       assert.fail('owner-approved local proposal should be auto-approved by propose rpc');
     };
     playerCloudService.upsert = async (player: Player) => ({ ...player, cloudId: player.cloudId });
-    playerEvaluationCloudService.bulkUpsertForPlayers = async () => [];
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => undefined;
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
@@ -1157,7 +1157,7 @@ test('uploadLocalDataToCloud replays pending player unlink intent through rpc', 
     playerCloudService.upsert = async () => {
       assert.fail('shared unlink should not upsert player');
     };
-    playerEvaluationCloudService.bulkUpsertForPlayers = async () => [];
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => undefined;
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({

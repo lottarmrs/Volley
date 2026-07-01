@@ -66,7 +66,10 @@ export const GestaoView = ({
   );
   const [loadingPending, setLoadingPending] = useState(false);
   const [pendingError, setPendingError] = useState<string | null>(null);
-  const [actingId, setActingId] = useState<string | null>(null);
+  const [actingReview, setActingReview] = useState<{
+    id: string;
+    action: 'approve' | 'reject';
+  } | null>(null);
 
   const loadPending = useCallback(async () => {
     if (!onRefreshLinkProposals) return;
@@ -87,14 +90,14 @@ export const GestaoView = ({
 
   const handleReview = useCallback(
     async (proposalId: string, action: 'approve' | 'reject') => {
-      setActingId(proposalId);
+      setActingReview({ id: proposalId, action });
       try {
         await onReviewLink(proposalId, action);
         onToast?.(action === 'approve' ? 'Vínculo aprovado.' : 'Solicitação rejeitada.', 'success');
       } catch (e) {
         onToast?.(messageOf(e, 'Falha ao processar a solicitação.'), 'error');
       } finally {
-        setActingId(null);
+        setActingReview(null);
       }
     },
     [onReviewLink, onToast],
@@ -157,8 +160,11 @@ export const GestaoView = ({
               'Atleta';
             const requester = profileById.get(proposal.userId);
             const requesterLabel = requester?.email || requester?.name || proposal.userId;
-            const acting = actingId === proposal.id;
-            const reviewLocked = actingId !== null;
+            const approving =
+              actingReview?.id === proposal.id && actingReview.action === 'approve';
+            const rejecting =
+              actingReview?.id === proposal.id && actingReview.action === 'reject';
+            const reviewLocked = actingReview !== null;
             return (
               <div
                 key={proposal.id}
@@ -176,7 +182,7 @@ export const GestaoView = ({
                     disabled={reviewLocked}
                     className="btn btn-success btn-sm rounded-full"
                   >
-                    {acting ? (
+                    {approving ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Check className="w-4 h-4" />
@@ -188,7 +194,12 @@ export const GestaoView = ({
                     disabled={reviewLocked}
                     className="btn btn-ghost btn-sm rounded-full text-error"
                   >
-                    <X className="w-4 h-4" /> Rejeitar
+                    {rejecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <X className="w-4 h-4" />
+                    )}
+                    Rejeitar
                   </button>
                 </div>
               </div>

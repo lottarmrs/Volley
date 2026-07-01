@@ -549,6 +549,96 @@ export function isCloudBackedPlayerLinkProposal(
   );
 }
 
+function isPendingPlayerLinkIntent(proposal: PlayerLinkProposal): boolean {
+  return proposal.syncStatus === 'pending' || proposal.syncStatus === 'local';
+}
+
+function markLinkProposalSynced(
+  proposal: PlayerLinkProposal,
+  playerCloudId: string,
+  syncedAt: string,
+  id: string = proposal.id,
+): PlayerLinkProposal {
+  return {
+    ...proposal,
+    id,
+    playerCloudId,
+    syncStatus: 'synced',
+    lastSyncedAt: syncedAt,
+  };
+}
+
+function shouldCancelRejectedProposal(proposal: PlayerLinkProposal): boolean {
+  return proposal.status === 'rejected' && proposal.reviewedBy === proposal.userId;
+}
+
+function shouldSyncPlayerUnlink(player: Player): boolean {
+  return (
+    player.pendingUserLinkAction === 'unlink' &&
+    !!player.cloudId &&
+    player.syncStatus === 'pending'
+  );
+}
+
+function markPlayerUnlinkSynced(player: Player, syncedAt: string): Player {
+  return {
+    ...player,
+    pendingUserLinkAction: undefined,
+    syncStatus: 'synced',
+    lastSyncedAt: syncedAt,
+  };
+}
+
+async function syncPlayerLinkProposalIntent(
+  proposal: PlayerLinkProposal,
+  playerCloudIds: Map<string, string>,
+  ownerId: string,
+  syncedAt: string,
+): Promise<PlayerLinkProposal> {
+  const playerCloudId = proposal.playerCloudId || resolveCloudId(proposal.playerId, playerCloudIds);
+  if (!playerCloudId) return proposal;
+
+  if (proposal.deletedAt) {
+    return markLinkProposalSynced(proposal, playerCloudId, syncedAt);
+  }
+
+  const pendingIntent = isPendingPlayerLinkIntent(proposal);
+  const cloudBacked =
+    isCloudBackedPlayerLinkProposal(proposal) ||
+    (isUuid(proposal.id) && pendingIntent && proposal.status !== 'pending');
+
+  if (proposal.status === 'superseded') {
+    return markLinkProposalSynced(proposal, playerCloudId, syncedAt);
+  }
+
+  if (cloudBacked && !pendingIntent) {
+    return markLinkProposalSynced(proposal, playerCloudId, syncedAt);
+  }
+
+  if (!cloudBacked && proposal.userId !== ownerId) {
+    throw new Error(
+      `Cannot replay local player link proposal "${proposal.id}" for another user without a cloud proposal id`,
+    );
+  }
+
+  let proposalId = proposal.id;
+  if (!cloudBacked) {
+    proposalId = await playerLinkProposalCloudService.propose(playerCloudId);
+  }
+
+  if (proposal.status === 'approved') {
+    await playerLinkProposalCloudService.approve(proposalId);
+  } else if (proposal.status === 'rejected') {
+    if (shouldCancelRejectedProposal(proposal)) {
+      await playerLinkProposalCloudService.cancel(proposalId);
+    } else {
+      await playerLinkProposalCloudService.reject(proposalId);
+    }
+  }
+
+  return markLinkProposalSynced(proposal, playerCloudId, syncedAt, proposalId);
+}
+
 /**
  * Decide quais relações community_players da nuvem são órfãs (devem ser deletadas)
  * na reconciliação. Regra de segurança (C1): só considera relações de players
@@ -920,17 +1010,25 @@ export const syncService = {
           continue;
         }
 
+        let playerForUpload = player;
+        if (shouldSyncPlayerUnlink(player)) {
+          await playerLinkProposalCloudService.unlink(player.cloudId!);
+          playerForUpload = markPlayerUnlinkSynced(player, syncedAt);
+        }
+
         const isSharedPlayer =
-          !!player.cloudId && !!player.cloudOwnerId && player.cloudOwnerId !== ownerId;
+          !!playerForUpload.cloudId &&
+          !!playerForUpload.cloudOwnerId &&
+          playerForUpload.cloudOwnerId !== ownerId;
 
         if (isSharedPlayer) {
-          updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
+          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
           continue;
         }
 
-        const uploaded = await playerCloudService.upsert(player, ownerId);
+        const uploaded = await playerCloudService.upsert(playerForUpload, ownerId);
         updatedPlayers.push(
-          markSynced({ ...player, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt),
+          markSynced({ ...playerForUpload, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt),
         );
       } catch (error) {
         onIssue(`atleta "${player.nome}"`, error);
@@ -1251,47 +1349,14 @@ export const syncService = {
     const updatedProposals: PlayerLinkProposal[] = [];
     for (const proposal of local.linkProposals || []) {
       try {
-        const playerCloudId =
-          proposal.playerCloudId || resolveCloudId(proposal.playerId, playerCloudIds);
-        if (!playerCloudId) {
-          updatedProposals.push(proposal);
-          continue;
-        }
-        if (proposal.deletedAt) {
-          updatedProposals.push({ ...proposal, syncStatus: 'synced', lastSyncedAt: syncedAt });
-          continue;
-        }
-
-        if (isCloudBackedPlayerLinkProposal(proposal)) {
-          // Já existe na nuvem: o status é gerido pelos RPCs approve/reject/cancel
-          // (chamados pelo hook) e o download traz o estado autoritativo. Não
-          // reupsertamos — evita brigar com os triggers e o índice único de
-          // proposta pendente.
-          updatedProposals.push({
-            ...proposal,
-            playerCloudId,
-            syncStatus: 'synced',
-            lastSyncedAt: syncedAt,
-          });
-        } else {
-          // Proposta local que nunca chegou à nuvem (id temporário). Cria via RPC,
-          // que aplica a lógica de aprovação correta no servidor. (Antes o id temp
-          // era enviado como uuid e quebrava o upsert — erro 22P02, o bug I2.)
-          const cloudId = await playerLinkProposalCloudService.propose(playerCloudId);
-          updatedProposals.push({
-            ...proposal,
-            id: cloudId,
-            playerCloudId,
-            syncStatus: 'synced',
-            lastSyncedAt: syncedAt,
-          });
-        }
+        updatedProposals.push(
+          await syncPlayerLinkProposalIntent(proposal, playerCloudIds, ownerId, syncedAt),
+        );
       } catch (error) {
-        onIssue('proposta de vínculo', error);
+        onIssue('proposta de vinculo', error);
         updatedProposals.push(proposal);
       }
     }
-
     return {
       communities: visible(updatedCommunities),
       players: visible(updatedPlayers),

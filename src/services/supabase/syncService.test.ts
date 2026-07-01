@@ -12,10 +12,15 @@ import {
   type LocalSyncPayload,
 } from './syncService';
 import { operationalCloudService } from './operationalCloudService';
+import { playerCloudService } from './playerCloudService';
+import { playerEvaluationCloudService } from './playerEvaluationCloudService';
+import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
 import {
   CloudSyncStatus,
   Community,
   CommunityPresence,
+  Player,
+  PlayerLinkProposal,
   Session,
   Team,
   WhatsAppListDraft,
@@ -95,6 +100,71 @@ function makeSharedCommunity(overrides: Partial<Community> = {}): Community {
     createdAt: '2026-06-28T20:00:00.000Z',
     updatedAt: '2026-06-28T20:00:00.000Z',
     syncStatus: 'synced',
+    ...overrides,
+  };
+}
+
+function makeSyncPlayer(overrides: Partial<Player> = {}): Player {
+  return {
+    id: 'player-local',
+    cloudId: 'player-cloud',
+    cloudOwnerId: 'owner-1',
+    nome: 'Ana Souza',
+    apelido: '',
+    genero: 'F',
+    ativo: true,
+    posicaoPrincipal: 'ponteiro',
+    posicoesSecundarias: [],
+    alturaCm: 170,
+    maoDominante: 'direita',
+    atributos: {
+      saque: 5,
+      recepcao: 5,
+      levantamento: 5,
+      ataque: 5,
+      bloqueio: 5,
+      defesa: 5,
+      velocidade: 5,
+      resistencia: 5,
+      leituraDeJogo: 5,
+      regularidade: 5,
+      controleEmocional: 5,
+    },
+    perfil: {
+      nivel: 5,
+      classe: 'B',
+      arquetipo: 'Equilibrada',
+      especialidade: 'Passe',
+      fraqueza: 'Bloqueio',
+    },
+    formaAtual: {
+      valor: 5,
+      observacao: '',
+      ultimasPartidas: [],
+    },
+    status: {
+      lesionado: false,
+      limitacaoFisica: null,
+      presencaFrequente: true,
+    },
+    metadata: {
+      criadoEm: '2026-06-01T00:00:00.000Z',
+      atualizadoEm: '2026-06-01T00:00:00.000Z',
+    },
+    syncStatus: 'pending',
+    ...overrides,
+  };
+}
+
+function makeSyncProposal(overrides: Partial<PlayerLinkProposal> = {}): PlayerLinkProposal {
+  return {
+    id: 'proposal-local',
+    playerId: 'player-local',
+    playerCloudId: 'player-cloud',
+    userId: 'owner-1',
+    status: 'pending',
+    createdAt: '2026-06-01T00:00:00.000Z',
+    syncStatus: 'pending',
     ...overrides,
   };
 }
@@ -810,6 +880,259 @@ test('consolidateDuplicateRecords merges old duplicates and remaps historical re
   assert.equal(payload.drafts[0].mainSlots[0].playerId, 'player-new-local');
   assert.equal(payload.linkProposals?.[0].playerId, 'player-new-local');
   assert.equal(payload.linkProposals?.[0].playerCloudId, 'player-new-cloud');
+});
+
+test('uploadLocalDataToCloud replays local approved proposal with propose then approve', async () => {
+  const originalPropose = playerLinkProposalCloudService.propose;
+  const originalApprove = playerLinkProposalCloudService.approve;
+  const calls: string[] = [];
+
+  try {
+    playerLinkProposalCloudService.propose = async (playerId: string) => {
+      calls.push(`propose:${playerId}`);
+      return '00000000-0000-4000-8000-000000000001';
+    };
+    playerLinkProposalCloudService.approve = async (proposalId: string) => {
+      calls.push(`approve:${proposalId}`);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            status: 'approved',
+            reviewedBy: 'owner-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(calls, [
+      'propose:player-cloud',
+      'approve:00000000-0000-4000-8000-000000000001',
+    ]);
+    assert.equal(result.linkProposals?.[0].id, '00000000-0000-4000-8000-000000000001');
+    assert.equal(result.linkProposals?.[0].status, 'approved');
+    assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+  } finally {
+    playerLinkProposalCloudService.propose = originalPropose;
+    playerLinkProposalCloudService.approve = originalApprove;
+  }
+});
+
+test('uploadLocalDataToCloud replays cloud-backed approved pending proposal with approve only', async () => {
+  const originalPropose = playerLinkProposalCloudService.propose;
+  const originalApprove = playerLinkProposalCloudService.approve;
+  const calls: string[] = [];
+  const proposalId = '00000000-0000-4000-8000-000000000002';
+
+  try {
+    playerLinkProposalCloudService.propose = async () => {
+      assert.fail('cloud-backed proposal should not be proposed again');
+    };
+    playerLinkProposalCloudService.approve = async (id: string) => {
+      calls.push(`approve:${id}`);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: proposalId,
+            status: 'approved',
+            reviewedBy: 'admin-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'admin-1',
+    );
+
+    assert.deepEqual(calls, [`approve:${proposalId}`]);
+    assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+  } finally {
+    playerLinkProposalCloudService.propose = originalPropose;
+    playerLinkProposalCloudService.approve = originalApprove;
+  }
+});
+
+test('uploadLocalDataToCloud replays rejected admin review with reject rpc', async () => {
+  const originalReject = playerLinkProposalCloudService.reject;
+  const originalCancel = playerLinkProposalCloudService.cancel;
+  const calls: string[] = [];
+  const proposalId = '00000000-0000-4000-8000-000000000003';
+
+  try {
+    playerLinkProposalCloudService.reject = async (id: string) => {
+      calls.push(`reject:${id}`);
+    };
+    playerLinkProposalCloudService.cancel = async () => {
+      assert.fail('admin rejection should not call cancel');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: proposalId,
+            userId: 'user-1',
+            status: 'rejected',
+            reviewedBy: 'admin-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'admin-1',
+    );
+
+    assert.deepEqual(calls, [`reject:${proposalId}`]);
+    assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+  } finally {
+    playerLinkProposalCloudService.reject = originalReject;
+    playerLinkProposalCloudService.cancel = originalCancel;
+  }
+});
+
+test('uploadLocalDataToCloud replays rejected self cancellation with cancel rpc', async () => {
+  const originalReject = playerLinkProposalCloudService.reject;
+  const originalCancel = playerLinkProposalCloudService.cancel;
+  const calls: string[] = [];
+  const proposalId = '00000000-0000-4000-8000-000000000004';
+
+  try {
+    playerLinkProposalCloudService.reject = async () => {
+      assert.fail('self cancellation should not call admin reject');
+    };
+    playerLinkProposalCloudService.cancel = async (id: string) => {
+      calls.push(`cancel:${id}`);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: proposalId,
+            status: 'rejected',
+            reviewedBy: 'owner-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(calls, [`cancel:${proposalId}`]);
+    assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+  } finally {
+    playerLinkProposalCloudService.reject = originalReject;
+    playerLinkProposalCloudService.cancel = originalCancel;
+  }
+});
+
+test('uploadLocalDataToCloud keeps failed approved proposal pending and reports issue', async () => {
+  const originalApprove = playerLinkProposalCloudService.approve;
+  const issues: string[] = [];
+  const proposalId = '00000000-0000-4000-8000-000000000005';
+
+  try {
+    playerLinkProposalCloudService.approve = async () => {
+      throw new Error('approve failed');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: proposalId,
+            status: 'approved',
+            reviewedBy: 'admin-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'admin-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.linkProposals?.[0].id, proposalId);
+    assert.equal(result.linkProposals?.[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /proposta de vinculo|proposta de v.nculo/i);
+  } finally {
+    playerLinkProposalCloudService.approve = originalApprove;
+  }
+});
+
+test('uploadLocalDataToCloud refuses to create local proposal for a different user', async () => {
+  const originalPropose = playerLinkProposalCloudService.propose;
+  const issues: string[] = [];
+
+  try {
+    playerLinkProposalCloudService.propose = async () => {
+      assert.fail('sync must not propose on behalf of a different user');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: 'proposal-local-other-user',
+            userId: 'other-user',
+            status: 'approved',
+            reviewedBy: 'owner-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(result.linkProposals?.[0].id, 'proposal-local-other-user');
+    assert.equal(result.linkProposals?.[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+  } finally {
+    playerLinkProposalCloudService.propose = originalPropose;
+  }
+});
+
+test('uploadLocalDataToCloud replays pending player unlink intent through rpc', async () => {
+  const originalUnlink = playerLinkProposalCloudService.unlink;
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const calls: string[] = [];
+
+  try {
+    playerLinkProposalCloudService.unlink = async (playerId: string) => {
+      calls.push(`unlink:${playerId}`);
+    };
+    playerCloudService.upsert = async (player: Player) => ({ ...player, cloudId: player.cloudId });
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => [];
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            cloudOwnerId: 'other-owner',
+            userId: undefined,
+            pendingUserLinkAction: 'unlink',
+            syncStatus: 'pending',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(calls, ['unlink:player-cloud']);
+    assert.equal(result.players[0].pendingUserLinkAction, undefined);
+    assert.equal(result.players[0].syncStatus, 'synced');
+  } finally {
+    playerLinkProposalCloudService.unlink = originalUnlink;
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
 });
 
 test('computeStaleRelationIds deletes only undesired relations of payload players', () => {

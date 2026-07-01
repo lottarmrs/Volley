@@ -1056,6 +1056,9 @@ export default function App() {
             currentUserId={auth.user?.id ?? null}
             isMaster={auth.isMaster}
             players={play.players}
+            linkProposals={proposals.linkProposals}
+            onReviewLink={proposals.handleReviewPlayerLink}
+            onRefreshLinkProposals={proposals.handleRefreshPlayerLinkProposals}
             onToast={toasts.push}
           />
         ) : null;

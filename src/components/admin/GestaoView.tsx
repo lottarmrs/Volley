@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShieldCheck, UserCog, Inbox, Loader2, Check, X, RefreshCw } from 'lucide-react';
 import { AuthRole, Player, PlayerLinkProposal, UserProfile } from '../../types';
 import { useProfilesAdmin } from '../../hooks/useProfilesAdmin';
-import { playerLinkProposalCloudService } from '../../services/supabase/playerLinkProposalCloudService';
 
 interface GestaoViewProps {
   currentUserId: string | null;
@@ -10,6 +9,9 @@ interface GestaoViewProps {
   isMaster: boolean;
   /** Elenco local, para resolver nomes de atletas a partir do cloudId. */
   players: Player[];
+  linkProposals: PlayerLinkProposal[];
+  onReviewLink: (proposalId: string, action: 'approve' | 'reject') => Promise<void>;
+  onRefreshLinkProposals?: () => Promise<void>;
   onToast?: (message: string, variant: 'success' | 'error') => void;
 }
 
@@ -31,7 +33,15 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export const GestaoView = ({ currentUserId, isMaster, players, onToast }: GestaoViewProps) => {
+export const GestaoView = ({
+  currentUserId,
+  isMaster,
+  players,
+  linkProposals,
+  onReviewLink,
+  onRefreshLinkProposals,
+  onToast,
+}: GestaoViewProps) => {
   const { profiles, loading, error, savingId, changeRole } = useProfilesAdmin(true);
 
   const profileById = useMemo(() => {
@@ -47,23 +57,26 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
   }, [players]);
 
   // ── Aprovações pendentes de vínculo ───────────────────────────────────────
-  const [pending, setPending] = useState<PlayerLinkProposal[]>([]);
+  const pending = useMemo(
+    () => linkProposals.filter((proposal) => proposal.status === 'pending'),
+    [linkProposals],
+  );
   const [loadingPending, setLoadingPending] = useState(false);
   const [pendingError, setPendingError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
 
   const loadPending = useCallback(async () => {
+    if (!onRefreshLinkProposals) return;
     setLoadingPending(true);
     setPendingError(null);
     try {
-      const all = await playerLinkProposalCloudService.fetchAll();
-      setPending(all.filter((p) => p.status === 'pending'));
+      await onRefreshLinkProposals();
     } catch (e) {
       setPendingError(messageOf(e, 'Não foi possível carregar as solicitações.'));
     } finally {
       setLoadingPending(false);
     }
-  }, []);
+  }, [onRefreshLinkProposals]);
 
   useEffect(() => {
     loadPending();
@@ -73,9 +86,7 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
     async (proposalId: string, action: 'approve' | 'reject') => {
       setActingId(proposalId);
       try {
-        if (action === 'approve') await playerLinkProposalCloudService.approve(proposalId);
-        else await playerLinkProposalCloudService.reject(proposalId);
-        setPending((prev) => prev.filter((p) => p.id !== proposalId));
+        await onReviewLink(proposalId, action);
         onToast?.(action === 'approve' ? 'Vínculo aprovado.' : 'Solicitação rejeitada.', 'success');
       } catch (e) {
         onToast?.(messageOf(e, 'Falha ao processar a solicitação.'), 'error');
@@ -83,7 +94,7 @@ export const GestaoView = ({ currentUserId, isMaster, players, onToast }: Gestao
         setActingId(null);
       }
     },
-    [onToast],
+    [onReviewLink, onToast],
   );
 
   const handleChangeRole = useCallback(

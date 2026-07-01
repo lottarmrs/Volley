@@ -50,9 +50,12 @@ export const GestaoView = ({
     return map;
   }, [profiles]);
 
-  const playerNameByCloudId = useMemo(() => {
+  const playerNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const p of players) if (p.cloudId) map.set(p.cloudId, p.nome);
+    for (const player of players) {
+      map.set(player.id, player.nome);
+      if (player.cloudId) map.set(player.cloudId, player.nome);
+    }
     return map;
   }, [players]);
 
@@ -148,10 +151,14 @@ export const GestaoView = ({
 
         <div className="space-y-2">
           {pending.map((proposal) => {
-            const athlete = playerNameByCloudId.get(proposal.playerId) ?? 'Atleta';
+            const athlete =
+              playerNameById.get(proposal.playerId) ||
+              (proposal.playerCloudId ? playerNameById.get(proposal.playerCloudId) : undefined) ||
+              'Atleta';
             const requester = profileById.get(proposal.userId);
             const requesterLabel = requester?.email || requester?.name || proposal.userId;
             const acting = actingId === proposal.id;
+            const reviewLocked = actingId !== null;
             return (
               <div
                 key={proposal.id}
@@ -166,7 +173,7 @@ export const GestaoView = ({
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => handleReview(proposal.id, 'approve')}
-                    disabled={acting}
+                    disabled={reviewLocked}
                     className="btn btn-success btn-sm rounded-full"
                   >
                     {acting ? (
@@ -178,7 +185,7 @@ export const GestaoView = ({
                   </button>
                   <button
                     onClick={() => handleReview(proposal.id, 'reject')}
-                    disabled={acting}
+                    disabled={reviewLocked}
                     className="btn btn-ghost btn-sm rounded-full text-error"
                   >
                     <X className="w-4 h-4" /> Rejeitar

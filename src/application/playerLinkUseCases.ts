@@ -22,6 +22,10 @@ export interface PlayerLinkQueryGateway {
   fetchPendingForUser: (userId: string) => Promise<PlayerLinkProposal | null>;
 }
 
+export interface PlayerLinkAdminQueryGateway {
+  fetchAll: () => Promise<PlayerLinkProposal[]>;
+}
+
 export interface PlayerLinkStateChange {
   players?: Player[];
   linkProposals: PlayerLinkProposal[];
@@ -38,6 +42,10 @@ export const supabasePlayerLinkCommandGateway: Required<PlayerLinkCommandGateway
 export const supabasePlayerLinkQueryGateway: PlayerLinkQueryGateway = {
   fetchLinkedToUser: playerCloudService.fetchLinkedToUser,
   fetchPendingForUser: playerLinkProposalCloudService.fetchPendingForUser,
+};
+
+export const supabasePlayerLinkAdminQueryGateway: PlayerLinkAdminQueryGateway = {
+  fetchAll: playerLinkProposalCloudService.fetchAll,
 };
 
 export async function proposePlayerLinkCommand(
@@ -186,6 +194,7 @@ export async function reviewPlayerLinkCommand(
       else await gateway.reject?.(input.proposalId);
       linkProposals = markProposalSynced(linkProposals, input.proposalId);
     } catch (error) {
+      linkProposals = markProposalPending(linkProposals, input.proposalId);
       return appOk({ players, linkProposals }, [
         recoverableIssue(
           'cloud_unavailable',
@@ -262,10 +271,16 @@ export async function unlinkPlayerCommand(
   const player = input.players.find((item) => item.id === input.playerId);
   if (!player) return productError('not_found', 'Atleta nao encontrado.');
 
-  const players: Player[] = input.players.map(
+  let players: Player[] = input.players.map(
     (item): Player =>
       item.id === input.playerId
-        ? { ...item, userId: undefined, syncStatus: 'pending', updatedAt: input.nowIso }
+        ? {
+            ...item,
+            userId: undefined,
+            pendingUserLinkAction: item.cloudId ? 'unlink' : undefined,
+            syncStatus: 'pending',
+            updatedAt: input.nowIso,
+          }
         : item,
   );
   const linkProposals: PlayerLinkProposal[] = input.linkProposals.map(
@@ -291,6 +306,7 @@ export async function unlinkPlayerCommand(
   if (player.cloudId) {
     try {
       await gateway.unlink?.(player.cloudId);
+      players = markPlayerUserLinkSynced(players, input.playerId, input.nowIso);
     } catch (error) {
       return appOk({ players, linkProposals }, [
         recoverableIssue(
@@ -327,6 +343,23 @@ export async function fetchAccountPlayerLinkQuery(
   }
 }
 
+export async function fetchAllPlayerLinkProposalsQuery(
+  gateway: PlayerLinkAdminQueryGateway = supabasePlayerLinkAdminQueryGateway,
+): Promise<AppResult<PlayerLinkStateChange>> {
+  try {
+    const linkProposals = await gateway.fetchAll();
+    return appOk({ linkProposals });
+  } catch (error) {
+    return appOk({ linkProposals: [] }, [
+      recoverableIssue(
+        'cloud_unavailable',
+        'Nao foi possivel carregar solicitacoes de vinculo da nuvem agora.',
+        error,
+      ),
+    ]);
+  }
+}
+
 function markProposalSynced(
   proposals: PlayerLinkProposal[],
   proposalId: string,
@@ -336,5 +369,29 @@ function markProposalSynced(
       proposal.id === proposalId
         ? { ...proposal, syncStatus: 'synced', lastSyncedAt: new Date().toISOString() }
         : proposal,
+  );
+}
+
+function markProposalPending(
+  proposals: PlayerLinkProposal[],
+  proposalId: string,
+): PlayerLinkProposal[] {
+  return proposals.map(
+    (proposal): PlayerLinkProposal =>
+      proposal.id === proposalId ? { ...proposal, syncStatus: 'pending' } : proposal,
+  );
+}
+
+function markPlayerUserLinkSynced(players: Player[], playerId: string, syncedAt: string): Player[] {
+  return players.map(
+    (player): Player =>
+      player.id === playerId
+        ? {
+            ...player,
+            pendingUserLinkAction: undefined,
+            syncStatus: 'synced',
+            lastSyncedAt: syncedAt,
+          }
+        : player,
   );
 }

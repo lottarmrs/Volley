@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   cancelPlayerLinkCommand,
   fetchAccountPlayerLinkQuery,
+  fetchAllPlayerLinkProposalsQuery,
   proposePlayerLinkCommand,
   reviewPlayerLinkCommand,
   unlinkPlayerCommand,
@@ -122,6 +123,57 @@ test('reviewPlayerLinkCommand approves proposal and supersedes competing pending
   );
 });
 
+test('reviewPlayerLinkCommand keeps approved cloud proposal pending when cloud approve fails', async () => {
+  const players = [makePlayer('player-1', { cloudId: 'cloud-player-1', userId: undefined })];
+  const result = await reviewPlayerLinkCommand(
+    {
+      players,
+      linkProposals: [proposal({ syncStatus: 'synced' })],
+      currentUserId: 'reviewer-1',
+      proposalId: 'proposal-1',
+      action: 'approve',
+      nowIso: now,
+    },
+    {
+      approve: async () => {
+        throw new Error('offline');
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.players?.[0].userId, 'user-1');
+  assert.equal(result.value.linkProposals[0].status, 'approved');
+  assert.equal(result.value.linkProposals[0].syncStatus, 'pending');
+  assert.equal(result.issues?.[0].code, 'cloud_unavailable');
+});
+
+test('reviewPlayerLinkCommand keeps rejected cloud proposal pending when cloud reject fails', async () => {
+  const players = [makePlayer('player-1', { cloudId: 'cloud-player-1', userId: undefined })];
+  const result = await reviewPlayerLinkCommand(
+    {
+      players,
+      linkProposals: [proposal({ syncStatus: 'synced' })],
+      currentUserId: 'reviewer-1',
+      proposalId: 'proposal-1',
+      action: 'reject',
+      nowIso: now,
+    },
+    {
+      reject: async () => {
+        throw new Error('offline');
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.linkProposals[0].status, 'rejected');
+  assert.equal(result.value.linkProposals[0].syncStatus, 'pending');
+  assert.equal(result.issues?.[0].code, 'cloud_unavailable');
+});
+
 test('cancelPlayerLinkCommand rejects the proposal locally and tolerates cloud failure', async () => {
   const result = await cancelPlayerLinkCommand(
     {
@@ -162,8 +214,30 @@ test('unlinkPlayerCommand clears player user id and reports recoverable cloud is
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.value.players?.[0].userId, undefined);
+  assert.equal(result.value.players?.[0].pendingUserLinkAction, 'unlink');
   assert.equal(result.value.linkProposals[0].status, 'superseded');
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
+});
+
+test('unlinkPlayerCommand clears unlink intent when cloud unlink succeeds', async () => {
+  const result = await unlinkPlayerCommand(
+    {
+      players: [makePlayer('player-1', { userId: 'user-1', cloudId: 'cloud-player-1' })],
+      linkProposals: [proposal()],
+      currentUserId: 'reviewer-1',
+      playerId: 'player-1',
+      nowIso: now,
+    },
+    {
+      unlink: async () => undefined,
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.players?.[0].userId, undefined);
+  assert.equal(result.value.players?.[0].pendingUserLinkAction, undefined);
+  assert.equal(result.value.players?.[0].syncStatus, 'synced');
 });
 
 test('fetchAccountPlayerLinkQuery maps cloud lookup success', async () => {
@@ -177,4 +251,17 @@ test('fetchAccountPlayerLinkQuery maps cloud lookup success', async () => {
   if (!result.ok) return;
   assert.equal(result.value.linkedPlayer?.id, 'player-1');
   assert.equal(result.value.pendingProposal?.id, 'proposal-1');
+});
+
+test('fetchAllPlayerLinkProposalsQuery returns recoverable issue on cloud failure', async () => {
+  const result = await fetchAllPlayerLinkProposalsQuery({
+    fetchAll: async () => {
+      throw new Error('network down');
+    },
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.value.linkProposals, []);
+  assert.equal(result.issues?.[0].code, 'cloud_unavailable');
 });

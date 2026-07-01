@@ -105,6 +105,7 @@ export interface Player {
   deletedAt?: string;
   updatedAt?: string;
   userId?: string;
+  pendingUserLinkAction?: 'unlink';
 }
 
 export interface PlayerLinkProposal {

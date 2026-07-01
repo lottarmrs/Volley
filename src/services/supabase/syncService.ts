@@ -526,6 +526,18 @@ function makeCloudIdLookup<T extends { id: string; cloudId?: string }>(items: T[
   return new Map(items.map((item) => [item.id.toLowerCase(), item.cloudId || item.id]));
 }
 
+function makePlayerCloudOwnerLookup(players: Player[]): Map<string, string> {
+  const lookup = new Map<string, string>();
+
+  for (const player of players) {
+    if (!player.cloudOwnerId) continue;
+    lookup.set(player.id.toLowerCase(), player.cloudOwnerId);
+    if (player.cloudId) lookup.set(player.cloudId.toLowerCase(), player.cloudOwnerId);
+  }
+
+  return lookup;
+}
+
 function resolveCloudId(
   localOrCloudId: string | null | undefined,
   lookup: Map<string, string>,
@@ -568,8 +580,33 @@ function markLinkProposalSynced(
   };
 }
 
+function markLinkProposalPending(
+  proposal: PlayerLinkProposal,
+  playerCloudId: string,
+  id: string,
+): PlayerLinkProposal {
+  return {
+    ...proposal,
+    id,
+    playerCloudId,
+    syncStatus: 'pending',
+  };
+}
+
 function shouldCancelRejectedProposal(proposal: PlayerLinkProposal): boolean {
   return proposal.status === 'rejected' && proposal.reviewedBy === proposal.userId;
+}
+
+function shouldSkipOwnerAutoApprovedProposal(
+  proposal: PlayerLinkProposal,
+  ownerId: string,
+  playerCloudOwner: string | undefined,
+): boolean {
+  return (
+    proposal.status === 'approved' &&
+    proposal.userId === ownerId &&
+    playerCloudOwner === ownerId
+  );
 }
 
 function shouldSyncPlayerUnlink(player: Player): boolean {
@@ -589,9 +626,26 @@ function markPlayerUnlinkSynced(player: Player, syncedAt: string): Player {
   };
 }
 
+class PlayerLinkProposalReplayError extends Error {
+  readonly retryProposal: PlayerLinkProposal;
+  readonly originalError: unknown;
+
+  constructor(retryProposal: PlayerLinkProposal, originalError: unknown) {
+    super(
+      originalError instanceof Error
+        ? originalError.message
+        : 'Failed to replay player link proposal intent',
+    );
+    this.name = 'PlayerLinkProposalReplayError';
+    this.retryProposal = retryProposal;
+    this.originalError = originalError;
+  }
+}
+
 async function syncPlayerLinkProposalIntent(
   proposal: PlayerLinkProposal,
   playerCloudIds: Map<string, string>,
+  playerCloudOwners: Map<string, string>,
   ownerId: string,
   syncedAt: string,
 ): Promise<PlayerLinkProposal> {
@@ -622,18 +676,36 @@ async function syncPlayerLinkProposalIntent(
   }
 
   let proposalId = proposal.id;
+  const proposedNow = !cloudBacked;
   if (!cloudBacked) {
     proposalId = await playerLinkProposalCloudService.propose(playerCloudId);
   }
 
-  if (proposal.status === 'approved') {
-    await playerLinkProposalCloudService.approve(proposalId);
-  } else if (proposal.status === 'rejected') {
-    if (shouldCancelRejectedProposal(proposal)) {
-      await playerLinkProposalCloudService.cancel(proposalId);
-    } else {
-      await playerLinkProposalCloudService.reject(proposalId);
+  try {
+    const playerCloudOwner =
+      playerCloudOwners.get(playerCloudId.toLowerCase()) ||
+      playerCloudOwners.get(proposal.playerId.toLowerCase());
+
+    if (
+      proposal.status === 'approved' &&
+      !(proposedNow && shouldSkipOwnerAutoApprovedProposal(proposal, ownerId, playerCloudOwner))
+    ) {
+      await playerLinkProposalCloudService.approve(proposalId);
+    } else if (proposal.status === 'rejected') {
+      if (shouldCancelRejectedProposal(proposal)) {
+        await playerLinkProposalCloudService.cancel(proposalId);
+      } else {
+        await playerLinkProposalCloudService.reject(proposalId);
+      }
     }
+  } catch (error) {
+    if (proposedNow) {
+      throw new PlayerLinkProposalReplayError(
+        markLinkProposalPending(proposal, playerCloudId, proposalId),
+        error,
+      );
+    }
+    throw error;
   }
 
   return markLinkProposalSynced(proposal, playerCloudId, syncedAt, proposalId);
@@ -1038,6 +1110,7 @@ export const syncService = {
 
     const communityCloudIds = makeCloudIdLookup(updatedCommunities);
     const playerCloudIds = makeCloudIdLookup(updatedPlayers);
+    const playerCloudOwners = makePlayerCloudOwnerLookup(updatedPlayers);
 
     try {
       await playerEvaluationCloudService.bulkUpsertForPlayers(updatedPlayers, ownerId);
@@ -1350,11 +1423,18 @@ export const syncService = {
     for (const proposal of local.linkProposals || []) {
       try {
         updatedProposals.push(
-          await syncPlayerLinkProposalIntent(proposal, playerCloudIds, ownerId, syncedAt),
+          await syncPlayerLinkProposalIntent(
+            proposal,
+            playerCloudIds,
+            playerCloudOwners,
+            ownerId,
+            syncedAt,
+          ),
         );
       } catch (error) {
-        onIssue('proposta de vinculo', error);
-        updatedProposals.push(proposal);
+        const replayError = error instanceof PlayerLinkProposalReplayError ? error : null;
+        onIssue('proposta de vinculo', replayError?.originalError || error);
+        updatedProposals.push(replayError?.retryProposal || proposal);
       }
     }
     return {

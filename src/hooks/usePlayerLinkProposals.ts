@@ -10,15 +10,45 @@ import {
   unlinkPlayerCommand,
 } from '../application/playerLinkUseCases';
 
+function normalizeRefreshedLinkProposal(
+  proposal: PlayerLinkProposal,
+  players: Player[],
+): PlayerLinkProposal {
+  const localPlayer = players.find(
+    (player) => player.cloudId === proposal.playerId || player.id === proposal.playerId,
+  );
+  return {
+    ...proposal,
+    playerId: localPlayer?.id ?? proposal.playerId,
+    playerCloudId: proposal.playerCloudId ?? localPlayer?.cloudId ?? proposal.playerId,
+  };
+}
+
+function shouldKeepCurrentProposal(
+  current: PlayerLinkProposal,
+  incoming?: PlayerLinkProposal,
+): boolean {
+  if (!incoming) return true;
+  if (current.syncStatus === 'pending' || current.syncStatus === 'local') return true;
+  if (current.status !== 'pending' && incoming.status === 'pending') return true;
+  if (current.reviewedAt && (!incoming.reviewedAt || current.reviewedAt > incoming.reviewedAt)) {
+    return true;
+  }
+  return false;
+}
+
 function mergeLinkProposalRefresh(
   current: PlayerLinkProposal[],
   incoming: PlayerLinkProposal[],
+  players: Player[],
 ): PlayerLinkProposal[] {
   const byId = new Map<string, PlayerLinkProposal>();
-  for (const proposal of incoming) byId.set(proposal.id, proposal);
+  for (const proposal of incoming) {
+    const normalized = normalizeRefreshedLinkProposal(proposal, players);
+    byId.set(normalized.id, normalized);
+  }
   for (const proposal of current) {
-    const localPending = proposal.syncStatus === 'pending' || proposal.syncStatus === 'local';
-    if (localPending || !byId.has(proposal.id)) byId.set(proposal.id, proposal);
+    if (shouldKeepCurrentProposal(proposal, byId.get(proposal.id))) byId.set(proposal.id, proposal);
   }
   return Array.from(byId.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -43,9 +73,9 @@ export function usePlayerLinkProposals(
     if (result.issues?.length) throw new Error(result.issues[0].message);
 
     setLinkProposals((current) =>
-      mergeLinkProposalRefresh(current, result.value.linkProposals),
+      mergeLinkProposalRefresh(current, result.value.linkProposals, players),
     );
-  }, []);
+  }, [players]);
 
   const handleProposePlayerLink = useCallback(
     async (playerId: string) => {

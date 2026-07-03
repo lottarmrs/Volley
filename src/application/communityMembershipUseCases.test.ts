@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CommunityMember } from '../types';
+import type { AppResult } from './appResult';
 import {
   approveCommunityJoinRequestCommand,
   changeCommunityMemberRoleCommand,
@@ -103,6 +104,20 @@ function discoveryGateway(calls: string[]): CommunityDiscoveryGateway {
   };
 }
 
+function assertProductError(result: AppResult<unknown>, code: string): void {
+  assert.equal(result.ok, false);
+  if (result.ok) assert.fail('Expected product error result.');
+  assert.equal(result.error.kind, 'product');
+  assert.equal(result.error.code, code);
+}
+
+function assertTechnicalError(result: AppResult<unknown>): void {
+  assert.equal(result.ok, false);
+  if (result.ok) assert.fail('Expected technical error result.');
+  assert.equal(result.error.kind, 'technical');
+  assert.equal(result.error.code, 'technical_error');
+}
+
 test('fetchCommunityMembersQuery returns members from gateway and calls fetch with cloud/local ids', async () => {
   const calls: string[] = [];
   const result = await fetchCommunityMembersQuery(
@@ -113,6 +128,14 @@ test('fetchCommunityMembersQuery returns members from gateway and calls fetch wi
   assert.equal(result.ok, true);
   assert.equal(result.value.members[0].id, 'member-fetched');
   assert.deepEqual(calls, ['fetch:community-cloud:community-local']);
+});
+
+test('fetchCommunityMembersQuery rejects missing cloud id', async () => {
+  const calls: string[] = [];
+  const result = await fetchCommunityMembersQuery({}, membershipGateway(calls));
+
+  assertProductError(result, 'cloud_unavailable');
+  assert.deepEqual(calls, []);
 });
 
 test('fetchCommunityMembersQuery returns empty members and recoverable cloud issue when fetch throws', async () => {
@@ -146,6 +169,17 @@ test('inviteCommunityMemberCommand normalizes email and calls gateway', async ()
   assert.deepEqual(calls, ['invite:community-cloud:ana@example.com:moderator:community-local']);
 });
 
+test('inviteCommunityMemberCommand rejects missing cloud id', async () => {
+  const calls: string[] = [];
+  const result = await inviteCommunityMemberCommand(
+    { email: 'ana@example.com', role: 'member' },
+    membershipGateway(calls),
+  );
+
+  assertProductError(result, 'cloud_unavailable');
+  assert.deepEqual(calls, []);
+});
+
 test('inviteCommunityMemberCommand rejects empty email and owner role', async () => {
   const calls: string[] = [];
   const gateway = membershipGateway(calls);
@@ -164,6 +198,20 @@ test('inviteCommunityMemberCommand rejects empty email and owner role', async ()
   assert.equal(ownerRole.ok, false);
   assert.equal(ownerRole.error.code, 'permission_denied');
   assert.deepEqual(calls, []);
+});
+
+test('inviteCommunityMemberCommand returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.addMemberByEmail = async () => {
+    throw new Error('invite failed');
+  };
+
+  const result = await inviteCommunityMemberCommand(
+    { communityCloudId: 'community-cloud', email: 'ana@example.com', role: 'member' },
+    gateway,
+  );
+
+  assertTechnicalError(result);
 });
 
 test('changeCommunityMemberRoleCommand blocks owner target, self target, and assigning owner role', async () => {
@@ -197,6 +245,22 @@ test('changeCommunityMemberRoleCommand blocks owner target, self target, and ass
   assert.deepEqual(calls, []);
 });
 
+test('changeCommunityMemberRoleCommand returns not found for missing member', async () => {
+  const calls: string[] = [];
+  const result = await changeCommunityMemberRoleCommand(
+    {
+      members: [member({ id: 'other-member', userId: 'other-user' })],
+      currentUserId: 'self-user',
+      memberId: 'missing-member',
+      role: 'admin',
+    },
+    membershipGateway(calls),
+  );
+
+  assertProductError(result, 'not_found');
+  assert.deepEqual(calls, []);
+});
+
 test('changeCommunityMemberRoleCommand calls gateway for editable member', async () => {
   const calls: string[] = [];
   const result = await changeCommunityMemberRoleCommand(
@@ -212,6 +276,25 @@ test('changeCommunityMemberRoleCommand calls gateway for editable member', async
   assert.equal(result.ok, true);
   assert.equal(result.value.member.role, 'admin');
   assert.deepEqual(calls, ['role:target-member:admin']);
+});
+
+test('changeCommunityMemberRoleCommand returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.updateRole = async () => {
+    throw new Error('role failed');
+  };
+
+  const result = await changeCommunityMemberRoleCommand(
+    {
+      members: [member({ id: 'target-member', userId: 'target-user', role: 'member' })],
+      currentUserId: 'self-user',
+      memberId: 'target-member',
+      role: 'admin',
+    },
+    gateway,
+  );
+
+  assertTechnicalError(result);
 });
 
 test('removeCommunityMemberCommand blocks owner and self', async () => {
@@ -238,6 +321,39 @@ test('removeCommunityMemberCommand blocks owner and self', async () => {
   assert.deepEqual(calls, []);
 });
 
+test('removeCommunityMemberCommand returns not found for missing member', async () => {
+  const calls: string[] = [];
+  const result = await removeCommunityMemberCommand(
+    {
+      members: [member({ id: 'other-member', userId: 'other-user' })],
+      currentUserId: 'self-user',
+      memberId: 'missing-member',
+    },
+    membershipGateway(calls),
+  );
+
+  assertProductError(result, 'not_found');
+  assert.deepEqual(calls, []);
+});
+
+test('removeCommunityMemberCommand returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.removeMember = async () => {
+    throw new Error('remove failed');
+  };
+
+  const result = await removeCommunityMemberCommand(
+    {
+      members: [member({ id: 'target-member', userId: 'target-user', role: 'member' })],
+      currentUserId: 'self-user',
+      memberId: 'target-member',
+    },
+    gateway,
+  );
+
+  assertTechnicalError(result);
+});
+
 test('approveCommunityJoinRequestCommand and rejectCommunityJoinRequestCommand call gateway', async () => {
   const calls: string[] = [];
   const gateway = membershipGateway(calls);
@@ -250,6 +366,28 @@ test('approveCommunityJoinRequestCommand and rejectCommunityJoinRequestCommand c
   assert.equal(rejected.ok, true);
   assert.equal(rejected.value.memberId, 'member-rejected');
   assert.deepEqual(calls, ['approve:member-pending', 'reject:member-rejected']);
+});
+
+test('approveCommunityJoinRequestCommand returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.approveRequest = async () => {
+    throw new Error('approve failed');
+  };
+
+  const result = await approveCommunityJoinRequestCommand({ memberId: 'member-pending' }, gateway);
+
+  assertTechnicalError(result);
+});
+
+test('rejectCommunityJoinRequestCommand returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.rejectRequest = async () => {
+    throw new Error('reject failed');
+  };
+
+  const result = await rejectCommunityJoinRequestCommand({ memberId: 'member-pending' }, gateway);
+
+  assertTechnicalError(result);
 });
 
 test('generateCommunityJoinCodeCommand requires cloud id, generate and disable call gateway', async () => {
@@ -274,6 +412,14 @@ test('generateCommunityJoinCodeCommand requires cloud id, generate and disable c
   assert.deepEqual(calls, ['generate:community-cloud', 'disable:community-cloud']);
 });
 
+test('disableCommunityJoinCodeCommand rejects missing cloud id', async () => {
+  const calls: string[] = [];
+  const result = await disableCommunityJoinCodeCommand({}, membershipGateway(calls));
+
+  assertProductError(result, 'cloud_unavailable');
+  assert.deepEqual(calls, []);
+});
+
 test('leaveCommunityCommand blocks owner and calls gateway for non-owner', async () => {
   const calls: string[] = [];
   const gateway = membershipGateway(calls);
@@ -293,6 +439,24 @@ test('leaveCommunityCommand blocks owner and calls gateway for non-owner', async
   assert.deepEqual(calls, ['leave:community-cloud']);
 });
 
+test('leaveCommunityCommand rejects missing cloud id and missing current member', async () => {
+  const calls: string[] = [];
+  const gateway = membershipGateway(calls);
+
+  const missingCloud = await leaveCommunityCommand(
+    { currentMember: member({ role: 'member' }) },
+    gateway,
+  );
+  const missingMember = await leaveCommunityCommand(
+    { communityCloudId: 'community-cloud', currentMember: null },
+    gateway,
+  );
+
+  assertProductError(missingCloud, 'cloud_unavailable');
+  assertProductError(missingMember, 'not_found');
+  assert.deepEqual(calls, []);
+});
+
 test('searchPublicCommunitiesQuery and requestPublicCommunityJoinCommand call discovery gateway', async () => {
   const calls: string[] = [];
   const gateway = discoveryGateway(calls);
@@ -309,6 +473,14 @@ test('searchPublicCommunitiesQuery and requestPublicCommunityJoinCommand call di
   assert.deepEqual(calls, ['search:terca', 'join-public:community-cloud']);
 });
 
+test('requestPublicCommunityJoinCommand rejects missing cloud id', async () => {
+  const calls: string[] = [];
+  const result = await requestPublicCommunityJoinCommand({}, discoveryGateway(calls));
+
+  assertProductError(result, 'cloud_unavailable');
+  assert.deepEqual(calls, []);
+});
+
 test('requestCommunityJoinByCodeCommand normalizes code trim/uppercase and calls gateway', async () => {
   const calls: string[] = [];
   const result = await requestCommunityJoinByCodeCommand(
@@ -319,4 +491,26 @@ test('requestCommunityJoinByCodeCommand normalizes code trim/uppercase and calls
   assert.equal(result.ok, true);
   assert.equal(result.value.member.id, 'member-pending');
   assert.deepEqual(calls, ['join-code:ABCD1234:community-local']);
+});
+
+test('requestCommunityJoinByCodeCommand rejects empty code', async () => {
+  const calls: string[] = [];
+  const result = await requestCommunityJoinByCodeCommand(
+    { code: ' ', communityLocalId: 'community-local' },
+    membershipGateway(calls),
+  );
+
+  assertProductError(result, 'invalid_input');
+  assert.deepEqual(calls, []);
+});
+
+test('requestCommunityJoinByCodeCommand returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.requestToJoin = async () => {
+    throw new Error('join failed');
+  };
+
+  const result = await requestCommunityJoinByCodeCommand({ code: 'ABCD1234' }, gateway);
+
+  assertTechnicalError(result);
 });

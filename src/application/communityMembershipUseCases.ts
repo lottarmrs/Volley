@@ -41,22 +41,26 @@ export interface CommunityDiscoveryGateway {
 }
 
 export const supabaseCommunityMembershipGateway: CommunityMembershipGateway = {
-  fetchByCommunity: membershipCloudService.fetchByCommunity,
-  addMemberByEmail: membershipCloudService.addOrganizerByEmail,
-  updateRole: membershipCloudService.updateRole,
-  removeMember: membershipCloudService.removeMember,
-  approveRequest: membershipCloudService.approveRequest,
-  rejectRequest: membershipCloudService.rejectRequest,
-  generateJoinCode: membershipCloudService.generateJoinCode,
-  disableJoinCode: membershipCloudService.disableJoinCode,
-  leaveCommunity: membershipCloudService.leaveCommunity,
-  findByCode: membershipCloudService.findByCode,
-  requestToJoin: membershipCloudService.requestToJoin,
+  fetchByCommunity: (communityCloudId, communityLocalId) =>
+    membershipCloudService.fetchByCommunity(communityCloudId, communityLocalId),
+  addMemberByEmail: (communityCloudId, email, role, communityLocalId) =>
+    membershipCloudService.addOrganizerByEmail(communityCloudId, email, role, communityLocalId),
+  updateRole: (memberId, role) => membershipCloudService.updateRole(memberId, role),
+  removeMember: (memberId) => membershipCloudService.removeMember(memberId),
+  approveRequest: (memberId) => membershipCloudService.approveRequest(memberId),
+  rejectRequest: (memberId) => membershipCloudService.rejectRequest(memberId),
+  generateJoinCode: (communityCloudId) => membershipCloudService.generateJoinCode(communityCloudId),
+  disableJoinCode: (communityCloudId) => membershipCloudService.disableJoinCode(communityCloudId),
+  leaveCommunity: (communityCloudId) => membershipCloudService.leaveCommunity(communityCloudId),
+  findByCode: (code) => membershipCloudService.findByCode(code),
+  requestToJoin: (code, communityLocalId) =>
+    membershipCloudService.requestToJoin(code, communityLocalId),
 };
 
 export const supabaseCommunityDiscoveryGateway: CommunityDiscoveryGateway = {
-  searchPublic: communityDiscoveryService.searchPublic,
-  requestToJoinPublic: communityDiscoveryService.requestToJoinPublic,
+  searchPublic: (query) => communityDiscoveryService.searchPublic(query),
+  requestToJoinPublic: (communityCloudId) =>
+    communityDiscoveryService.requestToJoinPublic(communityCloudId),
 };
 
 export async function fetchCommunityMembersQuery(
@@ -64,7 +68,7 @@ export async function fetchCommunityMembersQuery(
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ members: CommunityMember[] }>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
-  if (!cloudIdResult.ok) return cloudIdResult;
+  if (cloudIdResult.ok === false) return cloudIdResult;
 
   try {
     const members = await gateway.fetchByCommunity(
@@ -90,7 +94,7 @@ export async function inviteCommunityMemberCommand(
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ member: CommunityMember }>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
-  if (!cloudIdResult.ok) return cloudIdResult;
+  if (cloudIdResult.ok === false) return cloudIdResult;
 
   const email = input.email.trim().toLowerCase();
   if (!email) return productError('invalid_input', 'Informe um e-mail para convidar.');
@@ -124,11 +128,14 @@ export async function changeCommunityMemberRoleCommand(
     return productError('permission_denied', 'O papel de dono nao pode ser atribuido pela UI.');
   }
 
+  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  if (managerResult.ok === false) return managerResult;
+
   const targetResult = findTargetMember(input.members, input.memberId);
-  if (!targetResult.ok) return targetResult;
+  if (targetResult.ok === false) return targetResult;
 
   const editableResult = ensureEditableMember(targetResult.value.member, input.currentUserId);
-  if (!editableResult.ok) return editableResult;
+  if (editableResult.ok === false) return editableResult;
 
   try {
     const member = await gateway.updateRole(input.memberId, input.role);
@@ -142,11 +149,14 @@ export async function removeCommunityMemberCommand(
   input: { members: CommunityMember[]; currentUserId: string | null; memberId: string },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ removedMemberId: string }>> {
+  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  if (managerResult.ok === false) return managerResult;
+
   const targetResult = findTargetMember(input.members, input.memberId);
-  if (!targetResult.ok) return targetResult;
+  if (targetResult.ok === false) return targetResult;
 
   const editableResult = ensureEditableMember(targetResult.value.member, input.currentUserId);
-  if (!editableResult.ok) return editableResult;
+  if (editableResult.ok === false) return editableResult;
 
   try {
     await gateway.removeMember(input.memberId);
@@ -157,9 +167,12 @@ export async function removeCommunityMemberCommand(
 }
 
 export async function approveCommunityJoinRequestCommand(
-  input: { memberId: string },
+  input: { members: CommunityMember[]; currentUserId: string | null; memberId: string },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ memberId: string }>> {
+  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  if (managerResult.ok === false) return managerResult;
+
   try {
     await gateway.approveRequest(input.memberId);
     return appOk({ memberId: input.memberId });
@@ -169,9 +182,12 @@ export async function approveCommunityJoinRequestCommand(
 }
 
 export async function rejectCommunityJoinRequestCommand(
-  input: { memberId: string },
+  input: { members: CommunityMember[]; currentUserId: string | null; memberId: string },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ memberId: string }>> {
+  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  if (managerResult.ok === false) return managerResult;
+
   try {
     await gateway.rejectRequest(input.memberId);
     return appOk({ memberId: input.memberId });
@@ -181,11 +197,14 @@ export async function rejectCommunityJoinRequestCommand(
 }
 
 export async function generateCommunityJoinCodeCommand(
-  input: { communityCloudId?: string },
+  input: { communityCloudId?: string; members: CommunityMember[]; currentUserId: string | null },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ joinCode: string }>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
-  if (!cloudIdResult.ok) return cloudIdResult;
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  if (managerResult.ok === false) return managerResult;
 
   try {
     const joinCode = await gateway.generateJoinCode(cloudIdResult.value.communityCloudId);
@@ -196,11 +215,14 @@ export async function generateCommunityJoinCodeCommand(
 }
 
 export async function disableCommunityJoinCodeCommand(
-  input: { communityCloudId?: string },
+  input: { communityCloudId?: string; members: CommunityMember[]; currentUserId: string | null },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<Record<string, never>>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
-  if (!cloudIdResult.ok) return cloudIdResult;
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  if (managerResult.ok === false) return managerResult;
 
   try {
     await gateway.disableJoinCode(cloudIdResult.value.communityCloudId);
@@ -215,7 +237,7 @@ export async function leaveCommunityCommand(
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<Record<string, never>>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
-  if (!cloudIdResult.ok) return cloudIdResult;
+  if (cloudIdResult.ok === false) return cloudIdResult;
   if (!input.currentMember) {
     return productError('not_found', 'Sua participacao nesta comunidade nao foi encontrada.');
   }
@@ -251,7 +273,7 @@ export async function requestPublicCommunityJoinCommand(
   discoveryGateway: CommunityDiscoveryGateway = supabaseCommunityDiscoveryGateway,
 ): Promise<AppResult<Record<string, never>>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
-  if (!cloudIdResult.ok) return cloudIdResult;
+  if (cloudIdResult.ok === false) return cloudIdResult;
 
   try {
     await discoveryGateway.requestToJoinPublic(cloudIdResult.value.communityCloudId);
@@ -279,9 +301,47 @@ export async function requestCommunityJoinByCodeCommand(
 function requireCommunityCloudId(
   communityCloudId: string | undefined,
 ): AppResult<{ communityCloudId: string }> {
-  return communityCloudId
-    ? appOk({ communityCloudId })
+  const trimmedCloudId = communityCloudId?.trim();
+  return trimmedCloudId
+    ? appOk({ communityCloudId: trimmedCloudId })
     : productError('cloud_unavailable', 'Sincronize a comunidade com a nuvem antes.');
+}
+
+function findCurrentMember(
+  members: CommunityMember[],
+  currentUserId: string | null,
+): AppResult<{ member: CommunityMember }> {
+  if (!currentUserId) {
+    return productError('not_authenticated', 'Entre na sua conta para gerenciar membros.');
+  }
+
+  const member = members.find((candidate) => candidate.userId === currentUserId);
+  return member
+    ? appOk({ member })
+    : productError('not_found', 'Sua participacao nesta comunidade nao foi encontrada.');
+}
+
+function ensureManagingCurrentMember(
+  members: CommunityMember[],
+  currentUserId: string | null,
+): AppResult<Record<string, never>> {
+  const currentMemberResult = findCurrentMember(members, currentUserId);
+  if (currentMemberResult.ok === false) return currentMemberResult;
+
+  const currentMember = currentMemberResult.value.member;
+  if ((currentMember.status ?? 'active') !== 'active') {
+    return productError(
+      'permission_denied',
+      'Sua participacao ainda nao permite gerenciar membros.',
+    );
+  }
+  if (currentMember.role !== 'owner' && currentMember.role !== 'admin') {
+    return productError(
+      'permission_denied',
+      'Voce nao tem permissao para gerenciar membros desta comunidade.',
+    );
+  }
+  return appOk({});
 }
 
 function findTargetMember(

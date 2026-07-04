@@ -118,6 +118,147 @@ function assertTechnicalError(result: AppResult<unknown>): void {
   assert.equal(result.error.code, 'technical_error');
 }
 
+function manageableMembers(current: Partial<CommunityMember> = {}): CommunityMember[] {
+  return [
+    member({
+      id: 'manager-member',
+      userId: 'manager-user',
+      role: 'admin',
+      status: 'active',
+      ...current,
+    }),
+    member({ id: 'target-member', userId: 'target-user', role: 'member' }),
+    member({ id: 'pending-member', userId: 'pending-user', role: 'member', status: 'pending' }),
+  ];
+}
+
+const managerCommandCases: {
+  name: string;
+  expectedCall: string;
+  run: (
+    members: CommunityMember[],
+    currentUserId: string | null,
+    calls: string[],
+  ) => Promise<AppResult<unknown>>;
+}[] = [
+  {
+    name: 'change role',
+    expectedCall: 'role:target-member:admin',
+    run: (members, currentUserId, calls) =>
+      changeCommunityMemberRoleCommand(
+        { members, currentUserId, memberId: 'target-member', role: 'admin' },
+        membershipGateway(calls),
+      ),
+  },
+  {
+    name: 'remove member',
+    expectedCall: 'remove:target-member',
+    run: (members, currentUserId, calls) =>
+      removeCommunityMemberCommand(
+        { members, currentUserId, memberId: 'target-member' },
+        membershipGateway(calls),
+      ),
+  },
+  {
+    name: 'approve request',
+    expectedCall: 'approve:pending-member',
+    run: (members, currentUserId, calls) =>
+      approveCommunityJoinRequestCommand(
+        { members, currentUserId, memberId: 'pending-member' },
+        membershipGateway(calls),
+      ),
+  },
+  {
+    name: 'reject request',
+    expectedCall: 'reject:pending-member',
+    run: (members, currentUserId, calls) =>
+      rejectCommunityJoinRequestCommand(
+        { members, currentUserId, memberId: 'pending-member' },
+        membershipGateway(calls),
+      ),
+  },
+  {
+    name: 'generate join code',
+    expectedCall: 'generate:community-cloud',
+    run: (members, currentUserId, calls) =>
+      generateCommunityJoinCodeCommand(
+        { communityCloudId: 'community-cloud', members, currentUserId },
+        membershipGateway(calls),
+      ),
+  },
+  {
+    name: 'disable join code',
+    expectedCall: 'disable:community-cloud',
+    run: (members, currentUserId, calls) =>
+      disableCommunityJoinCodeCommand(
+        { communityCloudId: 'community-cloud', members, currentUserId },
+        membershipGateway(calls),
+      ),
+  },
+];
+
+test('manager-only commands do not call gateways when current user cannot manage', async () => {
+  const scenarios: {
+    name: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    code: string;
+  }[] = [
+    {
+      name: 'no current user',
+      members: manageableMembers(),
+      currentUserId: null,
+      code: 'not_authenticated',
+    },
+    {
+      name: 'no matching member',
+      members: manageableMembers(),
+      currentUserId: 'missing-user',
+      code: 'not_found',
+    },
+    {
+      name: 'pending current member',
+      members: manageableMembers({ status: 'pending' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+    {
+      name: 'regular current member',
+      members: manageableMembers({ role: 'member' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+    {
+      name: 'moderator current member',
+      members: manageableMembers({ role: 'moderator' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+  ];
+
+  for (const command of managerCommandCases) {
+    for (const scenario of scenarios) {
+      const calls: string[] = [];
+      const result = await command.run(scenario.members, scenario.currentUserId, calls);
+
+      assertProductError(result, scenario.code);
+      assert.deepEqual(calls, [], `${command.name} called gateway for ${scenario.name}`);
+    }
+  }
+});
+
+test('manager-only commands call gateways for active owner and admin', async () => {
+  for (const role of ['owner', 'admin'] as const) {
+    for (const command of managerCommandCases) {
+      const calls: string[] = [];
+      const result = await command.run(manageableMembers({ role }), 'manager-user', calls);
+
+      assert.equal(result.ok, true, `${command.name} rejected active ${role}`);
+      assert.deepEqual(calls, [command.expectedCall]);
+    }
+  }
+});
+
 test('fetchCommunityMembersQuery returns members from gateway and calls fetch with cloud/local ids', async () => {
   const calls: string[] = [];
   const result = await fetchCommunityMembersQuery(
@@ -136,6 +277,17 @@ test('fetchCommunityMembersQuery rejects missing cloud id', async () => {
 
   assertProductError(result, 'cloud_unavailable');
   assert.deepEqual(calls, []);
+});
+
+test('fetchCommunityMembersQuery trims cloud id before calling gateway', async () => {
+  const calls: string[] = [];
+  const result = await fetchCommunityMembersQuery(
+    { communityCloudId: '  community-cloud  ', communityLocalId: 'community-local' },
+    membershipGateway(calls),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ['fetch:community-cloud:community-local']);
 });
 
 test('fetchCommunityMembersQuery returns empty members and recoverable cloud issue when fetch throws', async () => {
@@ -249,8 +401,8 @@ test('changeCommunityMemberRoleCommand returns not found for missing member', as
   const calls: string[] = [];
   const result = await changeCommunityMemberRoleCommand(
     {
-      members: [member({ id: 'other-member', userId: 'other-user' })],
-      currentUserId: 'self-user',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
       memberId: 'missing-member',
       role: 'admin',
     },
@@ -265,8 +417,8 @@ test('changeCommunityMemberRoleCommand calls gateway for editable member', async
   const calls: string[] = [];
   const result = await changeCommunityMemberRoleCommand(
     {
-      members: [member({ id: 'target-member', userId: 'target-user', role: 'member' })],
-      currentUserId: 'self-user',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
       memberId: 'target-member',
       role: 'admin',
     },
@@ -286,8 +438,8 @@ test('changeCommunityMemberRoleCommand returns technical error when gateway thro
 
   const result = await changeCommunityMemberRoleCommand(
     {
-      members: [member({ id: 'target-member', userId: 'target-user', role: 'member' })],
-      currentUserId: 'self-user',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
       memberId: 'target-member',
       role: 'admin',
     },
@@ -325,8 +477,8 @@ test('removeCommunityMemberCommand returns not found for missing member', async 
   const calls: string[] = [];
   const result = await removeCommunityMemberCommand(
     {
-      members: [member({ id: 'other-member', userId: 'other-user' })],
-      currentUserId: 'self-user',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
       memberId: 'missing-member',
     },
     membershipGateway(calls),
@@ -344,8 +496,8 @@ test('removeCommunityMemberCommand returns technical error when gateway throws',
 
   const result = await removeCommunityMemberCommand(
     {
-      members: [member({ id: 'target-member', userId: 'target-user', role: 'member' })],
-      currentUserId: 'self-user',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
       memberId: 'target-member',
     },
     gateway,
@@ -358,14 +510,20 @@ test('approveCommunityJoinRequestCommand and rejectCommunityJoinRequestCommand c
   const calls: string[] = [];
   const gateway = membershipGateway(calls);
 
-  const approved = await approveCommunityJoinRequestCommand({ memberId: 'member-pending' }, gateway);
-  const rejected = await rejectCommunityJoinRequestCommand({ memberId: 'member-rejected' }, gateway);
+  const approved = await approveCommunityJoinRequestCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'pending-member' },
+    gateway,
+  );
+  const rejected = await rejectCommunityJoinRequestCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'member-rejected' },
+    gateway,
+  );
 
   assert.equal(approved.ok, true);
-  assert.equal(approved.value.memberId, 'member-pending');
+  assert.equal(approved.value.memberId, 'pending-member');
   assert.equal(rejected.ok, true);
   assert.equal(rejected.value.memberId, 'member-rejected');
-  assert.deepEqual(calls, ['approve:member-pending', 'reject:member-rejected']);
+  assert.deepEqual(calls, ['approve:pending-member', 'reject:member-rejected']);
 });
 
 test('approveCommunityJoinRequestCommand returns technical error when gateway throws', async () => {
@@ -374,7 +532,10 @@ test('approveCommunityJoinRequestCommand returns technical error when gateway th
     throw new Error('approve failed');
   };
 
-  const result = await approveCommunityJoinRequestCommand({ memberId: 'member-pending' }, gateway);
+  const result = await approveCommunityJoinRequestCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'pending-member' },
+    gateway,
+  );
 
   assertTechnicalError(result);
 });
@@ -385,7 +546,10 @@ test('rejectCommunityJoinRequestCommand returns technical error when gateway thr
     throw new Error('reject failed');
   };
 
-  const result = await rejectCommunityJoinRequestCommand({ memberId: 'member-pending' }, gateway);
+  const result = await rejectCommunityJoinRequestCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'pending-member' },
+    gateway,
+  );
 
   assertTechnicalError(result);
 });
@@ -394,13 +558,24 @@ test('generateCommunityJoinCodeCommand requires cloud id, generate and disable c
   const calls: string[] = [];
   const gateway = membershipGateway(calls);
 
-  const missing = await generateCommunityJoinCodeCommand({}, gateway);
+  const missing = await generateCommunityJoinCodeCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user' },
+    gateway,
+  );
   const generated = await generateCommunityJoinCodeCommand(
-    { communityCloudId: 'community-cloud' },
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+    },
     gateway,
   );
   const disabled = await disableCommunityJoinCodeCommand(
-    { communityCloudId: 'community-cloud' },
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+    },
     gateway,
   );
 
@@ -414,10 +589,28 @@ test('generateCommunityJoinCodeCommand requires cloud id, generate and disable c
 
 test('disableCommunityJoinCodeCommand rejects missing cloud id', async () => {
   const calls: string[] = [];
-  const result = await disableCommunityJoinCodeCommand({}, membershipGateway(calls));
+  const result = await disableCommunityJoinCodeCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user' },
+    membershipGateway(calls),
+  );
 
   assertProductError(result, 'cloud_unavailable');
   assert.deepEqual(calls, []);
+});
+
+test('generateCommunityJoinCodeCommand trims cloud id before calling gateway', async () => {
+  const calls: string[] = [];
+  const result = await generateCommunityJoinCodeCommand(
+    {
+      communityCloudId: '  community-cloud  ',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+    },
+    membershipGateway(calls),
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ['generate:community-cloud']);
 });
 
 test('leaveCommunityCommand blocks owner and calls gateway for non-owner', async () => {

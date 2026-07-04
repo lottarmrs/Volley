@@ -173,6 +173,9 @@ export async function approveCommunityJoinRequestCommand(
   const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
   if (managerResult.ok === false) return managerResult;
 
+  const targetResult = findTargetMember(input.members, input.memberId);
+  if (targetResult.ok === false) return targetResult;
+
   try {
     await gateway.approveRequest(input.memberId);
     return appOk({ memberId: input.memberId });
@@ -187,6 +190,9 @@ export async function rejectCommunityJoinRequestCommand(
 ): Promise<AppResult<{ memberId: string }>> {
   const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
   if (managerResult.ok === false) return managerResult;
+
+  const targetResult = findTargetMember(input.members, input.memberId);
+  if (targetResult.ok === false) return targetResult;
 
   try {
     await gateway.rejectRequest(input.memberId);

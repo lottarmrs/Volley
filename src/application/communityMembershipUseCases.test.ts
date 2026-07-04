@@ -515,15 +515,37 @@ test('approveCommunityJoinRequestCommand and rejectCommunityJoinRequestCommand c
     gateway,
   );
   const rejected = await rejectCommunityJoinRequestCommand(
-    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'member-rejected' },
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'pending-member' },
     gateway,
   );
 
   assert.equal(approved.ok, true);
   assert.equal(approved.value.memberId, 'pending-member');
   assert.equal(rejected.ok, true);
-  assert.equal(rejected.value.memberId, 'member-rejected');
-  assert.deepEqual(calls, ['approve:pending-member', 'reject:member-rejected']);
+  assert.equal(rejected.value.memberId, 'pending-member');
+  assert.deepEqual(calls, ['approve:pending-member', 'reject:pending-member']);
+});
+
+test('approveCommunityJoinRequestCommand returns not found for missing target member', async () => {
+  const calls: string[] = [];
+  const result = await approveCommunityJoinRequestCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'missing-member' },
+    membershipGateway(calls),
+  );
+
+  assertProductError(result, 'not_found');
+  assert.deepEqual(calls, []);
+});
+
+test('rejectCommunityJoinRequestCommand returns not found for missing target member', async () => {
+  const calls: string[] = [];
+  const result = await rejectCommunityJoinRequestCommand(
+    { members: manageableMembers(), currentUserId: 'manager-user', memberId: 'missing-member' },
+    membershipGateway(calls),
+  );
+
+  assertProductError(result, 'not_found');
+  assert.deepEqual(calls, []);
 });
 
 test('approveCommunityJoinRequestCommand returns technical error when gateway throws', async () => {

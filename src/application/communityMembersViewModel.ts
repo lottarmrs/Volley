@@ -9,6 +9,7 @@ export type CommunityMembersPanelState = 'cloud_disabled' | 'community_not_synce
 export interface CommunityMemberRowViewModel {
   member: CommunityMember;
   displayName: string;
+  initials: string;
   roleLabel: string;
   roleBadgeClass: string;
   athleteLabel: string | null;
@@ -74,6 +75,10 @@ function displayNameFor(member: CommunityMember): string {
   return member.name || member.email || 'Membro';
 }
 
+function initialsFor(displayName: string): string {
+  return (displayName || '?').slice(0, 2).toUpperCase();
+}
+
 function sortMemberRows(
   a: CommunityMemberRowViewModel,
   b: CommunityMemberRowViewModel,
@@ -123,10 +128,12 @@ export function buildCommunityMembersViewModel(
     const isSelf = member.userId === currentUserId;
     const isOwner = member.role === 'owner';
     const editable = canManage && !isSelf && !isOwner;
+    const displayName = displayNameFor(member);
 
     return {
       member,
-      displayName: displayNameFor(member),
+      displayName,
+      initials: initialsFor(displayName),
       roleLabel: COMMUNITY_ROLE_LABELS[member.role],
       roleBadgeClass: COMMUNITY_ROLE_BADGE_CLASSES[member.role],
       athleteLabel: athlete ? athlete.apelido || athlete.nome : null,

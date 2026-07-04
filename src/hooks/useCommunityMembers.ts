@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CommunityMember, CommunityMemberRole } from '../types';
+import { AuthRole, CommunityMember, CommunityMemberRole } from '../types';
 import {
   approveCommunityJoinRequestCommand,
   changeCommunityMemberRoleCommand,
@@ -19,6 +19,8 @@ interface UseCommunityMembersOptions {
   communityLocalId?: string;
   /** Currently signed-in user, to derive the viewer's own role. */
   currentUserId: string | null;
+  /** Global authenticated role, used by application commands for staff policy. */
+  globalRole?: AuthRole | null;
   /** Only fetch when cloud sync is available and the panel is visible. */
   enabled: boolean;
 }
@@ -39,6 +41,7 @@ export function useCommunityMembers({
   communityCloudId,
   communityLocalId,
   currentUserId,
+  globalRole = null,
   enabled,
 }: UseCommunityMembersOptions) {
   const [members, setMembers] = useState<CommunityMember[]>([]);
@@ -55,8 +58,11 @@ export function useCommunityMembers({
     try {
       const result = await fetchCommunityMembersQuery({ communityCloudId, communityLocalId });
       if (result.ok === false) throw new Error(result.error.message);
+      if (result.issues?.length) {
+        setError(result.issues[0].message);
+        return;
+      }
       setMembers(result.value.members);
-      if (result.issues?.length) setError(result.issues[0].message);
     } catch (e) {
       setError(messageOf(e, 'Não foi possível carregar os membros.'));
     } finally {
@@ -81,13 +87,16 @@ export function useCommunityMembers({
       const result = await inviteCommunityMemberCommand({
         communityCloudId,
         communityLocalId,
+        members,
+        currentUserId,
+        globalRole,
         email,
         role,
       });
       if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [communityCloudId, communityLocalId, reload],
+    [communityCloudId, communityLocalId, currentUserId, globalRole, members, reload],
   );
 
   const changeRole = useCallback(
@@ -95,22 +104,28 @@ export function useCommunityMembers({
       const result = await changeCommunityMemberRoleCommand({
         members,
         currentUserId,
+        globalRole,
         memberId,
         role,
       });
       if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [currentUserId, members, reload],
+    [currentUserId, globalRole, members, reload],
   );
 
   const remove = useCallback(
     async (memberId: string) => {
-      const result = await removeCommunityMemberCommand({ members, currentUserId, memberId });
+      const result = await removeCommunityMemberCommand({
+        members,
+        currentUserId,
+        globalRole,
+        memberId,
+      });
       if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [currentUserId, members, reload],
+    [currentUserId, globalRole, members, reload],
   );
 
   const approveRequest = useCallback(
@@ -118,12 +133,13 @@ export function useCommunityMembers({
       const result = await approveCommunityJoinRequestCommand({
         members,
         currentUserId,
+        globalRole,
         memberId,
       });
       if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [currentUserId, members, reload],
+    [currentUserId, globalRole, members, reload],
   );
 
   const rejectRequest = useCallback(
@@ -131,12 +147,13 @@ export function useCommunityMembers({
       const result = await rejectCommunityJoinRequestCommand({
         members,
         currentUserId,
+        globalRole,
         memberId,
       });
       if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [currentUserId, members, reload],
+    [currentUserId, globalRole, members, reload],
   );
 
   const generateJoinCode = useCallback(async () => {
@@ -144,19 +161,21 @@ export function useCommunityMembers({
       communityCloudId,
       members,
       currentUserId,
+      globalRole,
     });
     if (result.ok === false) throw new Error(result.error.message);
     return result.value.joinCode;
-  }, [communityCloudId, currentUserId, members]);
+  }, [communityCloudId, currentUserId, globalRole, members]);
 
   const disableJoinCode = useCallback(async () => {
     const result = await disableCommunityJoinCodeCommand({
       communityCloudId,
       members,
       currentUserId,
+      globalRole,
     });
     if (result.ok === false) throw new Error(result.error.message);
-  }, [communityCloudId, currentUserId, members]);
+  }, [communityCloudId, currentUserId, globalRole, members]);
 
   const leave = useCallback(async () => {
     const result = await leaveCommunityCommand({ communityCloudId, currentMember });

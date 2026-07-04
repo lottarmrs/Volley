@@ -187,6 +187,32 @@ test('member row exposes linked athlete label by user id', () => {
   assert.equal(vm.activeMembers[0].athleteLabel, 'Foguete');
 });
 
+test('member row exposes initials from display name', () => {
+  const vm = buildCommunityMembersViewModel({
+    community,
+    members: [
+      member({ id: 'named-member', userId: 'named-user', role: 'member', name: 'ana' }),
+      member({ id: 'email-member', userId: 'email-user', role: 'member', email: 'be@example.com' }),
+      member({ id: 'fallback-member', userId: 'fallback-user', role: 'member' }),
+    ],
+    players: [],
+    currentUserId: 'named-user',
+    isSupabaseConfigured: true,
+    globalRole: 'user',
+  });
+
+  assert.deepEqual(
+    vm.activeMembers
+      .map((row) => [row.member.id, row.displayName, row.initials])
+      .sort(([left], [right]) => String(left).localeCompare(String(right))),
+    [
+      ['email-member', 'be@example.com', 'BE'],
+      ['fallback-member', 'Membro', 'ME'],
+      ['named-member', 'ana', 'AN'],
+    ],
+  );
+});
+
 test('view model ignores memberships from other communities', () => {
   const vm = buildCommunityMembersViewModel({
     community,

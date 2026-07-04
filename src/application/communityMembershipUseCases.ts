@@ -1,4 +1,4 @@
-import type { CommunityMember, CommunityMemberRole } from '../types';
+import type { AuthRole, CommunityMember, CommunityMemberRole } from '../types';
 import { membershipCloudService } from '../services/supabase/membershipCloudService';
 import {
   communityDiscoveryService,
@@ -88,6 +88,9 @@ export async function inviteCommunityMemberCommand(
   input: {
     communityCloudId?: string;
     communityLocalId?: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
     email: string;
     role: CommunityMemberRole;
   },
@@ -101,6 +104,13 @@ export async function inviteCommunityMemberCommand(
   if (input.role === 'owner') {
     return productError('permission_denied', 'O papel de dono nao pode ser atribuido por convite.');
   }
+
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (managerResult.ok === false) return managerResult;
 
   try {
     const member = await gateway.addMemberByEmail(
@@ -119,6 +129,7 @@ export async function changeCommunityMemberRoleCommand(
   input: {
     members: CommunityMember[];
     currentUserId: string | null;
+    globalRole?: AuthRole | null;
     memberId: string;
     role: CommunityMemberRole;
   },
@@ -128,7 +139,11 @@ export async function changeCommunityMemberRoleCommand(
     return productError('permission_denied', 'O papel de dono nao pode ser atribuido pela UI.');
   }
 
-  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
   if (managerResult.ok === false) return managerResult;
 
   const targetResult = findTargetMember(input.members, input.memberId);
@@ -146,10 +161,19 @@ export async function changeCommunityMemberRoleCommand(
 }
 
 export async function removeCommunityMemberCommand(
-  input: { members: CommunityMember[]; currentUserId: string | null; memberId: string },
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+  },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ removedMemberId: string }>> {
-  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
   if (managerResult.ok === false) return managerResult;
 
   const targetResult = findTargetMember(input.members, input.memberId);
@@ -167,10 +191,19 @@ export async function removeCommunityMemberCommand(
 }
 
 export async function approveCommunityJoinRequestCommand(
-  input: { members: CommunityMember[]; currentUserId: string | null; memberId: string },
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+  },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ memberId: string }>> {
-  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
   if (managerResult.ok === false) return managerResult;
 
   const targetResult = findTargetMember(input.members, input.memberId);
@@ -185,10 +218,19 @@ export async function approveCommunityJoinRequestCommand(
 }
 
 export async function rejectCommunityJoinRequestCommand(
-  input: { members: CommunityMember[]; currentUserId: string | null; memberId: string },
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+  },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ memberId: string }>> {
-  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
   if (managerResult.ok === false) return managerResult;
 
   const targetResult = findTargetMember(input.members, input.memberId);
@@ -203,13 +245,22 @@ export async function rejectCommunityJoinRequestCommand(
 }
 
 export async function generateCommunityJoinCodeCommand(
-  input: { communityCloudId?: string; members: CommunityMember[]; currentUserId: string | null },
+  input: {
+    communityCloudId?: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+  },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ joinCode: string }>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
   if (cloudIdResult.ok === false) return cloudIdResult;
 
-  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
   if (managerResult.ok === false) return managerResult;
 
   try {
@@ -221,13 +272,22 @@ export async function generateCommunityJoinCodeCommand(
 }
 
 export async function disableCommunityJoinCodeCommand(
-  input: { communityCloudId?: string; members: CommunityMember[]; currentUserId: string | null },
+  input: {
+    communityCloudId?: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+  },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<Record<string, never>>> {
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
   if (cloudIdResult.ok === false) return cloudIdResult;
 
-  const managerResult = ensureManagingCurrentMember(input.members, input.currentUserId);
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
   if (managerResult.ok === false) return managerResult;
 
   try {
@@ -330,7 +390,19 @@ function findCurrentMember(
 function ensureManagingCurrentMember(
   members: CommunityMember[],
   currentUserId: string | null,
+  globalRole?: AuthRole | null,
 ): AppResult<Record<string, never>> {
+  if (!currentUserId) {
+    return productError('not_authenticated', 'Entre na sua conta para gerenciar membros.');
+  }
+  if (globalRole === 'programmer') {
+    return productError(
+      'permission_denied',
+      'Voce nao tem permissao para gerenciar membros desta comunidade.',
+    );
+  }
+  if (globalRole === 'master') return appOk({});
+
   const currentMemberResult = findCurrentMember(members, currentUserId);
   if (currentMemberResult.ok === false) return currentMemberResult;
 

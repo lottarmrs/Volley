@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { CommunityMember } from '../types';
+import type { AuthRole, CommunityMember } from '../types';
 import type { AppResult } from './appResult';
 import {
   approveCommunityJoinRequestCommand,
@@ -139,59 +139,60 @@ const managerCommandCases: {
     members: CommunityMember[],
     currentUserId: string | null,
     calls: string[],
+    globalRole?: AuthRole | null,
   ) => Promise<AppResult<unknown>>;
 }[] = [
   {
     name: 'change role',
     expectedCall: 'role:target-member:admin',
-    run: (members, currentUserId, calls) =>
+    run: (members, currentUserId, calls, globalRole) =>
       changeCommunityMemberRoleCommand(
-        { members, currentUserId, memberId: 'target-member', role: 'admin' },
+        { members, currentUserId, globalRole, memberId: 'target-member', role: 'admin' },
         membershipGateway(calls),
       ),
   },
   {
     name: 'remove member',
     expectedCall: 'remove:target-member',
-    run: (members, currentUserId, calls) =>
+    run: (members, currentUserId, calls, globalRole) =>
       removeCommunityMemberCommand(
-        { members, currentUserId, memberId: 'target-member' },
+        { members, currentUserId, globalRole, memberId: 'target-member' },
         membershipGateway(calls),
       ),
   },
   {
     name: 'approve request',
     expectedCall: 'approve:pending-member',
-    run: (members, currentUserId, calls) =>
+    run: (members, currentUserId, calls, globalRole) =>
       approveCommunityJoinRequestCommand(
-        { members, currentUserId, memberId: 'pending-member' },
+        { members, currentUserId, globalRole, memberId: 'pending-member' },
         membershipGateway(calls),
       ),
   },
   {
     name: 'reject request',
     expectedCall: 'reject:pending-member',
-    run: (members, currentUserId, calls) =>
+    run: (members, currentUserId, calls, globalRole) =>
       rejectCommunityJoinRequestCommand(
-        { members, currentUserId, memberId: 'pending-member' },
+        { members, currentUserId, globalRole, memberId: 'pending-member' },
         membershipGateway(calls),
       ),
   },
   {
     name: 'generate join code',
     expectedCall: 'generate:community-cloud',
-    run: (members, currentUserId, calls) =>
+    run: (members, currentUserId, calls, globalRole) =>
       generateCommunityJoinCodeCommand(
-        { communityCloudId: 'community-cloud', members, currentUserId },
+        { communityCloudId: 'community-cloud', members, currentUserId, globalRole },
         membershipGateway(calls),
       ),
   },
   {
     name: 'disable join code',
     expectedCall: 'disable:community-cloud',
-    run: (members, currentUserId, calls) =>
+    run: (members, currentUserId, calls, globalRole) =>
       disableCommunityJoinCodeCommand(
-        { communityCloudId: 'community-cloud', members, currentUserId },
+        { communityCloudId: 'community-cloud', members, currentUserId, globalRole },
         membershipGateway(calls),
       ),
   },
@@ -259,6 +260,46 @@ test('manager-only commands call gateways for active owner and admin', async () 
   }
 });
 
+test('manager-only commands allow signed-in master without community membership', async () => {
+  for (const command of managerCommandCases) {
+    const calls: string[] = [];
+    const result = await command.run(
+      manageableMembers().filter((candidate) => candidate.userId !== 'master-user'),
+      'master-user',
+      calls,
+      'master',
+    );
+
+    assert.equal(result.ok, true, `${command.name} rejected signed-in master`);
+    assert.deepEqual(calls, [command.expectedCall]);
+  }
+});
+
+test('manager-only commands do not let programmer bypass manager checks', async () => {
+  for (const command of managerCommandCases) {
+    const calls: string[] = [];
+    const result = await command.run(
+      manageableMembers({ role: 'owner' }),
+      'manager-user',
+      calls,
+      'programmer',
+    );
+
+    assertProductError(result, 'permission_denied');
+    assert.deepEqual(calls, [], `${command.name} called gateway for programmer`);
+  }
+});
+
+test('manager-only commands require an authenticated user before global role bypass', async () => {
+  for (const command of managerCommandCases) {
+    const calls: string[] = [];
+    const result = await command.run(manageableMembers(), null, calls, 'master');
+
+    assertProductError(result, 'not_authenticated');
+    assert.deepEqual(calls, [], `${command.name} called gateway without current user`);
+  }
+});
+
 test('fetchCommunityMembersQuery returns members from gateway and calls fetch with cloud/local ids', async () => {
   const calls: string[] = [];
   const result = await fetchCommunityMembersQuery(
@@ -310,6 +351,8 @@ test('inviteCommunityMemberCommand normalizes email and calls gateway', async ()
     {
       communityCloudId: 'community-cloud',
       communityLocalId: 'community-local',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
       email: '  ANA@EXAMPLE.COM ',
       role: 'moderator',
     },
@@ -321,10 +364,109 @@ test('inviteCommunityMemberCommand normalizes email and calls gateway', async ()
   assert.deepEqual(calls, ['invite:community-cloud:ana@example.com:moderator:community-local']);
 });
 
+test('inviteCommunityMemberCommand authorizes active owner admin and signed-in master only', async () => {
+  const allowed: Array<{
+    name: string;
+    members: CommunityMember[];
+    currentUserId: string;
+    globalRole?: AuthRole | null;
+  }> = [
+    {
+      name: 'owner',
+      members: manageableMembers({ role: 'owner' }),
+      currentUserId: 'manager-user',
+    },
+    {
+      name: 'admin',
+      members: manageableMembers({ role: 'admin' }),
+      currentUserId: 'manager-user',
+    },
+    {
+      name: 'master',
+      members: manageableMembers().filter((candidate) => candidate.userId !== 'master-user'),
+      currentUserId: 'master-user',
+      globalRole: 'master',
+    },
+  ];
+
+  for (const scenario of allowed) {
+    const calls: string[] = [];
+    const result = await inviteCommunityMemberCommand(
+      {
+        communityCloudId: 'community-cloud',
+        communityLocalId: 'community-local',
+        members: scenario.members,
+        currentUserId: scenario.currentUserId,
+        globalRole: scenario.globalRole,
+        email: `${scenario.name}@example.com`,
+        role: 'member',
+      },
+      membershipGateway(calls),
+    );
+
+    assert.equal(result.ok, true, `invite rejected ${scenario.name}`);
+    assert.deepEqual(calls, [
+      `invite:community-cloud:${scenario.name}@example.com:member:community-local`,
+    ]);
+  }
+
+  const denied: Array<{
+    name: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    code: string;
+  }> = [
+    {
+      name: 'no current user with master role',
+      members: manageableMembers(),
+      currentUserId: null,
+      globalRole: 'master',
+      code: 'not_authenticated',
+    },
+    {
+      name: 'regular member',
+      members: manageableMembers({ role: 'member' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+    {
+      name: 'programmer owner membership',
+      members: manageableMembers({ role: 'owner' }),
+      currentUserId: 'manager-user',
+      globalRole: 'programmer',
+      code: 'permission_denied',
+    },
+  ];
+
+  for (const scenario of denied) {
+    const calls: string[] = [];
+    const result = await inviteCommunityMemberCommand(
+      {
+        communityCloudId: 'community-cloud',
+        members: scenario.members,
+        currentUserId: scenario.currentUserId,
+        globalRole: scenario.globalRole,
+        email: 'ana@example.com',
+        role: 'member',
+      },
+      membershipGateway(calls),
+    );
+
+    assertProductError(result, scenario.code);
+    assert.deepEqual(calls, [], `invite called gateway for ${scenario.name}`);
+  }
+});
+
 test('inviteCommunityMemberCommand rejects missing cloud id', async () => {
   const calls: string[] = [];
   const result = await inviteCommunityMemberCommand(
-    { email: 'ana@example.com', role: 'member' },
+    {
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+      email: 'ana@example.com',
+      role: 'member',
+    },
     membershipGateway(calls),
   );
 
@@ -337,11 +479,23 @@ test('inviteCommunityMemberCommand rejects empty email and owner role', async ()
   const gateway = membershipGateway(calls);
 
   const emptyEmail = await inviteCommunityMemberCommand(
-    { communityCloudId: 'community-cloud', email: ' ', role: 'member' },
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+      email: ' ',
+      role: 'member',
+    },
     gateway,
   );
   const ownerRole = await inviteCommunityMemberCommand(
-    { communityCloudId: 'community-cloud', email: 'ana@example.com', role: 'owner' },
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+      email: 'ana@example.com',
+      role: 'owner',
+    },
     gateway,
   );
 
@@ -359,7 +513,13 @@ test('inviteCommunityMemberCommand returns technical error when gateway throws',
   };
 
   const result = await inviteCommunityMemberCommand(
-    { communityCloudId: 'community-cloud', email: 'ana@example.com', role: 'member' },
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+      email: 'ana@example.com',
+      role: 'member',
+    },
     gateway,
   );
 

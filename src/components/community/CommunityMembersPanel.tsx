@@ -61,6 +61,7 @@ export function CommunityMembersPanel({
     communityCloudId: community.cloudId,
     communityLocalId: community.id,
     currentUserId,
+    globalRole,
     enabled,
   });
 
@@ -347,7 +348,7 @@ export function CommunityMembersPanel({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-base-300 flex items-center justify-center text-xs font-bold shrink-0">
-                      {row.displayName.slice(0, 2).toUpperCase()}
+                      {row.initials}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold truncate">

@@ -13,41 +13,22 @@ import {
   Clock,
   Volleyball,
 } from 'lucide-react';
-import { Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
+import { AuthRole, Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
+import {
+  ASSIGNABLE_COMMUNITY_MEMBER_ROLES,
+  buildCommunityMembersViewModel,
+  COMMUNITY_ROLE_LABELS,
+} from '../../application/communityMembersViewModel';
 
 interface CommunityMembersPanelProps {
   community: Community;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
+  globalRole?: AuthRole | null;
   /** Atletas desta comunidade, para casar membro↔ficha via player.userId. */
   players?: Player[];
 }
-
-const ROLE_LABELS: Record<CommunityMemberRole, string> = {
-  owner: 'Dono',
-  admin: 'Admin',
-  moderator: 'Moderador',
-  member: 'Membro',
-};
-
-const ROLE_BADGE: Record<CommunityMemberRole, string> = {
-  owner: 'badge-primary',
-  admin: 'badge-accent badge-soft',
-  moderator: 'badge-outline',
-  member: 'badge-ghost',
-};
-
-// Papéis que um dono/admin pode atribuir. 'owner' é reservado ao criador e
-// gerenciado por triggers no servidor, não pela UI.
-const ASSIGNABLE_ROLES: CommunityMemberRole[] = ['admin', 'moderator', 'member'];
-
-const ROLE_ORDER: Record<CommunityMemberRole, number> = {
-  owner: 0,
-  admin: 1,
-  moderator: 2,
-  member: 3,
-};
 
 function messageOf(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
@@ -55,25 +36,18 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function initials(member: CommunityMember): string {
-  const base = member.name || member.email || '?';
-  return base.slice(0, 2).toUpperCase();
-}
-
 export function CommunityMembersPanel({
   community,
   currentUserId,
   isSupabaseConfigured,
+  globalRole = null,
   players = [],
 }: CommunityMembersPanelProps) {
   const enabled = isSupabaseConfigured && !!community.cloudId;
   const {
-    activeMembers,
-    pendingRequests,
+    members,
     loading,
     error,
-    currentMember,
-    canManage,
     reload,
     invite,
     changeRole,
@@ -90,6 +64,19 @@ export function CommunityMembersPanel({
     enabled,
   });
 
+  const vm = buildCommunityMembersViewModel({
+    community,
+    members,
+    players,
+    currentUserId,
+    isSupabaseConfigured,
+    globalRole,
+  });
+  const activeMembers = vm.activeMembers;
+  const pendingRequests = vm.pendingRequests;
+  const canManage = vm.canManage;
+  const canLeave = vm.canLeave;
+
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<CommunityMemberRole>('moderator');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -97,25 +84,11 @@ export function CommunityMembersPanel({
   const [joinCode, setJoinCode] = useState<string | null>(community.joinCode ?? null);
   const [copied, setCopied] = useState(false);
 
-  if (!isSupabaseConfigured) {
+  if (vm.state === 'cloud_disabled' || vm.state === 'community_not_synced') {
     return (
       <div className="bg-surface p-6 rounded-xl border border-border text-center space-y-2">
         <Cloud className="w-8 h-8 mx-auto text-text-muted" />
-        <p className="text-sm text-text-muted">
-          Conecte uma conta na nuvem para gerenciar membros desta comunidade.
-        </p>
-      </div>
-    );
-  }
-
-  if (!community.cloudId) {
-    return (
-      <div className="bg-surface p-6 rounded-xl border border-border text-center space-y-2">
-        <Cloud className="w-8 h-8 mx-auto text-text-muted" />
-        <p className="text-sm text-text-muted">
-          Sincronize esta comunidade com a nuvem (aba <strong>Nuvem &amp; Conta</strong>) antes de
-          gerenciar membros.
-        </p>
+        <p className="text-sm text-text-muted">{vm.blockedMessage}</p>
       </div>
     );
   }
@@ -182,18 +155,7 @@ export function CommunityMembersPanel({
     return runAction(() => leave(), 'Não foi possível sair da comunidade.');
   };
 
-  const sortedMembers = [...activeMembers].sort(
-    (a, b) =>
-      (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
-      (a.name || a.email || '').localeCompare(b.name || b.email || ''),
-  );
-
-  // Membro ↔ atleta: casa pela conta vinculada (player.userId).
-  const athleteByUserId = new Map(
-    players.filter((p) => p.userId && !p.deletedAt).map((p) => [p.userId as string, p]),
-  );
-
-  const canLeave = currentMember && currentMember.role !== 'owner';
+  const sortedMembers = activeMembers;
 
   return (
     <div className="space-y-5">
@@ -274,39 +236,46 @@ export function CommunityMembersPanel({
             <span className="badge badge-warning">{pendingRequests.length}</span>
           </p>
           <ul className="space-y-2">
-            {pendingRequests.map((member) => (
-              <li
-                key={member.id}
-                className="flex items-center justify-between gap-3 p-2 rounded-lg bg-base-200 border border-base-300"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">
-                    {member.name || member.email || 'Solicitante'}
-                  </p>
-                  {member.email && member.name && (
-                    <p className="text-xs text-text-muted truncate">{member.email}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => runAction(() => approveRequest(member.id), 'Falha ao aprovar.')}
-                    className="btn btn-success btn-sm"
-                    disabled={busy}
-                  >
-                    <Check className="w-4 h-4" /> Aprovar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runAction(() => rejectRequest(member.id), 'Falha ao rejeitar.')}
-                    className="btn btn-ghost btn-sm text-error"
-                    disabled={busy}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </li>
-            ))}
+            {pendingRequests.map((row) => {
+              const member = row.member;
+              return (
+                <li
+                  key={member.id}
+                  className="flex items-center justify-between gap-3 p-2 rounded-lg bg-base-200 border border-base-300"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">
+                      {row.displayName || 'Solicitante'}
+                    </p>
+                    {member.email && member.name && (
+                      <p className="text-xs text-text-muted truncate">{member.email}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(() => approveRequest(member.id), 'Falha ao aprovar.')
+                      }
+                      className="btn btn-success btn-sm"
+                      disabled={busy}
+                    >
+                      <Check className="w-4 h-4" /> Aprovar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        runAction(() => rejectRequest(member.id), 'Falha ao rejeitar.')
+                      }
+                      className="btn btn-ghost btn-sm text-error"
+                      disabled={busy}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -339,9 +308,9 @@ export function CommunityMembersPanel({
               className="select select-bordered"
               disabled={busy}
             >
-              {ASSIGNABLE_ROLES.map((role) => (
+              {ASSIGNABLE_COMMUNITY_MEMBER_ROLES.map((role) => (
                 <option key={role} value={role}>
-                  {ROLE_LABELS[role]}
+                  {COMMUNITY_ROLE_LABELS[role]}
                 </option>
               ))}
             </select>
@@ -367,10 +336,10 @@ export function CommunityMembersPanel({
           <p className="text-sm text-text-muted px-1">Nenhum membro ainda.</p>
         ) : (
           <ul className="space-y-2">
-            {sortedMembers.map((member) => {
-              const isSelf = member.userId === currentUserId;
-              const isOwner = member.role === 'owner';
-              const editable = canManage && !isSelf && !isOwner;
+            {sortedMembers.map((row) => {
+              const member = row.member;
+              const isSelf = row.isSelf;
+              const editable = row.canChangeRole;
               return (
                 <li
                   key={member.id}
@@ -378,21 +347,20 @@ export function CommunityMembersPanel({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-base-300 flex items-center justify-center text-xs font-bold shrink-0">
-                      {initials(member)}
+                      {row.displayName.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold truncate">
-                        {member.name || member.email || 'Membro'}
+                        {row.displayName}
                         {isSelf && <span className="text-text-muted font-normal"> (você)</span>}
                       </p>
                       {member.email && member.name && (
                         <p className="text-xs text-text-muted truncate">{member.email}</p>
                       )}
-                      {athleteByUserId.has(member.userId) && (
+                      {row.athleteLabel && (
                         <span className="badge badge-sm badge-outline gap-1 mt-1">
                           <Volleyball className="w-3 h-3" />
-                          {athleteByUserId.get(member.userId)!.apelido ||
-                            athleteByUserId.get(member.userId)!.nome}
+                          {row.athleteLabel}
                         </span>
                       )}
                     </div>
@@ -408,18 +376,18 @@ export function CommunityMembersPanel({
                         disabled={busy}
                         aria-label="Papel do membro"
                       >
-                        {ASSIGNABLE_ROLES.map((role) => (
+                        {row.assignableRoles.map((role) => (
                           <option key={role} value={role}>
-                            {ROLE_LABELS[role]}
+                            {COMMUNITY_ROLE_LABELS[role]}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <span className={`badge ${ROLE_BADGE[member.role]}`}>
-                        {ROLE_LABELS[member.role]}
+                      <span className={`badge ${row.roleBadgeClass}`}>
+                        {row.roleLabel}
                       </span>
                     )}
-                    {editable && (
+                    {row.canRemove && (
                       <button
                         type="button"
                         onClick={() => handleRemove(member)}

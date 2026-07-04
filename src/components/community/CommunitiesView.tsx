@@ -22,6 +22,7 @@ import {
   Volleyball,
 } from 'lucide-react';
 import {
+  AuthRole,
   Community,
   CommunityPresenceStatus,
   CommunityRankingFilter,
@@ -153,6 +154,7 @@ interface CommunitiesViewProps {
   onClearCommunityHistory: (communityId: string) => void;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
+  globalRole: AuthRole | null;
   onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
 }
 
@@ -229,6 +231,7 @@ export function CommunitiesView({
   onClearCommunityHistory,
   currentUserId,
   isSupabaseConfigured,
+  globalRole,
 }: CommunitiesViewProps) {
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
 
@@ -274,6 +277,7 @@ export function CommunitiesView({
         onClearCommunityHistory={onClearCommunityHistory}
         currentUserId={currentUserId}
         isSupabaseConfigured={isSupabaseConfigured}
+        globalRole={globalRole}
       />
     );
   }
@@ -535,6 +539,7 @@ function CommunityDetailView({
   onClearCommunityHistory,
   currentUserId,
   isSupabaseConfigured,
+  globalRole,
 }: Omit<CommunitiesViewProps, 'communities' | 'onAddCommunity'> & {
   community: Community;
 }) {
@@ -729,6 +734,7 @@ function CommunityDetailView({
           community={community}
           currentUserId={currentUserId}
           isSupabaseConfigured={isSupabaseConfigured}
+          globalRole={globalRole}
           players={communityPlayers}
         />
       )}

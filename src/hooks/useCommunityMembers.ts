@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CommunityMember, CommunityMemberRole } from '../types';
-import { membershipCloudService } from '../services/supabase/membershipCloudService';
+import {
+  approveCommunityJoinRequestCommand,
+  changeCommunityMemberRoleCommand,
+  disableCommunityJoinCodeCommand,
+  fetchCommunityMembersQuery,
+  generateCommunityJoinCodeCommand,
+  inviteCommunityMemberCommand,
+  leaveCommunityCommand,
+  rejectCommunityJoinRequestCommand,
+  removeCommunityMemberCommand,
+} from '../application/communityMembershipUseCases';
 
 interface UseCommunityMembersOptions {
   /** Cloud (uuid) id of the community. Membership lives only in the cloud. */
@@ -20,7 +30,7 @@ function messageOf(error: unknown, fallback: string): string {
 }
 
 /**
- * Wraps {@link membershipCloudService} with React state: keeps the member list
+ * Wraps community membership application use cases with React state: keeps the member list
  * for a single community, exposes the viewer's own role (to gate management
  * controls) and the invite / role-change / remove actions. Mutations re-fetch so
  * the list always reflects the server (and server-side RLS / trigger guards).
@@ -43,11 +53,10 @@ export function useCommunityMembers({
     setLoading(true);
     setError(null);
     try {
-      const data = await membershipCloudService.fetchByCommunity(
-        communityCloudId,
-        communityLocalId,
-      );
-      setMembers(data);
+      const result = await fetchCommunityMembersQuery({ communityCloudId, communityLocalId });
+      if (result.ok === false) throw new Error(result.error.message);
+      setMembers(result.value.members);
+      if (result.issues?.length) setError(result.issues[0].message);
     } catch (e) {
       setError(messageOf(e, 'Não foi possível carregar os membros.'));
     } finally {
@@ -69,15 +78,13 @@ export function useCommunityMembers({
 
   const invite = useCallback(
     async (email: string, role: CommunityMemberRole) => {
-      if (!communityCloudId) {
-        throw new Error('Sincronize a comunidade com a nuvem antes de convidar membros.');
-      }
-      await membershipCloudService.addOrganizerByEmail(
+      const result = await inviteCommunityMemberCommand({
         communityCloudId,
+        communityLocalId,
         email,
         role,
-        communityLocalId,
-      );
+      });
+      if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
     [communityCloudId, communityLocalId, reload],
@@ -85,54 +92,77 @@ export function useCommunityMembers({
 
   const changeRole = useCallback(
     async (memberId: string, role: CommunityMemberRole) => {
-      await membershipCloudService.updateRole(memberId, role);
+      const result = await changeCommunityMemberRoleCommand({
+        members,
+        currentUserId,
+        memberId,
+        role,
+      });
+      if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [reload],
+    [currentUserId, members, reload],
   );
 
   const remove = useCallback(
     async (memberId: string) => {
-      await membershipCloudService.removeMember(memberId);
+      const result = await removeCommunityMemberCommand({ members, currentUserId, memberId });
+      if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [reload],
+    [currentUserId, members, reload],
   );
 
   const approveRequest = useCallback(
     async (memberId: string) => {
-      await membershipCloudService.approveRequest(memberId);
+      const result = await approveCommunityJoinRequestCommand({
+        members,
+        currentUserId,
+        memberId,
+      });
+      if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [reload],
+    [currentUserId, members, reload],
   );
 
   const rejectRequest = useCallback(
     async (memberId: string) => {
-      await membershipCloudService.rejectRequest(memberId);
+      const result = await rejectCommunityJoinRequestCommand({
+        members,
+        currentUserId,
+        memberId,
+      });
+      if (result.ok === false) throw new Error(result.error.message);
       await reload();
     },
-    [reload],
+    [currentUserId, members, reload],
   );
 
   const generateJoinCode = useCallback(async () => {
-    if (!communityCloudId) {
-      throw new Error('Sincronize a comunidade com a nuvem antes de gerar um código.');
-    }
-    const code = await membershipCloudService.generateJoinCode(communityCloudId);
-    return code;
-  }, [communityCloudId]);
+    const result = await generateCommunityJoinCodeCommand({
+      communityCloudId,
+      members,
+      currentUserId,
+    });
+    if (result.ok === false) throw new Error(result.error.message);
+    return result.value.joinCode;
+  }, [communityCloudId, currentUserId, members]);
 
   const disableJoinCode = useCallback(async () => {
-    if (!communityCloudId) return;
-    await membershipCloudService.disableJoinCode(communityCloudId);
-  }, [communityCloudId]);
+    const result = await disableCommunityJoinCodeCommand({
+      communityCloudId,
+      members,
+      currentUserId,
+    });
+    if (result.ok === false) throw new Error(result.error.message);
+  }, [communityCloudId, currentUserId, members]);
 
   const leave = useCallback(async () => {
-    if (!communityCloudId) return;
-    await membershipCloudService.leaveCommunity(communityCloudId);
+    const result = await leaveCommunityCommand({ communityCloudId, currentMember });
+    if (result.ok === false) throw new Error(result.error.message);
     await reload();
-  }, [communityCloudId, reload]);
+  }, [communityCloudId, currentMember, reload]);
 
   return {
     members,

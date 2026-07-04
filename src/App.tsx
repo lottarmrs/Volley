@@ -966,6 +966,7 @@ export default function App() {
               }}
               currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
+              globalRole={auth.profile?.role ?? null}
               onLinkedCloudPlayer={(player, communityId) => {
                 play.setPlayers((prev) => {
                   const exists = prev.find((p) => p.id === player.id);

@@ -66,3 +66,6 @@ business rules out of React components and IO services without changing behavior
   cloud/local state directly in JSX.
 - Supabase services remain adapters; React components should not call them directly for
   flows that have commands or queries.
+- Community membership operations live behind `src/application/communityMembershipUseCases.ts`.
+- Community member panels should render `communityMembersViewModel` output instead of deriving role/editability rules in JSX.
+- Direct Supabase table update/delete for membership role and removal is isolated behind a gateway for now; a later Supabase/RPC slice should replace those adapter internals with dedicated RPCs.

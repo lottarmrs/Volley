@@ -1,23 +1,8 @@
-import { useState } from 'react';
 import { KeyRound, Loader2, Users, Check, X } from 'lucide-react';
-import { membershipCloudService } from '../../services/supabase/membershipCloudService';
+import { useJoinCommunityByCode } from '../../hooks/useJoinCommunityByCode';
 
 interface JoinCommunityByCodeProps {
   onClose: () => void;
-}
-
-type Preview = {
-  id: string;
-  name: string;
-  description: string | null;
-  memberCount: number;
-  myStatus: string | null;
-};
-
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return fallback;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -32,44 +17,24 @@ const STATUS_LABEL: Record<string, string> = {
  * pedido (que fica pendente até um dono/admin aprovar na Área de Membros).
  */
 export function JoinCommunityByCode({ onClose }: JoinCommunityByCodeProps) {
-  const [code, setCode] = useState('');
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [requested, setRequested] = useState(false);
+  const {
+    code,
+    setCode,
+    preview,
+    loading,
+    error,
+    requested,
+    previewCommunity,
+    requestJoin,
+  } = useJoinCommunityByCode();
 
   const handlePreview = async () => {
-    const trimmed = code.trim();
-    if (!trimmed) return;
-    setLoading(true);
-    setError(null);
-    setPreview(null);
-    setRequested(false);
-    try {
-      const found = await membershipCloudService.findByCode(trimmed);
-      if (!found) {
-        setError('Código de convite inválido ou comunidade não encontrada.');
-        return;
-      }
-      setPreview(found);
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível buscar a comunidade.'));
-    } finally {
-      setLoading(false);
-    }
+    if (!code.trim()) return;
+    await previewCommunity();
   };
 
   const handleRequest = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await membershipCloudService.requestToJoin(code.trim());
-      setRequested(true);
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível enviar o pedido.'));
-    } finally {
-      setLoading(false);
-    }
+    await requestJoin();
   };
 
   return (
@@ -87,7 +52,7 @@ export function JoinCommunityByCode({ onClose }: JoinCommunityByCodeProps) {
         <div className="flex gap-2">
           <input
             value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onChange={(e) => setCode(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePreview()}
             placeholder="CÓDIGO"
             className="input input-bordered flex-1 font-mono tracking-widest uppercase"

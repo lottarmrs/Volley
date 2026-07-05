@@ -1,18 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Search, Loader2, Users, Check, X } from 'lucide-react';
-import {
-  communityDiscoveryService,
-  PublicCommunityResult,
-} from '../../services/supabase/communityDiscoveryService';
+import { useCommunityDiscovery } from '../../hooks/useCommunityDiscovery';
+import type { PublicCommunityResult } from '../../application/communityMembershipUseCases';
 
 interface CommunityDiscoveryProps {
   onClose: () => void;
-}
-
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return fallback;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -28,43 +20,24 @@ const STATUS_LABEL: Record<string, string> = {
  * partir da lista de comunidades.
  */
 export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<PublicCommunityResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [actingId, setActingId] = useState<string | null>(null);
-
-  const search = async (q: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      setResults(await communityDiscoveryService.searchPublic(q));
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível buscar comunidades.'));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    query,
+    setQuery,
+    results,
+    loading,
+    error,
+    actingId,
+    search,
+    requestJoin,
+  } = useCommunityDiscovery();
 
   // Lista inicial das públicas ao abrir.
   useEffect(() => {
     search('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [search]);
 
   const handleRequest = async (community: PublicCommunityResult) => {
-    setActingId(community.id);
-    setError(null);
-    try {
-      await communityDiscoveryService.requestToJoinPublic(community.id);
-      setResults((prev) =>
-        prev.map((c) => (c.id === community.id ? { ...c, myStatus: 'pending' } : c)),
-      );
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível enviar o pedido.'));
-    } finally {
-      setActingId(null);
-    }
+    await requestJoin(community);
   };
 
   return (

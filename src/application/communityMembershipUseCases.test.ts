@@ -10,6 +10,7 @@ import {
   generateCommunityJoinCodeCommand,
   inviteCommunityMemberCommand,
   leaveCommunityCommand,
+  previewCommunityJoinByCodeQuery,
   rejectCommunityJoinRequestCommand,
   removeCommunityMemberCommand,
   requestCommunityJoinByCodeCommand,
@@ -877,6 +878,52 @@ test('requestCommunityJoinByCodeCommand rejects empty code', async () => {
 
   assertProductError(result, 'invalid_input');
   assert.deepEqual(calls, []);
+});
+
+test('previewCommunityJoinByCodeQuery normalizes code and returns found community', async () => {
+  const calls: string[] = [];
+  const result = await previewCommunityJoinByCodeQuery(
+    { code: ' abcd1234 ' },
+    membershipGateway(calls),
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.value.community.id, 'community-cloud');
+  assert.equal(result.value.community.name, 'Terca Forte');
+  assert.deepEqual(calls, ['find:ABCD1234']);
+});
+
+test('previewCommunityJoinByCodeQuery rejects empty code without calling gateway', async () => {
+  const calls: string[] = [];
+  const result = await previewCommunityJoinByCodeQuery({ code: ' ' }, membershipGateway(calls));
+
+  assertProductError(result, 'invalid_input');
+  assert.deepEqual(calls, []);
+});
+
+test('previewCommunityJoinByCodeQuery returns not found when gateway returns null', async () => {
+  const calls: string[] = [];
+  const gateway = membershipGateway(calls);
+  gateway.findByCode = async (code) => {
+    calls.push(`find:${code}`);
+    return null;
+  };
+
+  const result = await previewCommunityJoinByCodeQuery({ code: 'missing' }, gateway);
+
+  assertProductError(result, 'not_found');
+  assert.deepEqual(calls, ['find:MISSING']);
+});
+
+test('previewCommunityJoinByCodeQuery returns technical error when gateway throws', async () => {
+  const gateway = membershipGateway([]);
+  gateway.findByCode = async () => {
+    throw new Error('preview failed');
+  };
+
+  const result = await previewCommunityJoinByCodeQuery({ code: 'ABCD1234' }, gateway);
+
+  assertTechnicalError(result);
 });
 
 test('requestCommunityJoinByCodeCommand returns technical error when gateway throws', async () => {

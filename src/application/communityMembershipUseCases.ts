@@ -7,6 +7,16 @@ import {
 import { appOk, productError, recoverableIssue, technicalError } from './appResult';
 import type { AppResult } from './appResult';
 
+export interface CommunityJoinPreview {
+  id: string;
+  name: string;
+  description: string | null;
+  memberCount: number;
+  myStatus: string | null;
+}
+
+export type { PublicCommunityResult };
+
 export interface CommunityMembershipGateway {
   fetchByCommunity: (
     communityCloudId: string,
@@ -25,13 +35,7 @@ export interface CommunityMembershipGateway {
   generateJoinCode: (communityCloudId: string) => Promise<string>;
   disableJoinCode: (communityCloudId: string) => Promise<void>;
   leaveCommunity: (communityCloudId: string) => Promise<void>;
-  findByCode: (code: string) => Promise<{
-    id: string;
-    name: string;
-    description: string | null;
-    memberCount: number;
-    myStatus: string | null;
-  } | null>;
+  findByCode: (code: string) => Promise<CommunityJoinPreview | null>;
   requestToJoin: (code: string, communityLocalId?: string) => Promise<CommunityMember>;
 }
 
@@ -346,6 +350,27 @@ export async function requestPublicCommunityJoinCommand(
     return appOk({});
   } catch (error) {
     return technicalError('Nao foi possivel enviar o pedido.', error);
+  }
+}
+
+export async function previewCommunityJoinByCodeQuery(
+  input: { code: string },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ community: CommunityJoinPreview }>> {
+  const code = input.code.trim().toUpperCase();
+  if (!code) return productError('invalid_input', 'Informe o codigo da comunidade.');
+
+  try {
+    const community = await gateway.findByCode(code);
+    if (!community) {
+      return productError(
+        'not_found',
+        'Codigo de convite invalido ou comunidade nao encontrada.',
+      );
+    }
+    return appOk({ community });
+  } catch (error) {
+    return technicalError('Nao foi possivel buscar a comunidade.', error);
   }
 }
 

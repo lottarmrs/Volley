@@ -77,7 +77,29 @@ describe('useCommunityDiscovery', () => {
     });
 
     expect(result.current.results).toEqual([community]);
-    expect(result.current.error).toBe('Nao foi possivel buscar comunidades.');
+    expect(result.current.error).toBe('Não foi possível buscar comunidades.');
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('shows search technical error causes', async () => {
+    vi.mocked(searchPublicCommunitiesQuery).mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'technical',
+        code: 'technical_error',
+        message: 'Nao foi possivel buscar comunidades.',
+        recoverable: true,
+        cause: new Error('RPC search failed'),
+      },
+    });
+
+    const { result } = renderHook(() => useCommunityDiscovery());
+
+    await act(async () => {
+      await result.current.search('falha');
+    });
+
+    expect(result.current.error).toBe('RPC search failed');
     expect(result.current.loading).toBe(false);
   });
 
@@ -106,5 +128,34 @@ describe('useCommunityDiscovery', () => {
     expect(result.current.results[0].myStatus).toBe('pending');
     expect(result.current.actingId).toBeNull();
     expect(result.current.error).toBeNull();
+  });
+
+  it('shows public request fallback errors and preserves community status', async () => {
+    vi.mocked(searchPublicCommunitiesQuery).mockResolvedValue({
+      ok: true,
+      value: { communities: [community] },
+    });
+    vi.mocked(requestPublicCommunityJoinCommand).mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'technical',
+        code: 'technical_error',
+        message: 'Nao foi possivel enviar o pedido.',
+        recoverable: true,
+      },
+    });
+
+    const { result } = renderHook(() => useCommunityDiscovery());
+
+    await act(async () => {
+      await result.current.search('');
+    });
+    await act(async () => {
+      await result.current.requestJoin(community);
+    });
+
+    expect(result.current.error).toBe('Não foi possível enviar o pedido.');
+    expect(result.current.actingId).toBeNull();
+    expect(result.current.results[0].myStatus).toBeNull();
   });
 });

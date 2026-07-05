@@ -54,7 +54,7 @@ describe('useJoinCommunityByCode', () => {
     expect(previewCommunityJoinByCodeQuery).toHaveBeenCalledWith({ code: ' ABCD1234 ' });
   });
 
-  it('shows application errors and clears stale preview', async () => {
+  it('shows invalid code errors and clears stale preview', async () => {
     vi.mocked(previewCommunityJoinByCodeQuery).mockResolvedValueOnce({
       ok: true,
       value: { community: preview },
@@ -82,7 +82,32 @@ describe('useJoinCommunityByCode', () => {
     });
 
     expect(result.current.preview).toBeNull();
-    expect(result.current.error).toBe('Codigo de convite invalido ou comunidade nao encontrada.');
+    expect(result.current.error).toBe('Código de convite inválido ou comunidade não encontrada.');
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('shows preview technical error causes', async () => {
+    vi.mocked(previewCommunityJoinByCodeQuery).mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'technical',
+        code: 'technical_error',
+        message: 'Nao foi possivel buscar a comunidade.',
+        recoverable: true,
+        cause: new Error('RPC preview failed'),
+      },
+    });
+
+    const { result } = renderHook(() => useJoinCommunityByCode());
+
+    act(() => {
+      result.current.setCode('ABCD1234');
+    });
+    await act(async () => {
+      await result.current.previewCommunity();
+    });
+
+    expect(result.current.error).toBe('RPC preview failed');
     expect(result.current.loading).toBe(false);
   });
 

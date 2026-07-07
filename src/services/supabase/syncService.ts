@@ -127,6 +127,10 @@ export function getSyncTimestamp(entity: any): string | undefined {
   );
 }
 
+function getPlayerLinkProposalSyncTimestamp(proposal: PlayerLinkProposal): string | undefined {
+  return proposal.reviewedAt || proposal.createdAt;
+}
+
 function timestampMs(value: string | undefined) {
   const time = value ? new Date(value).getTime() : 0;
   return Number.isFinite(time) ? time : 0;
@@ -1546,6 +1550,7 @@ export const syncService = {
       drafts: mergeEntityLists(local.drafts, cloud.drafts, { getId: (item) => item.id }),
       linkProposals: mergeEntityLists(local.linkProposals || [], cloud.linkProposals || [], {
         getId: (item) => item.id,
+        getUpdatedAt: getPlayerLinkProposalSyncTimestamp,
       }),
     };
 

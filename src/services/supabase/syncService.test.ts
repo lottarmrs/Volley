@@ -1183,6 +1183,55 @@ test('uploadLocalDataToCloud replays pending player unlink intent through rpc', 
   }
 });
 
+test('syncNow accepts newer cloud player link reviews over stale local pending state', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const proposalId = '00000000-0000-4000-8000-000000000007';
+  let capturedMergedPayload: LocalSyncPayload | null = null;
+
+  try {
+    syncService.downloadCloudDataToLocal = async () =>
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: proposalId,
+            status: 'approved',
+            reviewedBy: 'admin-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      });
+    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+      capturedMergedPayload = payload;
+      return payload;
+    };
+
+    const result = await syncService.syncNow(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: proposalId,
+            status: 'pending',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(capturedMergedPayload?.linkProposals?.[0].status, 'approved');
+    assert.equal(result.linkProposals?.[0].status, 'approved');
+    assert.equal(result.linkProposals?.[0].reviewedBy, 'admin-1');
+    assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+  }
+});
+
 test('computeStaleRelationIds deletes only undesired relations of payload players', () => {
   const owned = [
     { id: 'rel-keep', community_id: 'comm-1', player_id: 'player-1' },

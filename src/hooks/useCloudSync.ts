@@ -2,6 +2,10 @@ import { useRef, useState } from 'react';
 import { syncService, LocalSyncPayload } from '../services/supabase/syncService';
 import { normalizeGames, normalizeSessions } from '../logic/migrations';
 import {
+  recordStoredSyncIssue,
+  resolveStoredSyncIssuesForOperation,
+} from '../logic/syncIssueLedger';
+import {
   loadFromStorage,
   markLocalCacheOwner,
   saveToStorage,
@@ -144,6 +148,12 @@ export function useCloudSync(deps: CloudSyncDeps) {
     const onIssue = (context: string, e: unknown) => {
       const detail = e instanceof Error ? e.message : String(e);
       issues.push(`${context}: ${detail}`);
+      recordStoredSyncIssue({
+        operation: label,
+        context,
+        error: e,
+        occurredAt: new Date().toISOString(),
+      });
       console.error(`[sync] falha em ${context}`, e);
     };
 
@@ -159,11 +169,21 @@ export function useCloudSync(deps: CloudSyncDeps) {
           'error',
         );
       } else {
+        resolveStoredSyncIssuesForOperation({
+          operation: label,
+          resolvedAt: new Date().toISOString(),
+        });
         setStatus('success');
         deps.onToast?.(`${label} concluído.`, 'success');
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Falha na sincronização';
+      recordStoredSyncIssue({
+        operation: label,
+        context: label,
+        error: e,
+        occurredAt: new Date().toISOString(),
+      });
       setError(message);
       setStatus('error');
       deps.onToast?.(`${label} falhou: ${message}`, 'error');

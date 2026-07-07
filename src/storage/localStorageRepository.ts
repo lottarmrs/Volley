@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   whatsAppListDrafts: 'vpg_whatsapp_list_drafts',
   communityRules: 'vpg_community_rules',
   playerLinkProposals: 'vpg_player_link_proposals',
+  syncIssueLedger: 'vpg_sync_issue_ledger',
 };
 
 export const LOCAL_CACHE_OWNER_KEY = 'vpg_cache_owner_id';
@@ -28,6 +29,7 @@ export const STORAGE_METADATA_KEYS = [
   'vpg_uuid_migration_completed',
   'vpg_players_schema_version',
   'vpg_selected_division_index',
+  'vpg_sync_issue_ledger',
 ];
 
 export function getLocalCacheOwnerId(): string | null {

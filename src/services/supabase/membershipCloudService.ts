@@ -98,19 +98,17 @@ export const membershipCloudService = {
   },
 
   async updateRole(memberId: string, role: CommunityMemberRole): Promise<CommunityMember> {
-    const { data, error } = await supabase
-      .from('community_members')
-      .update({ role, updated_at: new Date().toISOString() })
-      .eq('id', memberId)
-      .select(MEMBER_COLUMNS)
-      .single();
+    const { data, error } = await supabase.rpc('set_community_member_role', {
+      p_member_id: memberId,
+      p_role: role,
+    });
 
     if (error) throw error;
     return mapMemberWithProfile(data);
   },
 
   async removeMember(memberId: string): Promise<void> {
-    const { error } = await supabase.from('community_members').delete().eq('id', memberId);
+    const { error } = await supabase.rpc('remove_community_member', { p_member_id: memberId });
 
     if (error) throw error;
   },

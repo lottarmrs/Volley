@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+function readFixture(path: URL): string {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
 const migration = readFileSync(
   new URL(
     '../../../supabase/migrations/20260610161203_backend_operational_sync.sql',
@@ -41,6 +49,18 @@ const linkedPlayerSelfReadMigration = readFileSync(
     '../../../supabase/migrations/20260629212554_linked_player_self_read.sql',
     import.meta.url,
   ),
+  'utf8',
+);
+
+const communityMemberRoleRpcMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260707143343_community_member_role_remove_rpc.sql',
+    import.meta.url,
+  ),
+);
+
+const membershipCloudServiceSource = readFileSync(
+  new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
 );
 
@@ -194,4 +214,61 @@ test('linked player self-read policy supports fresh browser account checks', () 
   assert.match(linkedPlayerSelfReadMigration, /and deleted_at is null/i);
 
   assert.match(baseSchema, /create policy "Linked users can read their own player"/i);
+});
+
+test('community member role RPC migration hardens role changes and removals', () => {
+  assert.match(
+    communityMemberRoleRpcMigration,
+    /create or replace function public\.set_community_member_role\(\s*p_member_id uuid,\s*p_role text\s*\)/i,
+  );
+  assert.match(
+    communityMemberRoleRpcMigration,
+    /create or replace function public\.remove_community_member\(\s*p_member_id uuid\s*\)/i,
+  );
+
+  for (const functionName of ['set_community_member_role', 'remove_community_member']) {
+    assert.match(
+      communityMemberRoleRpcMigration,
+      new RegExp(
+        `create or replace function public\\.${functionName}[\\s\\S]*?security definer[\\s\\S]*?set search_path = public`,
+        'i',
+      ),
+      `missing security definer/search_path for ${functionName}`,
+    );
+    assert.match(
+      communityMemberRoleRpcMigration,
+      new RegExp(
+        `revoke execute on function public\\.${functionName}\\([^)]*\\) from public, anon;`,
+        'i',
+      ),
+      `missing public/anon revoke for ${functionName}`,
+    );
+    assert.match(
+      communityMemberRoleRpcMigration,
+      new RegExp(
+        `grant execute on function public\\.${functionName}\\([^)]*\\) to authenticated;`,
+        'i',
+      ),
+      `missing authenticated grant for ${functionName}`,
+    );
+  }
+
+  assert.match(communityMemberRoleRpcMigration, /public\.is_superadmin\(\)/i);
+  assert.match(communityMemberRoleRpcMigration, /current_user_has_community_role/i);
+  assert.match(communityMemberRoleRpcMigration, /p_role not in \('admin', 'moderator', 'member'\)/i);
+  assert.doesNotMatch(communityMemberRoleRpcMigration, /p_role not in \([^)]*'organizer'/i);
+  assert.match(communityMemberRoleRpcMigration, /target_member\.role = 'owner'/i);
+});
+
+test('membership cloud service uses RPCs for sensitive member role mutations', () => {
+  assert.match(membershipCloudServiceSource, /rpc\('set_community_member_role'/i);
+  assert.match(membershipCloudServiceSource, /rpc\('remove_community_member'/i);
+  assert.doesNotMatch(
+    membershipCloudServiceSource,
+    /\.from\('community_members'\)\s*[\s\S]{0,160}\.update\(/i,
+  );
+  assert.doesNotMatch(
+    membershipCloudServiceSource,
+    /\.from\('community_members'\)\s*[\s\S]{0,160}\.delete\(/i,
+  );
 });

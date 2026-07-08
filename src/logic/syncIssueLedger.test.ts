@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildSyncIssueSummary,
+  buildRecoverableSyncActions,
   recordSyncIssue,
   resolveSyncIssuesForOperation,
   type SyncIssueEntry,
@@ -130,4 +131,60 @@ test('buildSyncIssueSummary exposes open issue counts and the latest open entrie
   });
   assert.equal(summary.latestOpen[0].context, 'rascunho');
   assert.equal(summary.latestOpen[1].context, 'atleta "Ana"');
+});
+
+test('buildRecoverableSyncActions classifies open ledger issues into retry actions', () => {
+  const ledger: SyncIssueEntry[] = [
+    {
+      id: 'upload:players:network',
+      operation: 'Envio para a nuvem',
+      context: 'atleta "Ana"',
+      message: 'network down',
+      status: 'open',
+      count: 2,
+      firstSeenAt: '2026-07-07T12:00:00.000Z',
+      lastSeenAt: '2026-07-07T12:10:00.000Z',
+    },
+    {
+      id: 'sync:proposal:timeout',
+      operation: 'Sincronizacao',
+      context: 'proposta de vinculo',
+      message: 'timeout',
+      status: 'open',
+      count: 1,
+      firstSeenAt: '2026-07-07T12:02:00.000Z',
+      lastSeenAt: '2026-07-07T12:12:00.000Z',
+    },
+    {
+      id: 'download:old:resolved',
+      operation: 'Download da nuvem',
+      context: 'download',
+      message: 'already fixed',
+      status: 'resolved',
+      count: 1,
+      firstSeenAt: '2026-07-07T11:00:00.000Z',
+      lastSeenAt: '2026-07-07T11:00:00.000Z',
+      resolvedAt: '2026-07-07T11:10:00.000Z',
+    },
+  ];
+
+  const actions = buildRecoverableSyncActions(ledger);
+
+  assert.equal(actions.openIssueCount, 2);
+  assert.equal(actions.canRetryUpload, true);
+  assert.equal(actions.canRetrySync, true);
+  assert.equal(actions.canRetryDownload, false);
+  assert.equal(actions.primaryAction, 'sync');
+  assert.equal(actions.primaryActionLabel, 'Tentar sincronizar novamente');
+});
+
+test('buildRecoverableSyncActions returns no primary action for a clean ledger', () => {
+  const actions = buildRecoverableSyncActions([]);
+
+  assert.equal(actions.openIssueCount, 0);
+  assert.equal(actions.canRetryUpload, false);
+  assert.equal(actions.canRetrySync, false);
+  assert.equal(actions.canRetryDownload, false);
+  assert.equal(actions.primaryAction, null);
+  assert.equal(actions.primaryActionLabel, null);
 });

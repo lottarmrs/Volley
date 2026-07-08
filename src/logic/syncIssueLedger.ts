@@ -36,6 +36,17 @@ export interface SyncIssueSummary {
   latestOpen: SyncIssueEntry[];
 }
 
+export type RecoverableSyncAction = 'upload' | 'sync' | 'download';
+
+export interface RecoverableSyncActions {
+  openIssueCount: number;
+  canRetryUpload: boolean;
+  canRetrySync: boolean;
+  canRetryDownload: boolean;
+  primaryAction: RecoverableSyncAction | null;
+  primaryActionLabel: string | null;
+}
+
 export function recordSyncIssue(
   ledger: SyncIssueEntry[],
   input: SyncIssueInput,
@@ -108,6 +119,29 @@ export function buildSyncIssueSummary(ledger: SyncIssueEntry[]): SyncIssueSummar
   };
 }
 
+export function buildRecoverableSyncActions(ledger: SyncIssueEntry[]): RecoverableSyncActions {
+  const open = ledger.filter((issue) => issue.status === 'open');
+  const canRetryUpload = open.some((issue) => classifySyncOperation(issue.operation) === 'upload');
+  const canRetrySync = open.some((issue) => classifySyncOperation(issue.operation) === 'sync');
+  const canRetryDownload = open.some(
+    (issue) => classifySyncOperation(issue.operation) === 'download',
+  );
+  const primaryAction = pickPrimaryRecoverableAction({
+    canRetryUpload,
+    canRetrySync,
+    canRetryDownload,
+  });
+
+  return {
+    openIssueCount: open.length,
+    canRetryUpload,
+    canRetrySync,
+    canRetryDownload,
+    primaryAction,
+    primaryActionLabel: primaryAction ? recoverableActionLabels[primaryAction] : null,
+  };
+}
+
 export function loadSyncIssueLedger(): SyncIssueEntry[] {
   return loadFromStorage<SyncIssueEntry[]>(STORAGE_KEYS.syncIssueLedger, []);
 }
@@ -152,3 +186,26 @@ function normalizeIssueKeyPart(value: string): string {
 function limitSyncIssueLedger(ledger: SyncIssueEntry[]): SyncIssueEntry[] {
   return ledger.slice(0, MAX_SYNC_ISSUE_ENTRIES);
 }
+
+function classifySyncOperation(operation: string): RecoverableSyncAction | null {
+  const normalized = normalizeIssueKeyPart(operation);
+  if (normalized.includes('envio')) return 'upload';
+  if (normalized.includes('sincronizacao')) return 'sync';
+  if (normalized.includes('download')) return 'download';
+  return null;
+}
+
+function pickPrimaryRecoverableAction(
+  actions: Pick<RecoverableSyncActions, 'canRetryUpload' | 'canRetrySync' | 'canRetryDownload'>,
+): RecoverableSyncAction | null {
+  if (actions.canRetrySync) return 'sync';
+  if (actions.canRetryUpload) return 'upload';
+  if (actions.canRetryDownload) return 'download';
+  return null;
+}
+
+const recoverableActionLabels: Record<RecoverableSyncAction, string> = {
+  upload: 'Tentar envio novamente',
+  sync: 'Tentar sincronizar novamente',
+  download: 'Tentar download novamente',
+};

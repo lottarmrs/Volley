@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { syncService, LocalSyncPayload } from '../services/supabase/syncService';
 import { normalizeGames, normalizeSessions } from '../logic/migrations';
 import {
+  buildRecoverableSyncActions,
   buildSyncIssueSummary,
   loadSyncIssueLedger,
   recordStoredSyncIssue,
@@ -214,6 +215,14 @@ export function useCloudSync(deps: CloudSyncDeps) {
       syncService.syncNow(payload, userId, { onIssue }),
     );
 
+  const recoverableSyncActions = buildRecoverableSyncActions(syncIssues);
+
+  const retryPrimarySyncAction = async () => {
+    if (recoverableSyncActions.primaryAction === 'sync') return sync();
+    if (recoverableSyncActions.primaryAction === 'upload') return uploadToCloud();
+    if (recoverableSyncActions.primaryAction === 'download') return downloadFromCloud();
+  };
+
   const repairDuplicateCloudData = () =>
     run('Saneamento de duplicatas', (_payload, userId, onIssue) =>
       syncService.repairDuplicateCloudData(userId, { onIssue }),
@@ -230,5 +239,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     error,
     syncIssues,
     syncIssueSummary: buildSyncIssueSummary(syncIssues),
+    recoverableSyncActions,
+    retryPrimarySyncAction,
   };
 }

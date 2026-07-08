@@ -19,6 +19,7 @@ import {
 import { AuthForm } from './AuthForm';
 import { fetchAccountPlayerLinkQuery } from '../../application/playerLinkUseCases';
 import { buildAccountPlayerLinkViewModel } from '../../application/playerLinkViewModel';
+import type { RecoverableSyncActions, SyncIssueSummary } from '../../logic/syncIssueLedger';
 
 interface AccountSyncViewProps {
   user: any;
@@ -39,6 +40,9 @@ interface AccountSyncViewProps {
   linkProposals: PlayerLinkProposal[];
   onProposeLink: (playerId: string) => Promise<void> | void;
   onCancelLink: (proposalId: string) => Promise<void> | void;
+  recoverableSyncActions?: RecoverableSyncActions;
+  syncIssueSummary?: SyncIssueSummary;
+  onRetryPrimarySyncAction?: () => Promise<void> | void;
 }
 
 export function AccountSyncView({
@@ -57,6 +61,9 @@ export function AccountSyncView({
   linkProposals = [],
   onProposeLink,
   onCancelLink,
+  recoverableSyncActions,
+  syncIssueSummary,
+  onRetryPrimarySyncAction,
 }: AccountSyncViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -135,6 +142,18 @@ export function AccountSyncView({
 
   // Filtra atletas disponíveis para se vincular (sem userId e que não sejam convidados)
   const availablePlayers = playerLinkVm.availablePlayers;
+  const pendingSyncIssueRecovery =
+    recoverableSyncActions?.primaryAction &&
+    recoverableSyncActions.primaryActionLabel &&
+    syncIssueSummary?.openCount &&
+    onRetryPrimarySyncAction
+      ? {
+          actionLabel: recoverableSyncActions.primaryActionLabel,
+          onRetry: onRetryPrimarySyncAction,
+          openCount: syncIssueSummary.openCount,
+          totalOpenOccurrences: syncIssueSummary.totalOpenOccurrences,
+        }
+      : null;
 
   const handleAction = async (name: string, fn: () => Promise<void>) => {
     setError(null);
@@ -278,6 +297,39 @@ export function AccountSyncView({
             <h4 className="text-xs font-black uppercase tracking-widest text-base-content/50">
               Operações de Sincronização
             </h4>
+
+            {pendingSyncIssueRecovery ? (
+              <div className="bg-warning/10 border border-warning/25 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-base-content">
+                      Falhas de nuvem pendentes
+                    </p>
+                    <p className="text-[10px] text-base-content/60 mt-1 font-medium">
+                      {pendingSyncIssueRecovery.openCount} item(ns),{' '}
+                      {pendingSyncIssueRecovery.totalOpenOccurrences} ocorrencia(s)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    handleAction(pendingSyncIssueRecovery.actionLabel, async () => {
+                      await pendingSyncIssueRecovery.onRetry();
+                    })
+                  }
+                  disabled={actionLoading || syncLoading}
+                  className="btn btn-warning btn-sm uppercase text-[10px] font-black tracking-wider shrink-0"
+                >
+                  {actionLoading || syncLoading ? (
+                    <span className="loading loading-spinner loading-xs"></span>
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  {pendingSyncIssueRecovery.actionLabel}
+                </button>
+              </div>
+            ) : null}
 
             <button
               onClick={() => handleAction('Sincronizar agora', onSync)}

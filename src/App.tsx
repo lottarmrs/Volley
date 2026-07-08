@@ -1082,6 +1082,9 @@ export default function App() {
             linkProposals={proposals.linkProposals}
             onProposeLink={proposals.handleProposePlayerLink}
             onCancelLink={proposals.handleCancelPlayerLink}
+            recoverableSyncActions={cloudSync.recoverableSyncActions}
+            syncIssueSummary={cloudSync.syncIssueSummary}
+            onRetryPrimarySyncAction={cloudSync.retryPrimarySyncAction}
           />
         );
 

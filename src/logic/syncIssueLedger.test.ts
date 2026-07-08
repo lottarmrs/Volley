@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildSyncIssueSummary,
   recordSyncIssue,
   resolveSyncIssuesForOperation,
   type SyncIssueEntry,
@@ -81,4 +82,52 @@ test('recordSyncIssue keeps the ledger bounded to the newest entries', () => {
   assert.equal(ledger.length, 50);
   assert.equal(ledger[0].context, 'context-54');
   assert.equal(ledger.at(-1)?.context, 'context-5');
+});
+
+test('buildSyncIssueSummary exposes open issue counts and the latest open entries', () => {
+  const ledger: SyncIssueEntry[] = [
+    {
+      id: 'sync:players:network',
+      operation: 'Sincronizacao',
+      context: 'atleta "Ana"',
+      message: 'network down',
+      status: 'open',
+      count: 3,
+      firstSeenAt: '2026-07-07T12:00:00.000Z',
+      lastSeenAt: '2026-07-07T12:10:00.000Z',
+    },
+    {
+      id: 'upload:drafts:timeout',
+      operation: 'Envio para a nuvem',
+      context: 'rascunho',
+      message: 'timeout',
+      status: 'open',
+      count: 1,
+      firstSeenAt: '2026-07-07T12:01:00.000Z',
+      lastSeenAt: '2026-07-07T12:15:00.000Z',
+    },
+    {
+      id: 'sync:old:resolved',
+      operation: 'Sincronizacao',
+      context: 'antigo',
+      message: 'ok after retry',
+      status: 'resolved',
+      count: 2,
+      firstSeenAt: '2026-07-07T11:00:00.000Z',
+      lastSeenAt: '2026-07-07T11:05:00.000Z',
+      resolvedAt: '2026-07-07T11:10:00.000Z',
+    },
+  ];
+
+  const summary = buildSyncIssueSummary(ledger);
+
+  assert.equal(summary.openCount, 2);
+  assert.equal(summary.resolvedCount, 1);
+  assert.equal(summary.totalOpenOccurrences, 4);
+  assert.deepEqual(summary.openByOperation, {
+    'Envio para a nuvem': 1,
+    Sincronizacao: 1,
+  });
+  assert.equal(summary.latestOpen[0].context, 'rascunho');
+  assert.equal(summary.latestOpen[1].context, 'atleta "Ana"');
 });

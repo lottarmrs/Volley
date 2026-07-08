@@ -93,6 +93,14 @@ describe('useCloudSync issue ledger', () => {
       count: 1,
       firstSeenAt: '2026-07-07T12:00:00.000Z',
     });
+    expect(result.current.syncIssueSummary).toMatchObject({
+      openCount: 1,
+      totalOpenOccurrences: 1,
+    });
+    expect(result.current.syncIssues[0]).toMatchObject({
+      context: 'atleta "Ana"',
+      status: 'open',
+    });
   });
 
   it('resolves stored upload issues after a clean upload', async () => {
@@ -111,6 +119,11 @@ describe('useCloudSync issue ledger', () => {
     });
 
     expect(loadSyncIssueLedger()[0]).toMatchObject({
+      status: 'resolved',
+      resolvedAt: '2026-07-07T12:00:00.000Z',
+    });
+    expect(result.current.syncIssueSummary.openCount).toBe(0);
+    expect(result.current.syncIssues[0]).toMatchObject({
       status: 'resolved',
       resolvedAt: '2026-07-07T12:00:00.000Z',
     });

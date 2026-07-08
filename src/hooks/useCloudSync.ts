@@ -2,8 +2,11 @@ import { useRef, useState } from 'react';
 import { syncService, LocalSyncPayload } from '../services/supabase/syncService';
 import { normalizeGames, normalizeSessions } from '../logic/migrations';
 import {
+  buildSyncIssueSummary,
+  loadSyncIssueLedger,
   recordStoredSyncIssue,
   resolveStoredSyncIssuesForOperation,
+  type SyncIssueEntry,
 } from '../logic/syncIssueLedger';
 import {
   loadFromStorage,
@@ -78,6 +81,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
   const [syncLoading, setSyncLoading] = useState(false);
   const [status, setStatus] = useState<CloudSyncStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [syncIssues, setSyncIssues] = useState<SyncIssueEntry[]>(() => loadSyncIssueLedger());
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() =>
     loadFromStorage<string | null>(LAST_SYNCED_AT_KEY, null),
   );
@@ -148,12 +152,13 @@ export function useCloudSync(deps: CloudSyncDeps) {
     const onIssue = (context: string, e: unknown) => {
       const detail = e instanceof Error ? e.message : String(e);
       issues.push(`${context}: ${detail}`);
-      recordStoredSyncIssue({
+      const nextIssues = recordStoredSyncIssue({
         operation: label,
         context,
         error: e,
         occurredAt: new Date().toISOString(),
       });
+      setSyncIssues(nextIssues);
       console.error(`[sync] falha em ${context}`, e);
     };
 
@@ -169,21 +174,23 @@ export function useCloudSync(deps: CloudSyncDeps) {
           'error',
         );
       } else {
-        resolveStoredSyncIssuesForOperation({
+        const nextIssues = resolveStoredSyncIssuesForOperation({
           operation: label,
           resolvedAt: new Date().toISOString(),
         });
+        setSyncIssues(nextIssues);
         setStatus('success');
         deps.onToast?.(`${label} concluído.`, 'success');
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Falha na sincronização';
-      recordStoredSyncIssue({
+      const nextIssues = recordStoredSyncIssue({
         operation: label,
         context: label,
         error: e,
         occurredAt: new Date().toISOString(),
       });
+      setSyncIssues(nextIssues);
       setError(message);
       setStatus('error');
       deps.onToast?.(`${label} falhou: ${message}`, 'error');
@@ -221,5 +228,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     lastSyncedAt,
     status,
     error,
+    syncIssues,
+    syncIssueSummary: buildSyncIssueSummary(syncIssues),
   };
 }

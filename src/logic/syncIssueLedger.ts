@@ -28,6 +28,14 @@ export interface SyncIssueResolution {
   resolvedAt: string;
 }
 
+export interface SyncIssueSummary {
+  openCount: number;
+  resolvedCount: number;
+  totalOpenOccurrences: number;
+  openByOperation: Record<string, number>;
+  latestOpen: SyncIssueEntry[];
+}
+
 export function recordSyncIssue(
   ledger: SyncIssueEntry[],
   input: SyncIssueInput,
@@ -80,6 +88,24 @@ export function resolveSyncIssuesForOperation(
         }
       : issue,
   );
+}
+
+export function buildSyncIssueSummary(ledger: SyncIssueEntry[]): SyncIssueSummary {
+  const open = ledger.filter((issue) => issue.status === 'open');
+  const resolved = ledger.filter((issue) => issue.status === 'resolved');
+  const openByOperation: Record<string, number> = {};
+
+  for (const issue of open) {
+    openByOperation[issue.operation] = (openByOperation[issue.operation] || 0) + 1;
+  }
+
+  return {
+    openCount: open.length,
+    resolvedCount: resolved.length,
+    totalOpenOccurrences: open.reduce((total, issue) => total + issue.count, 0),
+    openByOperation,
+    latestOpen: [...open].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt)).slice(0, 5),
+  };
 }
 
 export function loadSyncIssueLedger(): SyncIssueEntry[] {

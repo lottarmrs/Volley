@@ -15,6 +15,7 @@ import {
   Loader2,
   Users,
   Wrench,
+  History,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 import { fetchAccountPlayerLinkQuery } from '../../application/playerLinkUseCases';
@@ -154,6 +155,7 @@ export function AccountSyncView({
           totalOpenOccurrences: syncIssueSummary.totalOpenOccurrences,
         }
       : null;
+  const recentOpenSyncIssues = syncIssueSummary?.latestOpen ?? [];
 
   const handleAction = async (name: string, fn: () => Promise<void>) => {
     setError(null);
@@ -363,6 +365,40 @@ export function AccountSyncView({
                 </>
               )}
             </button>
+
+            {recentOpenSyncIssues.length ? (
+              <div className="bg-base-100 border border-base-300 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-base-content/50" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-base-content/60">
+                    Historico recente de falhas
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {recentOpenSyncIssues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      className="border border-base-300 rounded-lg p-3 bg-base-200/60"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <p className="text-xs font-black text-base-content">
+                          {issue.operation}
+                        </p>
+                        <span className="badge badge-warning badge-soft text-[9px] font-black uppercase">
+                          {issue.count} tentativa(s)
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-bold text-base-content/60 mt-1">
+                        {issue.context}
+                      </p>
+                      <p className="text-[10px] text-base-content/55 mt-1 break-words">
+                        {issue.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

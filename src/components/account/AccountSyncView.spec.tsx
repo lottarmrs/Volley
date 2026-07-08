@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountSyncView } from './AccountSyncView';
-import type { RecoverableSyncActions, SyncIssueSummary } from '../../logic/syncIssueLedger';
+import type {
+  RecoverableSyncActions,
+  SyncIssueEntry,
+  SyncIssueSummary,
+} from '../../logic/syncIssueLedger';
 
 function recoverableActions(
   overrides: Partial<RecoverableSyncActions> = {},
@@ -24,6 +28,20 @@ function issueSummary(overrides: Partial<SyncIssueSummary> = {}): SyncIssueSumma
     totalOpenOccurrences: 0,
     openByOperation: {},
     latestOpen: [],
+    ...overrides,
+  };
+}
+
+function openIssue(overrides: Partial<SyncIssueEntry> = {}): SyncIssueEntry {
+  return {
+    id: 'sincronizacao-atleta-rls',
+    operation: 'Sincronizacao completa',
+    context: 'atleta Ana',
+    message: 'new row violates row-level security policy',
+    status: 'open',
+    count: 3,
+    firstSeenAt: '2026-07-08T18:00:00.000Z',
+    lastSeenAt: '2026-07-08T18:10:00.000Z',
     ...overrides,
   };
 }
@@ -85,5 +103,21 @@ describe('AccountSyncView sync recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: /Tentar sincronizar novamente/i }));
 
     expect(onRetryPrimarySyncAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the latest open sync issues as an operational history', () => {
+    renderAccount({
+      syncIssueSummary: issueSummary({
+        openCount: 1,
+        totalOpenOccurrences: 3,
+        latestOpen: [openIssue()],
+      }),
+    });
+
+    expect(screen.getByText('Historico recente de falhas')).toBeTruthy();
+    expect(screen.getByText('Sincronizacao completa')).toBeTruthy();
+    expect(screen.getByText('atleta Ana')).toBeTruthy();
+    expect(screen.getByText('new row violates row-level security policy')).toBeTruthy();
+    expect(screen.getByText('3 tentativa(s)')).toBeTruthy();
   });
 });

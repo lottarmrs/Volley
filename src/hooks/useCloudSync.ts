@@ -4,6 +4,7 @@ import { normalizeGames, normalizeSessions } from '../logic/migrations';
 import {
   buildRecoverableSyncActions,
   buildSyncIssueSummary,
+  clearStoredResolvedSyncIssues,
   loadSyncIssueLedger,
   recordStoredSyncIssue,
   resolveStoredSyncIssuesForOperation,
@@ -223,6 +224,11 @@ export function useCloudSync(deps: CloudSyncDeps) {
     if (recoverableSyncActions.primaryAction === 'download') return downloadFromCloud();
   };
 
+  const clearResolvedSyncIssues = () => {
+    const nextIssues = clearStoredResolvedSyncIssues();
+    setSyncIssues(nextIssues);
+  };
+
   const repairDuplicateCloudData = () =>
     run('Saneamento de duplicatas', (_payload, userId, onIssue) =>
       syncService.repairDuplicateCloudData(userId, { onIssue }),
@@ -241,5 +247,6 @@ export function useCloudSync(deps: CloudSyncDeps) {
     syncIssueSummary: buildSyncIssueSummary(syncIssues),
     recoverableSyncActions,
     retryPrimarySyncAction,
+    clearResolvedSyncIssues,
   };
 }

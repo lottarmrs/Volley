@@ -44,6 +44,7 @@ interface AccountSyncViewProps {
   recoverableSyncActions?: RecoverableSyncActions;
   syncIssueSummary?: SyncIssueSummary;
   onRetryPrimarySyncAction?: () => Promise<void> | void;
+  onClearResolvedSyncIssues?: () => Promise<void> | void;
 }
 
 export function AccountSyncView({
@@ -65,6 +66,7 @@ export function AccountSyncView({
   recoverableSyncActions,
   syncIssueSummary,
   onRetryPrimarySyncAction,
+  onClearResolvedSyncIssues,
 }: AccountSyncViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -156,6 +158,7 @@ export function AccountSyncView({
         }
       : null;
   const recentOpenSyncIssues = syncIssueSummary?.latestOpen ?? [];
+  const resolvedSyncIssueCount = syncIssueSummary?.resolvedCount ?? 0;
 
   const handleAction = async (name: string, fn: () => Promise<void>) => {
     setError(null);
@@ -397,6 +400,25 @@ export function AccountSyncView({
                     </div>
                   ))}
                 </div>
+              </div>
+            ) : null}
+
+            {resolvedSyncIssueCount > 0 && onClearResolvedSyncIssues ? (
+              <div className="bg-base-100 border border-base-300 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-[10px] font-bold text-base-content/60">
+                  {resolvedSyncIssueCount} falha(s) resolvida(s) no historico local
+                </p>
+                <button
+                  onClick={() =>
+                    handleAction('Limpar falhas resolvidas', async () => {
+                      await onClearResolvedSyncIssues();
+                    })
+                  }
+                  disabled={actionLoading || syncLoading}
+                  className="btn btn-ghost btn-xs uppercase text-[10px] font-black tracking-wider"
+                >
+                  Limpar resolvidas
+                </button>
               </div>
             ) : null}
           </div>

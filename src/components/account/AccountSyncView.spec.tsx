@@ -74,6 +74,7 @@ function renderAccount(overrides: Partial<Parameters<typeof AccountSyncView>[0]>
       recoverableSyncActions={recoverableActions()}
       syncIssueSummary={issueSummary()}
       onRetryPrimarySyncAction={vi.fn()}
+      onClearResolvedSyncIssues={vi.fn()}
       {...overrides}
     />,
   );
@@ -119,5 +120,20 @@ describe('AccountSyncView sync recovery', () => {
     expect(screen.getByText('atleta Ana')).toBeTruthy();
     expect(screen.getByText('new row violates row-level security policy')).toBeTruthy();
     expect(screen.getByText('3 tentativa(s)')).toBeTruthy();
+  });
+
+  it('offers an action to clear resolved sync issues', () => {
+    const onClearResolvedSyncIssues = vi.fn();
+
+    renderAccount({
+      syncIssueSummary: issueSummary({
+        resolvedCount: 2,
+      }),
+      onClearResolvedSyncIssues,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Limpar resolvidas/i }));
+
+    expect(onClearResolvedSyncIssues).toHaveBeenCalledTimes(1);
   });
 });

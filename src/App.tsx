@@ -1085,6 +1085,7 @@ export default function App() {
             recoverableSyncActions={cloudSync.recoverableSyncActions}
             syncIssueSummary={cloudSync.syncIssueSummary}
             onRetryPrimarySyncAction={cloudSync.retryPrimarySyncAction}
+            onClearResolvedSyncIssues={cloudSync.clearResolvedSyncIssues}
           />
         );
 

@@ -101,6 +101,10 @@ export function resolveSyncIssuesForOperation(
   );
 }
 
+export function clearResolvedSyncIssues(ledger: SyncIssueEntry[]): SyncIssueEntry[] {
+  return ledger.filter((issue) => issue.status !== 'resolved');
+}
+
 export function buildSyncIssueSummary(ledger: SyncIssueEntry[]): SyncIssueSummary {
   const open = ledger.filter((issue) => issue.status === 'open');
   const resolved = ledger.filter((issue) => issue.status === 'resolved');
@@ -160,6 +164,12 @@ export function resolveStoredSyncIssuesForOperation(
   resolution: SyncIssueResolution,
 ): SyncIssueEntry[] {
   const next = resolveSyncIssuesForOperation(loadSyncIssueLedger(), resolution);
+  saveSyncIssueLedger(next);
+  return next;
+}
+
+export function clearStoredResolvedSyncIssues(): SyncIssueEntry[] {
+  const next = clearResolvedSyncIssues(loadSyncIssueLedger());
   saveSyncIssueLedger(next);
   return next;
 }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildSyncIssueSummary,
   buildRecoverableSyncActions,
+  clearResolvedSyncIssues,
   recordSyncIssue,
   resolveSyncIssuesForOperation,
   type SyncIssueEntry,
@@ -66,6 +67,37 @@ test('resolveSyncIssuesForOperation closes only open issues for the completed op
   assert.equal(resolved[0].resolvedAt, '2026-07-07T12:10:00.000Z');
   assert.equal(resolved[1].status, 'open');
   assert.equal(resolved[1].resolvedAt, undefined);
+});
+
+test('clearResolvedSyncIssues removes resolved items and keeps open issues', () => {
+  const ledger: SyncIssueEntry[] = [
+    {
+      id: 'sync:players:network',
+      operation: 'Sincronizacao',
+      context: 'atleta "Ana"',
+      message: 'network down',
+      status: 'open',
+      count: 1,
+      firstSeenAt: '2026-07-07T12:00:00.000Z',
+      lastSeenAt: '2026-07-07T12:00:00.000Z',
+    },
+    {
+      id: 'sync:old:resolved',
+      operation: 'Sincronizacao',
+      context: 'antigo',
+      message: 'ok after retry',
+      status: 'resolved',
+      count: 2,
+      firstSeenAt: '2026-07-07T11:00:00.000Z',
+      lastSeenAt: '2026-07-07T11:05:00.000Z',
+      resolvedAt: '2026-07-07T11:10:00.000Z',
+    },
+  ];
+
+  const cleaned = clearResolvedSyncIssues(ledger);
+
+  assert.equal(cleaned.length, 1);
+  assert.equal(cleaned[0].id, 'sync:players:network');
 });
 
 test('recordSyncIssue keeps the ledger bounded to the newest entries', () => {

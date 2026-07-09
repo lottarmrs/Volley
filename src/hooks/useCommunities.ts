@@ -4,6 +4,15 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localSt
 import { normalizeCommunities } from '../logic/migrations';
 import { generateUUID } from '../logic/uuid';
 
+function normalizeCommunityName(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 export function useCommunities() {
   const [communities, setCommunities] = useState<Community[]>(() =>
     normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, [])),
@@ -27,6 +36,17 @@ export function useCommunities() {
       const errors: Record<string, string> = {};
       if (!editingCommunity.name.trim()) {
         errors.name = 'O nome da comunidade é obrigatório.';
+      }
+
+      const duplicate = communities.find(
+        (community) =>
+          community.id !== editingCommunity.id &&
+          !community.deletedAt &&
+          !community.archived &&
+          normalizeCommunityName(community.name) === normalizeCommunityName(editingCommunity.name),
+      );
+      if (duplicate && !errors.name) {
+        errors.name = `Ja existe uma comunidade com esse nome: ${duplicate.name}.`;
       }
 
       if (Object.keys(errors).length > 0) {
@@ -119,6 +139,23 @@ export function useCommunities() {
       if (!allowed) {
         throw new Error('PERMISSION_DENIED');
       }
+      const current = communities.find((community) => community.id === communityId);
+      const nextName = patch.name ?? current?.name;
+      const duplicate = nextName
+        ? communities.find(
+            (community) =>
+              community.id !== communityId &&
+              !community.deletedAt &&
+              !community.archived &&
+              normalizeCommunityName(community.name) === normalizeCommunityName(nextName),
+          )
+        : undefined;
+      if (duplicate) {
+        setValidationErrors({
+          name: `Ja existe uma comunidade com esse nome: ${duplicate.name}.`,
+        });
+        return false;
+      }
       setCommunities((prev) =>
         prev.map((community) =>
           community.id === communityId
@@ -126,8 +163,10 @@ export function useCommunities() {
             : community,
         ),
       );
+      setValidationErrors({});
+      return true;
     },
-    [],
+    [communities],
   );
 
   const addCommunity = useCallback((input: Partial<Community>) => {

@@ -144,7 +144,7 @@ interface CommunitiesViewProps {
   rulesApi: RulesApi;
   onBack: () => void;
   onAddCommunity: (input: Partial<Community>) => Community;
-  onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => void;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
   onDeleteCommunity: (communityId: string) => void;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
@@ -389,7 +389,7 @@ function CommunityCard({
   sessionReports: SessionReport[];
   onOpen: () => void;
   onCreateSession: () => void;
-  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => void;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onDeleteCommunity: (communityId: string) => void;
 }) {
@@ -753,11 +753,12 @@ function CommunityDetailView({
           }}
           onUpdateCommunity={(id, patch) => {
             try {
-              onUpdateCommunity(id, patch, permissions.canEditRules);
+              return onUpdateCommunity(id, patch, permissions.canEditRules);
             } catch (err: any) {
               if (err.message === 'PERMISSION_DENIED') {
                 alert('Erro: Ação não autorizada pelo nível de permissão.');
               }
+              return false;
             }
           }}
           canEditRules={permissions.canEditRules}
@@ -770,11 +771,12 @@ function CommunityDetailView({
           sessions={sessions}
           onUpdateCommunity={(id, patch) => {
             try {
-              onUpdateCommunity(id, patch, permissions.canEditRules);
+              return onUpdateCommunity(id, patch, permissions.canEditRules);
             } catch (err: any) {
               if (err.message === 'PERMISSION_DENIED') {
                 alert('Erro: Ação não autorizada pelo nível de permissão.');
               }
+              return false;
             }
           }}
           onDeleteCommunity={(id) => {
@@ -1913,7 +1915,7 @@ function CommunityRulesTab({
   community: Community;
   rules: CommunityRules;
   onSave: (rules: CommunityRules) => void;
-  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => void;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
   canEditRules?: boolean;
 }) {
   const [draft, setDraft] = useState<CommunityRules>(rules);
@@ -2118,12 +2120,14 @@ function Field({
   onChange,
   type = 'text',
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
   type?: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  error?: string;
 }) {
   return (
     <label className="form-control">
@@ -2135,6 +2139,7 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
       />
+      {error && <span className="label-text-alt text-error">{error}</span>}
     </label>
   );
 }
@@ -2179,7 +2184,7 @@ function CommunityDataTab({
   community: Community;
   players: Player[];
   sessions: Session[];
-  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => void;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
   onDeleteCommunity: (communityId: string) => void;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onClearCommunityHistory: (communityId: string) => void;
@@ -2189,8 +2194,12 @@ function CommunityDataTab({
 }) {
   const [draft, setDraft] = useState<Community>(community);
   const [confirm, setConfirm] = useState<'delete' | 'history' | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
-  const save = () => onUpdateCommunity(community.id, draft);
+  const save = () => {
+    const saved = onUpdateCommunity(community.id, draft);
+    setNameError(saved ? null : 'Ja existe uma comunidade com esse nome.');
+  };
 
   return (
     <div className="space-y-4">
@@ -2207,8 +2216,12 @@ function CommunityDataTab({
           <Field
             label="Nome"
             value={draft.name}
-            onChange={(value) => setDraft({ ...draft, name: value })}
+            onChange={(value) => {
+              setDraft({ ...draft, name: value });
+              setNameError(null);
+            }}
             disabled={!canEditRules}
+            error={nameError || undefined}
           />
           <label className="form-control">
             <span className="label-text">Descricao</span>

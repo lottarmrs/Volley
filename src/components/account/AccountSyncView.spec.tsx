@@ -136,4 +136,17 @@ describe('AccountSyncView sync recovery', () => {
 
     expect(onClearResolvedSyncIssues).toHaveBeenCalledTimes(1);
   });
+
+  it('shows cloud health attention when open sync issues exist', () => {
+    renderAccount({
+      syncIssueSummary: issueSummary({
+        openCount: 1,
+        totalOpenOccurrences: 3,
+      }),
+    });
+
+    expect(screen.getByText('Diagnostico da nuvem')).toBeTruthy();
+    expect(screen.getByText('Requer atencao')).toBeTruthy();
+    expect(screen.getByText('1 falha(s) aberta(s), 3 ocorrencia(s)')).toBeTruthy();
+  });
 });

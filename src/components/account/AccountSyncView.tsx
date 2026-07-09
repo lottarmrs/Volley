@@ -18,6 +18,7 @@ import {
   History,
 } from 'lucide-react';
 import { AuthForm } from './AuthForm';
+import { buildCloudHealthViewModel } from '../../application/cloudHealthViewModel';
 import { fetchAccountPlayerLinkQuery } from '../../application/playerLinkUseCases';
 import { buildAccountPlayerLinkViewModel } from '../../application/playerLinkViewModel';
 import type { RecoverableSyncActions, SyncIssueSummary } from '../../logic/syncIssueLedger';
@@ -159,6 +160,19 @@ export function AccountSyncView({
       : null;
   const recentOpenSyncIssues = syncIssueSummary?.latestOpen ?? [];
   const resolvedSyncIssueCount = syncIssueSummary?.resolvedCount ?? 0;
+  const cloudHealth = buildCloudHealthViewModel({
+    isSupabaseConfigured,
+    hasUser: !!user,
+    lastSyncedAt,
+    openIssueCount: syncIssueSummary?.openCount ?? 0,
+    totalOpenOccurrences: syncIssueSummary?.totalOpenOccurrences ?? 0,
+  });
+  const cloudHealthTone =
+    cloudHealth.level === 'operational'
+      ? 'border-success/25 bg-success/10 text-success'
+      : cloudHealth.level === 'attention'
+        ? 'border-warning/25 bg-warning/10 text-warning'
+        : 'border-error/25 bg-error/10 text-error';
 
   const handleAction = async (name: string, fn: () => Promise<void>) => {
     setError(null);
@@ -278,6 +292,25 @@ export function AccountSyncView({
               <div className="stat-desc text-[9px] font-medium text-base-content/40 flex items-center gap-1 mt-1">
                 <Calendar className="w-3 h-3" />
                 Estratégia: Última modificação vence (LWW)
+              </div>
+            </div>
+          </div>
+
+          <div className={`border rounded-xl p-4 ${cloudHealthTone}`}>
+            <div className="flex items-start gap-3">
+              {cloudHealth.level === 'operational' ? (
+                <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              )}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
+                  Diagnostico da nuvem
+                </p>
+                <p className="text-sm font-black uppercase tracking-tight mt-1">
+                  {cloudHealth.title}
+                </p>
+                <p className="text-[10px] font-bold opacity-70 mt-0.5">{cloudHealth.detail}</p>
               </div>
             </div>
           </div>

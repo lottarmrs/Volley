@@ -4,6 +4,7 @@ export interface CloudHealthInput {
   isSupabaseConfigured: boolean;
   hasUser: boolean;
   lastSyncedAt: string | null;
+  checkedAt?: string;
   openIssueCount: number;
   totalOpenOccurrences: number;
 }
@@ -39,6 +40,14 @@ export function buildCloudHealthViewModel(input: CloudHealthInput): CloudHealthV
     };
   }
 
+  if (isLastSyncStale(input.lastSyncedAt, input.checkedAt)) {
+    return {
+      level: 'attention',
+      title: 'Backup desatualizado',
+      detail: 'Ultima sincronizacao ha mais de 48h',
+    };
+  }
+
   return {
     level: 'operational',
     title: 'Operacional',
@@ -46,4 +55,15 @@ export function buildCloudHealthViewModel(input: CloudHealthInput): CloudHealthV
       ? 'Ultima sincronizacao registrada'
       : 'Pronto para primeira sincronizacao',
   };
+}
+
+function isLastSyncStale(lastSyncedAt: string | null, checkedAt?: string): boolean {
+  if (!lastSyncedAt) return false;
+
+  const lastSyncTime = Date.parse(lastSyncedAt);
+  const checkedTime = checkedAt ? Date.parse(checkedAt) : Date.now();
+  if (!Number.isFinite(lastSyncTime) || !Number.isFinite(checkedTime)) return false;
+
+  const staleThresholdMs = 48 * 60 * 60 * 1000;
+  return checkedTime - lastSyncTime > staleThresholdMs;
 }

@@ -42,3 +42,18 @@ test('cloud health reports operational when configured and clean', () => {
   assert.equal(health.title, 'Operacional');
   assert.equal(health.detail, 'Ultima sincronizacao registrada');
 });
+
+test('cloud health asks for attention when last sync is stale', () => {
+  const health = buildCloudHealthViewModel({
+    isSupabaseConfigured: true,
+    hasUser: true,
+    lastSyncedAt: '2026-07-06T03:00:00.000Z',
+    checkedAt: '2026-07-09T03:00:00.000Z',
+    openIssueCount: 0,
+    totalOpenOccurrences: 0,
+  });
+
+  assert.equal(health.level, 'attention');
+  assert.equal(health.title, 'Backup desatualizado');
+  assert.equal(health.detail, 'Ultima sincronizacao ha mais de 48h');
+});

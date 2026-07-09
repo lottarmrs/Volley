@@ -271,7 +271,7 @@ function chooseCommunityCanonical(group: Community[]): Community {
   })[0];
 }
 
-function choosePlayerCanonical(group: Player[]): Player {
+function choosePlayerCanonical(local: LocalSyncPayload, group: Player[]): Player {
   return [...group].sort((a, b) => {
     const linkedDelta = Number(!!b.userId) - Number(!!a.userId);
     if (linkedDelta !== 0) return linkedDelta;
@@ -281,6 +281,9 @@ function choosePlayerCanonical(group: Player[]): Player {
 
     const usernameDelta = Number(!!b.username) - Number(!!a.username);
     if (usernameDelta !== 0) return usernameDelta;
+
+    const activityDelta = playerActivityScore(local, b.id) - playerActivityScore(local, a.id);
+    if (activityDelta !== 0) return activityDelta;
 
     const timeDelta = timestampMs(getSyncTimestamp(b)) - timestampMs(getSyncTimestamp(a));
     if (timeDelta !== 0) return timeDelta;
@@ -305,6 +308,71 @@ function groupActiveDuplicates<T extends Syncable>(
     groups.set(key, current);
   }
   return Array.from(groups.values()).filter((group) => group.length > 1);
+}
+
+function hasId(values: unknown, id: string): boolean {
+  return Array.isArray(values) && values.includes(id);
+}
+
+function countRecordKey(record: unknown, id: string): number {
+  return record && typeof record === 'object' && id in record ? 1 : 0;
+}
+
+function countPlayerPairs(pairs: unknown, id: string): number {
+  if (!Array.isArray(pairs)) return 0;
+  return pairs.filter((pair) => Array.isArray(pair) && pair.includes(id)).length;
+}
+
+function playerActivityScore(local: LocalSyncPayload, id: string): number {
+  let score = 0;
+
+  for (const point of local.pointEvents || []) {
+    if (point.playerId === id) score += 20;
+    if (point.assistPlayerId === id) score += 8;
+  }
+
+  for (const session of local.sessions || []) {
+    if (hasId(session.selectedPlayerIds, id)) score += 2;
+    score += countRecordKey(session.config?.playerPositions, id);
+    score += countRecordKey(session.config?.balanceConstraints?.lockedPlayerIdxs, id);
+    score += countPlayerPairs(session.config?.balanceConstraints?.pairsTogether, id);
+    score += countPlayerPairs(session.config?.balanceConstraints?.pairsSeparated, id);
+  }
+
+  for (const team of local.teams || []) {
+    if (hasId(team.playerIds, id)) score += 2;
+  }
+
+  for (const presence of local.presenceRecords || []) {
+    score += (presence.items || []).filter((item) => item.playerId === id).length;
+  }
+
+  for (const draft of local.drafts || []) {
+    for (const slot of [
+      ...(draft.setters || []),
+      ...(draft.mainSlots || []),
+      ...(draft.reserveSlots || []),
+    ]) {
+      if (slot.playerId === id) score += 1;
+    }
+  }
+
+  for (const report of local.gameReports || []) {
+    if (hasId(report.teamA?.playerIds, id)) score += 1;
+    if (hasId(report.teamB?.playerIds, id)) score += 1;
+    score += (report.playerStats || []).filter((row) => row.playerId === id).length;
+  }
+
+  for (const report of local.sessionReports || []) {
+    score += (report.playerRanking || []).filter((row) => row.playerId === id).length;
+    for (const game of report.games || []) {
+      if (hasId(game.teamA?.playerIds, id)) score += 1;
+      if (hasId(game.teamB?.playerIds, id)) score += 1;
+      score += (game.playerStats || []).filter((row) => row.playerId === id).length;
+    }
+  }
+
+  return score;
 }
 
 function dedupeByLatest<T extends Syncable>(
@@ -607,17 +675,13 @@ function shouldSkipOwnerAutoApprovedProposal(
   playerCloudOwner: string | undefined,
 ): boolean {
   return (
-    proposal.status === 'approved' &&
-    proposal.userId === ownerId &&
-    playerCloudOwner === ownerId
+    proposal.status === 'approved' && proposal.userId === ownerId && playerCloudOwner === ownerId
   );
 }
 
 function shouldSyncPlayerUnlink(player: Player): boolean {
   return (
-    player.pendingUserLinkAction === 'unlink' &&
-    !!player.cloudId &&
-    player.syncStatus === 'pending'
+    player.pendingUserLinkAction === 'unlink' && !!player.cloudId && player.syncStatus === 'pending'
   );
 }
 
@@ -795,7 +859,7 @@ export function consolidateDuplicateRecords(
   });
 
   for (const group of playerGroups) {
-    const canonical = choosePlayerCanonical(group);
+    const canonical = choosePlayerCanonical(local, group);
     const communityIds = new Set<string>();
     for (const player of group) {
       for (const communityId of player.communityIds || []) {
@@ -1040,6 +1104,8 @@ export const syncService = {
     ownerId: string,
     options: UploadOptions = {},
   ): Promise<LocalSyncPayload> {
+    local = consolidateDuplicateRecords(local, { ownerId }).payload;
+
     const onIssue = options.onIssue || (() => {});
     const syncedAt = nowIso();
 
@@ -1518,40 +1584,51 @@ export const syncService = {
     ownerId: string,
     options: SyncOptions = {},
   ): Promise<LocalSyncPayload> {
+    const repairedLocal = consolidateDuplicateRecords(local, { ownerId }).payload;
     const cloud = await this.downloadCloudDataToLocal(ownerId);
 
     const merged: LocalSyncPayload = {
-      communities: mergeEntityLists<Community>(local.communities, cloud.communities, {
+      communities: mergeEntityLists<Community>(repairedLocal.communities, cloud.communities, {
         getId: (item) => item.id,
         getSemanticKey: (community) => communitySemanticKey(community),
       }),
-      players: mergeEntityLists<Player>(local.players, cloud.players, {
+      players: mergeEntityLists<Player>(repairedLocal.players, cloud.players, {
         getId: (item) => item.id,
         getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
         getSemanticKey: (player) => playerSemanticKey(player),
       }),
-      rules: mergeEntityLists(local.rules, cloud.rules, { getId: (item) => item.communityId }),
-      templates: mergeEntityLists(local.templates, cloud.templates, { getId: (item) => item.id }),
-      sessions: mergeEntityLists(local.sessions, cloud.sessions, { getId: (item) => item.id }),
-      teams: mergeEntityLists(local.teams, cloud.teams, { getId: (item) => item.id }),
-      games: mergeEntityLists(local.games, cloud.games, { getId: (item) => item.id }),
-      pointEvents: mergeEntityLists(local.pointEvents, cloud.pointEvents, {
+      rules: mergeEntityLists(repairedLocal.rules, cloud.rules, {
+        getId: (item) => item.communityId,
+      }),
+      templates: mergeEntityLists(repairedLocal.templates, cloud.templates, {
         getId: (item) => item.id,
       }),
-      gameReports: mergeEntityLists(local.gameReports, cloud.gameReports, {
+      sessions: mergeEntityLists(repairedLocal.sessions, cloud.sessions, {
         getId: (item) => item.id,
       }),
-      sessionReports: mergeEntityLists(local.sessionReports, cloud.sessionReports, {
+      teams: mergeEntityLists(repairedLocal.teams, cloud.teams, { getId: (item) => item.id }),
+      games: mergeEntityLists(repairedLocal.games, cloud.games, { getId: (item) => item.id }),
+      pointEvents: mergeEntityLists(repairedLocal.pointEvents, cloud.pointEvents, {
         getId: (item) => item.id,
       }),
-      presenceRecords: mergeEntityLists(local.presenceRecords, cloud.presenceRecords, {
+      gameReports: mergeEntityLists(repairedLocal.gameReports, cloud.gameReports, {
+        getId: (item) => item.id,
+      }),
+      sessionReports: mergeEntityLists(repairedLocal.sessionReports, cloud.sessionReports, {
+        getId: (item) => item.id,
+      }),
+      presenceRecords: mergeEntityLists(repairedLocal.presenceRecords, cloud.presenceRecords, {
         getId: (item) => `${item.communityId}:${item.date}`,
       }),
-      drafts: mergeEntityLists(local.drafts, cloud.drafts, { getId: (item) => item.id }),
-      linkProposals: mergeEntityLists(local.linkProposals || [], cloud.linkProposals || [], {
-        getId: (item) => item.id,
-        getUpdatedAt: getPlayerLinkProposalSyncTimestamp,
-      }),
+      drafts: mergeEntityLists(repairedLocal.drafts, cloud.drafts, { getId: (item) => item.id }),
+      linkProposals: mergeEntityLists(
+        repairedLocal.linkProposals || [],
+        cloud.linkProposals || [],
+        {
+          getId: (item) => item.id,
+          getUpdatedAt: getPlayerLinkProposalSyncTimestamp,
+        },
+      ),
     };
 
     return this.uploadLocalDataToCloud(merged, ownerId, {

@@ -167,6 +167,379 @@ export function sanitizeImportedBackup(val: any): any {
   return val;
 }
 
+function normalizeImportText(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function playerImportKey(player: any): string | undefined {
+  const username = normalizeImportText(player?.username);
+  if (username) return `username:${username}`;
+
+  const name = normalizeImportText(player?.nome);
+  if (!name) return undefined;
+
+  return [
+    'profile',
+    name,
+    normalizeImportText(player?.genero),
+    normalizeImportText(player?.posicaoPrincipal),
+    player?.alturaCm ?? '',
+  ].join(':');
+}
+
+function communityImportKey(community: any): string | undefined {
+  const name = normalizeImportText(community?.name);
+  return name ? `community:${name}` : undefined;
+}
+
+function groupDuplicates<T>(
+  items: T[] | undefined,
+  getKey: (item: T) => string | undefined,
+): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const item of items || []) {
+    if ((item as any)?.deletedAt) continue;
+    const key = getKey(item);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) || []), item]);
+  }
+  return Array.from(groups.values()).filter((group) => group.length > 1);
+}
+
+function timestampMs(value: unknown): number {
+  const time = value ? new Date(String(value)).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function hasId(values: unknown, id: string): boolean {
+  return Array.isArray(values) && values.includes(id);
+}
+
+function countObjectKeys(record: unknown, id: string): number {
+  return record && typeof record === 'object' && id in record ? 1 : 0;
+}
+
+function countPairRefs(pairs: unknown, id: string): number {
+  if (!Array.isArray(pairs)) return 0;
+  return pairs.filter((pair) => Array.isArray(pair) && pair.includes(id)).length;
+}
+
+function playerActivityScore(data: any, id: string): number {
+  let score = 0;
+
+  for (const point of data.pointEvents || []) {
+    if (point?.playerId === id) score += 20;
+    if (point?.assistPlayerId === id) score += 8;
+  }
+
+  for (const session of data.sessions || []) {
+    if (hasId(session?.selectedPlayerIds, id)) score += 2;
+    score += countObjectKeys(session?.config?.playerPositions, id);
+    score += countObjectKeys(session?.config?.balanceConstraints?.lockedPlayerIdxs, id);
+    score += countPairRefs(session?.config?.balanceConstraints?.pairsTogether, id);
+    score += countPairRefs(session?.config?.balanceConstraints?.pairsSeparated, id);
+  }
+
+  for (const team of data.teams || []) {
+    if (hasId(team?.playerIds, id)) score += 2;
+  }
+
+  for (const presence of data.communityPresence || []) {
+    score += (presence?.items || []).filter((item: any) => item?.playerId === id).length;
+  }
+
+  for (const draft of data.whatsAppListDrafts || []) {
+    for (const slot of [
+      ...(draft?.setters || []),
+      ...(draft?.mainSlots || []),
+      ...(draft?.reserveSlots || []),
+    ]) {
+      if (slot?.playerId === id) score += 1;
+    }
+  }
+
+  for (const report of data.gameReports || []) {
+    if (hasId(report?.teamA?.playerIds, id)) score += 1;
+    if (hasId(report?.teamB?.playerIds, id)) score += 1;
+    score += (report?.playerStats || []).filter((row: any) => row?.playerId === id).length;
+  }
+
+  for (const report of data.sessionReports || []) {
+    score += (report?.playerRanking || []).filter((row: any) => row?.playerId === id).length;
+    for (const game of report?.games || []) {
+      if (hasId(game?.teamA?.playerIds, id)) score += 1;
+      if (hasId(game?.teamB?.playerIds, id)) score += 1;
+      score += (game?.playerStats || []).filter((row: any) => row?.playerId === id).length;
+    }
+  }
+
+  return score;
+}
+
+function chooseImportedPlayerCanonical(data: any, players: any[]): any {
+  return [...players].sort((a, b) => {
+    const activityDelta = playerActivityScore(data, b.id) - playerActivityScore(data, a.id);
+    if (activityDelta !== 0) return activityDelta;
+
+    const linkedDelta = Number(!!b.userId) - Number(!!a.userId);
+    if (linkedDelta !== 0) return linkedDelta;
+
+    const avatarDelta = Number(!!b.avatarUrl) - Number(!!a.avatarUrl);
+    if (avatarDelta !== 0) return avatarDelta;
+
+    const usernameDelta = Number(!!b.username) - Number(!!a.username);
+    if (usernameDelta !== 0) return usernameDelta;
+
+    const timeDelta =
+      timestampMs(b.updatedAt || b.metadata?.atualizadoEm) -
+      timestampMs(a.updatedAt || a.metadata?.atualizadoEm);
+    if (timeDelta !== 0) return timeDelta;
+
+    return String(a.id).localeCompare(String(b.id));
+  })[0];
+}
+
+function chooseImportedCommunityCanonical(data: any, communities: any[]): any {
+  return [...communities].sort((a, b) => {
+    const activityDelta = communityActivityScore(data, b.id) - communityActivityScore(data, a.id);
+    if (activityDelta !== 0) return activityDelta;
+
+    const timeDelta = timestampMs(b.updatedAt) - timestampMs(a.updatedAt);
+    if (timeDelta !== 0) return timeDelta;
+
+    return String(a.id).localeCompare(String(b.id));
+  })[0];
+}
+
+function communityActivityScore(data: any, id: string): number {
+  let score = 0;
+  for (const session of data.sessions || []) if (session?.communityId === id) score += 3;
+  for (const rule of data.communityRules || []) if (rule?.communityId === id) score += 2;
+  for (const presence of data.communityPresence || []) if (presence?.communityId === id) score += 2;
+  for (const template of data.whatsAppListTemplates || [])
+    if (template?.communityId === id) score += 1;
+  for (const draft of data.whatsAppListDrafts || []) if (draft?.communityId === id) score += 1;
+  return score;
+}
+
+function remapValue(value: any, idMap: Map<string, string>) {
+  return typeof value === 'string' && idMap.has(value) ? idMap.get(value) : value;
+}
+
+function remapArray(values: any, idMap: Map<string, string>): any {
+  if (!Array.isArray(values)) return values;
+  const unique = new Map<string, string>();
+  for (const value of values) {
+    const mapped = remapValue(value, idMap);
+    if (typeof mapped === 'string' && mapped) unique.set(mapped, mapped);
+  }
+  return Array.from(unique.values());
+}
+
+function remapRecordKeys(record: any, idMap: Map<string, string>): any {
+  if (!record || typeof record !== 'object') return record;
+  const remapped: Record<string, any> = {};
+  for (const [key, value] of Object.entries(record)) {
+    remapped[remapValue(key, idMap)] = value;
+  }
+  return remapped;
+}
+
+function remapPairs(pairs: any, idMap: Map<string, string>): any {
+  if (!Array.isArray(pairs)) return pairs;
+  const unique = new Map<string, [string, string]>();
+  for (const pair of pairs) {
+    if (!Array.isArray(pair)) continue;
+    const first = remapValue(pair[0], idMap);
+    const second = remapValue(pair[1], idMap);
+    if (!first || !second || first === second) continue;
+    const key = [first, second].sort().join(':');
+    unique.set(key, [first, second]);
+  }
+  return Array.from(unique.values());
+}
+
+function remapPlayerReferences(data: any, playerIdMap: Map<string, string>) {
+  if (playerIdMap.size === 0) return data;
+
+  return {
+    ...data,
+    players: (data.players || []).map((player: any) => ({
+      ...player,
+      communityIds: remapArray(player.communityIds, playerIdMap),
+    })),
+    sessions: (data.sessions || []).map((session: any) => ({
+      ...session,
+      selectedPlayerIds: remapArray(session.selectedPlayerIds, playerIdMap),
+      config: session.config
+        ? {
+            ...session.config,
+            playerPositions: remapRecordKeys(session.config.playerPositions, playerIdMap),
+            balanceConstraints: session.config.balanceConstraints
+              ? {
+                  ...session.config.balanceConstraints,
+                  lockedPlayerIdxs: remapRecordKeys(
+                    session.config.balanceConstraints.lockedPlayerIdxs,
+                    playerIdMap,
+                  ),
+                  pairsTogether: remapPairs(
+                    session.config.balanceConstraints.pairsTogether,
+                    playerIdMap,
+                  ),
+                  pairsSeparated: remapPairs(
+                    session.config.balanceConstraints.pairsSeparated,
+                    playerIdMap,
+                  ),
+                }
+              : session.config.balanceConstraints,
+          }
+        : session.config,
+    })),
+    teams: (data.teams || []).map((team: any) => ({
+      ...team,
+      playerIds: remapArray(team.playerIds, playerIdMap),
+    })),
+    pointEvents: (data.pointEvents || []).map((point: any) => ({
+      ...point,
+      playerId: remapValue(point.playerId, playerIdMap),
+      assistPlayerId: remapValue(point.assistPlayerId, playerIdMap),
+    })),
+    gameReports: (data.gameReports || []).map((report: any) => ({
+      ...report,
+      teamA: report.teamA
+        ? { ...report.teamA, playerIds: remapArray(report.teamA.playerIds, playerIdMap) }
+        : report.teamA,
+      teamB: report.teamB
+        ? { ...report.teamB, playerIds: remapArray(report.teamB.playerIds, playerIdMap) }
+        : report.teamB,
+      playerStats: (report.playerStats || []).map((row: any) => ({
+        ...row,
+        playerId: remapValue(row.playerId, playerIdMap),
+      })),
+    })),
+    sessionReports: (data.sessionReports || []).map((report: any) => ({
+      ...report,
+      playerRanking: (report.playerRanking || []).map((row: any) => ({
+        ...row,
+        playerId: remapValue(row.playerId, playerIdMap),
+      })),
+      games: (report.games || []).map((game: any) => ({
+        ...game,
+        teamA: game.teamA
+          ? { ...game.teamA, playerIds: remapArray(game.teamA.playerIds, playerIdMap) }
+          : game.teamA,
+        teamB: game.teamB
+          ? { ...game.teamB, playerIds: remapArray(game.teamB.playerIds, playerIdMap) }
+          : game.teamB,
+        playerStats: (game.playerStats || []).map((row: any) => ({
+          ...row,
+          playerId: remapValue(row.playerId, playerIdMap),
+        })),
+      })),
+    })),
+    communityPresence: (data.communityPresence || []).map((presence: any) => ({
+      ...presence,
+      items: (presence.items || []).map((item: any) => ({
+        ...item,
+        playerId: remapValue(item.playerId, playerIdMap),
+      })),
+    })),
+    whatsAppListDrafts: (data.whatsAppListDrafts || []).map((draft: any) => ({
+      ...draft,
+      setters: (draft.setters || []).map((slot: any) => ({
+        ...slot,
+        playerId: remapValue(slot.playerId, playerIdMap),
+      })),
+      mainSlots: (draft.mainSlots || []).map((slot: any) => ({
+        ...slot,
+        playerId: remapValue(slot.playerId, playerIdMap),
+      })),
+      reserveSlots: (draft.reserveSlots || []).map((slot: any) => ({
+        ...slot,
+        playerId: remapValue(slot.playerId, playerIdMap),
+      })),
+    })),
+  };
+}
+
+function remapCommunityReferences(data: any, communityIdMap: Map<string, string>) {
+  if (communityIdMap.size === 0) return data;
+
+  return {
+    ...data,
+    players: (data.players || []).map((player: any) => ({
+      ...player,
+      communityIds: remapArray(player.communityIds, communityIdMap),
+    })),
+    sessions: (data.sessions || []).map((session: any) => ({
+      ...session,
+      communityId: remapValue(session.communityId, communityIdMap),
+    })),
+    communityRules: (data.communityRules || []).map((rule: any) => ({
+      ...rule,
+      communityId: remapValue(rule.communityId, communityIdMap),
+    })),
+    communityPresence: (data.communityPresence || []).map((presence: any) => ({
+      ...presence,
+      communityId: remapValue(presence.communityId, communityIdMap),
+    })),
+    whatsAppListTemplates: (data.whatsAppListTemplates || []).map((template: any) => ({
+      ...template,
+      communityId: remapValue(template.communityId, communityIdMap),
+    })),
+    whatsAppListDrafts: (data.whatsAppListDrafts || []).map((draft: any) => ({
+      ...draft,
+      communityId: remapValue(draft.communityId, communityIdMap),
+    })),
+  };
+}
+
+export function sanitizeAndConsolidateImportedBackup(rawData: any): any {
+  let data = sanitizeImportedBackup(rawData);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+
+  const communityIdMap = new Map<string, string>();
+  for (const group of groupDuplicates(data.communities, communityImportKey)) {
+    const canonical = chooseImportedCommunityCanonical(data, group);
+    for (const community of group) {
+      if (community !== canonical) communityIdMap.set(community.id, canonical.id);
+    }
+  }
+
+  data = remapCommunityReferences(data, communityIdMap);
+  if (communityIdMap.size > 0) {
+    data.communities = (data.communities || []).filter(
+      (community: any) => !communityIdMap.has(community.id),
+    );
+  }
+
+  const playerIdMap = new Map<string, string>();
+  for (const group of groupDuplicates(data.players, playerImportKey)) {
+    const canonical = chooseImportedPlayerCanonical(data, group);
+    const communityIds = new Map<string, string>();
+    for (const player of group) {
+      for (const communityId of player.communityIds || []) {
+        const mapped = remapValue(communityId, communityIdMap);
+        if (mapped) communityIds.set(mapped, mapped);
+      }
+      if (player !== canonical) playerIdMap.set(player.id, canonical.id);
+    }
+    canonical.communityIds = Array.from(communityIds.values());
+  }
+
+  data = remapPlayerReferences(data, playerIdMap);
+  if (playerIdMap.size > 0) {
+    data.players = (data.players || []).filter((player: any) => !playerIdMap.has(player.id));
+  }
+
+  return data;
+}
+
 export function migrateLocalDbToUuids() {
   const isMigrated = localStorage.getItem('vpg_uuid_migration_completed') === 'true';
   if (isMigrated) return;

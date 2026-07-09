@@ -6,6 +6,7 @@ import {
   normalizeSessionDraft,
   normalizeSessions,
   normalizeTournamentConfig,
+  sanitizeAndConsolidateImportedBackup,
   sanitizeImportedBackup,
 } from './migrations';
 
@@ -124,4 +125,66 @@ test('sanitizeImportedBackup recursively removes cloudId/lastSyncedAt and sets s
       syncStatus: 'pending',
     },
   });
+});
+
+test('sanitizeAndConsolidateImportedBackup merges duplicate local players and remaps references', () => {
+  const imported = sanitizeAndConsolidateImportedBackup({
+    players: [
+      {
+        id: 'player-empty',
+        nome: 'Vitur',
+        genero: 'M',
+        posicaoPrincipal: 'oposto',
+        alturaCm: 176,
+        updatedAt: '2026-07-01T10:00:00.000Z',
+        cloudId: 'cloud-empty',
+        syncStatus: 'synced',
+      },
+      {
+        id: 'player-active',
+        nome: 'Vitur',
+        genero: 'M',
+        posicaoPrincipal: 'oposto',
+        alturaCm: 176,
+        updatedAt: '2026-06-01T10:00:00.000Z',
+        cloudId: 'cloud-active',
+        syncStatus: 'synced',
+      },
+    ],
+    sessions: [
+      {
+        id: 'session-1',
+        selectedPlayerIds: ['player-empty', 'player-active'],
+        config: {
+          playerPositions: { 'player-empty': 'oposto' },
+          balanceConstraints: {
+            lockedPlayerIdxs: { 'player-empty': 0 },
+            pairsTogether: [['player-empty', 'player-active']],
+          },
+        },
+      },
+    ],
+    teams: [{ id: 'team-1', playerIds: ['player-empty', 'player-active'] }],
+    pointEvents: [
+      {
+        id: 'point-1',
+        playerId: 'player-active',
+        assistPlayerId: 'player-empty',
+      },
+    ],
+  });
+
+  assert.equal(imported.players.length, 1);
+  assert.equal(imported.players[0].id, 'player-active');
+  assert.equal(imported.players[0].cloudId, undefined);
+  assert.equal(imported.players[0].syncStatus, 'pending');
+  assert.deepEqual(imported.sessions[0].selectedPlayerIds, ['player-active']);
+  assert.deepEqual(imported.teams[0].playerIds, ['player-active']);
+  assert.equal(imported.pointEvents[0].playerId, 'player-active');
+  assert.equal(imported.pointEvents[0].assistPlayerId, 'player-active');
+  assert.deepEqual(imported.sessions[0].config.playerPositions, { 'player-active': 'oposto' });
+  assert.deepEqual(imported.sessions[0].config.balanceConstraints.lockedPlayerIdxs, {
+    'player-active': 0,
+  });
+  assert.deepEqual(imported.sessions[0].config.balanceConstraints.pairsTogether, []);
 });

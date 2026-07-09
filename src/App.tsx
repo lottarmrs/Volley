@@ -66,7 +66,7 @@ import {
   normalizeCommunities,
   normalizeGames,
   normalizeSessions,
-  sanitizeImportedBackup,
+  sanitizeAndConsolidateImportedBackup,
   migrateLocalDbToUuids,
 } from './logic/migrations';
 import {
@@ -281,7 +281,7 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const rawData = JSON.parse(e.target?.result as string);
-        const data = sanitizeImportedBackup(rawData);
+        const data = sanitizeAndConsolidateImportedBackup(rawData);
         if (data.players) play.setPlayers(data.players);
         if (data.sessions) sess.setSessions(normalizeSessions(data.sessions));
         if (data.teams) sess.setTeams(data.teams);

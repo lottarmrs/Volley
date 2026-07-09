@@ -21,6 +21,7 @@ import {
   CommunityPresence,
   Player,
   PlayerLinkProposal,
+  PointEvent,
   Session,
   Team,
   WhatsAppListDraft,
@@ -1226,6 +1227,71 @@ test('syncNow accepts newer cloud player link reviews over stale local pending s
     assert.equal(result.linkProposals?.[0].status, 'approved');
     assert.equal(result.linkProposals?.[0].reviewedBy, 'admin-1');
     assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+  }
+});
+
+test('syncNow auto-repairs duplicate local players before uploading', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  let capturedMergedPayload: LocalSyncPayload | null = null;
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+      capturedMergedPayload = payload;
+      return payload;
+    };
+
+    const result = await syncService.syncNow(
+      emptyPayload({
+        players: [
+          {
+            id: 'player-empty',
+            nome: 'Vitur',
+            genero: 'M',
+            posicaoPrincipal: 'oposto',
+            alturaCm: 176,
+            updatedAt: '2026-07-01T10:00:00.000Z',
+          } as Player,
+          {
+            id: 'player-active',
+            nome: 'Vitur',
+            genero: 'M',
+            posicaoPrincipal: 'oposto',
+            alturaCm: 176,
+            updatedAt: '2026-06-01T10:00:00.000Z',
+          } as Player,
+        ],
+        sessions: [
+          {
+            id: 'session-1',
+            selectedPlayerIds: ['player-empty', 'player-active'],
+            updatedAt: '2026-07-01T10:00:00.000Z',
+          } as Session,
+        ],
+        pointEvents: [
+          {
+            id: 'point-1',
+            playerId: 'player-active',
+            assistPlayerId: 'player-empty',
+          } as PointEvent,
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(
+      capturedMergedPayload?.players
+        .filter((player) => !player.deletedAt)
+        .map((player) => player.id),
+      ['player-active'],
+    );
+    assert.deepEqual(result.sessions[0].selectedPlayerIds, ['player-active']);
+    assert.equal(result.pointEvents[0].playerId, 'player-active');
+    assert.equal(result.pointEvents[0].assistPlayerId, 'player-active');
   } finally {
     syncService.downloadCloudDataToLocal = originalDownload;
     syncService.uploadLocalDataToCloud = originalUpload;

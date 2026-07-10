@@ -13,6 +13,23 @@ function normalizeCommunityName(value: unknown): string {
     .replace(/\s+/g, ' ');
 }
 
+function uniqueCommunityName(baseName: string, communities: Community[]): string {
+  const base = baseName.trim() || 'Nova comunidade';
+  const existingNames = new Set(
+    communities
+      .filter((community) => !community.deletedAt && !community.archived)
+      .map((community) => normalizeCommunityName(community.name)),
+  );
+
+  let candidate = base;
+  let suffix = 2;
+  while (existingNames.has(normalizeCommunityName(candidate))) {
+    candidate = `${base} ${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
 export function useCommunities() {
   const [communities, setCommunities] = useState<Community[]>(() =>
     normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, [])),
@@ -169,27 +186,30 @@ export function useCommunities() {
     [communities],
   );
 
-  const addCommunity = useCallback((input: Partial<Community>) => {
-    const now = new Date().toISOString();
-    const community: Community = {
-      id: input.id || generateUUID(),
-      name: input.name || 'Nova comunidade',
-      description: input.description || '',
-      defaultLocation: input.defaultLocation || '',
-      defaultDay: input.defaultDay || '',
-      defaultStartTime: input.defaultStartTime || '',
-      defaultEndTime: input.defaultEndTime || '',
-      defaultFormat: input.defaultFormat || 'free_play',
-      color: input.color || 'primary',
-      icon: input.icon || 'volleyball',
-      archived: Boolean(input.archived),
-      createdAt: input.createdAt || now,
-      updatedAt: now,
-      syncStatus: 'local',
-    };
-    setCommunities((prev) => [...prev, community]);
-    return community;
-  }, []);
+  const addCommunity = useCallback(
+    (input: Partial<Community>) => {
+      const now = new Date().toISOString();
+      const community: Community = {
+        id: input.id || generateUUID(),
+        name: uniqueCommunityName(input.name || 'Nova comunidade', communities),
+        description: input.description || '',
+        defaultLocation: input.defaultLocation || '',
+        defaultDay: input.defaultDay || '',
+        defaultStartTime: input.defaultStartTime || '',
+        defaultEndTime: input.defaultEndTime || '',
+        defaultFormat: input.defaultFormat || 'free_play',
+        color: input.color || 'primary',
+        icon: input.icon || 'volleyball',
+        archived: Boolean(input.archived),
+        createdAt: input.createdAt || now,
+        updatedAt: now,
+        syncStatus: 'local',
+      };
+      setCommunities((prev) => [...prev, community]);
+      return community;
+    },
+    [communities],
+  );
 
   const duplicateCommunity = useCallback(
     (communityId: string, includeAthletes: boolean) => {
@@ -199,7 +219,7 @@ export function useCommunities() {
       const duplicate: Community = {
         ...source,
         id: generateUUID(),
-        name: `${source.name} (copia)`,
+        name: uniqueCommunityName(`${source.name} (copia)`, communities),
         archived: false,
         createdAt: now,
         updatedAt: now,

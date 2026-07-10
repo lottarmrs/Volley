@@ -364,6 +364,133 @@ function remapPairs(pairs: any, idMap: Map<string, string>): any {
   return Array.from(unique.values());
 }
 
+function filterIds(values: any, allowedIds: Set<string>): any {
+  if (!Array.isArray(values)) return values;
+  const unique = new Map<string, string>();
+  for (const value of values) {
+    if (typeof value === 'string' && allowedIds.has(value)) unique.set(value, value);
+  }
+  return Array.from(unique.values());
+}
+
+function filterRecordKeys(record: any, allowedIds: Set<string>): any {
+  if (!record || typeof record !== 'object') return record;
+  return Object.fromEntries(Object.entries(record).filter(([key]) => allowedIds.has(key)));
+}
+
+function filterPairs(pairs: any, allowedIds: Set<string>): any {
+  if (!Array.isArray(pairs)) return pairs;
+  return pairs.filter(
+    (pair) =>
+      Array.isArray(pair) &&
+      pair.length >= 2 &&
+      allowedIds.has(pair[0]) &&
+      allowedIds.has(pair[1]) &&
+      pair[0] !== pair[1],
+  );
+}
+
+function pruneSlotPlayerId(slot: any, allowedPlayerIds: Set<string>) {
+  if (!slot?.playerId || allowedPlayerIds.has(slot.playerId)) return slot;
+  const { playerId, ...rest } = slot;
+  return rest;
+}
+
+function pruneOrphanActiveReferences(data: any): any {
+  const hasCommunities = Array.isArray(data.communities);
+  const hasPlayers = Array.isArray(data.players);
+  const activeCommunityIds = new Set<string>(
+    (data.communities || [])
+      .filter((community: any) => community?.id && !community.deletedAt)
+      .map((community: any) => community.id),
+  );
+  const activePlayerIds = new Set<string>(
+    (data.players || [])
+      .filter((player: any) => player?.id && !player.deletedAt)
+      .map((player: any) => player.id),
+  );
+
+  return {
+    ...data,
+    players: hasCommunities
+      ? (data.players || []).map((player: any) => ({
+          ...player,
+          communityIds: filterIds(player.communityIds, activeCommunityIds),
+        }))
+      : data.players,
+    sessions: (data.sessions || []).map((session: any) => ({
+      ...session,
+      communityId:
+        hasCommunities && session.communityId && !activeCommunityIds.has(session.communityId)
+          ? null
+          : session.communityId,
+      selectedPlayerIds: hasPlayers
+        ? filterIds(session.selectedPlayerIds, activePlayerIds)
+        : session.selectedPlayerIds,
+      config:
+        hasPlayers && session.config
+          ? {
+              ...session.config,
+              playerPositions: filterRecordKeys(session.config.playerPositions, activePlayerIds),
+              balanceConstraints: session.config.balanceConstraints
+                ? {
+                    ...session.config.balanceConstraints,
+                    lockedPlayerIdxs: filterRecordKeys(
+                      session.config.balanceConstraints.lockedPlayerIdxs,
+                      activePlayerIds,
+                    ),
+                    pairsTogether: filterPairs(
+                      session.config.balanceConstraints.pairsTogether,
+                      activePlayerIds,
+                    ),
+                    pairsSeparated: filterPairs(
+                      session.config.balanceConstraints.pairsSeparated,
+                      activePlayerIds,
+                    ),
+                  }
+                : session.config.balanceConstraints,
+            }
+          : session.config,
+    })),
+    teams: hasPlayers
+      ? (data.teams || []).map((team: any) => ({
+          ...team,
+          playerIds: filterIds(team.playerIds, activePlayerIds),
+        }))
+      : data.teams,
+    communityPresence: (data.communityPresence || [])
+      .filter((presence: any) => !hasCommunities || activeCommunityIds.has(presence.communityId))
+      .map((presence: any) => ({
+        ...presence,
+        items: hasPlayers
+          ? (presence.items || []).filter(
+              (item: any) => !item.playerId || activePlayerIds.has(item.playerId),
+            )
+          : presence.items,
+      })),
+    communityRules: (data.communityRules || []).filter(
+      (rule: any) => !hasCommunities || activeCommunityIds.has(rule.communityId),
+    ),
+    whatsAppListTemplates: (data.whatsAppListTemplates || []).filter(
+      (template: any) => !hasCommunities || activeCommunityIds.has(template.communityId),
+    ),
+    whatsAppListDrafts: (data.whatsAppListDrafts || [])
+      .filter((draft: any) => !hasCommunities || activeCommunityIds.has(draft.communityId))
+      .map((draft: any) => ({
+        ...draft,
+        setters: hasPlayers
+          ? (draft.setters || []).map((slot: any) => pruneSlotPlayerId(slot, activePlayerIds))
+          : draft.setters,
+        mainSlots: hasPlayers
+          ? (draft.mainSlots || []).map((slot: any) => pruneSlotPlayerId(slot, activePlayerIds))
+          : draft.mainSlots,
+        reserveSlots: hasPlayers
+          ? (draft.reserveSlots || []).map((slot: any) => pruneSlotPlayerId(slot, activePlayerIds))
+          : draft.reserveSlots,
+      })),
+  };
+}
+
 function remapPlayerReferences(data: any, playerIdMap: Map<string, string>) {
   if (playerIdMap.size === 0) return data;
 
@@ -537,7 +664,7 @@ export function sanitizeAndConsolidateImportedBackup(rawData: any): any {
     data.players = (data.players || []).filter((player: any) => !playerIdMap.has(player.id));
   }
 
-  return data;
+  return pruneOrphanActiveReferences(data);
 }
 
 export function migrateLocalDbToUuids() {

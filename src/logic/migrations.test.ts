@@ -188,3 +188,76 @@ test('sanitizeAndConsolidateImportedBackup merges duplicate local players and re
   });
   assert.deepEqual(imported.sessions[0].config.balanceConstraints.pairsTogether, []);
 });
+
+test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', () => {
+  const imported = sanitizeAndConsolidateImportedBackup({
+    communities: [{ id: 'community-1', name: 'Domingo' }],
+    players: [
+      {
+        id: 'player-1',
+        nome: 'Ana',
+        communityIds: ['community-1', 'missing-community', 'community-1'],
+      },
+    ],
+    sessions: [
+      {
+        id: 'session-1',
+        communityId: 'missing-community',
+        selectedPlayerIds: ['player-1', 'missing-player', 'player-1'],
+        config: {
+          playerPositions: { 'player-1': 'ponteiro', 'missing-player': 'central' },
+          balanceConstraints: {
+            lockedPlayerIdxs: { 'player-1': 0, 'missing-player': 1 },
+            pairsTogether: [['player-1', 'missing-player']],
+          },
+        },
+      },
+    ],
+    teams: [{ id: 'team-1', playerIds: ['player-1', 'missing-player'] }],
+    communityPresence: [
+      {
+        communityId: 'community-1',
+        date: '2026-07-10',
+        items: [
+          { playerId: 'player-1', status: 'present' },
+          { playerId: 'missing-player', status: 'present' },
+          { temporaryName: 'Convidado', status: 'guest' },
+        ],
+      },
+      { communityId: 'missing-community', date: '2026-07-10', items: [] },
+    ],
+    communityRules: [{ communityId: 'missing-community' }],
+    whatsAppListTemplates: [{ communityId: 'missing-community' }],
+    whatsAppListDrafts: [
+      {
+        communityId: 'community-1',
+        setters: [{ playerId: 'missing-player', displayName: 'Fantasma' }],
+        mainSlots: [{ playerId: 'player-1', displayName: 'Ana' }],
+        reserveSlots: [{ temporaryName: 'Convidado' }],
+      },
+    ],
+  });
+
+  assert.deepEqual(imported.players[0].communityIds, ['community-1']);
+  assert.equal(imported.sessions[0].communityId, null);
+  assert.deepEqual(imported.sessions[0].selectedPlayerIds, ['player-1']);
+  assert.deepEqual(imported.sessions[0].config.playerPositions, { 'player-1': 'ponteiro' });
+  assert.deepEqual(imported.sessions[0].config.balanceConstraints.lockedPlayerIdxs, {
+    'player-1': 0,
+  });
+  assert.deepEqual(imported.sessions[0].config.balanceConstraints.pairsTogether, []);
+  assert.deepEqual(imported.teams[0].playerIds, ['player-1']);
+  assert.deepEqual(imported.communityPresence, [
+    {
+      communityId: 'community-1',
+      date: '2026-07-10',
+      items: [
+        { playerId: 'player-1', status: 'present' },
+        { temporaryName: 'Convidado', status: 'guest' },
+      ],
+    },
+  ]);
+  assert.deepEqual(imported.communityRules, []);
+  assert.deepEqual(imported.whatsAppListTemplates, []);
+  assert.deepEqual(imported.whatsAppListDrafts[0].setters, [{ displayName: 'Fantasma' }]);
+});

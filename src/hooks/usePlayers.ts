@@ -6,6 +6,7 @@ import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
 import { resolveUsername } from '../logic/username';
 import { simulateLocalConsensus } from '../logic/playerEvaluations';
 import { generateUUID } from '../logic/uuid';
+import { findDuplicatePlayerByProfile } from '../logic/playerDuplicates';
 
 function normalizePlayer(p: any): Player {
   return {
@@ -21,29 +22,6 @@ function normalizePlayer(p: any): Player {
     communityIds: p.communityIds ?? [],
     userId: p.userId,
   };
-}
-
-function normalizeDuplicateText(value: unknown): string {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
-
-function duplicateProfileKey(
-  player: Pick<Player, 'nome' | 'genero' | 'posicaoPrincipal' | 'alturaCm'>,
-) {
-  const name = normalizeDuplicateText(player.nome);
-  if (!name) return undefined;
-
-  return [
-    name,
-    normalizeDuplicateText(player.genero),
-    normalizeDuplicateText(player.posicaoPrincipal),
-    player.alturaCm ?? '',
-  ].join(':');
 }
 
 export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team[]) {
@@ -169,16 +147,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
 
       const errors: Record<string, string> = {};
       if (!editingPlayer.nome.trim()) errors.nome = 'O nome do atleta é obrigatório.';
-      const editingProfileKey = duplicateProfileKey(editingPlayer);
-      const duplicatePlayer = editingProfileKey
-        ? players.find(
-            (player) =>
-              player.id !== editingPlayer.id &&
-              !player.deletedAt &&
-              player.ativo !== false &&
-              duplicateProfileKey(player) === editingProfileKey,
-          )
-        : undefined;
+      const duplicatePlayer = findDuplicatePlayerByProfile(players, editingPlayer);
       if (duplicatePlayer && !errors.nome) {
         errors.nome = `Ja existe um atleta com esse perfil: ${duplicatePlayer.nome}.`;
       }

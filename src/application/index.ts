@@ -1,4 +1,5 @@
 export * from './appResult';
+export * from './backupUseCases';
 export * from './communityMembershipUseCases';
 export * from './communityMembersViewModel';
 export * from './localCommunityUseCases';

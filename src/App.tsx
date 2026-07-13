@@ -52,13 +52,7 @@ import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/s
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
 import { buildVutCard } from './logic/futCards';
 import { Community, CommunityRules, Game, Player, Session, Team } from './types';
-import {
-  normalizeCommunities,
-  normalizeGames,
-  normalizeSessions,
-  sanitizeAndConsolidateImportedBackup,
-  migrateLocalDbToUuids,
-} from './logic/migrations';
+import { migrateLocalDbToUuids } from './logic/migrations';
 import {
   STORAGE_KEYS,
   getLocalCacheOwnerId,
@@ -86,6 +80,7 @@ import {
   buildFinishedSessionResult,
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
+import { prepareImportedBackup } from './application/backupUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -284,15 +279,15 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const rawData = JSON.parse(e.target?.result as string);
-        const data = sanitizeAndConsolidateImportedBackup(rawData);
+        const data = prepareImportedBackup(rawData);
         if (data.players) play.setPlayers(data.players);
-        if (data.sessions) sess.setSessions(normalizeSessions(data.sessions));
+        if (data.sessions) sess.setSessions(data.sessions);
         if (data.teams) sess.setTeams(data.teams);
-        if (data.games) sess.setGames(normalizeGames(data.games));
+        if (data.games) sess.setGames(data.games);
         if (data.pointEvents) sess.setPointEvents(data.pointEvents);
         if (data.gameReports) sess.setGameReports(data.gameReports);
         if (data.sessionReports) sess.setSessionReports(data.sessionReports);
-        if (data.communities) comm.setCommunities(normalizeCommunities(data.communities));
+        if (data.communities) comm.setCommunities(data.communities);
         if (data.communityPresence) communityPresence.setPresenceRecords(data.communityPresence);
         if (data.whatsAppListTemplates) whatsAppLists.setTemplates(data.whatsAppListTemplates);
         if (data.whatsAppListDrafts) whatsAppLists.setDrafts(data.whatsAppListDrafts);

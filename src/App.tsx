@@ -83,7 +83,6 @@ import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 import { generateUUID } from './logic/uuid';
 import { formatLocalDateInput } from './logic/date';
-import { findDuplicatePlayerByProfile } from './logic/playerDuplicates';
 import {
   applyCommunityDeletion,
   applyCommunityHistoryClear,
@@ -91,6 +90,10 @@ import {
   applyLinkedCloudPlayer,
   applyPlayerCommunityMemberships,
 } from './application/localCommunityUseCases';
+import {
+  applyGuestPlayerUpsert,
+  applyPlayerCreationForCommunity,
+} from './application/localPlayerUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -438,71 +441,21 @@ export default function App() {
   };
 
   const createPlayerForCommunity = (name: string, communityId: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const duplicate = findDuplicatePlayerByProfile(play.rawPlayers, {
-      id: '',
-      nome: trimmed,
-      genero: 'M',
-      posicaoPrincipal: 'ponteiro',
-      alturaCm: undefined,
-    });
-    if (duplicate) {
-      play.setPlayers((prev) =>
-        prev.map((player) =>
-          player.id === duplicate.id
-            ? {
-                ...player,
-                communityIds: Array.from(new Set([...(player.communityIds ?? []), communityId])),
-                syncStatus: 'pending',
-                updatedAt: new Date().toISOString(),
-              }
-            : player,
-        ),
-      );
-      return;
-    }
     const now = new Date().toISOString();
-    const username = resolveUsername(
-      { nome: trimmed, isGuest: false },
-      play.rawPlayers.filter((p) => p.username).map((p) => p.username as string),
+    play.setPlayers(
+      applyPlayerCreationForCommunity({
+        players: play.rawPlayers,
+        name,
+        communityId,
+        now,
+        createId: generateUUID,
+        createUsername: (playerName) =>
+          resolveUsername(
+            { nome: playerName, isGuest: false },
+            play.rawPlayers.filter((p) => p.username).map((p) => p.username as string),
+          ),
+      }).players,
     );
-    const player: Player = {
-      id: generateUUID(),
-      username,
-      nome: trimmed,
-      apelido: trimmed,
-      genero: 'M',
-      ativo: true,
-      posicaoPrincipal: 'ponteiro',
-      posicoesSecundarias: [],
-      maoDominante: 'direita',
-      atributos: {
-        saque: 5,
-        recepcao: 5,
-        levantamento: 5,
-        ataque: 5,
-        bloqueio: 5,
-        defesa: 5,
-        velocidade: 5,
-        resistencia: 5,
-        leituraDeJogo: 5,
-        regularidade: 5,
-        controleEmocional: 5,
-      },
-      perfil: {
-        nivel: 1,
-        classe: 'Atleta',
-        arquetipo: 'Versatil',
-        especialidade: 'Em avaliacao',
-        fraqueza: 'Nao informado',
-      },
-      formaAtual: { valor: 0, observacao: 'Em avaliacao', ultimasPartidas: [] },
-      status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
-      metadata: { criadoEm: now, atualizadoEm: now },
-      communityIds: [communityId],
-    };
-    play.setPlayers((prev) => [...prev, player]);
   };
 
   // Sync draft state
@@ -726,19 +679,16 @@ export default function App() {
               addPairConstraint={wizard.addPairConstraint}
               removePairConstraint={wizard.removePairConstraint}
               onAddGuestPlayer={(newPlayer, editDetails) => {
-                const duplicate = findDuplicatePlayerByProfile(play.rawPlayers, newPlayer);
-                const selectedPlayer = duplicate || newPlayer;
-                if (!duplicate) {
-                  play.setPlayers((prev) => [...prev, newPlayer]);
-                }
+                const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+                play.setPlayers(result.players);
                 if (sess.activeSession) {
                   const nextSelected = [
-                    ...new Set([...sess.activeSession.selectedPlayerIds, selectedPlayer.id]),
+                    ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),
                   ];
                   wizard.updateSession({ selectedPlayerIds: nextSelected });
                 }
                 if (editDetails) {
-                  play.setEditingPlayer(selectedPlayer);
+                  play.setEditingPlayer(result.selectedPlayer);
                   setPage('player-edit');
                 }
               }}
@@ -1004,13 +954,10 @@ export default function App() {
             }}
             onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
             onAddGuestPlayer={(newPlayer, editDetails) => {
-              const duplicate = findDuplicatePlayerByProfile(play.rawPlayers, newPlayer);
-              const selectedPlayer = duplicate || newPlayer;
-              if (!duplicate) {
-                play.setPlayers((prev) => [...prev, newPlayer]);
-              }
+              const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+              play.setPlayers(result.players);
               if (editDetails) {
-                play.setEditingPlayer(selectedPlayer);
+                play.setEditingPlayer(result.selectedPlayer);
                 setPage('player-edit');
               }
             }}

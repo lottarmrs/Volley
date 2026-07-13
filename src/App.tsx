@@ -52,16 +52,7 @@ import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/s
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
 import { buildVutCard } from './logic/futCards';
 import { generateSessionReport } from './logic/reports';
-import {
-  Community,
-  CommunityRules,
-  FreePlayConfig,
-  Game,
-  Player,
-  Session,
-  Team,
-  TournamentConfig,
-} from './types';
+import { Community, CommunityRules, Game, Player, Session, Team } from './types';
 import {
   normalizeCommunities,
   normalizeGames,
@@ -94,6 +85,7 @@ import {
   applyGuestPlayerUpsert,
   applyPlayerCreationForCommunity,
 } from './application/localPlayerUseCases';
+import { buildSessionFromCommunity } from './application/sessionLifecycleUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -356,86 +348,20 @@ export default function App() {
     teams: sess.teams,
   });
 
-  const buildFreePlayConfig = (rules: CommunityRules): FreePlayConfig => {
-    const teamCount = Math.max(3, rules.freePlay?.teamCount ?? 3);
-    return {
-      type: 'free_play',
-      teamCount,
-      maxPoints: rules.freePlay?.maxPoints ?? 15,
-      tieBreakMethod: rules.freePlay?.tieBreakMethod ?? 'win_by_2',
-      hardPointCap: rules.freePlay?.hardPointCap ?? null,
-      rotationSystem: rules.freePlay?.rotationSystem ?? 'winner_stays',
-      maxConsecutiveGames: rules.freePlay?.maxConsecutiveGames ?? 3,
-      initialCourtTeams: ['', ''],
-      initialQueue: [],
-      queuePolicy: 'fifo',
-      balanceMode: rules.freePlay?.balanceMode ?? 'balanced',
-      balanceSpeed: rules.freePlay?.balanceSpeed ?? 'advanced',
-      balanceConstraints: rules.freePlay?.balanceConstraints,
-    };
-  };
-
-  const buildTournamentConfig = (rules: CommunityRules): TournamentConfig => ({
-    type: 'tournament',
-    format: rules.tournament?.format ?? 'round_robin',
-    teamCount: Math.max(2, rules.tournament?.teamCount ?? 3),
-    useGroupStage: rules.tournament?.useGroupStage ?? false,
-    groups: rules.tournament?.groups,
-    qualifiedPerGroup: rules.tournament?.qualifiedPerGroup,
-    roundTrip: rules.tournament?.roundTrip ?? false,
-    maxPoints: rules.tournament?.maxPoints ?? 15,
-    tieBreakMethod: rules.tournament?.tieBreakMethod ?? 'direct_3',
-    victoryRule: rules.tournament?.victoryRule ?? rules.tournament?.tieBreakMethod ?? 'direct_3',
-    hardPointCap: rules.tournament?.hardPointCap ?? null,
-    hasFinal: rules.tournament?.hasFinal ?? true,
-    hasThirdPlaceMatch: rules.tournament?.hasThirdPlaceMatch ?? true,
-    classificationPoints: {
-      win: rules.tournament?.classificationPoints?.win ?? 3,
-      loss: rules.tournament?.classificationPoints?.loss ?? 0,
-      walkoverWin: rules.tournament?.classificationPoints?.walkoverWin ?? 3,
-      walkoverLoss: rules.tournament?.classificationPoints?.walkoverLoss ?? 0,
-    },
-    standingsRules: rules.tournament?.standingsRules ?? [
-      'classificationPoints',
-      'wins',
-      'pointDifference',
-      'pointsFor',
-      'headToHead',
-      'pointsAgainst',
-    ],
-    balanceMode: rules.tournament?.balanceMode ?? 'balanced',
-    balanceSpeed: rules.tournament?.balanceSpeed ?? 'advanced',
-    balanceConstraints: rules.tournament?.balanceConstraints,
-  });
-
   const createSessionFromCommunity = (
     community: Community,
     playerIds: string[],
     rules: CommunityRules,
   ) => {
-    const now = new Date();
-    const today = formatLocalDateInput(now);
-    const type = rules.defaultFormat || community.defaultFormat || 'free_play';
-    const selectedPlayerIds = Array.from(new Set(playerIds)).filter(Boolean);
-    const config =
-      type === 'tournament' ? buildTournamentConfig(rules) : buildFreePlayConfig(rules);
-    const s: Session = {
-      id: generateUUID(),
-      communityId: community.id,
-      name: `${community.name} - ${now.toLocaleDateString('pt-BR')}`,
-      date: today,
-      location: rules.defaultLocation || community.defaultLocation || null,
-      notes: rules.notes || null,
-      status: 'draft',
-      type,
-      selectedPlayerIds,
-      teamIds: [],
-      config,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    };
-    sess.setActiveSession(s);
-    wizard.setWizardStep(selectedPlayerIds.length > 0 ? 2 : 0);
+    const result = buildSessionFromCommunity({
+      community,
+      playerIds,
+      rules,
+      now: new Date(),
+      createId: generateUUID,
+    });
+    sess.setActiveSession(result.session);
+    wizard.setWizardStep(result.nextWizardStep);
     setPage('session-wizard');
     setActiveModule('dashboard');
   };

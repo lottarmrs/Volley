@@ -2,10 +2,18 @@ import type {
   Community,
   CommunityRules,
   FreePlayConfig,
+  Game,
+  Player,
+  PointEvent,
   Session,
+  SessionReport,
+  Team,
   TournamentConfig,
 } from '../types';
 import { formatLocalDateInput } from '../logic/date';
+import { calculateAttributeProgression } from '../logic/progression';
+import { applySessionRatingToForm } from '../logic/rating';
+import { generateSessionReport } from '../logic/reports';
 
 export function buildFreePlayConfigFromCommunityRules(rules: CommunityRules): FreePlayConfig {
   const teamCount = Math.max(3, rules.freePlay?.teamCount ?? 3);
@@ -92,5 +100,67 @@ export function buildSessionFromCommunity(input: {
   return {
     session,
     nextWizardStep: selectedPlayerIds.length > 0 ? 2 : 0,
+  };
+}
+
+export function buildFinishedSessionResult(input: {
+  activeSession: Session;
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  teams: Team[];
+  players: Player[];
+  sessionReports: SessionReport[];
+  finishedAt: string;
+}) {
+  const sessionPoints = input.pointEvents.filter(
+    (point) => point.sessionId === input.activeSession.id,
+  );
+  const sessionGames = input.games.filter((game) => game.sessionId === input.activeSession.id);
+  const sessionTeams = input.teams.filter((team) => team.sessionId === input.activeSession.id);
+  const participantIds = new Set(sessionTeams.flatMap((team) => team.playerIds));
+  const participants = input.players.filter((player) => participantIds.has(player.id));
+
+  const progressedPlayers = calculateAttributeProgression(
+    input.players,
+    sessionPoints,
+    sessionGames,
+    sessionTeams,
+  );
+  const updatedPlayers = applySessionRatingToForm(
+    progressedPlayers,
+    sessionGames,
+    sessionPoints,
+    sessionTeams,
+  );
+
+  const finishedSession: Session = {
+    ...input.activeSession,
+    status: 'finished',
+    updatedAt: input.finishedAt,
+  };
+
+  const report = generateSessionReport(
+    finishedSession,
+    sessionGames,
+    sessionPoints,
+    sessionTeams,
+    updatedPlayers,
+  );
+  const updatedSessions = input.sessions.map((session) =>
+    session.id === finishedSession.id ? finishedSession : session,
+  );
+  const updatedReports = [...input.sessionReports, report];
+
+  return {
+    sessionPoints,
+    sessionGames,
+    sessionTeams,
+    participants,
+    updatedPlayers,
+    finishedSession,
+    report,
+    updatedSessions,
+    updatedReports,
   };
 }

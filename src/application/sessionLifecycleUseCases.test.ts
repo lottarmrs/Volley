@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildFinishedSessionResult,
   buildFreePlayConfigFromCommunityRules,
   buildSessionFromCommunity,
   buildTournamentConfigFromCommunityRules,
 } from './sessionLifecycleUseCases';
 import type { Community, CommunityRules } from '../types';
+import { makePlayer, makeSession, makeTeam } from '../test/fixtures';
 
 const community = {
   id: 'community-1',
@@ -93,4 +95,42 @@ test('buildSessionFromCommunity starts at details step when no players are selec
   assert.equal(result.nextWizardStep, 0);
   assert.equal(result.session.type, 'tournament');
   assert.equal(result.session.config?.type, 'tournament');
+});
+
+test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'active',
+    teamIds: ['team-1'],
+  });
+  const otherSession = makeSession('session-2', { status: 'draft' });
+  const team = makeTeam('team-1', 'session-1', ['player-1']);
+  const player = makePlayer('player-1');
+
+  const result = buildFinishedSessionResult({
+    activeSession,
+    sessions: [activeSession, otherSession],
+    games: [],
+    pointEvents: [],
+    teams: [team],
+    players: [player],
+    sessionReports: [],
+    finishedAt: '2026-07-13T15:00:00.000Z',
+  });
+
+  assert.equal(result.finishedSession.status, 'finished');
+  assert.equal(result.finishedSession.updatedAt, '2026-07-13T15:00:00.000Z');
+  assert.deepEqual(
+    result.participants.map((participant) => participant.id),
+    ['player-1'],
+  );
+  assert.deepEqual(
+    result.updatedSessions.map((session) => [session.id, session.status]),
+    [
+      ['session-1', 'finished'],
+      ['session-2', 'draft'],
+    ],
+  );
+  assert.equal(result.updatedPlayers[0].id, 'player-1');
+  assert.equal(result.updatedReports.length, 1);
+  assert.equal(result.updatedReports[0].sessionId, 'session-1');
 });

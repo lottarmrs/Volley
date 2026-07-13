@@ -51,7 +51,6 @@ import { ToastViewport } from './components/common/ToastViewport';
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
 import { buildVutCard } from './logic/futCards';
-import { generateSessionReport } from './logic/reports';
 import { Community, CommunityRules, Game, Player, Session, Team } from './types';
 import {
   normalizeCommunities,
@@ -68,8 +67,6 @@ import {
 } from './storage/localStorageRepository';
 import { calculatePlayerStats } from './logic/statistics';
 import { calculateGeneralOverall } from './logic/calculations';
-import { calculateAttributeProgression } from './logic/progression';
-import { applySessionRatingToForm } from './logic/rating';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 import { generateUUID } from './logic/uuid';
@@ -85,7 +82,10 @@ import {
   applyGuestPlayerUpsert,
   applyPlayerCreationForCommunity,
 } from './application/localPlayerUseCases';
-import { buildSessionFromCommunity } from './application/sessionLifecycleUseCases';
+import {
+  buildFinishedSessionResult,
+  buildSessionFromCommunity,
+} from './application/sessionLifecycleUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -396,13 +396,16 @@ export default function App() {
     if (!window.confirm('Deseja realmente encerrar a sessão atual?')) return;
 
     try {
-      const sessionPoints = sess.pointEvents.filter((p) => p.sessionId === sess.activeSession!.id);
-      const sessionGames = sess.games.filter((g) => g.sessionId === sess.activeSession!.id);
-      const sessionTeams = sess.teams.filter((t) => t.sessionId === sess.activeSession!.id);
-
-      // Collect participants
-      const participantIds = new Set(sessionTeams.flatMap((t) => t.playerIds));
-      const participants = play.players.filter((p) => participantIds.has(p.id));
+      const result = buildFinishedSessionResult({
+        activeSession: sess.activeSession,
+        sessions: sess.sessions,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        teams: sess.teams,
+        players: play.players,
+        sessionReports: sess.sessionReports,
+        finishedAt: new Date().toISOString(),
+      });
 
       // 1. Build cards BEFORE session finish (current session not finished)
       const buildCtxBefore = {
@@ -414,65 +417,33 @@ export default function App() {
         sessionReports: sess.sessionReports,
       };
 
-      const beforeCards = participants.map((p) => ({
+      const beforeCards = result.participants.map((p) => ({
         playerId: p.id,
         card: buildVutCard(p, buildCtxBefore),
       }));
 
-      // 2. Perform regular attribute progression and form rating calculations
-      const progressedPlayers = calculateAttributeProgression(
-        play.players,
-        sessionPoints,
-        sessionGames,
-        sessionTeams,
-      );
-      // Anexa a nota da sessão ao histórico de forma (não toca no valor manual).
-      const updatedPlayers = applySessionRatingToForm(
-        progressedPlayers,
-        sessionGames,
-        sessionPoints,
-        sessionTeams,
-      );
-
-      // 3. Mark session as finished and generate report
-      const finished: Session = {
-        ...sess.activeSession,
-        status: 'finished',
-        updatedAt: new Date().toISOString(),
-      };
-
-      const report = generateSessionReport(
-        finished,
-        sessionGames,
-        sessionPoints,
-        sessionTeams,
-        updatedPlayers,
-      );
-
-      // 4. Build cards AFTER session finish (using the updated players and finished session)
-      const updatedSessions = sess.sessions.map((s) => (s.id === finished.id ? finished : s));
-      const updatedReports = [...sess.sessionReports, report];
+      // 2. Build cards AFTER the use case applies progression, rating and report updates.
 
       const buildCtxAfter = {
-        sessions: updatedSessions,
+        sessions: result.updatedSessions,
         teams: sess.teams,
         games: sess.games,
         pointEvents: sess.pointEvents,
-        players: updatedPlayers,
-        sessionReports: updatedReports,
+        players: result.updatedPlayers,
+        sessionReports: result.updatedReports,
       };
 
-      const afterCards = participants.map((p) => {
-        const updatedP = updatedPlayers.find((up) => up.id === p.id) || p;
+      const afterCards = result.participants.map((p) => {
+        const updatedP = result.updatedPlayers.find((up) => up.id === p.id) || p;
         return {
           playerId: p.id,
           card: buildVutCard(updatedP, buildCtxAfter),
         };
       });
 
-      // 5. Compare before and after cards to detect reveals
+      // 3. Compare before and after cards to detect reveals
       const itemsToReveal: RevealItem[] = [];
-      for (const p of participants) {
+      for (const p of result.participants) {
         const before = beforeCards.find((bc) => bc.playerId === p.id)?.card;
         const after = afterCards.find((ac) => ac.playerId === p.id)?.card;
 
@@ -507,10 +478,10 @@ export default function App() {
         }
       }
 
-      // 6. Update states
-      play.setPlayers(updatedPlayers);
-      sess.setSessionReports(updatedReports);
-      sess.setSessions(updatedSessions);
+      // 4. Update states
+      play.setPlayers(result.updatedPlayers);
+      sess.setSessionReports(result.updatedReports);
+      sess.setSessions(result.updatedSessions);
       sess.setActiveSession(null);
 
       // Trigger modal reveal queue if any

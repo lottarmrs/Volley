@@ -84,6 +84,13 @@ import { resolveUsername } from './logic/username';
 import { generateUUID } from './logic/uuid';
 import { formatLocalDateInput } from './logic/date';
 import { findDuplicatePlayerByProfile } from './logic/playerDuplicates';
+import {
+  applyCommunityDeletion,
+  applyCommunityHistoryClear,
+  applyCommunityMembershipDuplicate,
+  applyLinkedCloudPlayer,
+  applyPlayerCommunityMemberships,
+} from './application/localCommunityUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -926,56 +933,35 @@ export default function App() {
               onDeleteCommunity={(communityId) => {
                 if (!window.confirm('Excluir esta comunidade? Os atletas continuarao cadastrados.'))
                   return;
-                comm.setCommunities((prev) =>
-                  prev.filter((community) => community.id !== communityId),
-                );
-                play.setPlayers((prev) =>
-                  prev.map((p) => ({
-                    ...p,
-                    communityIds: (p.communityIds ?? []).filter((id) => id !== communityId),
-                  })),
-                );
+                const next = applyCommunityDeletion({
+                  communityId,
+                  communities: comm.rawCommunities,
+                  players: play.rawPlayers,
+                  presenceRecords: communityPresence.presenceRecords,
+                  templates: whatsAppLists.rawTemplates,
+                  drafts: whatsAppLists.drafts,
+                });
+                comm.setCommunities(next.communities);
+                play.setPlayers(next.players);
                 communityRules.removeRules(communityId);
-                communityPresence.setPresenceRecords((prev) =>
-                  prev.filter((record) => record.communityId !== communityId),
-                );
-                whatsAppLists.setTemplates((prev) =>
-                  prev.filter((template) => template.communityId !== communityId),
-                );
-                whatsAppLists.setDrafts((prev) =>
-                  prev.filter((draft) => draft.communityId !== communityId),
-                );
+                communityPresence.setPresenceRecords(next.presenceRecords);
+                whatsAppLists.setTemplates(next.templates);
+                whatsAppLists.setDrafts(next.drafts);
               }}
               onDuplicateCommunity={(communityId, includeAthletes) => {
                 const result = comm.duplicateCommunity(communityId, includeAthletes);
                 if (result?.includeAthletes) {
-                  const sourcePlayers = play.players.filter((player) =>
-                    (player.communityIds ?? []).includes(communityId),
-                  );
                   play.setPlayers((prev) =>
-                    prev.map((player) =>
-                      sourcePlayers.some((source) => source.id === player.id)
-                        ? {
-                            ...player,
-                            communityIds: [...(player.communityIds ?? []), result.duplicate.id],
-                          }
-                        : player,
-                    ),
+                    applyCommunityMembershipDuplicate(prev, {
+                      sourceCommunityId: communityId,
+                      duplicateCommunityId: result.duplicate.id,
+                    }),
                   );
                 }
               }}
               onUpdatePlayerCommunities={(communityId, memberPlayerIds) => {
                 play.setPlayers((prev) =>
-                  prev.map((p) => {
-                    const currentIds = p.communityIds ?? [];
-                    const isMember = memberPlayerIds.includes(p.id);
-                    const exists = currentIds.includes(communityId);
-                    if (isMember && !exists)
-                      return { ...p, communityIds: [...currentIds, communityId] };
-                    if (!isMember && exists)
-                      return { ...p, communityIds: currentIds.filter((id) => id !== communityId) };
-                    return p;
-                  }),
+                  applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
                 );
               }}
               onCreatePlayer={createPlayerForCommunity}
@@ -985,33 +971,13 @@ export default function App() {
                 setActiveModule('historico');
               }}
               onClearCommunityHistory={(communityId) => {
-                sess.setSessions((prev) =>
-                  prev.map((session) =>
-                    session.communityId === communityId
-                      ? { ...session, communityId: null }
-                      : session,
-                  ),
-                );
+                sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
               }}
               currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
               globalRole={auth.profile?.role ?? null}
               onLinkedCloudPlayer={(player, communityId) => {
-                play.setPlayers((prev) => {
-                  const exists = prev.find((p) => p.id === player.id);
-                  const updatedCommunityIds = Array.from(
-                    new Set([...(player.communityIds ?? []), communityId]),
-                  );
-                  const updatedPlayer = {
-                    ...player,
-                    communityIds: updatedCommunityIds,
-                    syncStatus: 'synced' as const,
-                  };
-                  if (exists) {
-                    return prev.map((p) => (p.id === player.id ? updatedPlayer : p));
-                  }
-                  return [...prev, updatedPlayer];
-                });
+                play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId));
               }}
             />
           );

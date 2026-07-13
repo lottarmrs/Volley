@@ -34,6 +34,7 @@ test('cloud health reports operational when configured and clean', () => {
     isSupabaseConfigured: true,
     hasUser: true,
     lastSyncedAt: '2026-07-09T03:00:00.000Z',
+    checkedAt: '2026-07-09T04:00:00.000Z',
     openIssueCount: 0,
     totalOpenOccurrences: 0,
   });

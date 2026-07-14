@@ -6,5 +6,6 @@ export * from './localCommunityUseCases';
 export * from './localPlayerUseCases';
 export * from './playerLinkUseCases';
 export * from './playerLinkViewModel';
+export * from './rankingViewModel';
 export * from './sessionLifecycleUseCases';
 export * from './tournamentViewModel';

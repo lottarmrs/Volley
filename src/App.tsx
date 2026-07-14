@@ -59,8 +59,6 @@ import {
   loadFromStorage,
   saveToStorage,
 } from './storage/localStorageRepository';
-import { calculatePlayerStats } from './logic/statistics';
-import { calculateGeneralOverall } from './logic/calculations';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 import { generateUUID } from './logic/uuid';
@@ -81,6 +79,11 @@ import {
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
 import { buildBackupPayload, prepareImportedBackup } from './application/backupUseCases';
+import {
+  buildRankingViewModel,
+  getRankDisplay,
+  rankingPositionLabels,
+} from './application/rankingViewModel';
 import { buildTournamentListViewModel } from './application/tournamentViewModel';
 
 // Execute UUID migration on startup before any state/hook initializes
@@ -1032,46 +1035,15 @@ export default function App() {
   };
 
   const renderRankingModule = () => {
-    // Generate Overall Rankings of all players
-    const rankedPlayers = play.players
-      .map((player) => {
-        const stats = calculatePlayerStats(
-          player,
-          sess.games,
-          sess.pointEvents,
-          sess.teams,
-          sess.sessions,
-        );
-        const overall = calculateGeneralOverall(player);
-        return {
-          player,
-          stats,
-          overall,
-        };
-      })
-      .filter((p) => p.player.ativo);
-
-    const searchedRankings = rankedPlayers.filter((p) => {
-      return (
-        p.player.nome.toLowerCase().includes(rankingSearch.toLowerCase()) ||
-        (p.player.apelido ?? '').toLowerCase().includes(rankingSearch.toLowerCase())
-      );
+    const sortedRankings = buildRankingViewModel({
+      players: play.players,
+      games: sess.games,
+      pointEvents: sess.pointEvents,
+      teams: sess.teams,
+      sessions: sess.sessions,
+      search: rankingSearch,
+      sort: rankingSort,
     });
-
-    const sortedRankings = searchedRankings.sort((a, b) => {
-      if (rankingSort === 'winRate') return b.stats.winRate - a.stats.winRate;
-      if (rankingSort === 'points') return b.stats.totalPoints - a.stats.totalPoints;
-      return b.overall - a.overall;
-    });
-
-    const positionLabels: Record<string, string> = {
-      levantador: 'Levantador',
-      oposto: 'Oposto',
-      ponteiro: 'Ponteiro',
-      central: 'Central',
-      libero: 'Líbero',
-      'all-rounder': 'Coringa',
-    };
 
     return (
       <div className="space-y-6">
@@ -1106,7 +1078,6 @@ export default function App() {
         {/* ─── MOBILE: Card-based ranking ─── */}
         <div className="lg:hidden space-y-2.5">
           {sortedRankings.map((p, index) => {
-            const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : null;
             return (
               <div
                 key={p.player.id}
@@ -1117,14 +1088,15 @@ export default function App() {
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="text-sm font-black font-mono text-base-content/60 w-7 shrink-0 text-center">
-                      {rankEmoji || `#${index + 1}`}
+                      {getRankDisplay(index)}
                     </span>
                     <div className="min-w-0">
                       <span className="font-bold text-sm text-base-content truncate block">
                         {p.player.apelido || p.player.nome}
                       </span>
                       <span className="text-[10px] font-semibold text-base-content/50 uppercase">
-                        {positionLabels[p.player.posicaoPrincipal] || p.player.posicaoPrincipal}
+                        {rankingPositionLabels[p.player.posicaoPrincipal] ||
+                          p.player.posicaoPrincipal}
                         {p.player.status.lesionado && (
                           <span className="ml-1.5 px-1 py-0.5 bg-error/15 text-error text-[8px] rounded uppercase font-bold">
                             Lesionado
@@ -1205,13 +1177,7 @@ export default function App() {
                 {sortedRankings.map((p, index) => (
                   <tr key={p.player.id}>
                     <td className="p-4 font-mono font-black text-base-content/70 text-sm">
-                      {index + 1 === 1
-                        ? '🥇'
-                        : index + 1 === 2
-                          ? '🥈'
-                          : index + 1 === 3
-                            ? '🥉'
-                            : `#${index + 1}`}
+                      {getRankDisplay(index)}
                     </td>
                     <td className="p-4 font-bold text-base-content">
                       {p.player.apelido || p.player.nome}
@@ -1222,7 +1188,8 @@ export default function App() {
                       )}
                     </td>
                     <td className="p-4 font-semibold text-base-content/60 uppercase text-[10px]">
-                      {positionLabels[p.player.posicaoPrincipal] || p.player.posicaoPrincipal}
+                      {rankingPositionLabels[p.player.posicaoPrincipal] ||
+                        p.player.posicaoPrincipal}
                     </td>
                     <td className="p-4 text-center font-mono font-bold text-base-content/70">
                       {p.stats.gamesPlayed}

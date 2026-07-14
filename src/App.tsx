@@ -102,6 +102,7 @@ import {
 } from './application/rankingViewModel';
 import { buildTournamentListViewModel } from './application/tournamentViewModel';
 import { buildVutRevealItems } from './application/vutRevealUseCases';
+import { getPlayerEditActionErrorMessage } from './application/playerEditActionUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -484,6 +485,11 @@ export default function App() {
     }
   };
 
+  const handlePlayerEditActionError = (error: unknown) => {
+    const message = getPlayerEditActionErrorMessage(error);
+    if (message) toasts.push(message, 'error');
+  };
+
   // ── Render Views ──────────────────────────────────────────────────────────
 
   const renderActiveContent = () => {
@@ -553,20 +559,16 @@ export default function App() {
               onSave={() => {
                 try {
                   if (play.handleSavePlayer(playerPermissions)) setPage('session-wizard');
-                } catch (err: any) {
-                  if (err.message === 'PERMISSION_DENIED') {
-                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
-                  }
+                } catch (err) {
+                  handlePlayerEditActionError(err);
                 }
               }}
               onDelete={() => {
                 try {
                   play.handleDeletePlayer(playerPermissions);
                   setPage('session-wizard');
-                } catch (err: any) {
-                  if (err.message === 'PERMISSION_DENIED') {
-                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
-                  }
+                } catch (err) {
+                  handlePlayerEditActionError(err);
                 }
               }}
               validationErrors={play.validationErrors}
@@ -668,20 +670,16 @@ export default function App() {
               onSave={() => {
                 try {
                   if (play.handleSavePlayer(playerPermissions)) setPage('players');
-                } catch (err: any) {
-                  if (err.message === 'PERMISSION_DENIED') {
-                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
-                  }
+                } catch (err) {
+                  handlePlayerEditActionError(err);
                 }
               }}
               onDelete={() => {
                 try {
                   play.handleDeletePlayer(playerPermissions);
                   setPage('players');
-                } catch (err: any) {
-                  if (err.message === 'PERMISSION_DENIED') {
-                    toasts.push('Erro: Ação não autorizada pelo nível de permissão.', 'error');
-                  }
+                } catch (err) {
+                  handlePlayerEditActionError(err);
                 }
               }}
               validationErrors={play.validationErrors}

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBackupPayload, prepareImportedBackup } from './backupUseCases';
+import {
+  buildBackupPayload,
+  buildImportedBackupPersistencePlan,
+  prepareImportedBackup,
+} from './backupUseCases';
 import { makePlayer, makeSession } from '../test/fixtures';
 
 test('buildBackupPayload includes operational data and local resume metadata', () => {
@@ -62,4 +66,15 @@ test('prepareImportedBackup keeps the existing import defaults for omitted colle
   assert.deepEqual(result.communityPresence, []);
   assert.equal(result.activeSession, undefined);
   assert.equal(result.sessionDraft, undefined);
+});
+
+test('buildImportedBackupPersistencePlan distinguishes save clear and ignore actions', () => {
+  const plan = buildImportedBackupPersistencePlan({
+    sessionDraft: { session: makeSession('session-1') } as any,
+    lastSelectedPlayerIds: null,
+  });
+
+  assert.equal(plan.sessionDraft.kind, 'save');
+  assert.equal(plan.lastSelectedPlayerIds.kind, 'clear');
+  assert.equal(plan.lastSessionConfig.kind, 'ignore');
 });

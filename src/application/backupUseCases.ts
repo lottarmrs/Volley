@@ -80,3 +80,30 @@ export function prepareImportedBackup(rawData: unknown) {
       backup.sessionDraft !== undefined ? normalizeSessionDraft(backup.sessionDraft) : undefined,
   };
 }
+
+type ImportPersistenceAction<T> =
+  | { kind: 'ignore' }
+  | { kind: 'save'; value: T }
+  | { kind: 'clear' };
+
+export function buildImportedBackupPersistencePlan(input: {
+  sessionDraft?: SessionDraft | null;
+  lastSelectedPlayerIds?: string[] | null;
+  lastSessionConfig?: unknown;
+}): {
+  sessionDraft: ImportPersistenceAction<SessionDraft>;
+  lastSelectedPlayerIds: ImportPersistenceAction<string[]>;
+  lastSessionConfig: ImportPersistenceAction<unknown>;
+} {
+  return {
+    sessionDraft: toImportPersistenceAction(input.sessionDraft),
+    lastSelectedPlayerIds: toImportPersistenceAction(input.lastSelectedPlayerIds),
+    lastSessionConfig: toImportPersistenceAction(input.lastSessionConfig),
+  };
+}
+
+function toImportPersistenceAction<T>(value: T | null | undefined): ImportPersistenceAction<T> {
+  if (value === undefined) return { kind: 'ignore' };
+  if (value) return { kind: 'save', value };
+  return { kind: 'clear' };
+}

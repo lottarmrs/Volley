@@ -84,7 +84,11 @@ import {
   type Module,
   type Page,
 } from './application/appShellViewModel';
-import { buildBackupPayload, prepareImportedBackup } from './application/backupUseCases';
+import {
+  buildBackupPayload,
+  buildImportedBackupPersistencePlan,
+  prepareImportedBackup,
+} from './application/backupUseCases';
 import {
   buildRankingViewModel,
   getRankDisplay,
@@ -301,27 +305,30 @@ export default function App() {
         if (data.activeSession !== undefined) {
           sess.setActiveSession(data.activeSession);
         }
-        if (data.sessionDraft !== undefined) {
-          if (data.sessionDraft) {
-            saveSessionDraft(data.sessionDraft);
-          } else {
-            clearSessionDraft();
-          }
-          setSessionDraft(data.sessionDraft);
+        const persistence = buildImportedBackupPersistencePlan({
+          sessionDraft: data.sessionDraft,
+          lastSelectedPlayerIds: data.lastSelectedPlayerIds,
+          lastSessionConfig: data.lastSessionConfig,
+        });
+        if (persistence.sessionDraft.kind === 'save') {
+          saveSessionDraft(persistence.sessionDraft.value);
+          setSessionDraft(persistence.sessionDraft.value);
+        } else if (persistence.sessionDraft.kind === 'clear') {
+          clearSessionDraft();
+          setSessionDraft(null);
         }
-        if (data.lastSelectedPlayerIds !== undefined) {
-          if (data.lastSelectedPlayerIds) {
-            saveToStorage(STORAGE_KEYS.lastSelectedPlayerIds, data.lastSelectedPlayerIds);
-          } else {
-            localStorage.removeItem(STORAGE_KEYS.lastSelectedPlayerIds);
-          }
+        if (persistence.lastSelectedPlayerIds.kind === 'save') {
+          saveToStorage(
+            STORAGE_KEYS.lastSelectedPlayerIds,
+            persistence.lastSelectedPlayerIds.value,
+          );
+        } else if (persistence.lastSelectedPlayerIds.kind === 'clear') {
+          localStorage.removeItem(STORAGE_KEYS.lastSelectedPlayerIds);
         }
-        if (data.lastSessionConfig !== undefined) {
-          if (data.lastSessionConfig) {
-            saveToStorage(STORAGE_KEYS.lastSessionConfig, data.lastSessionConfig);
-          } else {
-            localStorage.removeItem(STORAGE_KEYS.lastSessionConfig);
-          }
+        if (persistence.lastSessionConfig.kind === 'save') {
+          saveToStorage(STORAGE_KEYS.lastSessionConfig, persistence.lastSessionConfig.value);
+        } else if (persistence.lastSessionConfig.kind === 'clear') {
+          localStorage.removeItem(STORAGE_KEYS.lastSessionConfig);
         }
 
         // Go to dashboard to reload fresh data

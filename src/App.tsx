@@ -103,6 +103,7 @@ import {
 import { buildTournamentListViewModel } from './application/tournamentViewModel';
 import { buildVutRevealItems } from './application/vutRevealUseCases';
 import { getPlayerEditActionErrorMessage } from './application/playerEditActionUseCases';
+import { planStartupCloudDownload } from './application/cloudSyncStartupUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -237,23 +238,15 @@ export default function App() {
   // locais pendentes (senão deixamos o usuário sincronizar manualmente, para não
   // sobrescrever trabalho offline). Uma vez por usuário.
   useEffect(() => {
-    if (!auth.isSupabaseConfigured) return;
-    const uid = auth.user?.id ?? null;
-    if (!uid) {
-      autoSyncedForUser.current = null;
-      return;
-    }
-    if (autoSyncedForUser.current === uid) return;
-
-    const cacheOwnerId = getLocalCacheOwnerId();
-    if (cacheOwnerId && cacheOwnerId !== uid) {
-      autoSyncedForUser.current = uid;
-      cloudSync.downloadFromCloud().catch(() => {});
-      return;
-    }
-    if (pendingChanges > 0) return; // não baixa por cima de pendências locais
-    autoSyncedForUser.current = uid;
-    cloudSync.downloadFromCloud().catch(() => {});
+    const plan = planStartupCloudDownload({
+      isSupabaseConfigured: auth.isSupabaseConfigured,
+      userId: auth.user?.id ?? null,
+      autoSyncedForUserId: autoSyncedForUser.current,
+      cacheOwnerId: getLocalCacheOwnerId(),
+      pendingChanges,
+    });
+    autoSyncedForUser.current = plan.nextAutoSyncedForUserId;
+    if (plan.shouldDownload) cloudSync.downloadFromCloud().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.isSupabaseConfigured, auth.user?.id, pendingChanges]);
 

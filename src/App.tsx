@@ -81,6 +81,7 @@ import {
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
 import { buildBackupPayload, prepareImportedBackup } from './application/backupUseCases';
+import { buildTournamentListViewModel } from './application/tournamentViewModel';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -928,7 +929,12 @@ export default function App() {
   // ── Sub-view Renderers ───────────────────────────────────────────────────
 
   const renderTournamentsModule = () => {
-    const tournaments = sess.sessions.filter((s) => s.type === 'tournament');
+    const tournamentCards = buildTournamentListViewModel({
+      sessions: sess.sessions,
+      games: sess.games,
+      teams: sess.teams,
+      sessionReports: sess.sessionReports,
+    });
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center bg-surface p-4 rounded-xl border border-border">
@@ -952,19 +958,8 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tournaments.map((t) => {
-            const tGames = sess.games.filter(
-              (g) => g.sessionId === t.id && g.status === 'finished',
-            );
-            const finishedGames = tGames.length;
-            const winnerId =
-              t.status === 'finished'
-                ? sess.sessionReports.find((r) => r.sessionId === t.id)?.teamStandings?.[0]?.teamId
-                : null;
-            const winnerName = winnerId
-              ? (sess.teams.find((team) => team.id === winnerId)?.name ?? '—')
-              : '—';
-
+          {tournamentCards.map((card) => {
+            const t = card.tournament;
             return (
               <div
                 key={t.id}
@@ -976,23 +971,9 @@ export default function App() {
                       Torneio
                     </span>
                     <span
-                      className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                        t.status === 'active'
-                          ? 'bg-success-muted text-success'
-                          : t.status === 'finished'
-                            ? 'bg-primary/15 text-primary'
-                            : t.status === 'teams_generated'
-                              ? 'bg-success/15 text-success'
-                              : 'bg-surface-strong text-text-muted'
-                      }`}
+                      className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${card.status.className}`}
                     >
-                      {t.status === 'active'
-                        ? 'Ativo'
-                        : t.status === 'finished'
-                          ? 'Finalizado'
-                          : t.status === 'teams_generated'
-                            ? 'Pronto'
-                            : 'Rascunho'}
+                      {card.status.label}
                     </span>
                   </div>
                   <h3 className="font-bold text-lg text-base-content uppercase mt-3 tracking-tight">
@@ -1006,21 +987,23 @@ export default function App() {
                 <div className="bg-surface-muted p-3.5 rounded-xl border border-border space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-text-muted">Partidas Realizadas:</span>
-                    <span className="font-bold font-mono text-base-content">{finishedGames}</span>
+                    <span className="font-bold font-mono text-base-content">
+                      {card.finishedGames}
+                    </span>
                   </div>
                   {t.status === 'finished' && (
                     <div className="flex justify-between items-center text-xs border-t border-border pt-2 mt-2">
                       <span className="text-text-muted flex items-center gap-1.5">
                         <Trophy className="w-3.5 h-3.5 text-accent" /> Campeão:
                       </span>
-                      <span className="font-black text-accent uppercase">{winnerName}</span>
+                      <span className="font-black text-accent uppercase">{card.winnerName}</span>
                     </div>
                   )}
                 </div>
 
                 <button
                   onClick={() => {
-                    if (t.status === 'active' || t.status === 'teams_generated') {
+                    if (card.shouldOpenLive) {
                       sess.setActiveSession(t);
                       setPage('session-active');
                       setActiveModule('dashboard');
@@ -1036,7 +1019,7 @@ export default function App() {
               </div>
             );
           })}
-          {tournaments.length === 0 && (
+          {tournamentCards.length === 0 && (
             <div className="col-span-full py-20 card card-border border-dashed bg-base-200 text-center">
               <p className="text-base-content/60 uppercase text-xs font-bold italic">
                 Nenhum torneio cadastrado.

@@ -103,6 +103,29 @@ export function buildSessionFromCommunity(input: {
   };
 }
 
+export function buildManualSessionDraft(input: {
+  type?: Session['type'];
+  now: Date;
+  createId: () => string;
+}): Session {
+  const type = input.type;
+  const label = type === 'tournament' ? 'Torneio' : 'Sessão';
+  const session: Session = {
+    id: input.createId(),
+    name: `${label} — ${input.now.toLocaleDateString('pt-BR')}`,
+    date: formatLocalDateInput(input.now),
+    status: 'draft',
+    selectedPlayerIds: [],
+    teamIds: [],
+    createdAt: input.now.toISOString(),
+    updatedAt: input.now.toISOString(),
+  };
+
+  if (type) session.type = type;
+
+  return session;
+}
+
 export function buildFinishedSessionResult(input: {
   activeSession: Session;
   sessions: Session[];

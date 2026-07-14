@@ -51,7 +51,7 @@ import { ToastViewport } from './components/common/ToastViewport';
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
 import { buildVutCard } from './logic/futCards';
-import { Community, CommunityRules, Game, Player, Session, Team } from './types';
+import { Community, CommunityRules, Game, Player, Team } from './types';
 import { migrateLocalDbToUuids } from './logic/migrations';
 import {
   STORAGE_KEYS,
@@ -64,7 +64,6 @@ import { calculateGeneralOverall } from './logic/calculations';
 import { countPendingChanges } from './logic/syncStatus';
 import { resolveUsername } from './logic/username';
 import { generateUUID } from './logic/uuid';
-import { formatLocalDateInput } from './logic/date';
 import {
   applyCommunityDeletion,
   applyCommunityHistoryClear,
@@ -78,6 +77,7 @@ import {
 } from './application/localPlayerUseCases';
 import {
   buildFinishedSessionResult,
+  buildManualSessionDraft,
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
 import { prepareImportedBackup } from './application/backupUseCases';
@@ -651,17 +651,10 @@ export default function App() {
             activeSession={sess.activeSession}
             sessionDraft={sessionDraft}
             onNewSession={() => {
-              const now = new Date();
-              const s: Session = {
-                id: generateUUID(),
-                name: `Sessão — ${now.toLocaleDateString('pt-BR')}`,
-                date: formatLocalDateInput(now),
-                status: 'draft',
-                selectedPlayerIds: [],
-                teamIds: [],
-                createdAt: now.toISOString(),
-                updatedAt: now.toISOString(),
-              };
+              const s = buildManualSessionDraft({
+                now: new Date(),
+                createId: generateUUID,
+              });
               sess.setActiveSession(s);
               wizard.setWizardStep(0);
               setPage('session-wizard');
@@ -942,18 +935,11 @@ export default function App() {
           <span className="text-xs font-bold text-text-muted uppercase">Torneios Registrados</span>
           <button
             onClick={() => {
-              const now = new Date();
-              const s: Session = {
-                id: generateUUID(),
-                name: `Torneio — ${now.toLocaleDateString('pt-BR')}`,
-                date: formatLocalDateInput(now),
-                status: 'draft',
-                selectedPlayerIds: [],
-                teamIds: [],
-                createdAt: now.toISOString(),
-                updatedAt: now.toISOString(),
+              const s = buildManualSessionDraft({
                 type: 'tournament',
-              };
+                now: new Date(),
+                createId: generateUUID,
+              });
               sess.setActiveSession(s);
               wizard.setWizardStep(0);
               setPage('session-wizard');

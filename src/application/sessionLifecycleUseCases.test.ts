@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildFinishedSessionResult,
   buildFreePlayConfigFromCommunityRules,
+  buildManualSessionDraft,
   buildSessionFromCommunity,
   buildTournamentConfigFromCommunityRules,
 } from './sessionLifecycleUseCases';
@@ -95,6 +96,35 @@ test('buildSessionFromCommunity starts at details step when no players are selec
   assert.equal(result.nextWizardStep, 0);
   assert.equal(result.session.type, 'tournament');
   assert.equal(result.session.config?.type, 'tournament');
+});
+
+test('buildManualSessionDraft creates a default free-play draft', () => {
+  const session = buildManualSessionDraft({
+    now: new Date('2026-07-14T12:00:00.000Z'),
+    createId: () => 'session-1',
+  });
+
+  assert.equal(session.id, 'session-1');
+  assert.equal(session.name, 'Sessão — 14/07/2026');
+  assert.equal(session.date, '2026-07-14');
+  assert.equal(session.status, 'draft');
+  assert.deepEqual(session.selectedPlayerIds, []);
+  assert.deepEqual(session.teamIds, []);
+  assert.equal(session.type, undefined);
+  assert.equal(session.createdAt, '2026-07-14T12:00:00.000Z');
+  assert.equal(session.updatedAt, '2026-07-14T12:00:00.000Z');
+});
+
+test('buildManualSessionDraft creates a tournament draft', () => {
+  const session = buildManualSessionDraft({
+    type: 'tournament',
+    now: new Date('2026-07-14T12:00:00.000Z'),
+    createId: () => 'session-2',
+  });
+
+  assert.equal(session.id, 'session-2');
+  assert.equal(session.name, 'Torneio — 14/07/2026');
+  assert.equal(session.type, 'tournament');
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

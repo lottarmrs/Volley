@@ -79,10 +79,16 @@ import {
 } from './application/sessionLifecycleUseCases';
 import {
   getAccountDisplay,
+  getCommunitiesNavigationTarget,
   getCurrentPageTitle,
+  getDashboardNavigationTarget,
+  getHistorySessionNavigationTarget,
+  getLiveSessionNavigationTarget,
   getModuleNavigationTarget,
+  getPlayersNavigationTarget,
   type Module,
   type Page,
+  type ShellNavigationTarget,
 } from './application/appShellViewModel';
 import {
   buildBackupPayload,
@@ -467,8 +473,15 @@ export default function App() {
       module,
       activeSessionStatus: sess.activeSession?.status,
     });
+    applyShellNavigationTarget(target);
+  };
+
+  const applyShellNavigationTarget = (target: ShellNavigationTarget) => {
     setActiveModule(target.activeModule);
     if (target.page) setPage(target.page);
+    if (target.selectedHistorySessionId !== undefined) {
+      setSelectedHistorySessionId(target.selectedHistorySessionId);
+    }
   };
 
   // ── Render Views ──────────────────────────────────────────────────────────
@@ -598,8 +611,7 @@ export default function App() {
               setPage('session-wizard');
             }}
             onResumeSession={() => {
-              setPage('session-active');
-              setActiveModule('dashboard');
+              applyShellNavigationTarget(getLiveSessionNavigationTarget());
             }}
             onResumeDraft={(draft) => {
               wizard.resumeDraft(draft);
@@ -627,8 +639,7 @@ export default function App() {
               }
             }}
             onPlayers={() => {
-              setPage('players');
-              setActiveModule('players');
+              applyShellNavigationTarget(getPlayersNavigationTarget());
             }}
             onHistory={() => {
               setActiveModule('historico');
@@ -636,8 +647,7 @@ export default function App() {
             onExportBackup={handleExportBackup}
             onImportBackup={handleImportBackup}
             onCommunities={() => {
-              setPage('communities');
-              setActiveModule('players');
+              applyShellNavigationTarget(getCommunitiesNavigationTarget());
             }}
           />
         );
@@ -740,8 +750,7 @@ export default function App() {
               onCreatePlayer={createPlayerForCommunity}
               onCreateSession={createSessionFromCommunity}
               onViewSession={(sessionId) => {
-                setSelectedHistorySessionId(sessionId);
-                setActiveModule('historico');
+                applyShellNavigationTarget(getHistorySessionNavigationTarget(sessionId));
               }}
               onClearCommunityHistory={(communityId) => {
                 sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
@@ -764,8 +773,7 @@ export default function App() {
             teams={sess.teams}
             sessions={sess.sessions}
             onBack={() => {
-              setPage('dashboard');
-              setActiveModule('dashboard');
+              applyShellNavigationTarget(getDashboardNavigationTarget());
             }}
             onAddPlayer={() => {
               play.handleAddPlayer();
@@ -809,8 +817,7 @@ export default function App() {
               setSelectedHistorySessionId(null);
             }}
             onBackToDashboard={() => {
-              setPage('dashboard');
-              setActiveModule('dashboard');
+              applyShellNavigationTarget(getDashboardNavigationTarget());
             }}
             initialTab="sessions"
             hideTabs={false}
@@ -942,11 +949,9 @@ export default function App() {
                   onClick={() => {
                     if (card.shouldOpenLive) {
                       sess.setActiveSession(t);
-                      setPage('session-active');
-                      setActiveModule('dashboard');
+                      applyShellNavigationTarget(getLiveSessionNavigationTarget());
                     } else {
-                      setSelectedHistorySessionId(t.id);
-                      setActiveModule('historico');
+                      applyShellNavigationTarget(getHistorySessionNavigationTarget(t.id));
                     }
                   }}
                   className="btn btn-secondary rounded-full w-full uppercase tracking-wider text-xs"

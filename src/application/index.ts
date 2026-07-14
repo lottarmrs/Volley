@@ -10,3 +10,4 @@ export * from './playerLinkViewModel';
 export * from './rankingViewModel';
 export * from './sessionLifecycleUseCases';
 export * from './tournamentViewModel';
+export * from './vutRevealUseCases';

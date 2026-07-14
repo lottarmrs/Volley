@@ -50,7 +50,6 @@ import { ToastViewport } from './components/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
-import { buildVutCard } from './logic/futCards';
 import { Community, CommunityRules, Game, Player, Team } from './types';
 import { migrateLocalDbToUuids } from './logic/migrations';
 import {
@@ -92,6 +91,7 @@ import {
   rankingPositionLabels,
 } from './application/rankingViewModel';
 import { buildTournamentListViewModel } from './application/tournamentViewModel';
+import { buildVutRevealItems } from './application/vutRevealUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -417,11 +417,6 @@ export default function App() {
         sessionReports: sess.sessionReports,
       };
 
-      const beforeCards = result.participants.map((p) => ({
-        playerId: p.id,
-        card: buildVutCard(p, buildCtxBefore),
-      }));
-
       // 2. Build cards AFTER the use case applies progression, rating and report updates.
 
       const buildCtxAfter = {
@@ -433,50 +428,12 @@ export default function App() {
         sessionReports: result.updatedReports,
       };
 
-      const afterCards = result.participants.map((p) => {
-        const updatedP = result.updatedPlayers.find((up) => up.id === p.id) || p;
-        return {
-          playerId: p.id,
-          card: buildVutCard(updatedP, buildCtxAfter),
-        };
+      const itemsToReveal: RevealItem[] = buildVutRevealItems({
+        participants: result.participants,
+        updatedPlayers: result.updatedPlayers,
+        beforeContext: buildCtxBefore,
+        afterContext: buildCtxAfter,
       });
-
-      // 3. Compare before and after cards to detect reveals
-      const itemsToReveal: RevealItem[] = [];
-      for (const p of result.participants) {
-        const before = beforeCards.find((bc) => bc.playerId === p.id)?.card;
-        const after = afterCards.find((ac) => ac.playerId === p.id)?.card;
-
-        if (!before || !after) continue;
-
-        const reasons: string[] = [];
-
-        // Special card edition?
-        if (after.edition.kind !== 'base') {
-          reasons.push(
-            `${after.edition.emoji} EDIÇÃO ESPECIAL: ${after.edition.label.toUpperCase()}`,
-          );
-        }
-
-        // New achievement unlocked?
-        const beforeUnlocked = new Set(
-          before.achievements.filter((a) => a.unlocked).map((a) => a.id),
-        );
-        const afterUnlocked = after.achievements.filter((a) => a.unlocked);
-
-        for (const ach of afterUnlocked) {
-          if (!beforeUnlocked.has(ach.id)) {
-            reasons.push(`🏆 CONQUISTA: ${ach.name.toUpperCase()} (${ach.emoji})`);
-          }
-        }
-
-        if (reasons.length > 0) {
-          itemsToReveal.push({
-            card: after,
-            reasons,
-          });
-        }
-      }
 
       // 4. Update states
       play.setPlayers(result.updatedPlayers);

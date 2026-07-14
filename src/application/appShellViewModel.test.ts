@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAccountDisplay, getCurrentPageTitle } from './appShellViewModel';
+import {
+  getAccountDisplay,
+  getCurrentPageTitle,
+  getModuleNavigationTarget,
+} from './appShellViewModel';
 
 test('getCurrentPageTitle returns contextual module titles', () => {
   assert.equal(
@@ -46,4 +50,22 @@ test('getAccountDisplay prefers profile name, then email, then fallback', () => 
     }),
     { name: 'Panelinha', initials: 'PL' },
   );
+});
+
+test('getModuleNavigationTarget routes dashboard and players modules with page changes', () => {
+  assert.deepEqual(
+    getModuleNavigationTarget({ module: 'dashboard', activeSessionStatus: 'active' }),
+    { activeModule: 'dashboard', page: 'session-active' },
+  );
+  assert.deepEqual(getModuleNavigationTarget({ module: 'dashboard' }), {
+    activeModule: 'dashboard',
+    page: 'dashboard',
+  });
+  assert.deepEqual(getModuleNavigationTarget({ module: 'players' }), {
+    activeModule: 'players',
+    page: 'players',
+  });
+  assert.deepEqual(getModuleNavigationTarget({ module: 'ranking' }), {
+    activeModule: 'ranking',
+  });
 });

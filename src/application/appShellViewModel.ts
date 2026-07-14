@@ -57,3 +57,19 @@ export function getAccountDisplay(input: {
     initials: initialsSource.slice(0, 2).toUpperCase(),
   };
 }
+
+export function getModuleNavigationTarget(input: {
+  module: Module;
+  activeSessionStatus?: string | null;
+}): { activeModule: Module; page?: Page } {
+  if (input.module === 'dashboard') {
+    return {
+      activeModule: input.module,
+      page: input.activeSessionStatus === 'active' ? 'session-active' : 'dashboard',
+    };
+  }
+  if (input.module === 'players') {
+    return { activeModule: input.module, page: 'players' };
+  }
+  return { activeModule: input.module };
+}

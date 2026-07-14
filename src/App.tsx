@@ -81,6 +81,7 @@ import {
 import {
   getAccountDisplay,
   getCurrentPageTitle,
+  getModuleNavigationTarget,
   type Module,
   type Page,
 } from './application/appShellViewModel';
@@ -498,16 +499,12 @@ export default function App() {
   // ── Navigation shell helpers ──────────────────────────────────────────────
 
   const handleNav = (module: Module) => {
-    setActiveModule(module);
-    if (module === 'dashboard') {
-      if (sess.activeSession?.status === 'active') {
-        setPage('session-active');
-      } else {
-        setPage('dashboard');
-      }
-    } else if (module === 'players') {
-      setPage('players');
-    }
+    const target = getModuleNavigationTarget({
+      module,
+      activeSessionStatus: sess.activeSession?.status,
+    });
+    setActiveModule(target.activeModule);
+    if (target.page) setPage(target.page);
   };
 
   // ── Render Views ──────────────────────────────────────────────────────────

@@ -78,6 +78,12 @@ import {
   buildManualSessionDraft,
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
+import {
+  getAccountDisplay,
+  getCurrentPageTitle,
+  type Module,
+  type Page,
+} from './application/appShellViewModel';
 import { buildBackupPayload, prepareImportedBackup } from './application/backupUseCases';
 import {
   buildRankingViewModel,
@@ -88,24 +94,6 @@ import { buildTournamentListViewModel } from './application/tournamentViewModel'
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
-
-type Page =
-  | 'dashboard'
-  | 'players'
-  | 'player-edit'
-  | 'session-wizard'
-  | 'session-active'
-  | 'history'
-  | 'communities';
-type Module =
-  | 'dashboard'
-  | 'torneios'
-  | 'players'
-  | 'ranking'
-  | 'historico'
-  | 'configuracoes'
-  | 'conta'
-  | 'gestao';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -147,6 +135,18 @@ export default function App() {
   }, [play.editingPlayer, comm.communities]);
 
   const playerPermissions = useCommunityPermissions(editingPlayerCommunity);
+  const headerAccount = getAccountDisplay({
+    profileName: auth.profile?.name,
+    email: auth.user?.email,
+    fallbackName: 'Administrador',
+    fallbackInitials: 'AD',
+  });
+  const footerAccount = getAccountDisplay({
+    profileName: auth.profile?.name,
+    email: auth.user?.email,
+    fallbackName: 'Panelinha',
+    fallbackInitials: 'PL',
+  });
 
   // ── Cloud sync ────────────────────────────────────────────────────────────
 
@@ -507,33 +507,6 @@ export default function App() {
       }
     } else if (module === 'players') {
       setPage('players');
-    }
-  };
-
-  const getCurrentPageTitle = () => {
-    switch (activeModule) {
-      case 'dashboard':
-        return page === 'session-wizard' ? 'Configuração da Sessão' : 'Painel de Controle';
-      case 'torneios':
-        return 'Torneios & Campeonatos';
-      case 'players':
-        return page === 'player-edit'
-          ? 'Perfil do Atleta'
-          : page === 'communities'
-            ? 'Grupos de Comunidade'
-            : 'Cadastro de Atletas';
-      case 'ranking':
-        return 'Líderes & Classificações';
-      case 'historico':
-        return 'Histórico & Estatísticas';
-      case 'configuracoes':
-        return 'Configurações do Sistema';
-      case 'conta':
-        return 'Sincronização & Backup Nuvem';
-      case 'gestao':
-        return 'Gestão & Administração';
-      default:
-        return 'Panelinha';
     }
   };
 
@@ -1337,7 +1310,7 @@ export default function App() {
             </label>
             <div>
               <h2 className="text-base font-bold uppercase tracking-wider text-base-content">
-                {getCurrentPageTitle()}
+                {getCurrentPageTitle({ page, activeModule })}
               </h2>
               {sess.activeSession && sess.activeSession.status === 'active' && (
                 <p className="text-[10px] text-base-content/60 font-medium mt-0.5">
@@ -1360,14 +1333,10 @@ export default function App() {
 
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-base-content uppercase hidden sm:inline">
-                {auth.profile?.name || auth.user?.email?.split('@')[0] || 'Administrador'}
+                {headerAccount.name}
               </span>
               <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black uppercase text-xs">
-                {auth.profile?.name
-                  ? auth.profile.name.slice(0, 2).toUpperCase()
-                  : auth.user?.email
-                    ? auth.user.email.slice(0, 2).toUpperCase()
-                    : 'AD'}
+                {headerAccount.initials}
               </div>
             </div>
           </div>
@@ -1457,15 +1426,11 @@ export default function App() {
           {/* Sidebar Footer */}
           <div className="p-6 border-t border-base-300 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center text-xs font-bold uppercase">
-              {auth.profile?.name
-                ? auth.profile.name.slice(0, 2).toUpperCase()
-                : auth.user?.email
-                  ? auth.user.email.slice(0, 2).toUpperCase()
-                  : 'PL'}
+              {footerAccount.initials}
             </div>
             <div>
               <p className="text-xs font-bold text-base-content uppercase leading-none">
-                {auth.profile?.name || auth.user?.email?.split('@')[0] || 'Panelinha'}
+                {footerAccount.name}
               </p>
               <span className="text-[9px] text-base-content/40 uppercase">v1.0.0</span>
             </div>

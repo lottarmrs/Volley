@@ -80,7 +80,7 @@ import {
   buildManualSessionDraft,
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
-import { prepareImportedBackup } from './application/backupUseCases';
+import { buildBackupPayload, prepareImportedBackup } from './application/backupUseCases';
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -244,7 +244,7 @@ export default function App() {
   // ── Backup actions ────────────────────────────────────────────────────────
 
   const handleExportBackup = () => {
-    const data = {
+    const data = buildBackupPayload({
       players: play.players,
       sessions: sess.sessions,
       teams: sess.teams,
@@ -264,7 +264,7 @@ export default function App() {
         null,
       ),
       lastSessionConfig: loadFromStorage<any | null>(STORAGE_KEYS.lastSessionConfig, null),
-    };
+    });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

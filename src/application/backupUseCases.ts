@@ -5,6 +5,59 @@ import {
   normalizeSessions,
   sanitizeAndConsolidateImportedBackup,
 } from '../logic/migrations';
+import type { SessionDraft } from '../logic/sessionDraft';
+import type {
+  Community,
+  CommunityPresence,
+  CommunityRules,
+  Game,
+  GameReport,
+  Player,
+  PointEvent,
+  Session,
+  SessionReport,
+  Team,
+  WhatsAppListDraft,
+  WhatsAppListTemplate,
+} from '../types';
+
+export function buildBackupPayload(input: {
+  players: Player[];
+  sessions: Session[];
+  teams: Team[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  gameReports: GameReport[];
+  sessionReports: SessionReport[];
+  communities: Community[];
+  communityPresence: CommunityPresence[];
+  whatsAppListTemplates: WhatsAppListTemplate[];
+  whatsAppListDrafts: WhatsAppListDraft[];
+  communityRules: CommunityRules[];
+  activeSession: Session | null;
+  sessionDraft: SessionDraft | null;
+  lastSelectedPlayerIds: string[] | null;
+  lastSessionConfig: unknown;
+}) {
+  return {
+    players: input.players,
+    sessions: input.sessions,
+    teams: input.teams,
+    games: input.games,
+    pointEvents: input.pointEvents,
+    gameReports: input.gameReports,
+    sessionReports: input.sessionReports,
+    communities: input.communities,
+    communityPresence: input.communityPresence,
+    whatsAppListTemplates: input.whatsAppListTemplates,
+    whatsAppListDrafts: input.whatsAppListDrafts,
+    communityRules: input.communityRules,
+    activeSession: input.activeSession,
+    sessionDraft: input.sessionDraft,
+    lastSelectedPlayerIds: input.lastSelectedPlayerIds,
+    lastSessionConfig: input.lastSessionConfig,
+  };
+}
 
 export function prepareImportedBackup(rawData: unknown) {
   const data = sanitizeAndConsolidateImportedBackup(rawData);

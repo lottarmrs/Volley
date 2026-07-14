@@ -1,6 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareImportedBackup } from './backupUseCases';
+import { buildBackupPayload, prepareImportedBackup } from './backupUseCases';
+import { makePlayer, makeSession } from '../test/fixtures';
+
+test('buildBackupPayload includes operational data and local resume metadata', () => {
+  const player = makePlayer('player-1');
+  const session = makeSession('session-1');
+  const payload = buildBackupPayload({
+    players: [player],
+    sessions: [session],
+    teams: [],
+    games: [],
+    pointEvents: [],
+    gameReports: [],
+    sessionReports: [],
+    communities: [],
+    communityPresence: [],
+    whatsAppListTemplates: [],
+    whatsAppListDrafts: [],
+    communityRules: [],
+    activeSession: session,
+    sessionDraft: null,
+    lastSelectedPlayerIds: ['player-1'],
+    lastSessionConfig: { type: 'free_play' },
+  });
+
+  assert.deepEqual(payload.players, [player]);
+  assert.deepEqual(payload.sessions, [session]);
+  assert.equal(payload.activeSession, session);
+  assert.equal(payload.sessionDraft, null);
+  assert.deepEqual(payload.lastSelectedPlayerIds, ['player-1']);
+  assert.deepEqual(payload.lastSessionConfig, { type: 'free_play' });
+});
 
 test('prepareImportedBackup sanitizes cloud metadata and normalizes legacy session records', () => {
   const result = prepareImportedBackup({

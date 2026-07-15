@@ -73,6 +73,8 @@ import {
   applyPlayerCreationForCommunity,
 } from './application/localPlayerUseCases';
 import {
+  buildActiveSessionClearResult,
+  buildDraftClearResult,
   buildFinishedSessionResult,
   buildManualSessionStartResult,
   buildSessionFromCommunity,
@@ -614,9 +616,10 @@ export default function App() {
             }}
             onClearDraft={() => {
               if (window.confirm('Deseja realmente descartar o rascunho?')) {
+                const result = buildDraftClearResult();
                 clearSessionDraft();
-                setSessionDraft(null);
-                sess.setActiveSession(null);
+                setSessionDraft(result.nextSessionDraft);
+                sess.setActiveSession(result.nextActiveSession);
               }
             }}
             onClearActiveSession={() => {
@@ -626,11 +629,12 @@ export default function App() {
                   'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
                 )
               ) {
-                const sessionId = sess.activeSession.id;
-                sess.deleteSession(sessionId);
-                sess.setActiveSession(null);
+                const result = buildActiveSessionClearResult(sess.activeSession);
+                if (!result) return;
+                sess.deleteSession(result.sessionIdToDelete);
+                sess.setActiveSession(result.nextActiveSession);
                 clearSessionDraft();
-                setSessionDraft(null);
+                setSessionDraft(result.nextSessionDraft);
               }
             }}
             onPlayers={() => {

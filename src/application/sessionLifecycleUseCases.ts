@@ -137,6 +137,30 @@ export function buildManualSessionStartResult(input: {
   };
 }
 
+export function buildDraftClearResult(): {
+  nextSessionDraft: null;
+  nextActiveSession: null;
+} {
+  return {
+    nextSessionDraft: null,
+    nextActiveSession: null,
+  };
+}
+
+export function buildActiveSessionClearResult(activeSession: Session | null): {
+  sessionIdToDelete: string;
+  nextSessionDraft: null;
+  nextActiveSession: null;
+} | null {
+  if (!activeSession) return null;
+
+  return {
+    sessionIdToDelete: activeSession.id,
+    nextSessionDraft: null,
+    nextActiveSession: null,
+  };
+}
+
 export function buildFinishedSessionResult(input: {
   activeSession: Session;
   sessions: Session[];

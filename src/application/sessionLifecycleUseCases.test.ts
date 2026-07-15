@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildActiveSessionClearResult,
+  buildDraftClearResult,
   buildFinishedSessionResult,
   buildFreePlayConfigFromCommunityRules,
   buildManualSessionDraft,
@@ -138,6 +140,28 @@ test('buildManualSessionStartResult creates a draft and resets the wizard', () =
   assert.equal(result.nextWizardStep, 0);
   assert.equal(result.session.id, 'session-3');
   assert.equal(result.session.type, 'tournament');
+});
+
+test('buildDraftClearResult clears draft and active session state', () => {
+  const result = buildDraftClearResult();
+
+  assert.equal(result.nextSessionDraft, null);
+  assert.equal(result.nextActiveSession, null);
+});
+
+test('buildActiveSessionClearResult returns session id to delete and clears resume state', () => {
+  const activeSession = makeSession('session-active', { status: 'active' });
+  const result = buildActiveSessionClearResult(activeSession);
+
+  assert.equal(result?.sessionIdToDelete, 'session-active');
+  assert.equal(result?.nextSessionDraft, null);
+  assert.equal(result?.nextActiveSession, null);
+});
+
+test('buildActiveSessionClearResult does nothing without an active session', () => {
+  const result = buildActiveSessionClearResult(null);
+
+  assert.equal(result, null);
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

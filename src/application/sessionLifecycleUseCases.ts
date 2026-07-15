@@ -126,6 +126,17 @@ export function buildManualSessionDraft(input: {
   return session;
 }
 
+export function buildManualSessionStartResult(input: {
+  type?: Session['type'];
+  now: Date;
+  createId: () => string;
+}): { session: Session; nextWizardStep: number } {
+  return {
+    session: buildManualSessionDraft(input),
+    nextWizardStep: 0,
+  };
+}
+
 export function buildFinishedSessionResult(input: {
   activeSession: Session;
   sessions: Session[];

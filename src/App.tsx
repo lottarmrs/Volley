@@ -74,7 +74,7 @@ import {
 } from './application/localPlayerUseCases';
 import {
   buildFinishedSessionResult,
-  buildManualSessionDraft,
+  buildManualSessionStartResult,
   buildSessionFromCommunity,
 } from './application/sessionLifecycleUseCases';
 import {
@@ -597,12 +597,12 @@ export default function App() {
             activeSession={sess.activeSession}
             sessionDraft={sessionDraft}
             onNewSession={() => {
-              const s = buildManualSessionDraft({
+              const result = buildManualSessionStartResult({
                 now: new Date(),
                 createId: generateUUID,
               });
-              sess.setActiveSession(s);
-              wizard.setWizardStep(0);
+              sess.setActiveSession(result.session);
+              wizard.setWizardStep(result.nextWizardStep);
               setPage('session-wizard');
             }}
             onResumeSession={() => {
@@ -876,13 +876,13 @@ export default function App() {
           <span className="text-xs font-bold text-text-muted uppercase">Torneios Registrados</span>
           <button
             onClick={() => {
-              const s = buildManualSessionDraft({
+              const result = buildManualSessionStartResult({
                 type: 'tournament',
                 now: new Date(),
                 createId: generateUUID,
               });
-              sess.setActiveSession(s);
-              wizard.setWizardStep(0);
+              sess.setActiveSession(result.session);
+              wizard.setWizardStep(result.nextWizardStep);
               setPage('session-wizard');
               setActiveModule('dashboard');
             }}

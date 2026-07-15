@@ -4,6 +4,7 @@ import {
   buildFinishedSessionResult,
   buildFreePlayConfigFromCommunityRules,
   buildManualSessionDraft,
+  buildManualSessionStartResult,
   buildSessionFromCommunity,
   buildTournamentConfigFromCommunityRules,
 } from './sessionLifecycleUseCases';
@@ -125,6 +126,18 @@ test('buildManualSessionDraft creates a tournament draft', () => {
   assert.equal(session.id, 'session-2');
   assert.equal(session.name, 'Torneio — 14/07/2026');
   assert.equal(session.type, 'tournament');
+});
+
+test('buildManualSessionStartResult creates a draft and resets the wizard', () => {
+  const result = buildManualSessionStartResult({
+    type: 'tournament',
+    now: new Date('2026-07-14T12:00:00.000Z'),
+    createId: () => 'session-3',
+  });
+
+  assert.equal(result.nextWizardStep, 0);
+  assert.equal(result.session.id, 'session-3');
+  assert.equal(result.session.type, 'tournament');
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

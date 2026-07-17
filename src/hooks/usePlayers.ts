@@ -7,6 +7,7 @@ import { resolveUsername } from '../logic/username';
 import { simulateLocalConsensus } from '../logic/playerEvaluations';
 import { generateUUID } from '../logic/uuid';
 import { findDuplicatePlayerByProfile } from '../logic/playerDuplicates';
+import { applyLocalPlayerDeletion } from '../application/localPlayerUseCases';
 
 function normalizePlayer(p: any): Player {
   return {
@@ -224,30 +225,12 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         throw new Error('PERMISSION_DENIED');
       }
 
-      const usage = getPlayerHistoryUsage(editingPlayer.id);
-      const hasCloud = !!editingPlayer.cloudId;
-
-      let updated: Player[];
-      if (hasCloud) {
-        updated = players.map((p) =>
-          p.id === editingPlayer.id
-            ? { ...p, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
-            : p,
-        );
-      } else if (usage.hasHistory) {
-        updated = players.map((p) =>
-          p.id === editingPlayer.id
-            ? {
-                ...p,
-                ativo: false,
-                syncStatus: 'pending' as const,
-                metadata: { ...p.metadata, atualizadoEm: new Date().toISOString() },
-              }
-            : p,
-        );
-      } else {
-        updated = players.filter((p) => p.id !== editingPlayer.id);
-      }
+      const updated = applyLocalPlayerDeletion({
+        players,
+        playerId: editingPlayer.id,
+        usage: getPlayerHistoryUsage(editingPlayer.id),
+        now: new Date().toISOString(),
+      });
 
       setPlayers(updated);
       setEditingPlayer(null);

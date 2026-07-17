@@ -46,6 +46,39 @@ export function buildDefaultCommunityPlayer(input: {
   };
 }
 
+export function applyLocalPlayerDeletion(input: {
+  players: Player[];
+  playerId: string;
+  usage: { hasHistory: boolean };
+  now: string;
+}): Player[] {
+  const player = input.players.find((item) => item.id === input.playerId);
+  if (!player) return input.players;
+
+  if (player.cloudId) {
+    return input.players.map((item) =>
+      item.id === input.playerId
+        ? { ...item, deletedAt: input.now, syncStatus: 'pending' as const }
+        : item,
+    );
+  }
+
+  if (input.usage.hasHistory) {
+    return input.players.map((item) =>
+      item.id === input.playerId
+        ? {
+            ...item,
+            ativo: false,
+            syncStatus: 'pending' as const,
+            metadata: { ...item.metadata, atualizadoEm: input.now },
+          }
+        : item,
+    );
+  }
+
+  return input.players.filter((item) => item.id !== input.playerId);
+}
+
 export function applyPlayerCreationForCommunity(input: {
   players: Player[];
   name: string;

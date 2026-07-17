@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyLocalPlayerDeletion,
   applyGuestPlayerUpsert,
   applyPlayerCreationForCommunity,
   buildDefaultCommunityPlayer,
@@ -121,4 +122,45 @@ test('applyGuestPlayerUpsert reuses duplicate guests and appends new guests', ()
   assert.equal(inserted.selectedPlayer.id, 'guest-2');
   assert.equal(inserted.players.length, 2);
   assert.equal(inserted.wasCreated, true);
+});
+
+test('applyLocalPlayerDeletion soft-deletes cloud players', () => {
+  const existing = { ...player('player-1', 'Ana'), cloudId: 'cloud-player-1' };
+
+  const result = applyLocalPlayerDeletion({
+    players: [existing],
+    playerId: 'player-1',
+    usage: { hasHistory: false },
+    now,
+  });
+
+  assert.equal(result[0].deletedAt, now);
+  assert.equal(result[0].syncStatus, 'pending');
+});
+
+test('applyLocalPlayerDeletion inactivates local players with history', () => {
+  const existing = player('player-1', 'Ana');
+
+  const result = applyLocalPlayerDeletion({
+    players: [existing],
+    playerId: 'player-1',
+    usage: { hasHistory: true },
+    now,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].ativo, false);
+  assert.equal(result[0].syncStatus, 'pending');
+  assert.equal(result[0].metadata.atualizadoEm, now);
+});
+
+test('applyLocalPlayerDeletion removes local players without history', () => {
+  const result = applyLocalPlayerDeletion({
+    players: [player('player-1', 'Ana')],
+    playerId: 'player-1',
+    usage: { hasHistory: false },
+    now,
+  });
+
+  assert.deepEqual(result, []);
 });

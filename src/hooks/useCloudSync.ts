@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
-import { syncService, LocalSyncPayload } from '../services/supabase/syncService';
+import {
+  downloadCloudDataQuery,
+  repairDuplicateCloudDataCommand,
+  syncCloudDataCommand,
+  uploadCloudDataCommand,
+  type LocalSyncPayload,
+} from '../application/cloudSyncUseCases';
 import { normalizeGames, normalizeSessions } from '../logic/migrations';
 import {
   buildRecoverableSyncActions,
@@ -205,15 +211,15 @@ export function useCloudSync(deps: CloudSyncDeps) {
 
   const uploadToCloud = () =>
     run('Envio para a nuvem', (payload, userId, onIssue) =>
-      syncService.uploadLocalDataToCloud(payload, userId, { onIssue }),
+      uploadCloudDataCommand({ payload, userId, onIssue }),
     );
 
   const downloadFromCloud = () =>
-    run('Download da nuvem', () => syncService.downloadCloudDataToLocal(deps.userId ?? undefined));
+    run('Download da nuvem', () => downloadCloudDataQuery({ userId: deps.userId ?? undefined }));
 
   const sync = () =>
     run('Sincronização', (payload, userId, onIssue) =>
-      syncService.syncNow(payload, userId, { onIssue }),
+      syncCloudDataCommand({ payload, userId, onIssue }),
     );
 
   const recoverableSyncActions = buildRecoverableSyncActions(syncIssues);
@@ -231,7 +237,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
 
   const repairDuplicateCloudData = () =>
     run('Saneamento de duplicatas', (_payload, userId, onIssue) =>
-      syncService.repairDuplicateCloudData(userId, { onIssue }),
+      repairDuplicateCloudDataCommand({ userId, onIssue }),
     );
 
   return {

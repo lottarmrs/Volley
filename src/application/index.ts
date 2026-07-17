@@ -3,6 +3,7 @@ export * from './appShellViewModel';
 export * from './adminProfilesUseCases';
 export * from './avatarUseCases';
 export * from './backupUseCases';
+export * from './cloudSyncUseCases';
 export * from './cloudSyncStartupUseCases';
 export * from './communityPlayerSearchUseCases';
 export * from './communityMembershipUseCases';

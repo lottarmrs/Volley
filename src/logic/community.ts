@@ -14,8 +14,6 @@ import {
 import { calculateGeneralOverall } from './calculations';
 import { isCreditedPoint } from './match';
 
-const CREDITED_REASONS = ['attack', 'block', 'serve_ace', 'defense_counterattack', 'tip'];
-
 export function getCommunityPlayers(communityId: string, players: Player[]) {
   return (players || []).filter(
     (player) => player && (player.communityIds ?? []).includes(communityId),
@@ -247,6 +245,7 @@ export function getCommunityRanking(params: {
           point.reason === 'defense_counterattack' ||
           point.reason === 'tip' ||
           point.skill === 'ataque' ||
+          point.skill === 'defesa' ||
           point.skill === 'largada',
       ).length,
       errors: errorPoints.length,

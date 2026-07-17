@@ -161,6 +161,11 @@ export function buildActiveSessionClearResult(activeSession: Session | null): {
   };
 }
 
+export function selectSessionTeams(teams: Team[], sessionId: string | null | undefined): Team[] {
+  if (!sessionId) return [];
+  return teams.filter((team) => team.sessionId === sessionId);
+}
+
 export function buildFinishedSessionResult(input: {
   activeSession: Session;
   sessions: Session[];

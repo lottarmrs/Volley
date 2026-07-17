@@ -78,6 +78,7 @@ import {
   buildFinishedSessionResult,
   buildManualSessionStartResult,
   buildSessionFromCommunity,
+  selectSessionTeams,
 } from './application/sessionLifecycleUseCases';
 import {
   getAccountDisplay,
@@ -584,7 +585,7 @@ export default function App() {
               pointEvents={sess.pointEvents}
               setPointEvents={sess.setPointEvents}
               players={play.players}
-              sessionTeams={sess.teams.filter((t) => t.sessionId === sess.activeSession?.id)}
+              sessionTeams={selectSessionTeams(sess.teams, sess.activeSession?.id)}
               gameReports={sess.gameReports}
               setGameReports={sess.setGameReports}
               setActiveSession={sess.updateActiveSession}

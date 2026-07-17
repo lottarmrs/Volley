@@ -9,6 +9,7 @@ import {
   buildManualSessionStartResult,
   buildSessionFromCommunity,
   buildTournamentConfigFromCommunityRules,
+  selectSessionTeams,
 } from './sessionLifecycleUseCases';
 import type { Community, CommunityRules } from '../types';
 import { makePlayer, makeSession, makeTeam } from '../test/fixtures';
@@ -162,6 +163,20 @@ test('buildActiveSessionClearResult does nothing without an active session', () 
   const result = buildActiveSessionClearResult(null);
 
   assert.equal(result, null);
+});
+
+test('selectSessionTeams returns only teams from the active session', () => {
+  const teams = [
+    makeTeam('team-1', 'session-1', []),
+    makeTeam('team-2', 'session-2', []),
+    makeTeam('team-3', 'session-1', []),
+  ];
+
+  assert.deepEqual(
+    selectSessionTeams(teams, 'session-1').map((team) => team.id),
+    ['team-1', 'team-3'],
+  );
+  assert.deepEqual(selectSessionTeams(teams, null), []);
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

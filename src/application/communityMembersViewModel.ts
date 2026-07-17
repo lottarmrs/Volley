@@ -79,10 +79,7 @@ function initialsFor(displayName: string): string {
   return (displayName || '?').slice(0, 2).toUpperCase();
 }
 
-function sortMemberRows(
-  a: CommunityMemberRowViewModel,
-  b: CommunityMemberRowViewModel,
-): number {
+function sortMemberRows(a: CommunityMemberRowViewModel, b: CommunityMemberRowViewModel): number {
   return (
     (ROLE_ORDER[a.member.role] ?? 9) - (ROLE_ORDER[b.member.role] ?? 9) ||
     a.displayName.localeCompare(b.displayName)
@@ -119,8 +116,7 @@ export function buildCommunityMembersViewModel(
     permissions.role === null
       ? null
       : (communityMembers.find(
-          (member) =>
-            member.userId === currentUserId && memberStatus(member) === 'active',
+          (member) => member.userId === currentUserId && memberStatus(member) === 'active',
         ) ?? null);
 
   const toRow = (member: CommunityMember): CommunityMemberRowViewModel => {

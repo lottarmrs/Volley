@@ -1,280 +1,74 @@
-# HANDOFF — Sincronização, Gestão (RBAC) e Comunidade v2
-
-> Documento de continuidade. Última atualização: 2026-06-24.
-> Objetivo: permitir retomar o trabalho do zero (outra sessão ou outra pessoa)
-> sem perder contexto. Leia a seção **⚠️ ISSUES ABERTOS** antes de seguir.
-
----
-
-## 0. Visão geral do que foi feito nesta leva
-
-Três grandes blocos, todos sobre o mesmo app (`panelinha-team-balancer`, React + Vite +
-Supabase):
-
-1. **Robustez do sync** (enviar/baixar/mesclar) — Fase 1 de correções.
-2. **Limpeza de dados corrompidos na nuvem** (duplicatas da migração de UUID).
-3. **Comunidade v2** — redefinição do modelo + Área de Membros + sistema de entrada.
-
-O projeto: `id` locais agora são **UUID nativos** e, para a maioria das entidades,
-`id === cloudId === local_id`. O sync casa por `(owner_id, local_id)`.
-
----
-
-## 1. ⚠️ PRODUÇÃO — migrations já aplicadas no Supabase
-
-Projeto Supabase: **`csoslatxjjazrtrtylke`** ("Volley PROJECT", sa-east-1).
-Todas as migrations abaixo **já foram aplicadas no remoto** via MCP e os arquivos
-locais foram renomeados para as versões reais registradas (histórico reconciliado;
-`supabase migration list` deve bater 1:1).
-
-Migrations relevantes desta leva (em ordem):
-
-- `20260624133117_player_avatars_approval`
-- `20260624133200_player_evaluations`
-- `20260624133252_link_user_to_player_with_approval`
-- `20260624133328_unlink_player_rpc`
-- `20260624133529_rbac_global_roles_and_hardening` — papéis globais master/programmer/user
-- `20260624134502_harden_trigger_functions`
-- `20260624141708_role_management_rpc` — RPC `set_user_role` + trava de `profiles.role`
-- `20260624203424_community_model_v2` — **Comunidade v2 (Fase A)**
-- `20260624204113_community_join_system` — **Sistema de entrada (Fase C backend)**
-
-> IMPORTANTE: ao rodar `supabase db push` localmente, **nada novo deve ser aplicado**
-> (tudo já está no remoto). Se acusar divergência, rode `supabase migration list --linked`
-> e, se preciso, `supabase migration repair --status applied <versão>`.
-
-### Conta master
-
-`lottarmrs@gmail.com` foi promovido a `master` (via UPDATE direto, antes da trava).
-A coluna `profiles.role` agora é travada por trigger: só muda via RPC `set_user_role`
-(master-only). Para mexer manualmente em SQL é preciso `set session_replication_role = replica`.
-
----
-
-## 2. Limpeza de dados na nuvem (já executada)
-
-A migração de UUID (commit `a57ae86`) trocou os `local_id` de `player-…`/`community-…`
-para UUIDs novos. Como o upsert casa por `(owner_id, local_id)`, cada sync **inseriu
-duplicatas** em vez de atualizar. A nuvem chegou a: players 289 (real 91), communities
-16 (real 4), point_events 1100 (real 550), evaluations 337.
-
-**Ação tomada (autorizada pelo usuário):**
-
-1. Snapshot de segurança das tabelas exclusivas da nuvem em
-   `C:\Users\Matheus Silva\Downloads\panelinha_cloud_snapshot_2026-06-24.json`.
-2. **Limpeza total dos dados da conta** `lottarmrs` na nuvem (DELETE escopado a
-   `owner_id`, com `session_replication_role=replica` para contornar triggers).
-   Verificado: tudo zerado. **Profiles/papéis preservados.**
-3. Fonte da verdade para reseed: backup local do navegador
-   `C:\Users\Matheus Silva\Downloads\panelinha_backup_2026-06-24.json` (91 atletas,
-   4 comunidades, íntegro).
-
-### ⚠️ PENDENTE: reseed ainda NÃO foi feito
-
-O usuário precisa, no app, **Importar Backup** (o JSON acima) e depois **Sincronizar**
-(NÃO "Baixar da nuvem" — isso apagaria o local com a nuvem vazia). Com os fixes do sync,
-o upload recria tudo sem duplicar e syncs futuros passam a _atualizar_ no lugar.
-
-- 1 vínculo a refazer: o atleta `0f2b679a-680e-486a-871e-e8d2c6052bff` estava ligado à
-  conta do dono; o `user_id` não volta pelo sync (precisa religar pelo app).
-
----
-
-## 3. Modelo de Comunidade v2 (decisões do usuário)
-
-- **Entrada:** link/código de convite **+** pedido de entrada com aprovação (privada).
-- **Papéis (renomeados):** `owner` (Dono) → `admin` (Admin) → `moderator` (Moderador)
-  → `member` (Membro). Staff = owner/admin/moderator. `member` é participante (atleta/usuário),
-  **sem ações de gestão**.
-- **Membro ↔ atleta:** unificar via `player.userId` (a Área de Membros casa membro↔ficha).
-
-### Backend (aplicado)
-
-`community_model_v2`:
-
-- `community_members.role` check → `owner/admin/moderator/member` (migrou `organizer`→`moderator`).
-- `community_members` ganhou `status` (active/pending/invited/rejected) e `invited_by`.
-- `communities` ganhou `visibility` (private/public) e `join_code` (unique).
-- Helpers `current_user_has_community_role` / `current_user_can_access_player` /
-  `current_user_is_player_admin` recriados: novos nomes + **só contam membros `active`**.
-- `add_community_member_by_email` aceita os 4 papéis e marca `status='active'`.
-
-`community_join_system`:
-
-- Política RLS: "Users can read their own membership" (membro pending lê a própria linha).
-- RPCs (todas SECURITY DEFINER, authenticated):
-  - `generate_join_code(community_id)` / `disable_join_code(community_id)` — dono/admin.
-  - `find_community_by_code(code)` — preview (id, name, description, member_count, my_status).
-  - `request_to_join_community(code)` — cria filiação `pending` (re-pedido reativa de `rejected`).
-  - `approve_join_request(member_id)` / `reject_join_request(member_id)` — dono/admin.
-  - `leave_community(community_id)` — sai (owner não pode sair).
-
-### Frontend (no working tree, ver seção 4)
-
-- `types.ts`: `CommunityMemberRole` (4 papéis), `CommunityMemberStatus`, `CommunityMember.status/invitedBy`,
-  `Community.visibility/joinCode`.
-- `useCommunityPermissions`: `moderator` = nível organizador; `member` = sem gestão; só conta filiação ativa.
-- `useCommunityMembers`: expõe `activeMembers`, `pendingRequests`, `approveRequest`, `rejectRequest`,
-  `generateJoinCode`, `disableJoinCode`, `leave`.
-- `membershipCloudService`: métodos das RPCs acima; lê `status`/`invited_by`; default role `moderator`.
-- `CommunityMembersPanel` (reescrito = **Área de Membros**): código de convite (gerar/copiar/desativar),
-  fila de pedidos pendentes (aprovar/rejeitar), convite por e-mail, diretório com avatar/papel/status,
-  "Sair da comunidade". (O usuário começou a Fase D aqui: prop `players` + `athleteByUserId`.)
-- `JoinCommunityByCode.tsx` (novo): modal "Entrar com código" (preview + pedir). Ligado na
-  `CommunitiesView` (botão ao lado de "Nova").
-
----
-
-## 4. Mudanças no working tree (a commitar)
-
-```
-M src/components/community/CommunitiesView.tsx     # botão "Entrar com código" + modal
-M src/components/community/CommunityMembersPanel.tsx# Área de Membros (reescrita) + início Fase D
-A src/components/community/JoinCommunityByCode.tsx  # modal entrar por código
-M src/hooks/useCloudSync.ts                         # Fase 1: trava reentrância + report falhas parciais
-M src/hooks/useCommunityMembers.ts                  # ações de entrada + active/pending
-M src/hooks/useCommunityPermissions.ts             # papéis novos + status active
-M src/services/supabase/communityCloudService.ts   # mapDbToCommunity lê visibility/joinCode
-M src/services/supabase/mappers.test.ts            # testes ajustados (moderator/status) + regressões
-M src/services/supabase/membershipCloudService.ts  # RPCs de entrada + status
-M src/services/supabase/playerCloudService.ts      # Fase 1 I1: metadata?.atualizadoEm
-M src/services/supabase/syncService.test.ts        # regressões computeStaleRelationIds
-M src/services/supabase/syncService.ts             # Fase 1: C1/C3 (reconcile só no syncNow, isolar falhas)
-M src/types.ts                                      # tipos comunidade v2
-A supabase/migrations/20260624203424_community_model_v2.sql
-A supabase/migrations/20260624204113_community_join_system.sql
-```
-
-Estado de verificação no commit: **typecheck OK, build OK, 109 testes unit + 24 UI verdes.**
-
-### Fase 1 do sync (detalhe — já no working tree)
-
-- **C1**: reconciliação de `community_players` órfãos só roda no `syncNow` (flag
-  `reconcileRelations`), nunca no `uploadToCloud` puro; e só apaga vínculos de players
-  presentes no payload (`computeStaleRelationIds`, com teste). Evita apagar vínculos válidos.
-- **C3**: cada item do upload em `try/catch` com `onIssue` — uma falha não aborta tudo; o
-  que deu certo é aplicado; toast resume "concluído com N falha(s)".
-- **I1**: `playerCloudService.mapPlayerToDb` usa `metadata?.atualizadoEm` (não quebra sem metadata).
-- **I5**: `useCloudSync` com trava de reentrância (`inFlight` ref) — auto-sync + clique manual
-  não rodam concorrentes.
-- Bônus: `downloadFromCloud` passa `ownerId` (agregação de avaliações com dono).
-
----
-
-## 5. ⚠️ ISSUES ABERTOS (prioridade)
-
-### 5.1 🟢 React "change in order of Hooks" no `App` (NÃO REPRODUZ MAIS — monitorar)
-
-> ATUALIZAÇÃO 2026-06-24: após corrigir o 5.2 (I2), recarreguei o preview logado
-> (sessão ativa, dados reais) e o **console ficou 100% limpo** — sem o erro de Hooks
-> e sem a tempestade de propostas. Confirma a hipótese de que era artefato dos
-> múltiplos `setState` em loop do bug 5.2. Mantido aqui para monitoramento; se voltar,
-> seguir o roteiro abaixo.
-
-No preview (dados reais, sync ativo), o console mostra, **após reload limpo**:
-`React has detected a change in the order of Hooks called by App`.
-Divergência no **hook #116**: render anterior `useState`, próximo `useCallback`.
-
-- Significa um hook chamado **condicionalmente** em algum hook custom que o `App` chama
-  (a lista de 116 é o App + todos os custom hooks achatados).
-- Minhas adições (useRef no `useCloudSync`, useCallbacks no `useCommunityMembers`) são
-  **incondicionais** → não causam variância por si. Suspeita: hook condicional pré-existente
-  exposto pelo deslocamento de posições, OU um custom hook que muda contagem entre renders.
-- **Como depurar:** rodar dev, reproduzir, e no React DevTools/erro pegar o _component stack_
-  completo. Conferir cada custom hook chamado pelo `App` (`useSessions`, `usePlayers`,
-  `useSessionWizard`, `useCommunityPermissions`→`useAuth`/`useCommunityMembers`,
-  `usePlayerLinkProposals`, `useCloudSync`) procurando: hook após `return` antecipado, hook
-  dentro de `if/&&/?:/.map`, ou contagem de hooks dependente de props/estado. O cluster
-  ~#108–116 (3×useState, useCallback, useEffect, vários useCallback) **bate com
-  `useCommunityMembers`** — começar por ele e por `useCommunityPermissions`.
-- **Investigação feita (2026-06-24):** `App.tsx` tem todos os hooks no topo, incondicionais
-  (grep confirmado). Todos os `src/hooks/*.ts` também — sem hook condicional, sem `&& use`/`? use`,
-  sem `return` antes de hook (os `return useMemo(...)` em useWhatsAppListTemplates/useCommunityRules/
-  useCommunityPresence são o **return final**, válido). As adições desta leva (useRef no useCloudSync,
-  useCallbacks no useCommunityMembers) são incondicionais → **este commit NÃO introduziu o erro**.
-- **Suspeitos restantes (não auditados linha-a-linha):** `useLiveSession.ts` (~720 linhas) e
-  `useSessionWizard.ts` (~480) — verificar contagem de hooks dependente de estado/props.
-- **Hipótese alternativa:** o erro surgiu durante a _tempestade_ de `setState` do bug 5.2 (falhas
-  de proposta em loop). **Recomendo corrigir 5.2 primeiro** e reproduzir — pode reduzir os
-  re-renders e isolar/sumir o aviso.
-- Impacto: pode causar bugs/crash de render. **Tratar antes de confiar na UI nova.**
-
-### 5.2 🟢 Sync de propostas de vínculo falhando (I2) — CORRIGIDO
-
-Era: `playerLinkProposalCloudService.upsert` recebia propostas com `id` temporário
-(`proposal-…`) e tentava enviá-lo como `uuid` → erro 22P02.
-**Corrigido (commitado):** no `syncService`, o loop de propostas usa `isUuid(proposal.id)`
-(função exportada no próprio arquivo): se já é uuid, não reupserta (status vem dos RPCs +
-download); se é id temporário, cria via RPC `propose_player_link` e adota o id retornado.
-Console limpo após o fix.
-
-### 5.3 🟡 Reseed da nuvem pendente (ver seção 2)
-
-O usuário precisa Importar Backup + Sincronizar no app.
-
----
-
-## 6. Fases pendentes da Comunidade v2
-
-### Fase D — Membro ↔ Atleta (iniciada)
-
-- Já há `players` + `athleteByUserId` no `CommunityMembersPanel`. Falta: mostrar a ficha do
-  atleta vinculada a cada membro (avatar/posição/stats) e o card "minha ficha" do usuário logado;
-  permitir reivindicar/vincular ali (reusa `usePlayerLinkProposals` / RPC `propose_player_link`).
-- Passar `players={community players}` ao `CommunityMembersPanel` na `CommunitiesView`
-  (hoje o default é `[]`).
-
-### Fase E — Visibilidade / descoberta + notificações
-
-**E1 (cross-owner) ✅ FEITO e commitado** (`a3d17a6`): `Community.cloudOwnerId` (do `owner_id`
-da nuvem); `mapDbToCommunity` preenche; no `syncService` o upload **pula comunidades de outro
-dono** (`isSharedCommunity`, espelha `isSharedPlayer`). Assim uma comunidade em que entrei como
-membro baixa (RLS permite leitura por membro ativo) e aparece, sem o sync brigar com a RLS.
-
-**E2 (descoberta de públicas) ✅ backend + componentes feitos** (migration
-`20260625192530_community_discovery`, aplicada): opt-in, **mantém padrão privado**; entrar em
-pública também passa por aprovação (cria `pending`). RPCs: `set_community_visibility`,
-`search_public_communities`, `request_to_join_public`. Frontend novo (parallel-safe):
-`services/supabase/communityDiscoveryService.ts` e `components/community/CommunityDiscovery.tsx`
-(modal de busca + pedir entrada).
-
-- ⏳ **FALTA WIRAR (1 edição na `CommunitiesView`, deixada pra você p/ não conflitar):**
-  1. `import { CommunityDiscovery } from './CommunityDiscovery';`
-  2. estado `const [showDiscovery, setShowDiscovery] = useState(false);`
-  3. botão no cabeçalho (ao lado de "Entrar com código"): `Descobrir` → `setShowDiscovery(true)`.
-  4. render: `{showDiscovery && <CommunityDiscovery onClose={() => setShowDiscovery(false)} />}`.
-  5. (opcional) toggle público/privado nas configurações da comunidade via
-     `communityDiscoveryService.setVisibility(community.cloudId, 'public'|'private')`.
-
-**Ainda pendente em E:** badge de nº de pedidos na aba Membros (vive na CommunitiesView/painel
-— você está editando); notificações (separado, maior).
-
----
-
-## 7. Como verificar / continuar
-
-```bash
-npm run typecheck        # tsc --noEmit
-npm run test:unit        # node --test (lógica + mappers + sync)
-npm run test:ui          # vitest
-npm run build            # vite build
-npm run dev              # dev server :3000  (preview)
-```
-
-- Verificação ao vivo precisa de login (Supabase) como `master`. Roteiro:
-  1. Importar backup + Sincronizar (resolve duplicatas e o prompt de "vincular comunidade").
-  2. Comunidade → aba Membros: gerar código, copiar; em outra conta usar "Entrar com código";
-     voltar ao dono e aprovar o pedido.
-  3. Conferir papéis (Dono/Admin/Moderador/Membro) e "Sair da comunidade".
-
-- Supabase via MCP: `list_migrations`, `execute_sql`, `get_advisors` (rodar advisors após DDL).
-
----
-
-## 8. Ordem de retomada sugerida
-
-1. **Resolver 5.1 (hooks order)** — bloqueante de confiança na UI.
-2. **5.2 (I2 propostas)** — parar o ruído de erro no sync.
-3. **Reseed (2)** — orientar/validar o Importar+Sincronizar do usuário.
-4. **Fase D** (membro↔atleta) → **Fase E** (visibilidade/descoberta).
-5. Rodar `get_advisors security` e `performance` no Supabase após tudo.
+# HANDOFF - Panelinha App
+
+> Documento operacional atualizado em 2026-07-17.
+> Este arquivo substitui o handoff histórico de 2026-06-24, que continha estado de working tree e pendências já superadas.
+
+## Estado Atual
+
+- Branch local: `main`, à frente de `origin/main` por commits locais ainda não enviados.
+- Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
+- Prioridade atual do framework: Produto Escalável, depois Experiência.
+- Foco imediato: saneamento de toolchain, CI, documentação e compatibilidade operacional antes de abrir novas fatias.
+
+## Supabase
+
+O projeto usa Supabase apenas para conta, backup/sincronização, comunidades, RBAC, avatar approval, vínculo atleta-conta e auditoria.
+
+Para provisionar ou restaurar ambiente, aplique todos os arquivos em `supabase/migrations` em ordem cronológica de nome:
+
+1. `schema.sql`
+2. `20260610161203_backend_operational_sync.sql`
+3. `20260610161236_upsert_conflict_targets.sql`
+4. `20260610161256_global_athlete_identity.sql`
+5. `20260610195250_harden_function_security.sql`
+6. `20260615200155_point_event_taxonomy.sql`
+7. `20260617180615_community_players_optimization.sql`
+8. `20260618154732_point_event_kind_and_assist.sql`
+9. `20260623133702_game_multiset_sets_and_targets.sql`
+10. `20260623133849_drop_redundant_game_multiset_columns.sql`
+11. `20260624133117_player_avatars_approval.sql`
+12. `20260624133200_player_evaluations.sql`
+13. `20260624133252_link_user_to_player_with_approval.sql`
+14. `20260624133328_unlink_player_rpc.sql`
+15. `20260624133529_rbac_global_roles_and_hardening.sql`
+16. `20260624134502_harden_trigger_functions.sql`
+17. `20260624141708_role_management_rpc.sql`
+18. `20260624203424_community_model_v2.sql`
+19. `20260624204113_community_join_system.sql`
+20. `20260625182618_fix_profile_signup_role.sql`
+21. `20260625192530_community_discovery.sql`
+22. `20260629201136_harden_avatar_storage_update_policy.sql`
+23. `20260629212554_linked_player_self_read.sql`
+24. `20260707143343_community_member_role_remove_rpc.sql`
+
+Notas:
+
+- Migrations recentes usam RLS, grants, `SECURITY DEFINER` com `set search_path = public`, revokes para `public/anon` e grants para `authenticated` onde necessário.
+- Mudanças sensíveis de membros passam por RPCs (`set_community_member_role`, `remove_community_member`), não por update/delete direto de tabela no browser.
+- Projetos Supabase novos podem exigir conferência de Data API exposure mesmo quando os grants SQL estão corretos.
+
+## Verificação Atual
+
+Última auditoria local antes desta atualização:
+
+- `npm run lint`: passou.
+- `npm run test:unit`: 294 testes passaram.
+- `npm run test:ui`: 50 testes passaram.
+- `npm run build`: passou.
+- `npm run lint:eslint`: 0 errors, 347 warnings.
+- `npm run format:check`: falhava antes do saneamento por falta de normalização Prettier.
+- `npm audit --omit=dev`: apontava Vite/Babel/esbuild; `npm audit fix` atualizou Vite/Babel no lockfile, restando uma vulnerabilidade baixa transitiva de `esbuild`.
+
+## Dívida Técnica Conhecida
+
+- `src/logic/migrations.ts` é grande e concentra muitos `any`, por ser a camada de compatibilidade/importação local.
+- `src/components/session/SessionWizard.tsx` segue grande e com muitos casts; é candidato a fatiamento quando voltarmos à Experiência/UX.
+- Bundle principal ainda é grande; considerar code splitting antes de polimento de performance.
+- O script `test:unit` lista arquivos manualmente; pode virar fonte de esquecimento ao criar testes novos.
+
+## Ordem Recomendada
+
+1. Fechar saneamento iniciado: lockfile, package metadata, ignores, Prettier e checks.
+2. Commitar a fatia de saneamento se todos os checks relevantes passarem.
+3. Voltar para Produto Escalável com a próxima fatia funcional.
+4. Deixar UI/esqueumorfismo para a fase Experiência, mantendo a UI atual por enquanto.

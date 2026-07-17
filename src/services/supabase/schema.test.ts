@@ -255,7 +255,10 @@ test('community member role RPC migration hardens role changes and removals', ()
 
   assert.match(communityMemberRoleRpcMigration, /public\.is_superadmin\(\)/i);
   assert.match(communityMemberRoleRpcMigration, /current_user_has_community_role/i);
-  assert.match(communityMemberRoleRpcMigration, /p_role not in \('admin', 'moderator', 'member'\)/i);
+  assert.match(
+    communityMemberRoleRpcMigration,
+    /p_role not in \('admin', 'moderator', 'member'\)/i,
+  );
   assert.doesNotMatch(communityMemberRoleRpcMigration, /p_role not in \([^)]*'organizer'/i);
   assert.match(communityMemberRoleRpcMigration, /target_member\.role = 'owner'/i);
 });

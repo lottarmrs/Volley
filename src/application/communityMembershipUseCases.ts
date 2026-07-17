@@ -81,10 +81,9 @@ export async function fetchCommunityMembersQuery(
     );
     return appOk({ members });
   } catch (error) {
-    return appOk(
-      { members: [] },
-      [recoverableIssue('cloud_unavailable', 'Nao foi possivel carregar os membros.', error)],
-    );
+    return appOk({ members: [] }, [
+      recoverableIssue('cloud_unavailable', 'Nao foi possivel carregar os membros.', error),
+    ]);
   }
 }
 
@@ -312,10 +311,7 @@ export async function leaveCommunityCommand(
     return productError('not_found', 'Sua participacao nesta comunidade nao foi encontrada.');
   }
   if (input.currentMember.role === 'owner') {
-    return productError(
-      'permission_denied',
-      'O dono nao pode sair da comunidade por este fluxo.',
-    );
+    return productError('permission_denied', 'O dono nao pode sair da comunidade por este fluxo.');
   }
 
   try {
@@ -363,10 +359,7 @@ export async function previewCommunityJoinByCodeQuery(
   try {
     const community = await gateway.findByCode(code);
     if (!community) {
-      return productError(
-        'not_found',
-        'Codigo de convite invalido ou comunidade nao encontrada.',
-      );
+      return productError('not_found', 'Codigo de convite invalido ou comunidade nao encontrada.');
     }
     return appOk({ community });
   } catch (error) {

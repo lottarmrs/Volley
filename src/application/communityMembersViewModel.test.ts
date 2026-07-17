@@ -78,7 +78,10 @@ test('view model returns cloud disabled state when Supabase is unavailable', () 
 
   assert.equal(vm.state, 'cloud_disabled');
   assert.equal(vm.canManage, false);
-  assert.equal(vm.blockedMessage, 'Conecte uma conta na nuvem para gerenciar membros desta comunidade.');
+  assert.equal(
+    vm.blockedMessage,
+    'Conecte uma conta na nuvem para gerenciar membros desta comunidade.',
+  );
 });
 
 test('view model returns not synced state when community has no cloud id', () => {

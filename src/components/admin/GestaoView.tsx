@@ -160,10 +160,8 @@ export const GestaoView = ({
               'Atleta';
             const requester = profileById.get(proposal.userId);
             const requesterLabel = requester?.email || requester?.name || proposal.userId;
-            const approving =
-              actingReview?.id === proposal.id && actingReview.action === 'approve';
-            const rejecting =
-              actingReview?.id === proposal.id && actingReview.action === 'reject';
+            const approving = actingReview?.id === proposal.id && actingReview.action === 'approve';
+            const rejecting = actingReview?.id === proposal.id && actingReview.action === 'reject';
             const reviewLocked = actingReview !== null;
             return (
               <div

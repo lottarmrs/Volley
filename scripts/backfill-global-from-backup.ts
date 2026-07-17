@@ -5,9 +5,8 @@
  * (IMPORT_OWNER_ID), upserts its communities, its non-guest players (each
  * assigned a deterministic global username), and the community<->player links.
  *
- * Prerequisites: the Supabase project is provisioned and the migrations have
- * been applied in order (schema.sql -> 20260609120000 -> 20260610120000 ->
- * 20260610130000_global_athlete_identity).
+ * Prerequisites: the Supabase project is provisioned and every SQL file in
+ * `supabase/migrations` has been applied in chronological filename order.
  *
  * Usage:
  *   # Preview only, no writes, no DB connection required:

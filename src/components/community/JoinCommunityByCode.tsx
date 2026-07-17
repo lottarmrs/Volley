@@ -17,16 +17,8 @@ const STATUS_LABEL: Record<string, string> = {
  * pedido (que fica pendente até um dono/admin aprovar na Área de Membros).
  */
 export function JoinCommunityByCode({ onClose }: JoinCommunityByCodeProps) {
-  const {
-    code,
-    setCode,
-    preview,
-    loading,
-    error,
-    requested,
-    previewCommunity,
-    requestJoin,
-  } = useJoinCommunityByCode();
+  const { code, setCode, preview, loading, error, requested, previewCommunity, requestJoin } =
+    useJoinCommunityByCode();
 
   const handlePreview = async () => {
     if (!code.trim()) return;

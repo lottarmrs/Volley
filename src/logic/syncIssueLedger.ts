@@ -47,10 +47,7 @@ export interface RecoverableSyncActions {
   primaryActionLabel: string | null;
 }
 
-export function recordSyncIssue(
-  ledger: SyncIssueEntry[],
-  input: SyncIssueInput,
-): SyncIssueEntry[] {
+export function recordSyncIssue(ledger: SyncIssueEntry[], input: SyncIssueInput): SyncIssueEntry[] {
   const message = formatSyncIssueError(input.error);
   const id = buildSyncIssueId(input.operation, input.context, message);
   const existing = ledger.find((issue) => issue.id === id);

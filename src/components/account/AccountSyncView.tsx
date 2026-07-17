@@ -417,9 +417,7 @@ export function AccountSyncView({
                       className="border border-base-300 rounded-lg p-3 bg-base-200/60"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <p className="text-xs font-black text-base-content">
-                          {issue.operation}
-                        </p>
+                        <p className="text-xs font-black text-base-content">{issue.operation}</p>
                         <span className="badge badge-warning badge-soft text-[9px] font-black uppercase">
                           {issue.count} tentativa(s)
                         </span>

@@ -384,9 +384,7 @@ export function CommunityMembersPanel({
                         ))}
                       </select>
                     ) : (
-                      <span className={`badge ${row.roleBadgeClass}`}>
-                        {row.roleLabel}
-                      </span>
+                      <span className={`badge ${row.roleBadgeClass}`}>{row.roleLabel}</span>
                     )}
                     {row.canRemove && (
                       <button

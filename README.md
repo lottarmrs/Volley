@@ -64,17 +64,40 @@ VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 ## Supabase Setup (optional)
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. In the **SQL Editor**, run the migrations **in this exact order**:
+2. Apply the complete migration chain from `supabase/migrations`, in chronological filename order. Prefer the Supabase CLI (`supabase db push`) for a linked project. If using the SQL Editor, run every file in order, starting with `schema.sql` and continuing through the latest dated migration.
 
 ```text
-1. supabase/migrations/schema.sql
-2. supabase/migrations/20260610161203_backend_operational_sync.sql
+supabase/migrations/schema.sql
+supabase/migrations/20260610161203_backend_operational_sync.sql
+supabase/migrations/20260610161236_upsert_conflict_targets.sql
+supabase/migrations/20260610161256_global_athlete_identity.sql
+supabase/migrations/20260610195250_harden_function_security.sql
+supabase/migrations/20260615200155_point_event_taxonomy.sql
+supabase/migrations/20260617180615_community_players_optimization.sql
+supabase/migrations/20260618154732_point_event_kind_and_assist.sql
+supabase/migrations/20260623133702_game_multiset_sets_and_targets.sql
+supabase/migrations/20260623133849_drop_redundant_game_multiset_columns.sql
+supabase/migrations/20260624133117_player_avatars_approval.sql
+supabase/migrations/20260624133200_player_evaluations.sql
+supabase/migrations/20260624133252_link_user_to_player_with_approval.sql
+supabase/migrations/20260624133328_unlink_player_rpc.sql
+supabase/migrations/20260624133529_rbac_global_roles_and_hardening.sql
+supabase/migrations/20260624134502_harden_trigger_functions.sql
+supabase/migrations/20260624141708_role_management_rpc.sql
+supabase/migrations/20260624203424_community_model_v2.sql
+supabase/migrations/20260624204113_community_join_system.sql
+supabase/migrations/20260625182618_fix_profile_signup_role.sql
+supabase/migrations/20260625192530_community_discovery.sql
+supabase/migrations/20260629201136_harden_avatar_storage_update_policy.sql
+supabase/migrations/20260629212554_linked_player_self_read.sql
+supabase/migrations/20260707143343_community_member_role_remove_rpc.sql
 ```
 
-> ⚠️ Running only `schema.sql` leaves the sync of sessions, teams, games and point events broken — the second migration creates the operational tables and the community membership model.
+> ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
 
-3. Fill in `.env` with your project URL and publishable key.
-4. In the app, open **Nuvem & Conta**, create an account and use _Enviar para nuvem_ / _Baixar da nuvem_ / _Sincronizar_.
+3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
+4. Fill in `.env` with your project URL and publishable key.
+5. In the app, open **Nuvem & Conta**, create an account and use _Enviar para nuvem_ / _Baixar da nuvem_ / _Sincronizar_.
 
 ### Database Schema
 
@@ -83,7 +106,7 @@ profiles (Users)
   └── communities (Groups)
         ├── players (Athletes)
         │     └── community_players (Relation)
-        ├── community_members (Users with roles: owner/admin/organizer)
+        ├── community_members (Users with roles: owner/admin/moderator/member)
         ├── community_rules (Weights and game settings)
         ├── whatsapp_list_templates (WhatsApp message templates)
         └── sessions → teams, games, point_events,
@@ -99,7 +122,7 @@ modification_logs (Audit trail for inserts, updates, and deletes)
 | `node: bad option: --import` when running `npm test`    | Node < 20.6. Run `nvm use` (or `nvm install 22`).                                                                                         |
 | `npm run dev` fails or Vite errors on startup           | Node < 20. Run `nvm use`.                                                                                                                 |
 | "Supabase environment variables are missing" in console | Expected without `.env`. Harmless in local mode; create `.env` to enable cloud sync.                                                      |
-| Cloud sync fails for sessions/games                     | The second migration was not applied. Run `20260610161203_backend_operational_sync.sql`.                                                  |
+| Cloud sync, RBAC, join requests or player linking fail  | The full Supabase migration chain was not applied. Run all files in `supabase/migrations` in chronological filename order.                |
 | Data disappeared after clearing browser data            | Local data lives in `localStorage`. Use **Configurações → Exportar Backup (JSON)** regularly, or create an account and sync to the cloud. |
 
 ## Features

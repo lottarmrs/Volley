@@ -20,16 +20,8 @@ const STATUS_LABEL: Record<string, string> = {
  * partir da lista de comunidades.
  */
 export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
-  const {
-    query,
-    setQuery,
-    results,
-    loading,
-    error,
-    actingId,
-    search,
-    requestJoin,
-  } = useCommunityDiscovery();
+  const { query, setQuery, results, loading, error, actingId, search, requestJoin } =
+    useCommunityDiscovery();
 
   // Lista inicial das públicas ao abrir.
   useEffect(() => {

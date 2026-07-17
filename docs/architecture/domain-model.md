@@ -68,4 +68,4 @@ business rules out of React components and IO services without changing behavior
   flows that have commands or queries.
 - Community membership operations live behind `src/application/communityMembershipUseCases.ts`.
 - Community member panels should render `communityMembersViewModel` output instead of deriving role/editability rules in JSX.
-- Direct Supabase table update/delete for membership role and removal is isolated behind a gateway for now; a later Supabase/RPC slice should replace those adapter internals with dedicated RPCs.
+- Sensitive membership role changes and removals go through Supabase RPCs (`set_community_member_role` and `remove_community_member`) behind the membership gateway; browser code should not mutate those rows directly.

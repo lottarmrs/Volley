@@ -84,6 +84,7 @@ import {
   getCommunitiesNavigationTarget,
   getCurrentPageTitle,
   getDashboardNavigationTarget,
+  getHistoryNavigationTarget,
   getHistorySessionNavigationTarget,
   getLiveSessionNavigationTarget,
   getModuleNavigationTarget,
@@ -642,7 +643,7 @@ export default function App() {
               applyShellNavigationTarget(getPlayersNavigationTarget());
             }}
             onHistory={() => {
-              setActiveModule('historico');
+              applyShellNavigationTarget(getHistoryNavigationTarget());
             }}
             onExportBackup={handleExportBackup}
             onImportBackup={handleImportBackup}

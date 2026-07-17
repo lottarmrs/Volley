@@ -5,6 +5,7 @@ import {
   getCommunitiesNavigationTarget,
   getCurrentPageTitle,
   getDashboardNavigationTarget,
+  getHistoryNavigationTarget,
   getHistorySessionNavigationTarget,
   getLiveSessionNavigationTarget,
   getModuleNavigationTarget,
@@ -91,6 +92,9 @@ test('specific shell navigation targets describe common routes', () => {
   assert.deepEqual(getLiveSessionNavigationTarget(), {
     activeModule: 'dashboard',
     page: 'session-active',
+  });
+  assert.deepEqual(getHistoryNavigationTarget(), {
+    activeModule: 'historico',
   });
   assert.deepEqual(getHistorySessionNavigationTarget('session-1'), {
     activeModule: 'historico',

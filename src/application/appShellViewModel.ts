@@ -96,6 +96,10 @@ export function getLiveSessionNavigationTarget(): ShellNavigationTarget {
   return { activeModule: 'dashboard', page: 'session-active' };
 }
 
+export function getHistoryNavigationTarget(): ShellNavigationTarget {
+  return { activeModule: 'historico' };
+}
+
 export function getHistorySessionNavigationTarget(sessionId: string): ShellNavigationTarget {
   return { activeModule: 'historico', selectedHistorySessionId: sessionId };
 }

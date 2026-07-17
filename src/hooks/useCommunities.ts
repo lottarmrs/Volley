@@ -3,6 +3,10 @@ import { Community } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { normalizeCommunities } from '../logic/migrations';
 import { generateUUID } from '../logic/uuid';
+import {
+  applyLocalCommunityDeletion,
+  validateLocalCommunitySave,
+} from '../application/localCommunityUseCases';
 
 function normalizeCommunityName(value: unknown): string {
   return String(value ?? '')
@@ -50,21 +54,7 @@ export function useCommunities() {
       }
       if (!editingCommunity) return false;
 
-      const errors: Record<string, string> = {};
-      if (!editingCommunity.name.trim()) {
-        errors.name = 'O nome da comunidade é obrigatório.';
-      }
-
-      const duplicate = communities.find(
-        (community) =>
-          community.id !== editingCommunity.id &&
-          !community.deletedAt &&
-          !community.archived &&
-          normalizeCommunityName(community.name) === normalizeCommunityName(editingCommunity.name),
-      );
-      if (duplicate && !errors.name) {
-        errors.name = `Ja existe uma comunidade com esse nome: ${duplicate.name}.`;
-      }
+      const errors = validateLocalCommunitySave({ communities, community: editingCommunity });
 
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors);
@@ -98,17 +88,11 @@ export function useCommunities() {
       }
       if (!editingCommunity) return;
 
-      const hasCloud = !!editingCommunity.cloudId;
-      let updated: Community[];
-      if (hasCloud) {
-        updated = communities.map((c) =>
-          c.id === editingCommunity.id
-            ? { ...c, deletedAt: new Date().toISOString(), syncStatus: 'pending' as const }
-            : c,
-        );
-      } else {
-        updated = communities.filter((c) => c.id !== editingCommunity.id);
-      }
+      const updated = applyLocalCommunityDeletion({
+        communities,
+        communityId: editingCommunity.id,
+        now: new Date().toISOString(),
+      });
       setCommunities(updated);
 
       // Run cascade delete to clean up references in player models

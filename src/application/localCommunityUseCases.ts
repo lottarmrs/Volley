@@ -7,6 +7,60 @@ import type {
   WhatsAppListTemplate,
 } from '../types';
 
+export type LocalCommunityValidationErrors = Record<string, string>;
+
+function normalizeCommunityName(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+export function validateLocalCommunitySave(input: {
+  communities: Community[];
+  community: Community;
+}): LocalCommunityValidationErrors {
+  const errors: LocalCommunityValidationErrors = {};
+
+  if (!input.community.name.trim()) {
+    errors.name = 'O nome da comunidade é obrigatório.';
+  }
+
+  const duplicate = input.communities.find(
+    (community) =>
+      community.id !== input.community.id &&
+      !community.deletedAt &&
+      !community.archived &&
+      normalizeCommunityName(community.name) === normalizeCommunityName(input.community.name),
+  );
+  if (duplicate && !errors.name) {
+    errors.name = `Ja existe uma comunidade com esse nome: ${duplicate.name}.`;
+  }
+
+  return errors;
+}
+
+export function applyLocalCommunityDeletion(input: {
+  communities: Community[];
+  communityId: string;
+  now: string;
+}): Community[] {
+  const community = input.communities.find((item) => item.id === input.communityId);
+  if (!community) return input.communities;
+
+  if (community.cloudId) {
+    return input.communities.map((item) =>
+      item.id === input.communityId
+        ? { ...item, deletedAt: input.now, syncStatus: 'pending' as const }
+        : item,
+    );
+  }
+
+  return input.communities.filter((item) => item.id !== input.communityId);
+}
+
 export function applyCommunityDeletion(input: {
   communityId: string;
   communities: Community[];

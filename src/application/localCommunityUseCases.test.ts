@@ -4,8 +4,10 @@ import {
   applyCommunityDeletion,
   applyCommunityHistoryClear,
   applyCommunityMembershipDuplicate,
+  applyLocalCommunityDeletion,
   applyLinkedCloudPlayer,
   applyPlayerCommunityMemberships,
+  validateLocalCommunitySave,
 } from './localCommunityUseCases';
 import type {
   Community,
@@ -17,6 +19,24 @@ import type {
 } from '../types';
 
 const now = '2026-07-13T12:00:00.000Z';
+
+function community(id: string, name: string): Community {
+  return {
+    id,
+    name,
+    description: '',
+    defaultLocation: '',
+    defaultDay: '',
+    defaultStartTime: '',
+    defaultEndTime: '',
+    defaultFormat: 'free_play',
+    color: 'primary',
+    icon: 'volleyball',
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 function player(id: string, communityIds: string[] = []): Player {
   return {
@@ -76,6 +96,58 @@ test('applyCommunityDeletion removes the community and local operational referen
     result.drafts.map((draft) => draft.communityId),
     ['c2'],
   );
+});
+
+test('validateLocalCommunitySave requires a non-empty community name', () => {
+  const result = validateLocalCommunitySave({
+    communities: [],
+    community: community('c1', '   '),
+  });
+
+  assert.equal(result.name, 'O nome da comunidade é obrigatório.');
+});
+
+test('validateLocalCommunitySave detects active semantic duplicate names', () => {
+  const result = validateLocalCommunitySave({
+    communities: [community('c1', 'Terça do Vôlei')],
+    community: community('c2', ' Terca do Volei '),
+  });
+
+  assert.equal(result.name, 'Ja existe uma comunidade com esse nome: Terça do Vôlei.');
+});
+
+test('validateLocalCommunitySave ignores deleted archived and self duplicates', () => {
+  const result = validateLocalCommunitySave({
+    communities: [
+      community('c1', 'Terça do Vôlei'),
+      { ...community('c2', 'Terça do Vôlei'), deletedAt: now },
+      { ...community('c3', 'Terça do Vôlei'), archived: true },
+    ],
+    community: community('c1', 'Terça do Vôlei'),
+  });
+
+  assert.deepEqual(result, {});
+});
+
+test('applyLocalCommunityDeletion soft-deletes cloud communities', () => {
+  const result = applyLocalCommunityDeletion({
+    communities: [{ ...community('c1', 'Domingo'), cloudId: 'cloud-c1' }],
+    communityId: 'c1',
+    now,
+  });
+
+  assert.equal(result[0].deletedAt, now);
+  assert.equal(result[0].syncStatus, 'pending');
+});
+
+test('applyLocalCommunityDeletion removes local-only communities', () => {
+  const result = applyLocalCommunityDeletion({
+    communities: [community('c1', 'Domingo')],
+    communityId: 'c1',
+    now,
+  });
+
+  assert.deepEqual(result, []);
 });
 
 test('applyCommunityMembershipDuplicate adds the duplicated community to source members once', () => {

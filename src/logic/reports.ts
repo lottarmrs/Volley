@@ -5,6 +5,27 @@ import { calculateTournamentStandings, isResultGame } from './tournament';
 import { calculateMatchRating, calculateSessionRating } from './rating';
 import { isCreditedPoint } from './match';
 
+const isAttackPoint = (point: PointEvent) =>
+  point.skill === 'ataque' ||
+  point.skill === 'defesa' ||
+  point.skill === 'largada' ||
+  (!point.skill &&
+    (point.reason === 'attack' ||
+      point.reason === 'defense_counterattack' ||
+      point.reason === 'tip'));
+
+const isBlockPoint = (point: PointEvent) =>
+  point.skill === 'bloqueio' || (!point.skill && point.reason === 'block');
+
+const isAcePoint = (point: PointEvent) =>
+  point.skill === 'saque' || (!point.skill && point.reason === 'serve_ace');
+
+const isTipPoint = (point: PointEvent) =>
+  point.skill === 'largada' || (!point.skill && point.reason === 'tip');
+
+const isCounterAttackPoint = (point: PointEvent) =>
+  point.skill === 'defesa' || (!point.skill && point.reason === 'defense_counterattack');
+
 export function generateGameReport(
   game: Game,
   allPoints: PointEvent[],
@@ -42,13 +63,11 @@ export function generateGameReport(
       teamId: team.id,
       teamName: team.name,
       totalPoints: creditedPoints.length,
-      attacks: creditedPoints.filter(
-        (p) => p.reason === 'attack' || p.reason === 'defense_counterattack' || p.reason === 'tip',
-      ).length,
-      blocks: creditedPoints.filter((p) => p.reason === 'block').length,
-      aces: creditedPoints.filter((p) => p.reason === 'serve_ace').length,
-      tips: creditedPoints.filter((p) => p.reason === 'tip').length,
-      counterAttacks: creditedPoints.filter((p) => p.reason === 'defense_counterattack').length,
+      attacks: creditedPoints.filter(isAttackPoint).length,
+      blocks: creditedPoints.filter(isBlockPoint).length,
+      aces: creditedPoints.filter(isAcePoint).length,
+      tips: creditedPoints.filter(isTipPoint).length,
+      counterAttacks: creditedPoints.filter(isCounterAttackPoint).length,
       errors: errorPoints.length,
       highlights: highlightPoints.length,
       rating: player
@@ -180,14 +199,11 @@ export function generateSessionReport(
         playerId: pid,
         playerName: player?.nome || 'Atleta',
         totalPoints: creditedPoints.length,
-        attacks: creditedPoints.filter(
-          (p) =>
-            p.reason === 'attack' || p.reason === 'defense_counterattack' || p.reason === 'tip',
-        ).length,
-        blocks: creditedPoints.filter((p) => p.reason === 'block').length,
-        aces: creditedPoints.filter((p) => p.reason === 'serve_ace').length,
-        tips: creditedPoints.filter((p) => p.reason === 'tip').length,
-        counterAttacks: creditedPoints.filter((p) => p.reason === 'defense_counterattack').length,
+        attacks: creditedPoints.filter(isAttackPoint).length,
+        blocks: creditedPoints.filter(isBlockPoint).length,
+        aces: creditedPoints.filter(isAcePoint).length,
+        tips: creditedPoints.filter(isTipPoint).length,
+        counterAttacks: creditedPoints.filter(isCounterAttackPoint).length,
         errors: errorPoints.length,
         highlights: highlightPoints.length,
         rating: player

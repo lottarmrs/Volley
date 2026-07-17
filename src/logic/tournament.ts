@@ -348,12 +348,14 @@ export function calculateTopScorers(pointEvents: PointEvent[]) {
       opponentErrors: 0,
     };
     row.totalPoints++;
-    if (point.reason === 'attack') row.attacks++;
-    if (point.reason === 'block') row.blocks++;
-    if (point.reason === 'serve_ace') row.aces++;
-    if (point.reason === 'defense_counterattack') row.counterAttacks++;
-    if (point.reason === 'tip') row.tips++;
-    if (point.reason === 'opponent_error') row.opponentErrors++;
+    if (point.skill === 'ataque' || (!point.skill && point.reason === 'attack')) row.attacks++;
+    if (point.skill === 'bloqueio' || (!point.skill && point.reason === 'block')) row.blocks++;
+    if (point.skill === 'saque' || (!point.skill && point.reason === 'serve_ace')) row.aces++;
+    if (point.skill === 'defesa' || (!point.skill && point.reason === 'defense_counterattack')) {
+      row.counterAttacks++;
+    }
+    if (point.skill === 'largada' || (!point.skill && point.reason === 'tip')) row.tips++;
+    if (!point.skill && point.reason === 'opponent_error') row.opponentErrors++;
     stats.set(point.playerId, row);
   });
 

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  calculateTopScorers,
   calculateTournamentStandings,
   calculateTournamentAwards,
   createWalkoverResult,
@@ -229,6 +230,39 @@ test('calculateTournamentAwards picks the leader of each category', () => {
   assert.equal(awards.reception?.playerId, 'lib'); // 6 lances de recepção
   assert.equal(awards.reception?.value, 6);
   assert.ok(awards.mvp); // MVP resolvido
+});
+
+test('calculateTopScorers counts modern point taxonomy by skill', () => {
+  const pt = (over: Partial<PointEvent>): PointEvent =>
+    ({
+      id: Math.random().toString(36).slice(2),
+      sessionId: 's',
+      gameId: 'g',
+      sequenceNumber: 1,
+      scoringTeamId: 't1',
+      concedingTeamId: 't2',
+      scoreBefore: { teamA: 0, teamB: 0 },
+      scoreAfter: { teamA: 0, teamB: 0 },
+      timestamp: '2026-01-01',
+      ...over,
+    }) as PointEvent;
+
+  const [scorer] = calculateTopScorers([
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'saque' }),
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'ataque' }),
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'bloqueio' }),
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'defesa' }),
+    pt({ playerId: 'p1', pointType: 'winner', skill: 'largada' }),
+    pt({ playerId: 'p1', pointType: 'error', fault: 'attack_out' }),
+  ]);
+
+  assert.equal(scorer.totalPoints, 5);
+  assert.equal(scorer.aces, 1);
+  assert.equal(scorer.attacks, 1);
+  assert.equal(scorer.blocks, 1);
+  assert.equal(scorer.counterAttacks, 1);
+  assert.equal(scorer.tips, 1);
+  assert.equal(scorer.opponentErrors, 0);
 });
 
 test('round-robin with playoffs appends final and third place from standings', () => {

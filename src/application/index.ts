@@ -1,6 +1,7 @@
 export * from './appResult';
 export * from './appShellViewModel';
 export * from './adminProfilesUseCases';
+export * from './avatarUseCases';
 export * from './backupUseCases';
 export * from './cloudSyncStartupUseCases';
 export * from './communityPlayerSearchUseCases';

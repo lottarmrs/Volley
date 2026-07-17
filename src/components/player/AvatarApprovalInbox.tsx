@@ -1,17 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, X, Loader2, ImageOff, RefreshCw } from 'lucide-react';
-import { avatarStorageService } from '../../services/supabase/avatarStorageService';
-import { PlayerAvatarProposal } from '../../types';
-
-type QueueItem = PlayerAvatarProposal & { playerName: string };
+import {
+  AvatarApprovalQueueItem,
+  listAvatarApprovalQueueQuery,
+  reviewPlayerAvatarCommand,
+} from '../../application/avatarUseCases';
 
 /**
  * Approval inbox for the athlete CREATOR: pending photo proposals submitted by
  * other admins. Mount it wherever the creator manages their athletes
- * (e.g. a tab in the players area). Self-contained — fetches its own data.
+ * (e.g. a tab in the players area). Self-contained: fetches its own data.
  */
 export function AvatarApprovalInbox() {
-  const [items, setItems] = useState<QueueItem[]>([]);
+  const [items, setItems] = useState<AvatarApprovalQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,13 +20,13 @@ export function AvatarApprovalInbox() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      setItems(await avatarStorageService.listMyApprovalQueue());
-    } catch (err: any) {
-      setError(err?.message || 'Não foi possível carregar as aprovações.');
-    } finally {
-      setLoading(false);
+    const result = await listAvatarApprovalQueueQuery();
+    if ('error' in result) {
+      setError(result.error.message);
+    } else {
+      setItems(result.value.items);
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -35,14 +36,15 @@ export function AvatarApprovalInbox() {
   const act = async (id: string, action: 'approve' | 'reject') => {
     setBusyId(id);
     setError(null);
-    try {
-      await avatarStorageService[action](id);
-      setItems((prev) => prev.filter((it) => it.id !== id));
-    } catch (err: any) {
-      setError(err?.message || 'Ação não concluída.');
-    } finally {
+    const result = await reviewPlayerAvatarCommand({ proposalId: id, action });
+    if ('error' in result) {
+      setError(result.error.message);
       setBusyId(null);
+      return;
     }
+
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    setBusyId(null);
   };
 
   if (loading) {

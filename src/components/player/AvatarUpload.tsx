@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2, Clock } from 'lucide-react';
-import { avatarStorageService } from '../../services/supabase/avatarStorageService';
+import { proposePlayerAvatarCommand } from '../../application/avatarUseCases';
 
 interface AvatarUploadProps {
   /** The athlete's CLOUD id (global identity). Required to attach a photo. */
@@ -36,22 +36,20 @@ export function AvatarUpload({
 
     setFeedback(null);
     setIsUploading(true);
-    try {
-      const result = await avatarStorageService.proposeAvatar(playerCloudId, file);
-      if (result.applied) {
-        onApplied?.(result.imageUrl);
-        setFeedback({ kind: 'applied', message: 'Foto atualizada.' });
-      } else {
-        setFeedback({
-          kind: 'pending',
-          message: 'Enviada para aprovação do criador do atleta.',
-        });
-      }
-    } catch (err: any) {
-      setFeedback({ kind: 'error', message: err?.message || 'Falha ao enviar a foto.' });
-    } finally {
-      setIsUploading(false);
+    const result = await proposePlayerAvatarCommand({ playerCloudId, file });
+
+    if ('error' in result) {
+      setFeedback({ kind: 'error', message: result.error.message });
+    } else if (result.value.applied) {
+      onApplied?.(result.value.imageUrl);
+      setFeedback({ kind: 'applied', message: 'Foto atualizada.' });
+    } else {
+      setFeedback({
+        kind: 'pending',
+        message: 'Enviada para aprovação do criador do atleta.',
+      });
     }
+    setIsUploading(false);
   };
 
   const isDisabled = disabled || isUploading || !playerCloudId;

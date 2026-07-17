@@ -1,8 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { AtSign, Cloud, Search, UserPlus } from 'lucide-react';
 import { Community, Player } from '../../types';
-import { playerCloudService } from '../../services/supabase/playerCloudService';
-import { communityPlayerCloudService } from '../../services/supabase/communityPlayerCloudService';
+import {
+  linkCommunityPlayerByUsernameCommand,
+  searchPlayerByUsernameQuery,
+} from '../../application/communityPlayerSearchUseCases';
 
 interface AthleteUsernameSearchProps {
   community: Community;
@@ -12,12 +14,6 @@ interface AthleteUsernameSearchProps {
 }
 
 type Found = { cloudId: string; username: string; name: string };
-
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return fallback;
-}
 
 export function AthleteUsernameSearch({
   community,
@@ -51,41 +47,39 @@ export function AthleteUsernameSearch({
     setError(null);
     setResult(undefined);
     setLinked(false);
-    try {
-      setResult(await playerCloudService.findByUsername(handle));
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível buscar o atleta.'));
-    } finally {
+
+    const searchResult = await searchPlayerByUsernameQuery(handle);
+    if ('error' in searchResult) {
+      setError(searchResult.error.message);
       setSearching(false);
+      return;
     }
+    setResult(searchResult.value);
+    setSearching(false);
   };
 
   const handleLink = async () => {
     if (!result || !community.cloudId || !currentUserId) return;
     setLinking(true);
     setError(null);
-    try {
-      await communityPlayerCloudService.linkPlayer(
-        community.cloudId,
-        result.cloudId,
-        currentUserId,
-      );
-      const linkedPlayer = await playerCloudService.fetchByCloudId(result.cloudId);
-      if (linkedPlayer) {
-        onLinkedPlayer?.(
-          {
-            ...linkedPlayer,
-            communityIds: [...new Set([...(linkedPlayer.communityIds ?? []), community.id])],
-          },
-          community.id,
-        );
-      }
-      setLinked(true);
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível vincular o atleta.'));
-    } finally {
+
+    const linkResult = await linkCommunityPlayerByUsernameCommand({
+      communityId: community.id,
+      communityCloudId: community.cloudId,
+      playerCloudId: result.cloudId,
+      currentUserId,
+    });
+
+    if ('error' in linkResult) {
+      setError(linkResult.error.message);
       setLinking(false);
+      return;
     }
+    if (linkResult.value.linkedPlayer) {
+      onLinkedPlayer?.(linkResult.value.linkedPlayer, community.id);
+    }
+    setLinked(true);
+    setLinking(false);
   };
 
   return (

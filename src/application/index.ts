@@ -2,6 +2,7 @@ export * from './appResult';
 export * from './appShellViewModel';
 export * from './backupUseCases';
 export * from './cloudSyncStartupUseCases';
+export * from './communityPlayerSearchUseCases';
 export * from './communityMembershipUseCases';
 export * from './communityMembersViewModel';
 export * from './localCommunityUseCases';

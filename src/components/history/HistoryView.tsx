@@ -39,6 +39,7 @@ import {
   calculateTeamSessionStats,
   calculatePlayerScoringRanking,
   getPointLabel,
+  isCreditedPoint,
 } from '../../logic/match';
 import { generateSessionReport } from '../../logic/reports';
 import {
@@ -263,7 +264,6 @@ function GlobalStats({
   teams: Team[];
   players: Player[];
 }) {
-  const CREDITED = ['attack', 'block', 'serve_ace', 'defense_counterattack', 'tip'];
   const finishedSessionIds = useMemo(
     () => new Set(sessions.filter((s) => s.status === 'finished').map((s) => s.id)),
     [sessions],
@@ -285,7 +285,7 @@ function GlobalStats({
   const topScorers = useMemo(() => {
     const map: Record<string, number> = {};
     registeredPointEvents.forEach((p) => {
-      if (p.playerId && CREDITED.includes(p.reason || '')) {
+      if (p.playerId && isCreditedPoint(p)) {
         map[p.playerId] = (map[p.playerId] || 0) + 1;
       }
     });
@@ -371,7 +371,7 @@ function GlobalStats({
           { label: 'Partidas', val: registeredGames.length },
           {
             label: 'Pontos',
-            val: registeredPointEvents.filter((p) => CREDITED.includes(p.reason || '')).length,
+            val: registeredPointEvents.filter(isCreditedPoint).length,
           },
           { label: 'Atletas', val: players.filter((p) => p.ativo).length },
         ].map((s) => (

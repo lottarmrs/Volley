@@ -33,6 +33,7 @@ export function buildTournamentCardViewModel(input: {
 
   return {
     tournament: input.tournament,
+    dateLabel: new Date(input.tournament.date + 'T12:00:00').toLocaleDateString('pt-BR'),
     finishedGames,
     winnerName,
     status: getTournamentStatusView(input.tournament.status),

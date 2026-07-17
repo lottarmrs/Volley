@@ -28,7 +28,11 @@ test('getTournamentStatusView maps product labels and classes', () => {
 });
 
 test('buildTournamentCardViewModel counts finished games and resolves champion', () => {
-  const tournament = makeSession('tournament-1', { type: 'tournament', status: 'finished' });
+  const tournament = makeSession('tournament-1', {
+    type: 'tournament',
+    status: 'finished',
+    date: '2026-07-17',
+  });
   const team = makeTeam('team-1', 'tournament-1', [], { name: 'Time Azul' });
   const report = {
     sessionId: 'tournament-1',
@@ -47,6 +51,7 @@ test('buildTournamentCardViewModel counts finished games and resolves champion',
   });
 
   assert.equal(card.finishedGames, 1);
+  assert.equal(card.dateLabel, '17/07/2026');
   assert.equal(card.winnerName, 'Time Azul');
   assert.equal(card.status.label, 'Finalizado');
   assert.equal(card.shouldOpenLive, false);

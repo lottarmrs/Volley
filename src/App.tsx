@@ -920,7 +920,7 @@ export default function App() {
                     {t.name}
                   </h3>
                   <p className="text-[10px] text-text-subtle font-mono uppercase mt-1">
-                    Data: {new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    Data: {card.dateLabel}
                   </p>
                 </div>
 

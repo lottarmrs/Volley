@@ -93,6 +93,7 @@ import {
   type ShellNavigationTarget,
 } from './application/appShellViewModel';
 import {
+  buildBackupFileName,
   buildBackupPayload,
   buildImportedBackupPersistencePlan,
   prepareImportedBackup,
@@ -280,7 +281,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `panelinha_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = buildBackupFileName(new Date());
     a.click();
     URL.revokeObjectURL(url);
   };

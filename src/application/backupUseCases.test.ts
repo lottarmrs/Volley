@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildBackupFileName,
   buildBackupPayload,
   buildImportedBackupPersistencePlan,
   prepareImportedBackup,
 } from './backupUseCases';
 import { makePlayer, makeSession } from '../test/fixtures';
+
+test('buildBackupFileName uses the export calendar date', () => {
+  const fileName = buildBackupFileName(new Date('2026-07-17T15:45:00.000Z'));
+
+  assert.equal(fileName, 'panelinha_backup_2026-07-17.json');
+});
 
 test('buildBackupPayload includes operational data and local resume metadata', () => {
   const player = makePlayer('player-1');

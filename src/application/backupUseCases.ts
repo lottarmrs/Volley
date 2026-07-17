@@ -21,6 +21,10 @@ import type {
   WhatsAppListTemplate,
 } from '../types';
 
+export function buildBackupFileName(exportedAt: Date): string {
+  return `panelinha_backup_${exportedAt.toISOString().slice(0, 10)}.json`;
+}
+
 export function buildBackupPayload(input: {
   players: Player[];
   sessions: Session[];

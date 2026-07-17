@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AuthRole, UserProfile } from '../types';
-import { profilesAdminCloudService } from '../services/supabase/profilesAdminCloudService';
-
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return fallback;
-}
+import {
+  changeUserRoleCommand,
+  listAdminProfilesQuery,
+} from '../application/adminProfilesUseCases';
 
 /**
  * Estado React para o painel de "Usuários & papéis" (Gestão). Só carrega quando
@@ -26,13 +23,13 @@ export function useProfilesAdmin(enabled: boolean) {
     }
     setLoading(true);
     setError(null);
-    try {
-      setProfiles(await profilesAdminCloudService.listProfiles());
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível carregar os usuários.'));
-    } finally {
-      setLoading(false);
+    const result = await listAdminProfilesQuery();
+    if ('error' in result) {
+      setError(result.error.message);
+    } else {
+      setProfiles(result.value.profiles);
     }
+    setLoading(false);
   }, [enabled]);
 
   useEffect(() => {
@@ -42,16 +39,16 @@ export function useProfilesAdmin(enabled: boolean) {
   const changeRole = useCallback(async (userId: string, role: AuthRole) => {
     setSavingId(userId);
     setError(null);
-    try {
-      const updated = await profilesAdminCloudService.setRole(userId, role);
-      setProfiles((prev) => prev.map((p) => (p.id === userId ? updated : p)));
-      return true;
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível alterar o papel.'));
-      return false;
-    } finally {
+    const result = await changeUserRoleCommand({ userId, role });
+    if ('error' in result) {
+      setError(result.error.message);
       setSavingId(null);
+      return false;
     }
+
+    setProfiles((prev) => prev.map((p) => (p.id === userId ? result.value.profile : p)));
+    setSavingId(null);
+    return true;
   }, []);
 
   return { profiles, loading, error, savingId, reload, changeRole };

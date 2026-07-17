@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyLocalPlayerDeletion,
+  applyLocalPlayerSave,
   applyGuestPlayerUpsert,
   applyPlayerCreationForCommunity,
   buildDefaultCommunityPlayer,
@@ -58,6 +59,44 @@ test('buildDefaultCommunityPlayer creates a local player with defaults and commu
   assert.equal(built.username, 'ana-silva');
   assert.deepEqual(built.communityIds, ['community-1']);
   assert.equal(built.metadata.criadoEm, now);
+});
+
+test('applyLocalPlayerSave updates an existing player as pending with personal evaluation data', () => {
+  const existing = player('player-1', 'Ana Silva');
+  const draft = {
+    ...existing,
+    apelido: 'Ana',
+    atributos: { ...existing.atributos, ataque: 9 },
+  };
+
+  const result = applyLocalPlayerSave({
+    players: [existing],
+    editingPlayer: draft,
+    now,
+  });
+
+  assert.equal(result.players.length, 1);
+  assert.equal(result.savedPlayer.id, 'player-1');
+  assert.equal(result.savedPlayer.syncStatus, 'pending');
+  assert.equal(result.savedPlayer.updatedAt, now);
+  assert.equal(result.savedPlayer.personalAttributes?.ataque, 9);
+  assert.equal(result.players[0].metadata.atualizadoEm, now);
+});
+
+test('applyLocalPlayerSave appends new players and preserves the resolved username', () => {
+  const existing = player('player-1', 'Ana Silva');
+  const draft = player('player-2', 'Ana Silva');
+
+  const result = applyLocalPlayerSave({
+    players: [existing],
+    editingPlayer: draft,
+    now,
+  });
+
+  assert.equal(result.players.length, 2);
+  assert.equal(result.savedPlayer.id, 'player-2');
+  assert.equal(result.savedPlayer.username, draft.username);
+  assert.equal(result.savedPlayer.syncStatus, 'pending');
 });
 
 test('applyPlayerCreationForCommunity reuses duplicate players and adds the community once', () => {

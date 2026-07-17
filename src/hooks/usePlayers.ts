@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Player, Game, PointEvent, Team } from '../types';
 import { INITIAL_PLAYERS } from '../constants';
 import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
-import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
-import { resolveUsername } from '../logic/username';
-import { simulateLocalConsensus } from '../logic/playerEvaluations';
 import { generateUUID } from '../logic/uuid';
 import {
   applyLocalPlayerDeletion,
+  applyLocalPlayerSave,
   validateLocalPlayerSave,
 } from '../application/localPlayerUseCases';
 
@@ -155,44 +153,11 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         return false;
       }
 
-      const now = new Date().toISOString();
-      const username = resolveUsername(
+      const { players: updated } = applyLocalPlayerSave({
+        players,
         editingPlayer,
-        players
-          .filter((p) => p.id !== editingPlayer.id && p.username)
-          .map((p) => p.username as string),
-      );
-      const originalPlayer = players.find((p) => p.id === editingPlayer.id) || editingPlayer;
-      const simulated = simulateLocalConsensus(originalPlayer, editingPlayer.atributos);
-
-      const savedPlayerTemp: Player = {
-        ...editingPlayer,
-        username,
-        personalAttributes: editingPlayer.atributos,
-        atributos: simulated.atributos,
-        evaluationAggregate: simulated.evaluationAggregate,
-        hasOwnEvaluation: simulated.hasOwnEvaluation,
-        syncStatus: 'pending',
-        updatedAt: now,
-      };
-
-      const savedPlayer: Player = {
-        ...savedPlayerTemp,
-        perfil: {
-          ...editingPlayer.perfil,
-          especialidade: getAutoSpecialty(savedPlayerTemp),
-          fraqueza: getAutoWeakness(savedPlayerTemp),
-        },
-      };
-
-      const exists = players.some((p) => p.id === savedPlayer.id);
-      const updated = exists
-        ? players.map((p) =>
-            p.id === savedPlayer.id
-              ? { ...savedPlayer, metadata: { ...savedPlayer.metadata, atualizadoEm: now } }
-              : p,
-          )
-        : [...players, savedPlayer];
+        now: new Date().toISOString(),
+      });
 
       setPlayers(updated);
       setEditingPlayer(null);

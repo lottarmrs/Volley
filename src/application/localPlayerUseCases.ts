@@ -1,5 +1,8 @@
 import type { Player } from '../types';
+import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
 import { findDuplicatePlayerByProfile } from '../logic/playerDuplicates';
+import { simulateLocalConsensus } from '../logic/playerEvaluations';
+import { resolveUsername } from '../logic/username';
 
 export type LocalPlayerValidationErrors = Record<string, string>;
 
@@ -112,6 +115,53 @@ export function validateLocalPlayerSave(input: {
   }
 
   return errors;
+}
+
+export function applyLocalPlayerSave(input: {
+  players: Player[];
+  editingPlayer: Player;
+  now: string;
+}): { players: Player[]; savedPlayer: Player } {
+  const username = resolveUsername(
+    input.editingPlayer,
+    input.players
+      .filter((player) => player.id !== input.editingPlayer.id && player.username)
+      .map((player) => player.username as string),
+  );
+  const originalPlayer =
+    input.players.find((player) => player.id === input.editingPlayer.id) || input.editingPlayer;
+  const simulated = simulateLocalConsensus(originalPlayer, input.editingPlayer.atributos);
+
+  const savedPlayerTemp: Player = {
+    ...input.editingPlayer,
+    username,
+    personalAttributes: input.editingPlayer.atributos,
+    atributos: simulated.atributos,
+    evaluationAggregate: simulated.evaluationAggregate,
+    hasOwnEvaluation: simulated.hasOwnEvaluation,
+    syncStatus: 'pending',
+    updatedAt: input.now,
+  };
+
+  const savedPlayer: Player = {
+    ...savedPlayerTemp,
+    perfil: {
+      ...input.editingPlayer.perfil,
+      especialidade: getAutoSpecialty(savedPlayerTemp),
+      fraqueza: getAutoWeakness(savedPlayerTemp),
+    },
+  };
+
+  const exists = input.players.some((player) => player.id === savedPlayer.id);
+  const players = exists
+    ? input.players.map((player) =>
+        player.id === savedPlayer.id
+          ? { ...savedPlayer, metadata: { ...savedPlayer.metadata, atualizadoEm: input.now } }
+          : player,
+      )
+    : [...input.players, savedPlayer];
+
+  return { players, savedPlayer };
 }
 
 export function applyPlayerCreationForCommunity(input: {

@@ -5,10 +5,10 @@
 
 ## Estado Atual
 
-- Branch local: `main`, à frente de `origin/main` por commits locais ainda não enviados.
+- Branch local: `main`, alinhado com `origin/main` após os commits enviados.
 - Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
 - Prioridade atual do framework: Produto Escalável, depois Experiência.
-- Foco imediato: saneamento de toolchain, CI, documentação e compatibilidade operacional antes de abrir novas fatias.
+- Foco imediato: Produto Escalável, com saneamento de toolchain já iniciado e registrado.
 
 ## Supabase
 
@@ -52,11 +52,11 @@ Notas:
 Última auditoria local antes desta atualização:
 
 - `npm run lint`: passou.
-- `npm run test:unit`: 294 testes passaram.
+- `npm run test:unit`: 297 testes passaram.
 - `npm run test:ui`: 50 testes passaram.
 - `npm run build`: passou.
 - `npm run lint:eslint`: 0 errors, 347 warnings.
-- `npm run format:check`: falhava antes do saneamento por falta de normalização Prettier.
+- `npm run format:check`: passou.
 - `npm audit --omit=dev`: apontava Vite/Babel/esbuild; `npm audit fix` atualizou Vite/Babel no lockfile, restando uma vulnerabilidade baixa transitiva de `esbuild`.
 
 ## Dívida Técnica Conhecida
@@ -64,11 +64,11 @@ Notas:
 - `src/logic/migrations.ts` é grande e concentra muitos `any`, por ser a camada de compatibilidade/importação local.
 - `src/components/session/SessionWizard.tsx` segue grande e com muitos casts; é candidato a fatiamento quando voltarmos à Experiência/UX.
 - Bundle principal ainda é grande; considerar code splitting antes de polimento de performance.
-- O script `test:unit` lista arquivos manualmente; pode virar fonte de esquecimento ao criar testes novos.
+- `test:unit` agora descobre automaticamente `src/**/*.test.ts`, reduzindo manutenção ao criar testes novos.
 
 ## Ordem Recomendada
 
-1. Fechar saneamento iniciado: lockfile, package metadata, ignores, Prettier e checks.
-2. Commitar a fatia de saneamento se todos os checks relevantes passarem.
-3. Voltar para Produto Escalável com a próxima fatia funcional.
-4. Deixar UI/esqueumorfismo para a fase Experiência, mantendo a UI atual por enquanto.
+1. Continuar Produto Escalável com fatias pequenas e verificáveis.
+2. Priorizar limites de aplicação, sincronização e observabilidade operacional antes de novas telas.
+3. Manter UI atual durante a fase escalável.
+4. Deixar UI/esqueumorfismo para a fase Experiência.

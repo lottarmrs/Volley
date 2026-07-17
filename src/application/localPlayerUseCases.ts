@@ -1,6 +1,8 @@
 import type { Player } from '../types';
 import { findDuplicatePlayerByProfile } from '../logic/playerDuplicates';
 
+export type LocalPlayerValidationErrors = Record<string, string>;
+
 export function buildDefaultCommunityPlayer(input: {
   id: string;
   name: string;
@@ -77,6 +79,39 @@ export function applyLocalPlayerDeletion(input: {
   }
 
   return input.players.filter((item) => item.id !== input.playerId);
+}
+
+export function validateLocalPlayerSave(input: {
+  players: Player[];
+  player: Player;
+}): LocalPlayerValidationErrors {
+  const errors: LocalPlayerValidationErrors = {};
+
+  if (!input.player.nome.trim()) {
+    errors.nome = 'O nome do atleta é obrigatório.';
+  }
+
+  const duplicatePlayer = findDuplicatePlayerByProfile(input.players, input.player);
+  if (duplicatePlayer && !errors.nome) {
+    errors.nome = `Ja existe um atleta com esse perfil: ${duplicatePlayer.nome}.`;
+  }
+
+  if (
+    input.player.alturaCm !== undefined &&
+    input.player.alturaCm !== null &&
+    input.player.alturaCm <= 0
+  ) {
+    errors.alturaCm = 'A altura deve ser um valor positivo.';
+  }
+
+  const invalidAttrs = Object.values(input.player.atributos).filter(
+    (value) => value < 0 || value > 10,
+  );
+  if (invalidAttrs.length > 0) {
+    errors.atributos = 'Alguns atributos estão fora do intervalo (0–10).';
+  }
+
+  return errors;
 }
 
 export function applyPlayerCreationForCommunity(input: {

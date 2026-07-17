@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Player, Attributes, Game, PointEvent, Team } from '../types';
+import { Player, Game, PointEvent, Team } from '../types';
 import { INITIAL_PLAYERS } from '../constants';
 import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
 import { getAutoSpecialty, getAutoWeakness } from '../logic/calculations';
 import { resolveUsername } from '../logic/username';
 import { simulateLocalConsensus } from '../logic/playerEvaluations';
 import { generateUUID } from '../logic/uuid';
-import { findDuplicatePlayerByProfile } from '../logic/playerDuplicates';
-import { applyLocalPlayerDeletion } from '../application/localPlayerUseCases';
+import {
+  applyLocalPlayerDeletion,
+  validateLocalPlayerSave,
+} from '../application/localPlayerUseCases';
 
 function normalizePlayer(p: any): Player {
   return {
@@ -146,24 +148,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         }
       }
 
-      const errors: Record<string, string> = {};
-      if (!editingPlayer.nome.trim()) errors.nome = 'O nome do atleta é obrigatório.';
-      const duplicatePlayer = findDuplicatePlayerByProfile(players, editingPlayer);
-      if (duplicatePlayer && !errors.nome) {
-        errors.nome = `Ja existe um atleta com esse perfil: ${duplicatePlayer.nome}.`;
-      }
-      if (
-        editingPlayer.alturaCm !== undefined &&
-        editingPlayer.alturaCm !== null &&
-        editingPlayer.alturaCm <= 0
-      )
-        errors.alturaCm = 'A altura deve ser um valor positivo.';
-
-      const invalidAttrs = (
-        Object.entries(editingPlayer.atributos) as Array<[keyof Attributes, number]>
-      ).filter(([, val]) => val < 0 || val > 10);
-      if (invalidAttrs.length > 0)
-        errors.atributos = 'Alguns atributos estão fora do intervalo (0–10).';
+      const errors = validateLocalPlayerSave({ players, player: editingPlayer });
 
       if (Object.keys(errors).length > 0) {
         setValidationErrors(errors);

@@ -5,6 +5,7 @@ import {
   applyGuestPlayerUpsert,
   applyPlayerCreationForCommunity,
   buildDefaultCommunityPlayer,
+  validateLocalPlayerSave,
 } from './localPlayerUseCases';
 import type { Player } from '../types';
 
@@ -163,4 +164,41 @@ test('applyLocalPlayerDeletion removes local players without history', () => {
   });
 
   assert.deepEqual(result, []);
+});
+
+test('validateLocalPlayerSave requires a non-empty player name', () => {
+  const result = validateLocalPlayerSave({
+    players: [],
+    player: { ...player('player-1', '   '), nome: '   ' },
+  });
+
+  assert.equal(result.nome, 'O nome do atleta é obrigatório.');
+});
+
+test('validateLocalPlayerSave detects duplicate player profiles', () => {
+  const existing = player('player-1', 'Ana Silva');
+  const draft = { ...player('player-2', 'Ana Silva'), username: 'ana-2' };
+
+  const result = validateLocalPlayerSave({
+    players: [existing],
+    player: draft,
+  });
+
+  assert.equal(result.nome, 'Ja existe um atleta com esse perfil: Ana Silva.');
+});
+
+test('validateLocalPlayerSave rejects non-positive heights and out-of-range attributes', () => {
+  const draft = {
+    ...player('player-1', 'Ana'),
+    alturaCm: 0,
+    atributos: { ...player('attrs', 'Attrs').atributos, saque: 11 },
+  };
+
+  const result = validateLocalPlayerSave({
+    players: [],
+    player: draft,
+  });
+
+  assert.equal(result.alturaCm, 'A altura deve ser um valor positivo.');
+  assert.equal(result.atributos, 'Alguns atributos estão fora do intervalo (0–10).');
 });

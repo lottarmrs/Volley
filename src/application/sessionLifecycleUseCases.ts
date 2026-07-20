@@ -357,6 +357,36 @@ export function buildTournamentDivisionConfirmationResult(input: {
   };
 }
 
+export function buildTournamentStartResult(input: {
+  activeSession: Session;
+  sessions: Session[];
+  games: Game[];
+  now: string;
+}) {
+  const startedSession: Session = {
+    ...input.activeSession,
+    status: 'active',
+    updatedAt: input.now,
+  };
+
+  const sessionGames = input.games
+    .filter((game) => game.sessionId === input.activeSession.id)
+    .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0));
+  const firstScheduled = sessionGames.find((game) => game.status === 'scheduled');
+
+  return {
+    startedSession,
+    updatedSessions: input.sessions.map((session) =>
+      session.id === startedSession.id ? startedSession : session,
+    ),
+    updatedGames: input.games.map((game) =>
+      game.id === firstScheduled?.id
+        ? { ...game, status: 'active' as const, startedAt: input.now }
+        : game,
+    ),
+  };
+}
+
 export function buildFinishedSessionResult(input: {
   activeSession: Session;
   sessions: Session[];

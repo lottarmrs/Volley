@@ -9,6 +9,7 @@ import { generateUUID } from '../logic/uuid';
 import {
   buildFreePlayDivisionConfirmationResult,
   buildTournamentDivisionConfirmationResult,
+  buildTournamentStartResult,
 } from '../application/sessionLifecycleUseCases';
 import {
   addPlayerPairConstraint,
@@ -309,24 +310,15 @@ export function useSessionWizard({
 
   const startGeneratedTournament = () => {
     if (!activeSession || activeSession.type !== 'tournament') return;
-    const startedSession: Session = {
-      ...activeSession,
-      status: 'active',
-      updatedAt: new Date().toISOString(),
-    };
-    setActiveSession(startedSession);
-    setSessions((prev) => prev.map((s) => (s.id === startedSession.id ? startedSession : s)));
-    setGames((prev: any[]) => {
-      const sessionGames = prev
-        .filter((g) => g.sessionId === activeSession.id)
-        .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0));
-      const firstScheduled = sessionGames.find((g) => g.status === 'scheduled');
-      return prev.map((g) =>
-        g.id === firstScheduled?.id
-          ? { ...g, status: 'active', startedAt: new Date().toISOString() }
-          : g,
-      );
+    const result = buildTournamentStartResult({
+      activeSession,
+      sessions,
+      games,
+      now: new Date().toISOString(),
     });
+    setActiveSession(result.startedSession);
+    setSessions(result.updatedSessions);
+    setGames(result.updatedGames);
     setPage('session-active');
   };
 

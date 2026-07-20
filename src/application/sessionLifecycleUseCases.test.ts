@@ -10,6 +10,7 @@ import {
   buildManualSessionStartResult,
   buildSessionDeletionResult,
   buildSessionFromCommunity,
+  buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
@@ -428,6 +429,44 @@ test('buildTournamentDivisionConfirmationResult schedules games and stores gener
     originalTeamAId: 'team-a',
     originalTeamBId: 'team-b',
   });
+});
+
+test('buildTournamentStartResult activates tournament and starts first scheduled game', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'teams_generated',
+    type: 'tournament',
+  });
+  const otherSession = makeSession('session-2', { status: 'draft' });
+  const games = [
+    makeGame('other-game', 'session-2', { status: 'scheduled', sequenceNumber: 1 }),
+    makeGame('later-game', 'session-1', { status: 'scheduled', sequenceNumber: 2 }),
+    makeGame('first-game', 'session-1', { status: 'scheduled', sequenceNumber: 1 }),
+  ];
+
+  const result = buildTournamentStartResult({
+    activeSession,
+    sessions: [otherSession, activeSession],
+    games,
+    now: '2026-07-20T12:30:00.000Z',
+  });
+
+  assert.equal(result.startedSession.status, 'active');
+  assert.equal(result.startedSession.updatedAt, '2026-07-20T12:30:00.000Z');
+  assert.deepEqual(
+    result.updatedSessions.map((session) => [session.id, session.status]),
+    [
+      ['session-2', 'draft'],
+      ['session-1', 'active'],
+    ],
+  );
+  assert.deepEqual(
+    result.updatedGames.map((game) => [game.id, game.status, game.startedAt]),
+    [
+      ['other-game', 'scheduled', '2026-01-01T12:00:00.000Z'],
+      ['later-game', 'scheduled', '2026-01-01T12:00:00.000Z'],
+      ['first-game', 'active', '2026-07-20T12:30:00.000Z'],
+    ],
+  );
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

@@ -14,7 +14,11 @@ import type {
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
-import { toggleSessionPlayerSelection, validateSessionWizardStep } from '../domain/sessionSetup';
+import {
+  selectPlayablePlayerIds,
+  toggleSessionPlayerSelection,
+  validateSessionWizardStep,
+} from '../domain/sessionSetup';
 import type { PartnershipMatrix } from '../logic/partnershipHistory';
 import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
@@ -314,6 +318,26 @@ export function buildSessionPlayerToggleResult(input: {
     nextValidationErrors: input.validationErrors.players
       ? { ...input.validationErrors, players: '' }
       : null,
+  };
+}
+
+export function buildSessionPlayerBulkSelectionResult(input: {
+  activeSession: Session | null;
+  players: Player[];
+  mode: 'select-playable' | 'clear';
+  now: string;
+}): {
+  nextActiveSession: Session | null;
+} {
+  const selectedPlayerIds =
+    input.mode === 'select-playable' ? selectPlayablePlayerIds(input.players) : [];
+
+  return {
+    nextActiveSession: buildSessionPatchResult({
+      activeSession: input.activeSession,
+      patch: { selectedPlayerIds },
+      now: input.now,
+    }),
   };
 }
 

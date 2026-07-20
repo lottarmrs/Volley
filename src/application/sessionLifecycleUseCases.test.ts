@@ -22,6 +22,7 @@ import {
   buildSessionFromCommunity,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
+  buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildTournamentStartResult,
@@ -391,6 +392,50 @@ test('buildSessionPlayerToggleResult toggles players and clears player validatio
       nextActiveSession: null,
       nextValidationErrors: null,
     },
+  );
+});
+
+test('buildSessionPlayerBulkSelectionResult selects playable players or clears selection', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['old-player'],
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  });
+  const players = [
+    makePlayer('player-1'),
+    makePlayer('player-2', { ativo: false }),
+    makePlayer('player-3', {
+      status: { lesionado: true, limitacaoFisica: null, presencaFrequente: true },
+    }),
+    makePlayer('player-4'),
+  ];
+
+  const selectResult = buildSessionPlayerBulkSelectionResult({
+    activeSession,
+    players,
+    mode: 'select-playable',
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.deepEqual(selectResult.nextActiveSession?.selectedPlayerIds, ['player-1', 'player-4']);
+  assert.equal(selectResult.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
+
+  const clearResult = buildSessionPlayerBulkSelectionResult({
+    activeSession,
+    players,
+    mode: 'clear',
+    now: '2026-07-20T14:00:00.000Z',
+  });
+
+  assert.deepEqual(clearResult.nextActiveSession?.selectedPlayerIds, []);
+  assert.equal(clearResult.nextActiveSession?.updatedAt, '2026-07-20T14:00:00.000Z');
+  assert.deepEqual(
+    buildSessionPlayerBulkSelectionResult({
+      activeSession: null,
+      players,
+      mode: 'clear',
+      now: '2026-07-20T14:00:00.000Z',
+    }),
+    { nextActiveSession: null },
   );
 });
 

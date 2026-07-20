@@ -18,6 +18,7 @@ import {
   buildSessionDraftPersistenceResult,
   buildSessionLastSelectionApplicationResult,
   buildSessionPatchResult,
+  buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildTournamentStartResult,
@@ -27,7 +28,6 @@ import {
 import {
   addPlayerPairConstraint,
   removePlayerPairConstraint,
-  selectPlayablePlayerIds,
   toggleLockedPlayerTeam,
 } from '../domain/sessionSetup';
 
@@ -120,10 +120,24 @@ export function useSessionWizard({
   };
 
   const selectAllActivePlayers = () => {
-    updateSession({ selectedPlayerIds: selectPlayablePlayerIds(players) });
+    const result = buildSessionPlayerBulkSelectionResult({
+      activeSession,
+      players,
+      mode: 'select-playable',
+      now: new Date().toISOString(),
+    });
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
   };
 
-  const clearSelectedPlayers = () => updateSession({ selectedPlayerIds: [] });
+  const clearSelectedPlayers = () => {
+    const result = buildSessionPlayerBulkSelectionResult({
+      activeSession,
+      players,
+      mode: 'clear',
+      now: new Date().toISOString(),
+    });
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
+  };
 
   const useLastSelection = () => {
     const result = buildSessionLastSelectionApplicationResult({

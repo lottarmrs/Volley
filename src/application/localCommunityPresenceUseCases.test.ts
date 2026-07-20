@@ -5,6 +5,7 @@ import {
   applyLocalPresenceStatus,
   clearLocalPresence,
   createLocalPresence,
+  reuseLastLocalPresence,
   selectFrequentLocalPresencePlayers,
   upsertLocalPresence,
 } from './localCommunityPresenceUseCases';
@@ -182,4 +183,47 @@ test('selectFrequentLocalPresencePlayers marks only active frequent players as p
     { playerId: 'frequent', status: 'present' },
   ]);
   assert.equal(result[0].syncStatus, 'pending');
+});
+
+test('reuseLastLocalPresence copies the latest previous presence to today', () => {
+  const result = reuseLastLocalPresence({
+    records: [
+      presence('community-1', '2026-07-18', [{ playerId: 'old', status: 'present' }]),
+      presence('community-1', today, [{ playerId: 'today', status: 'absent' }]),
+      presence('community-2', '2026-07-19', [{ playerId: 'other', status: 'present' }]),
+      presence('community-1', '2026-07-19', [
+        { playerId: 'latest', status: 'maybe' },
+        { temporaryName: 'Visitante', status: 'guest' },
+      ]),
+    ],
+    communityId: 'community-1',
+    date: today,
+    now,
+  });
+
+  assert.equal(result.length, 4);
+  assert.deepEqual(result[1], {
+    communityId: 'community-1',
+    date: today,
+    items: [
+      { playerId: 'latest', status: 'maybe' },
+      { temporaryName: 'Visitante', status: 'guest' },
+    ],
+    updatedAt: now,
+    syncStatus: 'pending',
+  });
+});
+
+test('reuseLastLocalPresence keeps records unchanged when there is no previous presence', () => {
+  const records = [presence('community-1', today, [{ playerId: 'today', status: 'present' }])];
+
+  assert.equal(
+    reuseLastLocalPresence({
+      records,
+      communityId: 'community-1',
+      date: today,
+      now,
+    }),
+    records,
+  );
 });

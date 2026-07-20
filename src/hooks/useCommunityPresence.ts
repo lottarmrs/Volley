@@ -6,21 +6,12 @@ import {
   addLocalPresenceGuest,
   applyLocalPresenceStatus,
   clearLocalPresence,
-  createLocalPresence,
+  reuseLastLocalPresence,
   selectFrequentLocalPresencePlayers,
-  upsertLocalPresence,
 } from '../application/localCommunityPresenceUseCases';
 
 function today() {
   return formatLocalDateInput();
-}
-
-function createPresence(communityId: string): CommunityPresence {
-  return createLocalPresence({
-    communityId,
-    date: today(),
-    now: new Date().toISOString(),
-  });
 }
 
 export function useCommunityPresence() {
@@ -42,25 +33,6 @@ export function useCommunityPresence() {
     },
     [presenceRecords],
   );
-
-  const ensurePresence = useCallback(
-    (communityId: string) => {
-      const current = getPresence(communityId);
-      if (current) return current;
-      return createPresence(communityId);
-    },
-    [getPresence],
-  );
-
-  const upsertPresence = useCallback((next: CommunityPresence) => {
-    setPresenceRecords((prev) =>
-      upsertLocalPresence({
-        records: prev,
-        presence: next,
-        now: new Date().toISOString(),
-      }),
-    );
-  }, []);
 
   const setPresenceStatus = useCallback(
     (communityId: string, playerId: string, status: CommunityPresenceStatus) => {
@@ -101,17 +73,16 @@ export function useCommunityPresence() {
     );
   }, []);
 
-  const useLastPresence = useCallback(
-    (communityId: string) => {
-      const records = presenceRecords
-        .filter((record) => record.communityId === communityId && record.date !== today())
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      const last = records[0];
-      if (!last) return;
-      upsertPresence({ ...last, date: today(), updatedAt: new Date().toISOString() });
-    },
-    [presenceRecords, upsertPresence],
-  );
+  const useLastPresence = useCallback((communityId: string) => {
+    setPresenceRecords((prev) =>
+      reuseLastLocalPresence({
+        records: prev,
+        communityId,
+        date: today(),
+        now: new Date().toISOString(),
+      }),
+    );
+  }, []);
 
   const addGuest = useCallback((communityId: string, temporaryName: string) => {
     setPresenceRecords((prev) =>

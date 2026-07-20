@@ -127,3 +127,22 @@ export function selectFrequentLocalPresencePlayers(input: {
     now: input.now,
   });
 }
+
+export function reuseLastLocalPresence(input: {
+  records: CommunityPresence[];
+  communityId: string;
+  date: string;
+  now: string;
+}): CommunityPresence[] {
+  const last = input.records
+    .filter((record) => record.communityId === input.communityId && record.date !== input.date)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+  if (!last) return input.records;
+
+  return upsertLocalPresence({
+    records: input.records,
+    presence: { ...last, date: input.date },
+    now: input.now,
+  });
+}

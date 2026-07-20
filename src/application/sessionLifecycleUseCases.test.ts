@@ -22,6 +22,7 @@ import {
   buildSessionFromCommunity,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
+  buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
@@ -354,6 +355,43 @@ test('buildSessionStepValidationResult clears errors without session and validat
   assert.equal(result.isValid, false);
   assert.equal(result.errors.name, 'O nome da sessão é obrigatório.');
   assert.equal(result.errors.date, 'A data é obrigatória.');
+});
+
+test('buildSessionPlayerToggleResult toggles players and clears player validation error', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1'],
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  });
+
+  const result = buildSessionPlayerToggleResult({
+    activeSession,
+    playerId: 'player-2',
+    validationErrors: {
+      players: 'Selecione pelo menos 4 atletas.',
+      name: 'O nome da sessão é obrigatório.',
+    },
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.deepEqual(result.nextActiveSession?.selectedPlayerIds, ['player-1', 'player-2']);
+  assert.equal(result.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
+  assert.deepEqual(result.nextValidationErrors, {
+    players: '',
+    name: 'O nome da sessão é obrigatório.',
+  });
+
+  assert.deepEqual(
+    buildSessionPlayerToggleResult({
+      activeSession: null,
+      playerId: 'player-2',
+      validationErrors: { players: 'Erro' },
+      now: '2026-07-20T13:00:00.000Z',
+    }),
+    {
+      nextActiveSession: null,
+      nextValidationErrors: null,
+    },
+  );
 });
 
 test('buildWizardCancelResult clears draft state and returns to dashboard', () => {

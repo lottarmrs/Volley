@@ -18,6 +18,7 @@ import {
   buildSessionDraftPersistenceResult,
   buildSessionLastSelectionApplicationResult,
   buildSessionPatchResult,
+  buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildTournamentStartResult,
   buildWizardCancelResult,
@@ -28,7 +29,6 @@ import {
   removePlayerPairConstraint,
   selectPlayablePlayerIds,
   toggleLockedPlayerTeam,
-  toggleSessionPlayerSelection,
 } from '../domain/sessionSetup';
 
 interface UseSessionWizardProps {
@@ -109,11 +109,14 @@ export function useSessionWizard({
   const goToStep = (step: number) => setWizardStep(step);
 
   const togglePlayer = (playerId: string) => {
-    if (!activeSession) return;
-    updateSession({
-      selectedPlayerIds: toggleSessionPlayerSelection(activeSession.selectedPlayerIds, playerId),
+    const result = buildSessionPlayerToggleResult({
+      activeSession,
+      playerId,
+      validationErrors,
+      now: new Date().toISOString(),
     });
-    if (validationErrors.players) setValidationErrors((prev) => ({ ...prev, players: '' }));
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
+    if (result.nextValidationErrors) setValidationErrors(result.nextValidationErrors);
   };
 
   const selectAllActivePlayers = () => {

@@ -14,7 +14,7 @@ import type {
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
-import { validateSessionWizardStep } from '../domain/sessionSetup';
+import { toggleSessionPlayerSelection, validateSessionWizardStep } from '../domain/sessionSetup';
 import type { PartnershipMatrix } from '../logic/partnershipHistory';
 import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
@@ -283,6 +283,37 @@ export function buildSessionStepValidationResult(
   return {
     errors,
     isValid: Object.keys(errors).length === 0,
+  };
+}
+
+export function buildSessionPlayerToggleResult(input: {
+  activeSession: Session | null;
+  playerId: string;
+  validationErrors: SessionValidationErrors;
+  now: string;
+}): {
+  nextActiveSession: Session | null;
+  nextValidationErrors: SessionValidationErrors | null;
+} {
+  const nextActiveSession = buildSessionPatchResult({
+    activeSession: input.activeSession,
+    patch: {
+      selectedPlayerIds: toggleSessionPlayerSelection(
+        input.activeSession?.selectedPlayerIds ?? [],
+        input.playerId,
+      ),
+    },
+    now: input.now,
+  });
+  if (!nextActiveSession) {
+    return { nextActiveSession: null, nextValidationErrors: null };
+  }
+
+  return {
+    nextActiveSession,
+    nextValidationErrors: input.validationErrors.players
+      ? { ...input.validationErrors, players: '' }
+      : null,
   };
 }
 

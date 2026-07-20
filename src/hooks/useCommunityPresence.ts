@@ -3,18 +3,21 @@ import { CommunityPresence, CommunityPresenceStatus, Player } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { addGuestToPresence, setPresenceItemStatus } from '../logic/communityPresence';
 import { formatLocalDateInput } from '../logic/date';
+import {
+  createLocalPresence,
+  upsertLocalPresence,
+} from '../application/localCommunityPresenceUseCases';
 
 function today() {
   return formatLocalDateInput();
 }
 
 function createPresence(communityId: string): CommunityPresence {
-  return {
+  return createLocalPresence({
     communityId,
     date: today(),
-    items: [],
-    updatedAt: new Date().toISOString(),
-  };
+    now: new Date().toISOString(),
+  });
 }
 
 export function useCommunityPresence() {
@@ -47,16 +50,13 @@ export function useCommunityPresence() {
   );
 
   const upsertPresence = useCallback((next: CommunityPresence) => {
-    setPresenceRecords((prev) => {
-      const exists = prev.some(
-        (record) => record.communityId === next.communityId && record.date === next.date,
-      );
-      return exists
-        ? prev.map((record) =>
-            record.communityId === next.communityId && record.date === next.date ? next : record,
-          )
-        : [...prev, next];
-    });
+    setPresenceRecords((prev) =>
+      upsertLocalPresence({
+        records: prev,
+        presence: next,
+        now: new Date().toISOString(),
+      }),
+    );
   }, []);
 
   const setPresenceStatus = useCallback(

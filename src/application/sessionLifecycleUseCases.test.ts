@@ -11,6 +11,7 @@ import {
   buildSessionDeletionResult,
   buildSessionDraftResumeResult,
   buildSessionFromCommunity,
+  buildSessionLastSelectionResult,
   buildSessionPatchResult,
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
@@ -200,6 +201,20 @@ test('buildSessionPatchResult applies patch and refreshes updatedAt', () => {
   assert.deepEqual(result?.selectedPlayerIds, ['player-1', 'player-2']);
   assert.equal(result?.updatedAt, '2026-07-20T13:00:00.000Z');
   assert.equal(result?.id, 'session-1');
+});
+
+test('buildSessionLastSelectionResult parses saved player selection', () => {
+  const result = buildSessionLastSelectionResult('["player-1","player-2"]');
+
+  assert.deepEqual(result.patch, { selectedPlayerIds: ['player-1', 'player-2'] });
+  assert.equal(result.shouldRemoveStoredSelection, false);
+});
+
+test('buildSessionLastSelectionResult requests cleanup for invalid saved selection', () => {
+  const result = buildSessionLastSelectionResult('{invalid-json');
+
+  assert.equal(result.patch, null);
+  assert.equal(result.shouldRemoveStoredSelection, true);
 });
 
 test('buildSessionDraftResumeResult restores wizard state from draft', () => {

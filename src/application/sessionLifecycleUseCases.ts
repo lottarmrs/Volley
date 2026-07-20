@@ -173,6 +173,23 @@ export function buildSessionPatchResult(input: {
   return { ...input.activeSession, ...input.patch, updatedAt: input.now };
 }
 
+export function buildSessionLastSelectionResult(rawSelection: string | null): {
+  patch: Pick<Session, 'selectedPlayerIds'> | null;
+  shouldRemoveStoredSelection: boolean;
+} {
+  if (!rawSelection) return { patch: null, shouldRemoveStoredSelection: false };
+
+  try {
+    const selectedPlayerIds = JSON.parse(rawSelection);
+    if (Array.isArray(selectedPlayerIds)) {
+      return { patch: { selectedPlayerIds }, shouldRemoveStoredSelection: false };
+    }
+    return { patch: null, shouldRemoveStoredSelection: true };
+  } catch {
+    return { patch: null, shouldRemoveStoredSelection: true };
+  }
+}
+
 export function buildSessionDraftResumeResult(draft: {
   session: Session;
   wizardStep: number;

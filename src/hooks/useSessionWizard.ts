@@ -9,6 +9,7 @@ import { generateUUID } from '../logic/uuid';
 import {
   buildFreePlayDivisionConfirmationResult,
   buildSessionDraftResumeResult,
+  buildSessionLastSelectionResult,
   buildSessionPatchResult,
   buildTournamentDivisionConfirmationResult,
   buildTournamentStartResult,
@@ -111,15 +112,10 @@ export function useSessionWizard({
 
   const useLastSelection = () => {
     const last = localStorage.getItem('vpg_last_selected_player_ids');
-    if (!last) return;
-
-    try {
-      const selectedPlayerIds = JSON.parse(last);
-      if (Array.isArray(selectedPlayerIds)) {
-        updateSession({ selectedPlayerIds });
-      }
-    } catch (err) {
-      console.warn('Ignoring invalid last player selection from storage:', err);
+    const result = buildSessionLastSelectionResult(last);
+    if (result.patch) updateSession(result.patch);
+    if (result.shouldRemoveStoredSelection) {
+      console.warn('Ignoring invalid last player selection from storage');
       localStorage.removeItem('vpg_last_selected_player_ids');
     }
   };

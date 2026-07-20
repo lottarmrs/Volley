@@ -5,6 +5,9 @@ import {
   applyCommunityHistoryClear,
   applyCommunityMembershipDuplicate,
   applyLocalCommunityDeletion,
+  applyLocalCommunityUpdate,
+  createLocalCommunity,
+  duplicateLocalCommunity,
   applyLinkedCloudPlayer,
   applyPlayerCommunityMemberships,
   validateLocalCommunitySave,
@@ -148,6 +151,51 @@ test('applyLocalCommunityDeletion removes local-only communities', () => {
   });
 
   assert.deepEqual(result, []);
+});
+
+test('applyLocalCommunityUpdate rejects active semantic duplicate names', () => {
+  const result = applyLocalCommunityUpdate({
+    communities: [community('c1', 'Terca do Volei'), community('c2', 'Livre')],
+    communityId: 'c2',
+    patch: { name: ' Ter\u00e7a do V\u00f4lei ' },
+    now,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors?.name, 'Ja existe uma comunidade com esse nome: Terca do Volei.');
+});
+
+test('createLocalCommunity generates a unique local community name', () => {
+  const result = createLocalCommunity({
+    communities: [community('c1', 'Nova comunidade')],
+    input: {},
+    id: 'c2',
+    now,
+  });
+
+  assert.equal(result.name, 'Nova comunidade 2');
+  assert.equal(result.id, 'c2');
+  assert.equal(result.syncStatus, 'local');
+});
+
+test('duplicateLocalCommunity copies a source with a unique local name and no cloud id', () => {
+  const result = duplicateLocalCommunity({
+    communities: [
+      { ...community('c1', 'Domingo'), cloudId: 'cloud-c1', archived: true },
+      community('c2', 'Domingo (copia)'),
+    ],
+    communityId: 'c1',
+    includeAthletes: true,
+    id: 'c3',
+    now,
+  });
+
+  assert.equal(result?.includeAthletes, true);
+  assert.equal(result?.duplicate.id, 'c3');
+  assert.equal(result?.duplicate.name, 'Domingo (copia) 2');
+  assert.equal(result?.duplicate.archived, false);
+  assert.equal(result?.duplicate.cloudId, undefined);
+  assert.equal(result?.duplicate.syncStatus, 'local');
 });
 
 test('applyCommunityMembershipDuplicate adds the duplicated community to source members once', () => {

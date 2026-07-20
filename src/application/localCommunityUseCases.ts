@@ -8,6 +8,9 @@ import type {
 } from '../types';
 
 export type LocalCommunityValidationErrors = Record<string, string>;
+export type LocalCommunityUpdateResult =
+  | { ok: true; communities: Community[] }
+  | { ok: false; errors: LocalCommunityValidationErrors };
 
 function normalizeCommunityName(value: unknown): string {
   return String(value ?? '')
@@ -16,6 +19,23 @@ function normalizeCommunityName(value: unknown): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+function uniqueCommunityName(baseName: string, communities: Community[]): string {
+  const base = baseName.trim() || 'Nova comunidade';
+  const existingNames = new Set(
+    communities
+      .filter((community) => !community.deletedAt && !community.archived)
+      .map((community) => normalizeCommunityName(community.name)),
+  );
+
+  let candidate = base;
+  let suffix = 2;
+  while (existingNames.has(normalizeCommunityName(candidate))) {
+    candidate = `${base} ${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
 }
 
 export function validateLocalCommunitySave(input: {
@@ -59,6 +79,83 @@ export function applyLocalCommunityDeletion(input: {
   }
 
   return input.communities.filter((item) => item.id !== input.communityId);
+}
+
+export function applyLocalCommunityUpdate(input: {
+  communities: Community[];
+  communityId: string;
+  patch: Partial<Community>;
+  now: string;
+}): LocalCommunityUpdateResult {
+  const current = input.communities.find((community) => community.id === input.communityId);
+  const nextName = input.patch.name ?? current?.name;
+  const errors = nextName
+    ? validateLocalCommunitySave({
+        communities: input.communities,
+        community: { ...(current ?? ({ id: input.communityId } as Community)), name: nextName },
+      })
+    : {};
+
+  if (errors.name) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    communities: input.communities.map((community) =>
+      community.id === input.communityId
+        ? { ...community, ...input.patch, syncStatus: 'pending' as const, updatedAt: input.now }
+        : community,
+    ),
+  };
+}
+
+export function createLocalCommunity(input: {
+  communities: Community[];
+  input: Partial<Community>;
+  id: string;
+  now: string;
+}): Community {
+  return {
+    id: input.input.id || input.id,
+    name: uniqueCommunityName(input.input.name || 'Nova comunidade', input.communities),
+    description: input.input.description || '',
+    defaultLocation: input.input.defaultLocation || '',
+    defaultDay: input.input.defaultDay || '',
+    defaultStartTime: input.input.defaultStartTime || '',
+    defaultEndTime: input.input.defaultEndTime || '',
+    defaultFormat: input.input.defaultFormat || 'free_play',
+    color: input.input.color || 'primary',
+    icon: input.input.icon || 'volleyball',
+    archived: Boolean(input.input.archived),
+    createdAt: input.input.createdAt || input.now,
+    updatedAt: input.now,
+    syncStatus: 'local',
+  };
+}
+
+export function duplicateLocalCommunity(input: {
+  communities: Community[];
+  communityId: string;
+  includeAthletes: boolean;
+  id: string;
+  now: string;
+}): { duplicate: Community; includeAthletes: boolean } | null {
+  const source = input.communities.find((community) => community.id === input.communityId);
+  if (!source) return null;
+
+  const duplicate: Community = {
+    ...source,
+    id: input.id,
+    name: uniqueCommunityName(`${source.name} (copia)`, input.communities),
+    archived: false,
+    createdAt: input.now,
+    updatedAt: input.now,
+    cloudId: undefined,
+    syncStatus: 'local',
+  };
+
+  return { duplicate, includeAthletes: input.includeAthletes };
 }
 
 export function applyCommunityDeletion(input: {

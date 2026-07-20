@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildActiveSessionClearResult,
+  buildDivisionFallbackBalanceInput,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
   buildDraftClearResult,
@@ -296,6 +297,29 @@ test('buildDivisionGenerationResult stores generated divisions and resets genera
   assert.equal(result.nextIsGenerating, false);
   assert.equal(result.nextProgress, 100);
   assert.equal(result.shouldAdvanceStep, true);
+});
+
+test('buildDivisionFallbackBalanceInput reuses the generation request for sync balancing', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1', 'player-2'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const plan = buildDivisionGenerationPlan({
+    activeSession,
+    players: [makePlayer('player-1'), makePlayer('player-2')],
+    seed: 777,
+    partnershipMatrix: { 'player-1|player-2': 1 },
+  });
+
+  const result = buildDivisionFallbackBalanceInput(plan);
+
+  assert.deepEqual(result, {
+    players: plan?.request.players,
+    numTeams: 2,
+    sessionId: 'session-1',
+    config: plan?.request.config,
+    partnershipMatrix: { 'player-1|player-2': 1 },
+  });
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

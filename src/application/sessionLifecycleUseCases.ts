@@ -220,17 +220,19 @@ export function buildWizardCancelResult(): {
   };
 }
 
+export type DivisionGenerationPlan = {
+  sessionPlayers: Player[];
+  updatedConfig: FreePlayConfig | TournamentConfig;
+  sessionPatch: Pick<Session, 'config'>;
+  request: BalanceRequest;
+};
+
 export function buildDivisionGenerationPlan(input: {
   activeSession: Session | null;
   players: Player[];
   seed: number;
   partnershipMatrix?: PartnershipMatrix;
-}): {
-  sessionPlayers: Player[];
-  updatedConfig: FreePlayConfig | TournamentConfig;
-  sessionPatch: Pick<Session, 'config'>;
-  request: BalanceRequest;
-} | null {
+}): DivisionGenerationPlan | null {
   const { activeSession } = input;
   if (!activeSession || !activeSession.config) return null;
 
@@ -254,6 +256,24 @@ export function buildDivisionGenerationPlan(input: {
       config: updatedConfig,
       partnershipMatrix: input.partnershipMatrix,
     },
+  };
+}
+
+export function buildDivisionFallbackBalanceInput(plan: DivisionGenerationPlan | null): {
+  players: Player[];
+  numTeams: number;
+  sessionId: string;
+  config: FreePlayConfig | TournamentConfig;
+  partnershipMatrix?: PartnershipMatrix;
+} | null {
+  if (!plan) return null;
+
+  return {
+    players: plan.request.players,
+    numTeams: plan.request.numTeams,
+    sessionId: plan.request.sessionId,
+    config: plan.request.config,
+    partnershipMatrix: plan.request.partnershipMatrix,
   };
 }
 

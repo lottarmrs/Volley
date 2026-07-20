@@ -7,6 +7,7 @@ import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
+  buildDivisionFallbackBalanceInput,
   buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
   buildFreePlayDivisionConfirmationResult,
@@ -152,6 +153,19 @@ export function useSessionWizard({
       setProgress(result.nextProgress);
       if (result.shouldAdvanceStep) nextStep();
     };
+    const runFallback = () => {
+      const fallbackInput = buildDivisionFallbackBalanceInput(plan);
+      if (!fallbackInput) return;
+      const divisions = balanceTeams(
+        fallbackInput.players,
+        fallbackInput.numTeams,
+        fallbackInput.sessionId,
+        fallbackInput.config,
+        undefined,
+        fallbackInput.partnershipMatrix,
+      );
+      finish(divisions);
+    };
 
     // Encerra qualquer cálculo anterior ainda em andamento.
     workerRef.current?.terminate();
@@ -161,15 +175,7 @@ export function useSessionWizard({
     if (typeof Worker === 'undefined') {
       setIsGenerating(true);
       setProgress(0);
-      const divisions = balanceTeams(
-        plan.sessionPlayers,
-        plan.updatedConfig.teamCount,
-        plan.request.sessionId,
-        plan.updatedConfig,
-        undefined,
-        partnershipMatrix,
-      );
-      finish(divisions);
+      runFallback();
       return;
     }
 
@@ -193,15 +199,7 @@ export function useSessionWizard({
         console.error('Balancer worker error:', msg.message);
         worker.terminate();
         if (workerRef.current === worker) workerRef.current = null;
-        const divisions = balanceTeams(
-          plan.sessionPlayers,
-          plan.updatedConfig.teamCount,
-          plan.request.sessionId,
-          plan.updatedConfig,
-          undefined,
-          partnershipMatrix,
-        );
-        finish(divisions);
+        runFallback();
       }
     };
 
@@ -209,15 +207,7 @@ export function useSessionWizard({
       console.error('Balancer worker failed, falling back to sync:', err.message);
       worker.terminate();
       if (workerRef.current === worker) workerRef.current = null;
-      const divisions = balanceTeams(
-        plan.sessionPlayers,
-        plan.updatedConfig.teamCount,
-        plan.request.sessionId,
-        plan.updatedConfig,
-        undefined,
-        partnershipMatrix,
-      );
-      finish(divisions);
+      runFallback();
     };
 
     worker.postMessage(plan.request);

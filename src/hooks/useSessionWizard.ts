@@ -10,6 +10,7 @@ import {
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
+  buildDivisionWorkerMessageResult,
   buildFreePlayDivisionConfirmationResult,
   buildSessionDraftResumeResult,
   buildSessionLastSelectionResult,
@@ -187,16 +188,16 @@ export function useSessionWizard({
     setProgress(0);
 
     worker.onmessage = (e: MessageEvent<BalanceResponse>) => {
-      const msg = e.data;
-      if (msg.type === 'progress') {
-        setProgress(msg.percent);
-      } else if (msg.type === 'done') {
+      const action = buildDivisionWorkerMessageResult(e.data);
+      if (action.type === 'progress') {
+        setProgress(action.percent);
+      } else if (action.type === 'done') {
         worker.terminate();
         if (workerRef.current === worker) workerRef.current = null;
-        finish(msg.divisions);
+        finish(action.divisions);
       } else {
         // erro: encerra e cai no cálculo síncrono para não travar o fluxo.
-        console.error('Balancer worker error:', msg.message);
+        console.error('Balancer worker error:', action.message);
         worker.terminate();
         if (workerRef.current === worker) workerRef.current = null;
         runFallback();

@@ -5,6 +5,7 @@ import {
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
+  buildDivisionWorkerMessageResult,
   buildDraftClearResult,
   buildFinishedSessionResult,
   buildFreePlayDivisionConfirmationResult,
@@ -319,6 +320,32 @@ test('buildDivisionFallbackBalanceInput reuses the generation request for sync b
     sessionId: 'session-1',
     config: plan?.request.config,
     partnershipMatrix: { 'player-1|player-2': 1 },
+  });
+});
+
+test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions', () => {
+  const divisions = [
+    {
+      teams: [makeTeam('team-a', 'session-1', []), makeTeam('team-b', 'session-1', [])],
+      penalty: 0,
+      score: 100,
+    },
+  ];
+
+  assert.deepEqual(
+    buildDivisionWorkerMessageResult({ type: 'progress', percent: 45, bestScore: 88 }),
+    {
+      type: 'progress',
+      percent: 45,
+    },
+  );
+  assert.deepEqual(buildDivisionWorkerMessageResult({ type: 'done', divisions }), {
+    type: 'done',
+    divisions,
+  });
+  assert.deepEqual(buildDivisionWorkerMessageResult({ type: 'error', message: 'boom' }), {
+    type: 'fallback',
+    message: 'boom',
   });
 });
 

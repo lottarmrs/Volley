@@ -12,7 +12,7 @@ import type {
   Team,
   TournamentConfig,
 } from '../types';
-import type { BalanceRequest } from '../logic/balancerMessages';
+import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import type { PartnershipMatrix } from '../logic/partnershipHistory';
 import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
@@ -294,6 +294,21 @@ export function buildDivisionGenerationResult(input: {
     nextProgress: 100,
     shouldAdvanceStep: input.advanceStep,
   };
+}
+
+export function buildDivisionWorkerMessageResult(
+  message: BalanceResponse,
+):
+  | { type: 'progress'; percent: number }
+  | { type: 'done'; divisions: Division[] }
+  | { type: 'fallback'; message: string } {
+  if (message.type === 'progress') {
+    return { type: 'progress', percent: message.percent };
+  }
+  if (message.type === 'done') {
+    return { type: 'done', divisions: message.divisions };
+  }
+  return { type: 'fallback', message: message.message };
 }
 
 export function removeOrphanedSessionData(input: {

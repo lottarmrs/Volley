@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildActiveSessionClearResult,
+  buildDivisionGenerationPlan,
   buildDraftClearResult,
   buildFinishedSessionResult,
   buildFreePlayDivisionConfirmationResult,
@@ -246,6 +247,36 @@ test('buildWizardCancelResult clears draft state and returns to dashboard', () =
   assert.equal(result.nextSessionDraft, null);
   assert.equal(result.nextActiveSession, null);
   assert.equal(result.nextPage, 'dashboard');
+});
+
+test('buildDivisionGenerationPlan prepares selected players and seeded balance request', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1', 'player-3'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const players = [makePlayer('player-1'), makePlayer('player-2'), makePlayer('player-3')];
+
+  const result = buildDivisionGenerationPlan({
+    activeSession,
+    players,
+    seed: 12345,
+    partnershipMatrix: { 'player-1|player-3': 2 },
+  });
+
+  assert.deepEqual(
+    result?.sessionPlayers.map((player) => player.id),
+    ['player-1', 'player-3'],
+  );
+  assert.equal(result?.updatedConfig.balanceSeed, 12345);
+  assert.deepEqual(result?.sessionPatch, { config: result?.updatedConfig });
+  assert.deepEqual(result?.request, {
+    type: 'balance',
+    players: result.sessionPlayers,
+    numTeams: 2,
+    sessionId: 'session-1',
+    config: result.updatedConfig,
+    partnershipMatrix: { 'player-1|player-3': 2 },
+  });
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

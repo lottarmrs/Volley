@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Player, Team, Division, Game, TournamentConfig } from '../types';
 import { balanceTeams } from '../logic/balancing';
-import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
+import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
+  buildDivisionGenerationPlan,
   buildFreePlayDivisionConfirmationResult,
   buildSessionDraftResumeResult,
   buildSessionLastSelectionResult,
@@ -132,19 +133,15 @@ export function useSessionWizard({
   };
 
   const generateDivisions = (advanceStep = true) => {
-    if (!activeSession || !activeSession.config) return;
-    const sessionPlayers = players.filter((p) => activeSession.selectedPlayerIds.includes(p.id));
-    const { config } = activeSession;
-    const sessionId = activeSession.id;
+    const plan = buildDivisionGenerationPlan({
+      activeSession,
+      players,
+      seed: Math.floor(Math.random() * 1000000),
+      partnershipMatrix,
+    });
+    if (!plan) return;
 
-    // Generate new random seed per run
-    const seed = Math.floor(Math.random() * 1000000);
-    const updatedConfig = {
-      ...config,
-      balanceSeed: seed,
-    };
-
-    updateSession({ config: updatedConfig });
+    updateSession(plan.sessionPatch);
 
     const finish = (divisions: Division[]) => {
       setBestDivisions(divisions);
@@ -163,10 +160,10 @@ export function useSessionWizard({
       setIsGenerating(true);
       setProgress(0);
       const divisions = balanceTeams(
-        sessionPlayers,
-        updatedConfig.teamCount,
-        sessionId,
-        updatedConfig,
+        plan.sessionPlayers,
+        plan.updatedConfig.teamCount,
+        plan.request.sessionId,
+        plan.updatedConfig,
         undefined,
         partnershipMatrix,
       );
@@ -195,10 +192,10 @@ export function useSessionWizard({
         worker.terminate();
         if (workerRef.current === worker) workerRef.current = null;
         const divisions = balanceTeams(
-          sessionPlayers,
-          updatedConfig.teamCount,
-          sessionId,
-          updatedConfig,
+          plan.sessionPlayers,
+          plan.updatedConfig.teamCount,
+          plan.request.sessionId,
+          plan.updatedConfig,
           undefined,
           partnershipMatrix,
         );
@@ -211,25 +208,17 @@ export function useSessionWizard({
       worker.terminate();
       if (workerRef.current === worker) workerRef.current = null;
       const divisions = balanceTeams(
-        sessionPlayers,
-        updatedConfig.teamCount,
-        sessionId,
-        updatedConfig,
+        plan.sessionPlayers,
+        plan.updatedConfig.teamCount,
+        plan.request.sessionId,
+        plan.updatedConfig,
         undefined,
         partnershipMatrix,
       );
       finish(divisions);
     };
 
-    const request: BalanceRequest = {
-      type: 'balance',
-      players: sessionPlayers,
-      numTeams: updatedConfig.teamCount,
-      sessionId,
-      config: updatedConfig,
-      partnershipMatrix,
-    };
-    worker.postMessage(request);
+    worker.postMessage(plan.request);
   };
 
   const cancelGeneration = () => {

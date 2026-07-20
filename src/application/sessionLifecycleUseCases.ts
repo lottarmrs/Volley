@@ -12,6 +12,8 @@ import type {
   Team,
   TournamentConfig,
 } from '../types';
+import type { BalanceRequest } from '../logic/balancerMessages';
+import type { PartnershipMatrix } from '../logic/partnershipHistory';
 import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
 import { calculateAttributeProgression } from '../logic/progression';
@@ -215,6 +217,43 @@ export function buildWizardCancelResult(): {
     nextSessionDraft: null,
     nextActiveSession: null,
     nextPage: 'dashboard',
+  };
+}
+
+export function buildDivisionGenerationPlan(input: {
+  activeSession: Session | null;
+  players: Player[];
+  seed: number;
+  partnershipMatrix?: PartnershipMatrix;
+}): {
+  sessionPlayers: Player[];
+  updatedConfig: FreePlayConfig | TournamentConfig;
+  sessionPatch: Pick<Session, 'config'>;
+  request: BalanceRequest;
+} | null {
+  const { activeSession } = input;
+  if (!activeSession || !activeSession.config) return null;
+
+  const sessionPlayers = input.players.filter((player) =>
+    activeSession.selectedPlayerIds.includes(player.id),
+  );
+  const updatedConfig = {
+    ...activeSession.config,
+    balanceSeed: input.seed,
+  };
+
+  return {
+    sessionPlayers,
+    updatedConfig,
+    sessionPatch: { config: updatedConfig },
+    request: {
+      type: 'balance',
+      players: sessionPlayers,
+      numTeams: updatedConfig.teamCount,
+      sessionId: activeSession.id,
+      config: updatedConfig,
+      partnershipMatrix: input.partnershipMatrix,
+    },
   };
 }
 

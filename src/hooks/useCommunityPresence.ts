@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommunityPresence, CommunityPresenceStatus, Player } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
-import { setPresenceItemStatus } from '../logic/communityPresence';
 import { formatLocalDateInput } from '../logic/date';
 import {
   addLocalPresenceGuest,
   applyLocalPresenceStatus,
   clearLocalPresence,
   createLocalPresence,
+  selectFrequentLocalPresencePlayers,
   upsertLocalPresence,
 } from '../application/localCommunityPresenceUseCases';
 
@@ -89,18 +89,17 @@ export function useCommunityPresence() {
     );
   }, []);
 
-  const selectFrequentPlayers = useCallback(
-    (communityId: string, players: Player[]) => {
-      const base = ensurePresence(communityId);
-      const selected = players.filter((player) => player.status.presencaFrequente && player.ativo);
-      const next = selected.reduce(
-        (acc, player) => setPresenceItemStatus(acc, player.id, 'present'),
-        base,
-      );
-      upsertPresence(next);
-    },
-    [ensurePresence, upsertPresence],
-  );
+  const selectFrequentPlayers = useCallback((communityId: string, players: Player[]) => {
+    setPresenceRecords((prev) =>
+      selectFrequentLocalPresencePlayers({
+        records: prev,
+        communityId,
+        players,
+        date: today(),
+        now: new Date().toISOString(),
+      }),
+    );
+  }, []);
 
   const useLastPresence = useCallback(
     (communityId: string) => {

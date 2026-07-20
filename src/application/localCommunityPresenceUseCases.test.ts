@@ -5,9 +5,10 @@ import {
   applyLocalPresenceStatus,
   clearLocalPresence,
   createLocalPresence,
+  selectFrequentLocalPresencePlayers,
   upsertLocalPresence,
 } from './localCommunityPresenceUseCases';
-import type { CommunityPresence } from '../types';
+import type { CommunityPresence, Player } from '../types';
 
 const now = '2026-07-20T12:00:00.000Z';
 const today = '2026-07-20';
@@ -23,6 +24,36 @@ function presence(
     items,
     updatedAt: now,
     syncStatus: 'synced',
+  };
+}
+
+function player(id: string, ativo = true, presencaFrequente = true): Player {
+  return {
+    id,
+    nome: id,
+    apelido: id,
+    genero: 'M',
+    ativo,
+    posicaoPrincipal: 'ponteiro',
+    posicoesSecundarias: [],
+    maoDominante: 'direita',
+    atributos: {
+      saque: 5,
+      recepcao: 5,
+      levantamento: 5,
+      ataque: 5,
+      bloqueio: 5,
+      defesa: 5,
+      velocidade: 5,
+      resistencia: 5,
+      leituraDeJogo: 5,
+      regularidade: 5,
+      controleEmocional: 5,
+    },
+    perfil: { nivel: 1, classe: '', arquetipo: '', especialidade: '', fraqueza: '' },
+    formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
+    status: { lesionado: false, limitacaoFisica: null, presencaFrequente },
+    metadata: { criadoEm: now, atualizadoEm: now },
   };
 }
 
@@ -129,4 +160,26 @@ test('addLocalPresenceGuest trims guest names and ignores blank names', () => {
 
   assert.deepEqual(withGuest[0].items, [{ temporaryName: 'Visitante', status: 'guest' }]);
   assert.deepEqual(unchanged, withGuest);
+});
+
+test('selectFrequentLocalPresencePlayers marks only active frequent players as present', () => {
+  const result = selectFrequentLocalPresencePlayers({
+    records: [
+      presence('community-1', today, [
+        { playerId: 'existing', status: 'maybe' },
+        { temporaryName: 'Visitante', status: 'guest' },
+      ]),
+    ],
+    communityId: 'community-1',
+    players: [player('frequent'), player('inactive', false), player('rare', true, false)],
+    date: today,
+    now,
+  });
+
+  assert.deepEqual(result[0].items, [
+    { playerId: 'existing', status: 'maybe' },
+    { temporaryName: 'Visitante', status: 'guest' },
+    { playerId: 'frequent', status: 'present' },
+  ]);
+  assert.equal(result[0].syncStatus, 'pending');
 });

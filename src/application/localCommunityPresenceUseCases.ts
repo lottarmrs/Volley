@@ -1,5 +1,5 @@
 import { addGuestToPresence, setPresenceItemStatus } from '../logic/communityPresence';
-import type { CommunityPresence, CommunityPresenceStatus } from '../types';
+import type { CommunityPresence, CommunityPresenceStatus, Player } from '../types';
 
 export function createLocalPresence(input: {
   communityId: string;
@@ -101,6 +101,25 @@ export function addLocalPresenceGuest(input: {
   const presence = ensureLocalPresence(input);
   const next = addGuestToPresence(presence, input.temporaryName);
   if (next === presence) return input.records;
+
+  return upsertLocalPresence({
+    records: input.records,
+    presence: next,
+    now: input.now,
+  });
+}
+
+export function selectFrequentLocalPresencePlayers(input: {
+  records: CommunityPresence[];
+  communityId: string;
+  players: Player[];
+  date: string;
+  now: string;
+}): CommunityPresence[] {
+  const base = ensureLocalPresence(input);
+  const next = input.players
+    .filter((player) => player.status.presencaFrequente && player.ativo)
+    .reduce((presence, player) => setPresenceItemStatus(presence, player.id, 'present'), base);
 
   return upsertLocalPresence({
     records: input.records,

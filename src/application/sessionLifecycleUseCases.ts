@@ -257,6 +257,25 @@ export function buildDivisionGenerationPlan(input: {
   };
 }
 
+export function buildDivisionGenerationResult(input: {
+  divisions: Division[];
+  advanceStep: boolean;
+}): {
+  nextBestDivisions: Division[];
+  nextSelectedDivisionIndex: number;
+  nextIsGenerating: boolean;
+  nextProgress: number;
+  shouldAdvanceStep: boolean;
+} {
+  return {
+    nextBestDivisions: input.divisions,
+    nextSelectedDivisionIndex: 0,
+    nextIsGenerating: false,
+    nextProgress: 100,
+    shouldAdvanceStep: input.advanceStep,
+  };
+}
+
 export function removeOrphanedSessionData(input: {
   sessions: Session[];
   activeSession: Session | null;

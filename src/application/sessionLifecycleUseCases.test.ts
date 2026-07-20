@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildActiveSessionClearResult,
   buildDivisionGenerationPlan,
+  buildDivisionGenerationResult,
   buildDraftClearResult,
   buildFinishedSessionResult,
   buildFreePlayDivisionConfirmationResult,
@@ -277,6 +278,24 @@ test('buildDivisionGenerationPlan prepares selected players and seeded balance r
     config: result.updatedConfig,
     partnershipMatrix: { 'player-1|player-3': 2 },
   });
+});
+
+test('buildDivisionGenerationResult stores generated divisions and resets generation state', () => {
+  const divisions = [
+    {
+      teams: [makeTeam('team-a', 'session-1', []), makeTeam('team-b', 'session-1', [])],
+      penalty: 0,
+      score: 100,
+    },
+  ];
+
+  const result = buildDivisionGenerationResult({ divisions, advanceStep: true });
+
+  assert.deepEqual(result.nextBestDivisions, divisions);
+  assert.equal(result.nextSelectedDivisionIndex, 0);
+  assert.equal(result.nextIsGenerating, false);
+  assert.equal(result.nextProgress, 100);
+  assert.equal(result.shouldAdvanceStep, true);
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

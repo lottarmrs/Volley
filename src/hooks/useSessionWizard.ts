@@ -7,6 +7,7 @@ import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
+  buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
   buildFreePlayDivisionConfirmationResult,
   buildSessionDraftResumeResult,
@@ -144,11 +145,12 @@ export function useSessionWizard({
     updateSession(plan.sessionPatch);
 
     const finish = (divisions: Division[]) => {
-      setBestDivisions(divisions);
-      setSelectedDivisionIndex(0);
-      setIsGenerating(false);
-      setProgress(100);
-      if (advanceStep) nextStep();
+      const result = buildDivisionGenerationResult({ divisions, advanceStep });
+      setBestDivisions(result.nextBestDivisions);
+      setSelectedDivisionIndex(result.nextSelectedDivisionIndex);
+      setIsGenerating(result.nextIsGenerating);
+      setProgress(result.nextProgress);
+      if (result.shouldAdvanceStep) nextStep();
     };
 
     // Encerra qualquer cálculo anterior ainda em andamento.

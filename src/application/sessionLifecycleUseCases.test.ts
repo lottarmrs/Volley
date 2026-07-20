@@ -14,6 +14,7 @@ import {
   buildSessionPatchResult,
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
+  buildWizardCancelResult,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
@@ -222,6 +223,14 @@ test('buildSessionDraftResumeResult restores wizard state from draft', () => {
   assert.deepEqual(result.nextBestDivisions, [division]);
   assert.equal(result.nextSelectedDivisionIndex, 0);
   assert.equal(result.nextPage, 'session-wizard');
+});
+
+test('buildWizardCancelResult clears draft state and returns to dashboard', () => {
+  const result = buildWizardCancelResult();
+
+  assert.equal(result.nextSessionDraft, null);
+  assert.equal(result.nextActiveSession, null);
+  assert.equal(result.nextPage, 'dashboard');
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

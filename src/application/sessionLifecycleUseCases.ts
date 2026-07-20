@@ -189,6 +189,18 @@ export function buildSessionDraftResumeResult(draft: {
   };
 }
 
+export function buildWizardCancelResult(): {
+  nextSessionDraft: null;
+  nextActiveSession: null;
+  nextPage: 'dashboard';
+} {
+  return {
+    nextSessionDraft: null,
+    nextActiveSession: null,
+    nextPage: 'dashboard',
+  };
+}
+
 export function removeOrphanedSessionData(input: {
   sessions: Session[];
   activeSession: Session | null;

@@ -12,6 +12,7 @@ import {
   buildSessionPatchResult,
   buildTournamentDivisionConfirmationResult,
   buildTournamentStartResult,
+  buildWizardCancelResult,
 } from '../application/sessionLifecycleUseCases';
 import {
   addPlayerPairConstraint,
@@ -330,9 +331,10 @@ export function useSessionWizard({
 
   const cancelWizard = () => {
     if (confirm('Deseja cancelar a criação da sessão? O progresso será perdido.')) {
+      const result = buildWizardCancelResult();
       clearSessionDraft();
-      setActiveSession(null);
-      setPage('dashboard');
+      setActiveSession(result.nextActiveSession);
+      setPage(result.nextPage);
     }
   };
 

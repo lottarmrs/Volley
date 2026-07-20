@@ -1,46 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Community, CommunityRules } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
+import {
+  createDefaultLocalCommunityRules,
+  removeLocalCommunityRules,
+  saveLocalCommunityRules,
+  selectVisibleCommunityRules,
+} from '../application/localCommunityRulesUseCases';
 
 export function createDefaultCommunityRules(community: Community): CommunityRules {
-  return {
-    communityId: community.id,
-    defaultFormat: community.defaultFormat || 'free_play',
-    defaultLocation: community.defaultLocation || '',
-    defaultDay: community.defaultDay || '',
-    defaultStartTime: community.defaultStartTime || '',
-    defaultEndTime: community.defaultEndTime || '',
-    freePlay: {
-      type: 'free_play',
-      teamCount: 3,
-      maxPoints: 15,
-      tieBreakMethod: 'win_by_2',
-      rotationSystem: 'winner_stays',
-      queuePolicy: 'fifo',
-    },
-    tournament: {
-      type: 'tournament',
-      format: 'round_robin',
-      teamCount: 3,
-      useGroupStage: false,
-      roundTrip: false,
-      maxPoints: 15,
-      tieBreakMethod: 'direct_3',
-      victoryRule: 'direct_3',
-      hasFinal: false,
-      hasThirdPlaceMatch: false,
-      classificationPoints: { win: 3, loss: 0 },
-      standingsRules: [
-        'classificationPoints',
-        'wins',
-        'pointDifference',
-        'pointsFor',
-        'headToHead',
-        'pointsAgainst',
-      ],
-    },
-    updatedAt: new Date().toISOString(),
-  };
+  return createDefaultLocalCommunityRules({ community, now: new Date().toISOString() });
 }
 
 export function useCommunityRules() {
@@ -61,28 +30,23 @@ export function useCommunityRules() {
   );
 
   const saveRules = useCallback((next: CommunityRules, allowed = true) => {
-    if (!allowed) {
-      throw new Error('PERMISSION_DENIED');
-    }
-    const now = new Date().toISOString();
     setRules((prev) =>
-      prev.some((rule) => rule.communityId === next.communityId)
-        ? prev.map((rule) =>
-            rule.communityId === next.communityId
-              ? { ...next, syncStatus: 'pending', updatedAt: now }
-              : rule,
-          )
-        : [...prev, { ...next, syncStatus: 'local', updatedAt: now }],
+      saveLocalCommunityRules({
+        rules: prev,
+        next,
+        allowed,
+        now: new Date().toISOString(),
+      }),
     );
   }, []);
 
   const removeRules = useCallback((communityId: string) => {
-    setRules((prev) => prev.filter((rule) => rule.communityId !== communityId));
+    setRules((prev) => removeLocalCommunityRules({ rules: prev, communityId }));
   }, []);
 
   return useMemo(
     () => ({
-      rules: rules.filter((r) => !r.deletedAt),
+      rules: selectVisibleCommunityRules(rules),
       rawRules: rules, // Expose full list for syncService
       setRules,
       getRules,

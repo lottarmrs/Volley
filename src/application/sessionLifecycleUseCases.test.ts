@@ -4,6 +4,7 @@ import {
   buildActiveSessionClearResult,
   buildDraftClearResult,
   buildFinishedSessionResult,
+  buildFreePlayDivisionConfirmationResult,
   buildFreePlayConfigFromCommunityRules,
   buildManualSessionDraft,
   buildManualSessionStartResult,
@@ -283,6 +284,54 @@ test('selectSessionTeams returns only teams from the active session', () => {
     ['team-1', 'team-3'],
   );
   assert.deepEqual(selectSessionTeams(teams, null), []);
+});
+
+test('buildFreePlayDivisionConfirmationResult activates session and stores generated teams', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'draft',
+    selectedPlayerIds: ['player-1', 'player-2'],
+    teamIds: [],
+  });
+  const otherSession = makeSession('session-2', { status: 'draft' });
+  const teams = [makeTeam('old-team', 'session-1', []), makeTeam('other-team', 'session-2', [])];
+  const division = {
+    teams: [
+      makeTeam('team-a', 'session-1', ['player-1']),
+      makeTeam('team-b', 'session-1', ['player-2']),
+      makeTeam('team-c', 'session-1', []),
+    ],
+    penalty: 0,
+    score: 100,
+  };
+
+  const result = buildFreePlayDivisionConfirmationResult({
+    activeSession,
+    division,
+    sessions: [otherSession, activeSession],
+    teams,
+    now: '2026-07-20T12:00:00.000Z',
+  });
+
+  assert.equal(result.finalSession.status, 'active');
+  assert.deepEqual(result.finalSession.teamIds, ['team-a', 'team-b', 'team-c']);
+  assert.deepEqual(
+    (result.finalSession.config as { initialCourtTeams: [string, string] }).initialCourtTeams,
+    ['team-a', 'team-b'],
+  );
+  assert.deepEqual((result.finalSession.config as { initialQueue: string[] }).initialQueue, [
+    'team-c',
+  ]);
+  assert.deepEqual(
+    result.updatedSessions.map((session) => [session.id, session.status]),
+    [
+      ['session-2', 'draft'],
+      ['session-1', 'active'],
+    ],
+  );
+  assert.deepEqual(
+    result.updatedTeams.map((team) => team.id),
+    ['other-team', 'team-a', 'team-b', 'team-c'],
+  );
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

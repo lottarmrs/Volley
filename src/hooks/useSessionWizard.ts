@@ -1,19 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import {
-  Session,
-  Player,
-  Team,
-  Division,
-  SessionStatus,
-  FreePlayConfig,
-  TournamentConfig,
-} from '../types';
+import { Session, Player, Team, Division, SessionStatus, TournamentConfig } from '../types';
 import { balanceTeams } from '../logic/balancing';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
+import { buildFreePlayDivisionConfirmationResult } from '../application/sessionLifecycleUseCases';
 import {
   addPlayerPairConstraint,
   removePlayerPairConstraint,
@@ -317,25 +310,26 @@ export function useSessionWizard({
         updatedAt: new Date().toISOString(),
       };
     } else {
-      finalSession = {
-        ...activeSession,
-        status: 'active' as SessionStatus,
-        teamIds: currentDiv.teams.map((t) => t.id),
-        updatedAt: new Date().toISOString(),
-        config: {
-          ...(activeSession.config as FreePlayConfig),
-          initialCourtTeams: [currentDiv.teams[0].id, currentDiv.teams[1].id] as [string, string],
-          initialQueue: currentDiv.teams.slice(2).map((t) => t.id),
-        },
-      };
+      const result = buildFreePlayDivisionConfirmationResult({
+        activeSession,
+        division: currentDiv,
+        sessions,
+        teams,
+        now: new Date().toISOString(),
+      });
+      finalSession = result.finalSession;
+      setSessions(result.updatedSessions);
+      setTeams(result.updatedTeams);
     }
 
     setActiveSession(finalSession);
-    setSessions((prev) => [...prev.filter((s) => s.id !== finalSession.id), finalSession]);
-    setTeams((prev) => [
-      ...prev.filter((t) => t.sessionId !== finalSession.id),
-      ...currentDiv.teams,
-    ]);
+    if (finalSession.type === 'tournament') {
+      setSessions((prev) => [...prev.filter((s) => s.id !== finalSession.id), finalSession]);
+      setTeams((prev) => [
+        ...prev.filter((t) => t.sessionId !== finalSession.id),
+        ...currentDiv.teams,
+      ]);
+    }
 
     localStorage.setItem(
       'vpg_last_selected_player_ids',

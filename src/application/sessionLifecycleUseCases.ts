@@ -1,6 +1,7 @@
 import type {
   Community,
   CommunityRules,
+  Division,
   FreePlayConfig,
   Game,
   GameReport,
@@ -236,6 +237,39 @@ export function buildSessionDeletionResult(input: {
 export function selectSessionTeams(teams: Team[], sessionId: string | null | undefined): Team[] {
   if (!sessionId) return [];
   return teams.filter((team) => team.sessionId === sessionId);
+}
+
+export function buildFreePlayDivisionConfirmationResult(input: {
+  activeSession: Session;
+  division: Division;
+  sessions: Session[];
+  teams: Team[];
+  now: string;
+}) {
+  const teamIds = input.division.teams.map((team) => team.id);
+  const finalSession: Session = {
+    ...input.activeSession,
+    status: 'active',
+    teamIds,
+    updatedAt: input.now,
+    config: {
+      ...(input.activeSession.config as FreePlayConfig),
+      initialCourtTeams: [teamIds[0], teamIds[1]] as [string, string],
+      initialQueue: teamIds.slice(2),
+    },
+  };
+
+  return {
+    finalSession,
+    updatedSessions: [
+      ...input.sessions.filter((session) => session.id !== finalSession.id),
+      finalSession,
+    ],
+    updatedTeams: [
+      ...input.teams.filter((team) => team.sessionId !== finalSession.id),
+      ...input.division.teams,
+    ],
+  };
 }
 
 export function buildFinishedSessionResult(input: {

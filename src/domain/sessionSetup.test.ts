@@ -4,9 +4,14 @@ import {
   validateSessionWizardStep,
   hasPlayableRuleSnapshot,
   getFreePlaySetupConfig,
+  addPlayerPairConstraint,
+  removePlayerPairConstraint,
+  selectPlayablePlayerIds,
+  toggleLockedPlayerTeam,
+  toggleSessionPlayerSelection,
 } from './sessionSetup';
 import { makeFreePlayConfig, makeSession } from '../test/fixtures';
-import type { TournamentConfig } from '../types';
+import type { Player, TournamentConfig } from '../types';
 
 test('step 0 requires name and date', () => {
   const errors = validateSessionWizardStep(makeSession('s1', { name: ' ', date: '' }), 0);
@@ -124,6 +129,47 @@ test('getFreePlaySetupConfig returns null for tournament session', () => {
   assert.equal(getFreePlaySetupConfig(session), null);
 });
 
+test('toggleSessionPlayerSelection adds and removes a player id', () => {
+  assert.deepEqual(toggleSessionPlayerSelection(['p1'], 'p2'), ['p1', 'p2']);
+  assert.deepEqual(toggleSessionPlayerSelection(['p1', 'p2'], 'p1'), ['p2']);
+});
+
+test('selectPlayablePlayerIds returns only active and healthy players', () => {
+  const players = [
+    player('active'),
+    player('inactive', { ativo: false }),
+    player('injured', {
+      status: { lesionado: true, limitacaoFisica: null, presencaFrequente: true },
+    }),
+  ];
+
+  assert.deepEqual(selectPlayablePlayerIds(players), ['active']);
+});
+
+test('toggleLockedPlayerTeam adds switches and removes locked team constraints', () => {
+  const config = makeFreePlayConfig();
+  const locked = toggleLockedPlayerTeam(config, 'p1', 0);
+  const switched = toggleLockedPlayerTeam(locked, 'p1', 1);
+  const removed = toggleLockedPlayerTeam(switched, 'p1', 1);
+
+  assert.equal(locked.balanceConstraints?.lockedPlayerIdxs?.p1, 0);
+  assert.equal(switched.balanceConstraints?.lockedPlayerIdxs?.p1, 1);
+  assert.deepEqual(removed.balanceConstraints?.lockedPlayerIdxs, {});
+});
+
+test('player pair constraints are unique and removable regardless of pair order', () => {
+  const withPair = addPlayerPairConstraint(makeFreePlayConfig(), 'p1', 'p2', 'together');
+  const duplicate = addPlayerPairConstraint(withPair, 'p2', 'p1', 'together');
+  const separated = addPlayerPairConstraint(duplicate, 'p1', 'p3', 'separated');
+  const removed = removePlayerPairConstraint(separated, 'p2', 'p1', 'together');
+
+  assert.deepEqual(withPair.balanceConstraints?.pairsTogether, [['p1', 'p2']]);
+  assert.deepEqual(duplicate.balanceConstraints?.pairsTogether, [['p1', 'p2']]);
+  assert.deepEqual(separated.balanceConstraints?.pairsSeparated, [['p1', 'p3']]);
+  assert.deepEqual(removed.balanceConstraints?.pairsTogether, []);
+  assert.deepEqual(removed.balanceConstraints?.pairsSeparated, [['p1', 'p3']]);
+});
+
 function makeTournamentConfig(): TournamentConfig {
   return {
     type: 'tournament',
@@ -137,5 +183,36 @@ function makeTournamentConfig(): TournamentConfig {
     hasThirdPlaceMatch: true,
     classificationPoints: { win: 3, loss: 0 },
     standingsRules: ['wins'],
+  };
+}
+
+function player(id: string, overrides: Partial<Player> = {}): Player {
+  return {
+    id,
+    nome: id,
+    apelido: id,
+    genero: 'M',
+    ativo: true,
+    posicaoPrincipal: 'ponteiro',
+    posicoesSecundarias: [],
+    maoDominante: 'direita',
+    atributos: {
+      saque: 5,
+      recepcao: 5,
+      levantamento: 5,
+      ataque: 5,
+      bloqueio: 5,
+      defesa: 5,
+      velocidade: 5,
+      resistencia: 5,
+      leituraDeJogo: 5,
+      regularidade: 5,
+      controleEmocional: 5,
+    },
+    perfil: { nivel: 1, classe: '', arquetipo: '', especialidade: '', fraqueza: '' },
+    formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
+    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
+    metadata: { criadoEm: '2026-01-01T12:00:00.000Z', atualizadoEm: '2026-01-01T12:00:00.000Z' },
+    ...overrides,
   };
 }

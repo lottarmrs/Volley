@@ -14,7 +14,14 @@ import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/
 import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
-import { validateSessionWizardStep } from '../domain/sessionSetup';
+import {
+  addPlayerPairConstraint,
+  removePlayerPairConstraint,
+  selectPlayablePlayerIds,
+  toggleLockedPlayerTeam,
+  toggleSessionPlayerSelection,
+  validateSessionWizardStep,
+} from '../domain/sessionSetup';
 
 interface UseSessionWizardProps {
   players: Player[];
@@ -84,17 +91,14 @@ export function useSessionWizard({
 
   const togglePlayer = (playerId: string) => {
     if (!activeSession) return;
-    const current = activeSession.selectedPlayerIds;
-    const next = current.includes(playerId)
-      ? current.filter((id) => id !== playerId)
-      : [...current, playerId];
-    updateSession({ selectedPlayerIds: next });
+    updateSession({
+      selectedPlayerIds: toggleSessionPlayerSelection(activeSession.selectedPlayerIds, playerId),
+    });
     if (validationErrors.players) setValidationErrors((prev) => ({ ...prev, players: '' }));
   };
 
   const selectAllActivePlayers = () => {
-    const activeIds = players.filter((p) => p.ativo && !p.status.lesionado).map((p) => p.id);
-    updateSession({ selectedPlayerIds: activeIds });
+    updateSession({ selectedPlayerIds: selectPlayablePlayerIds(players) });
   };
 
   const clearSelectedPlayers = () => updateSession({ selectedPlayerIds: [] });
@@ -235,87 +239,17 @@ export function useSessionWizard({
 
   const togglePlayerLock = (playerId: string, teamIdx: number) => {
     if (!activeSession || !activeSession.config) return;
-    const currentConstraints = activeSession.config.balanceConstraints || {};
-    const lockedPlayerIdxs = { ...(currentConstraints.lockedPlayerIdxs || {}) };
-
-    if (lockedPlayerIdxs[playerId] === teamIdx) {
-      delete lockedPlayerIdxs[playerId];
-    } else {
-      lockedPlayerIdxs[playerId] = teamIdx;
-    }
-
-    const nextConfig = {
-      ...activeSession.config,
-      balanceConstraints: {
-        ...currentConstraints,
-        lockedPlayerIdxs,
-      },
-    };
-    updateSession({ config: nextConfig });
+    updateSession({ config: toggleLockedPlayerTeam(activeSession.config, playerId, teamIdx) });
   };
 
   const addPairConstraint = (p1: string, p2: string, type: 'together' | 'separated') => {
     if (!activeSession || !activeSession.config) return;
-    const currentConstraints = activeSession.config.balanceConstraints || {};
-
-    if (type === 'together') {
-      const pairsTogether = [...(currentConstraints.pairsTogether || [])];
-      if (!pairsTogether.some(([a, b]) => (a === p1 && b === p2) || (a === p2 && b === p1))) {
-        pairsTogether.push([p1, p2]);
-      }
-      const nextConfig = {
-        ...activeSession.config,
-        balanceConstraints: {
-          ...currentConstraints,
-          pairsTogether,
-        },
-      };
-      updateSession({ config: nextConfig });
-    } else {
-      const pairsSeparated = [...(currentConstraints.pairsSeparated || [])];
-      if (!pairsSeparated.some(([a, b]) => (a === p1 && b === p2) || (a === p2 && b === p1))) {
-        pairsSeparated.push([p1, p2]);
-      }
-      const nextConfig = {
-        ...activeSession.config,
-        balanceConstraints: {
-          ...currentConstraints,
-          pairsSeparated,
-        },
-      };
-      updateSession({ config: nextConfig });
-    }
+    updateSession({ config: addPlayerPairConstraint(activeSession.config, p1, p2, type) });
   };
 
   const removePairConstraint = (p1: string, p2: string, type: 'together' | 'separated') => {
     if (!activeSession || !activeSession.config) return;
-    const currentConstraints = activeSession.config.balanceConstraints || {};
-
-    if (type === 'together') {
-      const pairsTogether = (currentConstraints.pairsTogether || []).filter(
-        ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1)),
-      );
-      const nextConfig = {
-        ...activeSession.config,
-        balanceConstraints: {
-          ...currentConstraints,
-          pairsTogether,
-        },
-      };
-      updateSession({ config: nextConfig });
-    } else {
-      const pairsSeparated = (currentConstraints.pairsSeparated || []).filter(
-        ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1)),
-      );
-      const nextConfig = {
-        ...activeSession.config,
-        balanceConstraints: {
-          ...currentConstraints,
-          pairsSeparated,
-        },
-      };
-      updateSession({ config: nextConfig });
-    }
+    updateSession({ config: removePlayerPairConstraint(activeSession.config, p1, p2, type) });
   };
 
   const confirmDivision = () => {

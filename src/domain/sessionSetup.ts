@@ -1,4 +1,4 @@
-import type { FreePlayConfig, Session, TournamentConfig } from '../types';
+import type { FreePlayConfig, Player, Session, TournamentConfig } from '../types';
 
 export type SessionValidationErrors = Record<string, string>;
 
@@ -12,6 +12,88 @@ export function getFreePlaySetupConfig(session: Session): FreePlayConfig | null 
   }
 
   return session.config;
+}
+
+export function toggleSessionPlayerSelection(currentPlayerIds: string[], playerId: string) {
+  return currentPlayerIds.includes(playerId)
+    ? currentPlayerIds.filter((id) => id !== playerId)
+    : [...currentPlayerIds, playerId];
+}
+
+export function selectPlayablePlayerIds(players: Player[]) {
+  return players
+    .filter((player) => player.ativo && !player.status.lesionado)
+    .map((player) => player.id);
+}
+
+export function toggleLockedPlayerTeam(
+  config: Session['config'],
+  playerId: string,
+  teamIdx: number,
+): Session['config'] {
+  if (!config) return config;
+  const currentConstraints = config.balanceConstraints || {};
+  const lockedPlayerIdxs = { ...(currentConstraints.lockedPlayerIdxs || {}) };
+
+  if (lockedPlayerIdxs[playerId] === teamIdx) {
+    delete lockedPlayerIdxs[playerId];
+  } else {
+    lockedPlayerIdxs[playerId] = teamIdx;
+  }
+
+  return {
+    ...config,
+    balanceConstraints: {
+      ...currentConstraints,
+      lockedPlayerIdxs,
+    },
+  };
+}
+
+export function addPlayerPairConstraint(
+  config: Session['config'],
+  p1: string,
+  p2: string,
+  type: 'together' | 'separated',
+): Session['config'] {
+  if (!config) return config;
+  const currentConstraints = config.balanceConstraints || {};
+  const key = type === 'together' ? 'pairsTogether' : 'pairsSeparated';
+  const pairs = [...(currentConstraints[key] || [])];
+
+  if (!pairs.some(([a, b]) => (a === p1 && b === p2) || (a === p2 && b === p1))) {
+    pairs.push([p1, p2]);
+  }
+
+  return {
+    ...config,
+    balanceConstraints: {
+      ...currentConstraints,
+      [key]: pairs,
+    },
+  };
+}
+
+export function removePlayerPairConstraint(
+  config: Session['config'],
+  p1: string,
+  p2: string,
+  type: 'together' | 'separated',
+): Session['config'] {
+  if (!config) return config;
+  const currentConstraints = config.balanceConstraints || {};
+  const key = type === 'together' ? 'pairsTogether' : 'pairsSeparated';
+  const pairs = (currentConstraints[key] || []).filter(
+    ([a, b]) => !((a === p1 && b === p2) || (a === p2 && b === p1)),
+  );
+
+  return {
+    ...config,
+    balanceConstraints: {
+      ...currentConstraints,
+      [key]: pairs,
+    },
+  };
 }
 
 export function validateSessionWizardStep(

@@ -10,6 +10,7 @@ import {
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
+  buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
   buildFreePlayDivisionConfirmationResult,
   buildSessionDraftResumeResult,
@@ -146,6 +147,12 @@ export function useSessionWizard({
 
     updateSession(plan.sessionPatch);
 
+    const applyGenerationStartState = (mode: 'start' | 'cancel') => {
+      const result = buildDivisionGenerationStartResult(mode);
+      setIsGenerating(result.nextIsGenerating);
+      setProgress(result.nextProgress);
+    };
+
     const finish = (divisions: Division[]) => {
       const result = buildDivisionGenerationResult({ divisions, advanceStep });
       setBestDivisions(result.nextBestDivisions);
@@ -174,8 +181,7 @@ export function useSessionWizard({
 
     // Fallback síncrono quando Web Workers não estão disponíveis (ex.: testes/SSR).
     if (typeof Worker === 'undefined') {
-      setIsGenerating(true);
-      setProgress(0);
+      applyGenerationStartState('start');
       runFallback();
       return;
     }
@@ -184,8 +190,7 @@ export function useSessionWizard({
       type: 'module',
     });
     workerRef.current = worker;
-    setIsGenerating(true);
-    setProgress(0);
+    applyGenerationStartState('start');
 
     worker.onmessage = (e: MessageEvent<BalanceResponse>) => {
       const action = buildDivisionWorkerMessageResult(e.data);
@@ -217,8 +222,9 @@ export function useSessionWizard({
   const cancelGeneration = () => {
     workerRef.current?.terminate();
     workerRef.current = null;
-    setIsGenerating(false);
-    setProgress(0);
+    const result = buildDivisionGenerationStartResult('cancel');
+    setIsGenerating(result.nextIsGenerating);
+    setProgress(result.nextProgress);
   };
 
   const togglePlayerLock = (playerId: string, teamIdx: number) => {

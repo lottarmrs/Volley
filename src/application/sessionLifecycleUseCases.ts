@@ -296,6 +296,16 @@ export function buildDivisionGenerationResult(input: {
   };
 }
 
+export function buildDivisionGenerationStartResult(mode: 'start' | 'cancel'): {
+  nextIsGenerating: boolean;
+  nextProgress: number;
+} {
+  return {
+    nextIsGenerating: mode === 'start',
+    nextProgress: 0,
+  };
+}
+
 export function buildDivisionWorkerMessageResult(
   message: BalanceResponse,
 ):

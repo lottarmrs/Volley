@@ -5,6 +5,7 @@ import {
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
+  buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
   buildDraftClearResult,
   buildFinishedSessionResult,
@@ -298,6 +299,17 @@ test('buildDivisionGenerationResult stores generated divisions and resets genera
   assert.equal(result.nextIsGenerating, false);
   assert.equal(result.nextProgress, 100);
   assert.equal(result.shouldAdvanceStep, true);
+});
+
+test('buildDivisionGenerationStartResult resets progress for start and cancel states', () => {
+  assert.deepEqual(buildDivisionGenerationStartResult('start'), {
+    nextIsGenerating: true,
+    nextProgress: 0,
+  });
+  assert.deepEqual(buildDivisionGenerationStartResult('cancel'), {
+    nextIsGenerating: false,
+    nextProgress: 0,
+  });
 });
 
 test('buildDivisionFallbackBalanceInput reuses the generation request for sync balancing', () => {

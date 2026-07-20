@@ -16,6 +16,7 @@ import {
   buildManualSessionDraft,
   buildManualSessionStartResult,
   buildSessionDeletionResult,
+  buildSessionLastSelectionApplicationResult,
   buildSessionDraftResumeResult,
   buildSessionDraftPersistenceResult,
   buildSessionFromCommunity,
@@ -231,6 +232,34 @@ test('buildSessionLastSelectionResult rejects non-string player ids from storage
 
   assert.equal(result.patch, null);
   assert.equal(result.shouldRemoveStoredSelection, true);
+});
+
+test('buildSessionLastSelectionApplicationResult applies valid selection and flags invalid storage', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['old-player'],
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  });
+
+  const validResult = buildSessionLastSelectionApplicationResult({
+    activeSession,
+    rawSelection: '["player-1","player-2"]',
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.deepEqual(validResult.nextActiveSession?.selectedPlayerIds, ['player-1', 'player-2']);
+  assert.equal(validResult.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
+  assert.equal(validResult.shouldRemoveStoredSelection, false);
+  assert.equal(validResult.shouldWarnInvalidSelection, false);
+
+  const invalidResult = buildSessionLastSelectionApplicationResult({
+    activeSession,
+    rawSelection: '["player-1",42]',
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.equal(invalidResult.nextActiveSession, null);
+  assert.equal(invalidResult.shouldRemoveStoredSelection, true);
+  assert.equal(invalidResult.shouldWarnInvalidSelection, true);
 });
 
 test('buildSessionDraftResumeResult restores wizard state from draft', () => {

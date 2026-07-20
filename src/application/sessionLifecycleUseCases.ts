@@ -195,6 +195,31 @@ export function buildSessionLastSelectionResult(rawSelection: string | null): {
   }
 }
 
+export function buildSessionLastSelectionApplicationResult(input: {
+  activeSession: Session | null;
+  rawSelection: string | null;
+  now: string;
+}): {
+  nextActiveSession: Session | null;
+  shouldRemoveStoredSelection: boolean;
+  shouldWarnInvalidSelection: boolean;
+} {
+  const selection = buildSessionLastSelectionResult(input.rawSelection);
+  const nextActiveSession = selection.patch
+    ? buildSessionPatchResult({
+        activeSession: input.activeSession,
+        patch: selection.patch,
+        now: input.now,
+      })
+    : null;
+
+  return {
+    nextActiveSession,
+    shouldRemoveStoredSelection: selection.shouldRemoveStoredSelection,
+    shouldWarnInvalidSelection: selection.shouldRemoveStoredSelection,
+  };
+}
+
 export function buildSessionDraftResumeResult(draft: {
   session: Session;
   wizardStep: number;

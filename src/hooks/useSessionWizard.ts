@@ -16,7 +16,7 @@ import {
   buildDivisionWorkerMessageResult,
   buildSessionDraftResumeResult,
   buildSessionDraftPersistenceResult,
-  buildSessionLastSelectionResult,
+  buildSessionLastSelectionApplicationResult,
   buildSessionPatchResult,
   buildTournamentStartResult,
   buildWizardCancelResult,
@@ -123,11 +123,16 @@ export function useSessionWizard({
   const clearSelectedPlayers = () => updateSession({ selectedPlayerIds: [] });
 
   const useLastSelection = () => {
-    const last = localStorage.getItem('vpg_last_selected_player_ids');
-    const result = buildSessionLastSelectionResult(last);
-    if (result.patch) updateSession(result.patch);
-    if (result.shouldRemoveStoredSelection) {
+    const result = buildSessionLastSelectionApplicationResult({
+      activeSession,
+      rawSelection: localStorage.getItem('vpg_last_selected_player_ids'),
+      now: new Date().toISOString(),
+    });
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
+    if (result.shouldWarnInvalidSelection) {
       console.warn('Ignoring invalid last player selection from storage');
+    }
+    if (result.shouldRemoveStoredSelection) {
       localStorage.removeItem('vpg_last_selected_player_ids');
     }
   };

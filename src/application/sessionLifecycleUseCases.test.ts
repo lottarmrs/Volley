@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildActiveSessionClearResult,
+  buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationPlan,
@@ -576,6 +577,90 @@ test('buildDivisionConfirmationCompletionResult persists selection and routes by
     shouldAdvanceStep: true,
     nextPage: null,
   });
+});
+
+test('buildDivisionConfirmationResult confirms free play directly and delegates tournament scheduling', () => {
+  const now = '2026-07-20T12:00:00.000Z';
+  const freePlaySession = makeSession('free-play-session', {
+    type: 'free_play',
+    status: 'draft',
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const freePlayDivision = {
+    teams: [
+      makeTeam('free-team-a', 'free-play-session', []),
+      makeTeam('free-team-b', 'free-play-session', []),
+    ],
+    penalty: 0,
+    score: 100,
+  };
+  const freePlayResult = buildDivisionConfirmationResult({
+    activeSession: freePlaySession,
+    division: freePlayDivision,
+    sessions: [freePlaySession],
+    teams: [],
+    games: [makeGame('existing-game', 'other-session')],
+    now,
+    createGameId: () => 'unused-game',
+    generateTournamentSchedule: () => {
+      throw new Error('free play should not schedule tournament games');
+    },
+  });
+
+  assert.equal(freePlayResult.finalSession.status, 'active');
+  assert.equal(freePlayResult.updatedGames, null);
+
+  const tournamentConfig: TournamentConfig = {
+    type: 'tournament',
+    format: 'round_robin',
+    teamCount: 2,
+    useGroupStage: false,
+    roundTrip: false,
+    maxPoints: 15,
+    tieBreakMethod: 'direct_3',
+    victoryRule: 'direct_3',
+    hardPointCap: null,
+    hasFinal: true,
+    hasThirdPlaceMatch: false,
+    classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
+    standingsRules: ['classificationPoints'],
+  };
+  const tournamentSession = makeSession('tournament-session', {
+    type: 'tournament',
+    status: 'draft',
+    config: tournamentConfig,
+  });
+  const tournamentDivision = {
+    teams: [
+      makeTeam('tournament-team-a', 'tournament-session', []),
+      makeTeam('tournament-team-b', 'tournament-session', []),
+    ],
+    penalty: 0,
+    score: 100,
+  };
+  const scheduleCalls: unknown[] = [];
+  const tournamentResult = buildDivisionConfirmationResult({
+    activeSession: tournamentSession,
+    division: tournamentDivision,
+    sessions: [tournamentSession],
+    teams: [],
+    games: [],
+    now,
+    createGameId: () => 'scheduled-game',
+    generateTournamentSchedule: (teamIds, format, config) => {
+      scheduleCalls.push([teamIds, format, config]);
+      return [{ round: 1, teamAId: 'tournament-team-a', teamBId: 'tournament-team-b' }];
+    },
+  });
+
+  assert.deepEqual(scheduleCalls, [
+    [['tournament-team-a', 'tournament-team-b'], 'round_robin', tournamentConfig],
+  ]);
+  assert.equal(tournamentResult.finalSession.status, 'teams_generated');
+  assert.deepEqual(
+    tournamentResult.updatedGames?.map((game) => [game.id, game.type, game.status]),
+    [['scheduled-game', 'tournament', 'scheduled']],
+  );
 });
 
 test('buildTournamentDivisionConfirmationResult schedules games and stores generated teams', () => {

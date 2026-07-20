@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Session, Player, Team, Division, Game, TournamentConfig } from '../types';
+import { Session, Player, Team, Division, Game } from '../types';
 import { balanceTeams } from '../logic/balancing';
 import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
@@ -7,17 +7,16 @@ import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
+  buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
-  buildFreePlayDivisionConfirmationResult,
   buildSessionDraftResumeResult,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
-  buildTournamentDivisionConfirmationResult,
   buildTournamentStartResult,
   buildWizardCancelResult,
   shouldClearDivisionWorkerReference,
@@ -248,44 +247,22 @@ export function useSessionWizard({
     if (!activeSession || bestDivisions.length === 0) return;
     const currentDiv = bestDivisions[selectedDivisionIndex];
 
-    let finalSession: Session;
-    const now = new Date().toISOString();
-
-    if (activeSession.type === 'tournament') {
-      const cfg = activeSession.config as TournamentConfig;
-      const schedule = generateTournamentSchedule(
-        currentDiv.teams.map((t) => t.id),
-        cfg.format,
-        cfg,
-      );
-      const result = buildTournamentDivisionConfirmationResult({
-        activeSession,
-        division: currentDiv,
-        sessions,
-        teams,
-        games,
-        schedule,
-        now,
-        createGameId: generateUUID,
-      });
-      finalSession = result.finalSession;
-      setSessions(result.updatedSessions);
-      setTeams(result.updatedTeams);
-      setGames(result.updatedGames);
-    } else {
-      const result = buildFreePlayDivisionConfirmationResult({
-        activeSession,
-        division: currentDiv,
-        sessions,
-        teams,
-        now,
-      });
-      finalSession = result.finalSession;
-      setSessions(result.updatedSessions);
-      setTeams(result.updatedTeams);
-    }
+    const result = buildDivisionConfirmationResult({
+      activeSession,
+      division: currentDiv,
+      sessions,
+      teams,
+      games,
+      now: new Date().toISOString(),
+      createGameId: generateUUID,
+      generateTournamentSchedule,
+    });
+    const finalSession = result.finalSession;
 
     setActiveSession(finalSession);
+    setSessions(result.updatedSessions);
+    setTeams(result.updatedTeams);
+    if (result.updatedGames) setGames(result.updatedGames);
 
     const completion = buildDivisionConfirmationCompletionResult(finalSession);
     localStorage.setItem('vpg_last_selected_player_ids', completion.selectedPlayerIdsValue);

@@ -453,6 +453,56 @@ export function buildDivisionConfirmationCompletionResult(finalSession: Session)
   };
 }
 
+export function buildDivisionConfirmationResult(input: {
+  activeSession: Session;
+  division: Division;
+  sessions: Session[];
+  teams: Team[];
+  games: Game[];
+  now: string;
+  createGameId: () => string;
+  generateTournamentSchedule: (
+    teamIds: string[],
+    format: TournamentConfig['format'],
+    config: TournamentConfig,
+  ) => ScheduledTournamentMatch[];
+}): {
+  finalSession: Session;
+  updatedSessions: Session[];
+  updatedTeams: Team[];
+  updatedGames: Game[] | null;
+} {
+  if (input.activeSession.type !== 'tournament') {
+    const result = buildFreePlayDivisionConfirmationResult({
+      activeSession: input.activeSession,
+      division: input.division,
+      sessions: input.sessions,
+      teams: input.teams,
+      now: input.now,
+    });
+    return { ...result, updatedGames: null };
+  }
+
+  const config = input.activeSession.config as TournamentConfig;
+  const schedule = input.generateTournamentSchedule(
+    input.division.teams.map((team) => team.id),
+    config.format,
+    config,
+  );
+  const result = buildTournamentDivisionConfirmationResult({
+    activeSession: input.activeSession,
+    division: input.division,
+    sessions: input.sessions,
+    teams: input.teams,
+    games: input.games,
+    schedule,
+    now: input.now,
+    createGameId: input.createGameId,
+  });
+
+  return result;
+}
+
 export function buildTournamentDivisionConfirmationResult(input: {
   activeSession: Session;
   division: Division;

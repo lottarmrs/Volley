@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildActiveSessionClearResult,
+  buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
@@ -535,6 +536,46 @@ test('buildFreePlayDivisionConfirmationResult activates session and stores gener
     result.updatedTeams.map((team) => team.id),
     ['other-team', 'team-a', 'team-b', 'team-c'],
   );
+});
+
+test('buildDivisionConfirmationCompletionResult persists selection and routes by session type', () => {
+  const freePlaySession = makeSession('free-play-session', {
+    type: 'free_play',
+    selectedPlayerIds: ['player-1', 'player-2'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const tournamentSession = makeSession('tournament-session', {
+    type: 'tournament',
+    selectedPlayerIds: ['player-3'],
+    config: {
+      type: 'tournament',
+      format: 'round_robin',
+      teamCount: 2,
+      maxPoints: 15,
+      tieBreakMethod: 'direct_3',
+      victoryRule: 'direct_3',
+      hardPointCap: null,
+      hasFinal: true,
+      hasThirdPlaceMatch: true,
+      classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
+      standingsRules: ['classificationPoints'],
+    } as TournamentConfig,
+  });
+
+  assert.deepEqual(buildDivisionConfirmationCompletionResult(freePlaySession), {
+    selectedPlayerIdsValue: JSON.stringify(['player-1', 'player-2']),
+    sessionConfigValue: JSON.stringify(freePlaySession.config),
+    shouldClearSessionDraft: true,
+    shouldAdvanceStep: false,
+    nextPage: 'session-active',
+  });
+  assert.deepEqual(buildDivisionConfirmationCompletionResult(tournamentSession), {
+    selectedPlayerIdsValue: JSON.stringify(['player-3']),
+    sessionConfigValue: JSON.stringify(tournamentSession.config),
+    shouldClearSessionDraft: true,
+    shouldAdvanceStep: true,
+    nextPage: null,
+  });
 });
 
 test('buildTournamentDivisionConfirmationResult schedules games and stores generated teams', () => {

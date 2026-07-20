@@ -437,6 +437,22 @@ export function buildFreePlayDivisionConfirmationResult(input: {
   };
 }
 
+export function buildDivisionConfirmationCompletionResult(finalSession: Session): {
+  selectedPlayerIdsValue: string;
+  sessionConfigValue: string;
+  shouldClearSessionDraft: boolean;
+  shouldAdvanceStep: boolean;
+  nextPage: 'session-active' | null;
+} {
+  return {
+    selectedPlayerIdsValue: JSON.stringify(finalSession.selectedPlayerIds),
+    sessionConfigValue: JSON.stringify(finalSession.config),
+    shouldClearSessionDraft: true,
+    shouldAdvanceStep: finalSession.type === 'tournament',
+    nextPage: finalSession.type === 'tournament' ? null : 'session-active',
+  };
+}
+
 export function buildTournamentDivisionConfirmationResult(input: {
   activeSession: Session;
   division: Division;

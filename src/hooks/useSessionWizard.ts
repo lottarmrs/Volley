@@ -7,6 +7,7 @@ import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
+  buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
   buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
@@ -286,17 +287,15 @@ export function useSessionWizard({
 
     setActiveSession(finalSession);
 
-    localStorage.setItem(
-      'vpg_last_selected_player_ids',
-      JSON.stringify(finalSession.selectedPlayerIds),
-    );
-    localStorage.setItem('vpg_last_session_config', JSON.stringify(finalSession.config));
+    const completion = buildDivisionConfirmationCompletionResult(finalSession);
+    localStorage.setItem('vpg_last_selected_player_ids', completion.selectedPlayerIdsValue);
+    localStorage.setItem('vpg_last_session_config', completion.sessionConfigValue);
 
-    clearSessionDraft();
-    if (finalSession.type === 'tournament') {
+    if (completion.shouldClearSessionDraft) clearSessionDraft();
+    if (completion.shouldAdvanceStep) {
       nextStep();
-    } else {
-      setPage('session-active');
+    } else if (completion.nextPage) {
+      setPage(completion.nextPage);
     }
   };
 

@@ -14,6 +14,7 @@ import {
   buildDivisionGenerationPlan,
   buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
+  buildGeneratedTournamentStartApplicationResult,
   buildSessionDraftResumeResult,
   buildSessionDraftPersistenceResult,
   buildSessionLastSelectionApplicationResult,
@@ -21,7 +22,6 @@ import {
   buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
-  buildTournamentStartResult,
   buildWizardCancelResult,
   shouldClearDivisionWorkerReference,
 } from '../application/sessionLifecycleUseCases';
@@ -294,17 +294,17 @@ export function useSessionWizard({
   };
 
   const startGeneratedTournament = () => {
-    if (!activeSession || activeSession.type !== 'tournament') return;
-    const result = buildTournamentStartResult({
+    const result = buildGeneratedTournamentStartApplicationResult({
       activeSession,
       sessions,
       games,
       now: new Date().toISOString(),
     });
+    if (!result) return;
     setActiveSession(result.startedSession);
     setSessions(result.updatedSessions);
     setGames(result.updatedGames);
-    setPage('session-active');
+    setPage(result.nextPage);
   };
 
   const cancelWizard = () => {

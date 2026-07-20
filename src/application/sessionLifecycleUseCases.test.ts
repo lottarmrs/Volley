@@ -25,6 +25,7 @@ import {
   buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
+  buildGeneratedTournamentStartApplicationResult,
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
   buildWizardCancelResult,
@@ -976,6 +977,63 @@ test('buildTournamentStartResult activates tournament and starts first scheduled
       ['other-game', 'scheduled', '2026-01-01T12:00:00.000Z'],
       ['later-game', 'scheduled', '2026-01-01T12:00:00.000Z'],
       ['first-game', 'active', '2026-07-20T12:30:00.000Z'],
+    ],
+  );
+});
+
+test('buildGeneratedTournamentStartApplicationResult starts only generated tournaments', () => {
+  const tournamentSession = makeSession('tournament-session', {
+    type: 'tournament',
+    status: 'teams_generated',
+  });
+  const freePlaySession = makeSession('free-play-session', {
+    type: 'free_play',
+    status: 'active',
+  });
+  const firstGame = makeGame('game-1', 'tournament-session', {
+    status: 'scheduled',
+    sequenceNumber: 1,
+    startedAt: null,
+  });
+  const secondGame = makeGame('game-2', 'tournament-session', {
+    status: 'scheduled',
+    sequenceNumber: 2,
+    startedAt: null,
+  });
+
+  assert.equal(
+    buildGeneratedTournamentStartApplicationResult({
+      activeSession: null,
+      sessions: [tournamentSession],
+      games: [firstGame, secondGame],
+      now: '2026-07-20T13:00:00.000Z',
+    }),
+    null,
+  );
+  assert.equal(
+    buildGeneratedTournamentStartApplicationResult({
+      activeSession: freePlaySession,
+      sessions: [freePlaySession],
+      games: [],
+      now: '2026-07-20T13:00:00.000Z',
+    }),
+    null,
+  );
+
+  const result = buildGeneratedTournamentStartApplicationResult({
+    activeSession: tournamentSession,
+    sessions: [tournamentSession],
+    games: [secondGame, firstGame],
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.equal(result?.startedSession.status, 'active');
+  assert.equal(result?.nextPage, 'session-active');
+  assert.deepEqual(
+    result?.updatedGames.map((game) => [game.id, game.status, game.startedAt]),
+    [
+      ['game-2', 'scheduled', null],
+      ['game-1', 'active', '2026-07-20T13:00:00.000Z'],
     ],
   );
 });

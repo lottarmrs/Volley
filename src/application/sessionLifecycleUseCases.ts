@@ -750,6 +750,25 @@ export function buildTournamentStartResult(input: {
   };
 }
 
+export function buildGeneratedTournamentStartApplicationResult(input: {
+  activeSession: Session | null;
+  sessions: Session[];
+  games: Game[];
+  now: string;
+}): (ReturnType<typeof buildTournamentStartResult> & { nextPage: 'session-active' }) | null {
+  if (!input.activeSession || input.activeSession.type !== 'tournament') return null;
+
+  return {
+    ...buildTournamentStartResult({
+      activeSession: input.activeSession,
+      sessions: input.sessions,
+      games: input.games,
+      now: input.now,
+    }),
+    nextPage: 'session-active',
+  };
+}
+
 export function buildFinishedSessionResult(input: {
   activeSession: Session;
   sessions: Session[];

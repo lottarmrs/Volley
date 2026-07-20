@@ -13,6 +13,8 @@ import type {
   TournamentConfig,
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
+import type { SessionValidationErrors } from '../domain/sessionSetup';
+import { validateSessionWizardStep } from '../domain/sessionSetup';
 import type { PartnershipMatrix } from '../logic/partnershipHistory';
 import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
@@ -263,6 +265,24 @@ export function buildSessionDraftPersistenceResult(input: {
       selectedDivisionIndex: input.selectedDivisionIndex,
       updatedAt: input.now,
     },
+  };
+}
+
+export function buildSessionStepValidationResult(
+  activeSession: Session | null,
+  wizardStep: number,
+): {
+  errors: SessionValidationErrors;
+  isValid: boolean;
+} {
+  if (!activeSession) {
+    return { errors: {}, isValid: false };
+  }
+
+  const errors = validateSessionWizardStep(activeSession, wizardStep);
+  return {
+    errors,
+    isValid: Object.keys(errors).length === 0,
   };
 }
 

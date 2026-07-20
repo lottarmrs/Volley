@@ -18,6 +18,7 @@ import {
   buildSessionDraftPersistenceResult,
   buildSessionLastSelectionApplicationResult,
   buildSessionPatchResult,
+  buildSessionStepValidationResult,
   buildTournamentStartResult,
   buildWizardCancelResult,
   shouldClearDivisionWorkerReference,
@@ -28,7 +29,6 @@ import {
   selectPlayablePlayerIds,
   toggleLockedPlayerTeam,
   toggleSessionPlayerSelection,
-  validateSessionWizardStep,
 } from '../domain/sessionSetup';
 
 interface UseSessionWizardProps {
@@ -138,14 +138,9 @@ export function useSessionWizard({
   };
 
   const validateCurrentStep = () => {
-    if (!activeSession) {
-      setValidationErrors({});
-      return false;
-    }
-
-    const errors = validateSessionWizardStep(activeSession, wizardStep);
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    const result = buildSessionStepValidationResult(activeSession, wizardStep);
+    setValidationErrors(result.errors);
+    return result.isValid;
   };
 
   const generateDivisions = (advanceStep = true) => {

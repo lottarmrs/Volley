@@ -22,6 +22,7 @@ import {
   buildSessionFromCommunity,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
+  buildSessionStepValidationResult,
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
   buildWizardCancelResult,
@@ -334,6 +335,25 @@ test('buildSessionDraftPersistenceResult saves only draft sessions with wizard s
     }),
     { draft: null },
   );
+});
+
+test('buildSessionStepValidationResult clears errors without session and validates active step', () => {
+  const session = makeSession('session-1', {
+    name: '',
+    date: '',
+    selectedPlayerIds: [],
+  });
+
+  assert.deepEqual(buildSessionStepValidationResult(null, 0), {
+    errors: {},
+    isValid: false,
+  });
+
+  const result = buildSessionStepValidationResult(session, 0);
+
+  assert.equal(result.isValid, false);
+  assert.equal(result.errors.name, 'O nome da sessão é obrigatório.');
+  assert.equal(result.errors.date, 'A data é obrigatória.');
 });
 
 test('buildWizardCancelResult clears draft state and returns to dashboard', () => {

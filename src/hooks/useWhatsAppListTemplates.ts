@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { WhatsAppListDraft, WhatsAppListTemplate } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
+import {
+  saveLocalWhatsAppListDraft,
+  saveLocalWhatsAppListTemplate,
+  selectCommunityWhatsAppListTemplates,
+  selectLatestWhatsAppListDraft,
+  selectVisibleWhatsAppListTemplates,
+} from '../application/localWhatsAppListUseCases';
 
 export function useWhatsAppListTemplates() {
   const [templates, setTemplates] = useState<WhatsAppListTemplate[]>(() =>
@@ -14,47 +21,42 @@ export function useWhatsAppListTemplates() {
   useEffect(() => saveToStorage(STORAGE_KEYS.whatsAppListDrafts, drafts), [drafts]);
 
   const saveTemplate = useCallback((template: WhatsAppListTemplate) => {
-    const now = new Date().toISOString();
     setTemplates((prev) =>
-      prev.some((item) => item.id === template.id)
-        ? prev.map((item) =>
-            item.id === template.id ? { ...template, syncStatus: 'pending', updatedAt: now } : item,
-          )
-        : [...prev, { ...template, syncStatus: 'local', createdAt: now, updatedAt: now }],
+      saveLocalWhatsAppListTemplate({
+        templates: prev,
+        template,
+        now: new Date().toISOString(),
+      }),
     );
   }, []);
 
   const saveDraft = useCallback((draft: WhatsAppListDraft) => {
     setDrafts((prev) =>
-      prev.some((item) => item.id === draft.id)
-        ? prev.map((item) =>
-            item.id === draft.id ? { ...draft, updatedAt: new Date().toISOString() } : item,
-          )
-        : [...prev, draft],
+      saveLocalWhatsAppListDraft({
+        drafts: prev,
+        draft,
+        now: new Date().toISOString(),
+      }),
     );
   }, []);
 
   const getCommunityTemplates = useCallback(
     (communityId: string) => {
-      return templates.filter(
-        (template) => template.communityId === communityId && !template.deletedAt,
-      );
+      return selectCommunityWhatsAppListTemplates({ templates, communityId });
     },
     [templates],
   );
 
   const getLatestDraft = useCallback(
     (communityId: string) => {
-      return drafts
-        .filter((draft) => draft.communityId === communityId)
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+      return selectLatestWhatsAppListDraft({ drafts, communityId });
     },
     [drafts],
   );
 
   return useMemo(
     () => ({
-      templates: templates.filter((t) => !t.deletedAt),
+      templates: selectVisibleWhatsAppListTemplates(templates),
       rawTemplates: templates, // Expose full list for syncService
       drafts,
       setTemplates,

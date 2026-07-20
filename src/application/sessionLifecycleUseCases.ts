@@ -208,6 +208,36 @@ export function buildSessionDraftResumeResult(draft: {
   };
 }
 
+export function buildSessionDraftPersistenceResult(input: {
+  activeSession: Session | null;
+  wizardStep: number;
+  bestDivisions: Division[];
+  selectedDivisionIndex: number;
+  now: string;
+}): {
+  draft: {
+    session: Session;
+    wizardStep: number;
+    bestDivisions: Division[];
+    selectedDivisionIndex: number;
+    updatedAt: string;
+  } | null;
+} {
+  if (!input.activeSession || input.activeSession.status !== 'draft') {
+    return { draft: null };
+  }
+
+  return {
+    draft: {
+      session: input.activeSession,
+      wizardStep: input.wizardStep,
+      bestDivisions: input.bestDivisions,
+      selectedDivisionIndex: input.selectedDivisionIndex,
+      updatedAt: input.now,
+    },
+  };
+}
+
 export function buildWizardCancelResult(): {
   nextSessionDraft: null;
   nextActiveSession: null;

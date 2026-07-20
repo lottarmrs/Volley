@@ -17,6 +17,7 @@ import {
   buildManualSessionStartResult,
   buildSessionDeletionResult,
   buildSessionDraftResumeResult,
+  buildSessionDraftPersistenceResult,
   buildSessionFromCommunity,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
@@ -246,6 +247,57 @@ test('buildSessionDraftResumeResult restores wizard state from draft', () => {
   assert.deepEqual(result.nextBestDivisions, [division]);
   assert.equal(result.nextSelectedDivisionIndex, 0);
   assert.equal(result.nextPage, 'session-wizard');
+});
+
+test('buildSessionDraftPersistenceResult saves only draft sessions with wizard state', () => {
+  const draftSession = makeSession('session-draft', { status: 'draft' });
+  const activeSession = makeSession('session-active', { status: 'active' });
+  const divisions = [
+    {
+      teams: [makeTeam('team-a', 'session-draft', [])],
+      penalty: 0,
+      score: 100,
+    },
+  ];
+
+  assert.deepEqual(
+    buildSessionDraftPersistenceResult({
+      activeSession: draftSession,
+      wizardStep: 2,
+      bestDivisions: divisions,
+      selectedDivisionIndex: 0,
+      now: '2026-07-20T12:00:00.000Z',
+    }),
+    {
+      draft: {
+        session: draftSession,
+        wizardStep: 2,
+        bestDivisions: divisions,
+        selectedDivisionIndex: 0,
+        updatedAt: '2026-07-20T12:00:00.000Z',
+      },
+    },
+  );
+  assert.deepEqual(
+    buildSessionDraftPersistenceResult({
+      activeSession,
+      wizardStep: 2,
+      bestDivisions: divisions,
+      selectedDivisionIndex: 0,
+      now: '2026-07-20T12:00:00.000Z',
+    }),
+    { draft: null },
+  );
+  assert.deepEqual(
+    buildSessionDraftPersistenceResult({
+      activeSession: null,
+      wizardStep: 2,
+      bestDivisions: divisions,
+      selectedDivisionIndex: 0,
+      now: '2026-07-20T12:00:00.000Z',
+    }),
+    { draft: null },
+  );
 });
 
 test('buildWizardCancelResult clears draft state and returns to dashboard', () => {

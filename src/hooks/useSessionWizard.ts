@@ -15,6 +15,7 @@ import {
   buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
   buildSessionDraftResumeResult,
+  buildSessionDraftPersistenceResult,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
   buildTournamentStartResult,
@@ -84,15 +85,14 @@ export function useSessionWizard({
   }, []);
 
   useEffect(() => {
-    if (activeSession && activeSession.status === 'draft') {
-      saveSessionDraft({
-        session: activeSession,
-        wizardStep,
-        bestDivisions,
-        selectedDivisionIndex,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    const result = buildSessionDraftPersistenceResult({
+      activeSession,
+      wizardStep,
+      bestDivisions,
+      selectedDivisionIndex,
+      now: new Date().toISOString(),
+    });
+    if (result.draft) saveSessionDraft(result.draft);
   }, [activeSession, wizardStep, bestDivisions, selectedDivisionIndex]);
 
   const updateSession = (patch: Partial<Session>) => {

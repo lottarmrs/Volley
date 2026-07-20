@@ -183,7 +183,10 @@ export function buildSessionLastSelectionResult(rawSelection: string | null): {
 
   try {
     const selectedPlayerIds = JSON.parse(rawSelection);
-    if (Array.isArray(selectedPlayerIds)) {
+    if (
+      Array.isArray(selectedPlayerIds) &&
+      selectedPlayerIds.every((playerId) => typeof playerId === 'string' && playerId.length > 0)
+    ) {
       return { patch: { selectedPlayerIds }, shouldRemoveStoredSelection: false };
     }
     return { patch: null, shouldRemoveStoredSelection: true };

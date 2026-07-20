@@ -226,6 +226,13 @@ test('buildSessionLastSelectionResult requests cleanup for invalid saved selecti
   assert.equal(result.shouldRemoveStoredSelection, true);
 });
 
+test('buildSessionLastSelectionResult rejects non-string player ids from storage', () => {
+  const result = buildSessionLastSelectionResult('["player-1",42,{}]');
+
+  assert.equal(result.patch, null);
+  assert.equal(result.shouldRemoveStoredSelection, true);
+});
+
 test('buildSessionDraftResumeResult restores wizard state from draft', () => {
   const session = makeSession('session-1', { status: 'draft' });
   const division = {

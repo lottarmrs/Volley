@@ -19,6 +19,7 @@ import {
   buildTournamentDivisionConfirmationResult,
   buildTournamentStartResult,
   buildWizardCancelResult,
+  shouldClearDivisionWorkerReference,
 } from '../application/sessionLifecycleUseCases';
 import {
   addPlayerPairConstraint,
@@ -62,6 +63,13 @@ export function useSessionWizard({
   const [progress, setProgress] = useState(0);
   const workerRef = useRef<Worker | null>(null);
 
+  const terminateWorker = (worker: Worker | null) => {
+    worker?.terminate();
+    if (shouldClearDivisionWorkerReference(workerRef.current, worker)) {
+      workerRef.current = null;
+    }
+  };
+
   const partnershipMatrix = useMemo(() => {
     if (!activeSession || !activeSession.communityId) return undefined;
     const historySessions = sessions.filter((s) => s.communityId === activeSession.communityId);
@@ -71,8 +79,7 @@ export function useSessionWizard({
   // Garante que o worker é encerrado se o componente desmontar no meio do cálculo.
   useEffect(() => {
     return () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
+      terminateWorker(workerRef.current);
     };
   }, []);
 
@@ -174,10 +181,8 @@ export function useSessionWizard({
       );
       finish(divisions);
     };
-
     // Encerra qualquer cálculo anterior ainda em andamento.
-    workerRef.current?.terminate();
-    workerRef.current = null;
+    terminateWorker(workerRef.current);
 
     // Fallback síncrono quando Web Workers não estão disponíveis (ex.: testes/SSR).
     if (typeof Worker === 'undefined') {
@@ -197,22 +202,19 @@ export function useSessionWizard({
       if (action.type === 'progress') {
         setProgress(action.percent);
       } else if (action.type === 'done') {
-        worker.terminate();
-        if (workerRef.current === worker) workerRef.current = null;
+        terminateWorker(worker);
         finish(action.divisions);
       } else {
         // erro: encerra e cai no cálculo síncrono para não travar o fluxo.
         console.error('Balancer worker error:', action.message);
-        worker.terminate();
-        if (workerRef.current === worker) workerRef.current = null;
+        terminateWorker(worker);
         runFallback();
       }
     };
 
     worker.onerror = (err) => {
       console.error('Balancer worker failed, falling back to sync:', err.message);
-      worker.terminate();
-      if (workerRef.current === worker) workerRef.current = null;
+      terminateWorker(worker);
       runFallback();
     };
 
@@ -220,8 +222,7 @@ export function useSessionWizard({
   };
 
   const cancelGeneration = () => {
-    workerRef.current?.terminate();
-    workerRef.current = null;
+    terminateWorker(workerRef.current);
     const result = buildDivisionGenerationStartResult('cancel');
     setIsGenerating(result.nextIsGenerating);
     setProgress(result.nextProgress);

@@ -321,6 +321,13 @@ export function buildDivisionWorkerMessageResult(
   return { type: 'fallback', message: message.message };
 }
 
+export function shouldClearDivisionWorkerReference(
+  currentWorker: unknown,
+  workerToClear: unknown,
+): boolean {
+  return currentWorker !== null && currentWorker === workerToClear;
+}
+
 export function removeOrphanedSessionData(input: {
   sessions: Session[];
   activeSession: Session | null;

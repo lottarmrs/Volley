@@ -24,6 +24,7 @@ import {
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
+  shouldClearDivisionWorkerReference,
 } from './sessionLifecycleUseCases';
 import type {
   Community,
@@ -359,6 +360,15 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
     type: 'fallback',
     message: 'boom',
   });
+});
+
+test('shouldClearDivisionWorkerReference clears only the current worker', () => {
+  const currentWorker = {};
+  const staleWorker = {};
+
+  assert.equal(shouldClearDivisionWorkerReference(currentWorker, currentWorker), true);
+  assert.equal(shouldClearDivisionWorkerReference(currentWorker, staleWorker), false);
+  assert.equal(shouldClearDivisionWorkerReference(null, staleWorker), false);
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

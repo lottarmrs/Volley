@@ -164,6 +164,15 @@ export function buildActiveSessionClearResult(activeSession: Session | null): {
   };
 }
 
+export function buildSessionPatchResult(input: {
+  activeSession: Session | null;
+  patch: Partial<Session>;
+  now: string;
+}): Session | null {
+  if (!input.activeSession) return null;
+  return { ...input.activeSession, ...input.patch, updatedAt: input.now };
+}
+
 export function removeOrphanedSessionData(input: {
   sessions: Session[];
   activeSession: Session | null;

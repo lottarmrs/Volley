@@ -8,6 +8,7 @@ import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
   buildFreePlayDivisionConfirmationResult,
+  buildSessionPatchResult,
   buildTournamentDivisionConfirmationResult,
   buildTournamentStartResult,
 } from '../application/sessionLifecycleUseCases';
@@ -80,8 +81,12 @@ export function useSessionWizard({
   }, [activeSession, wizardStep, bestDivisions, selectedDivisionIndex]);
 
   const updateSession = (patch: Partial<Session>) => {
-    if (!activeSession) return;
-    setActiveSession({ ...activeSession, ...patch, updatedAt: new Date().toISOString() });
+    const nextSession = buildSessionPatchResult({
+      activeSession,
+      patch,
+      now: new Date().toISOString(),
+    });
+    if (nextSession) setActiveSession(nextSession);
   };
 
   const nextStep = () => setWizardStep((prev) => prev + 1);

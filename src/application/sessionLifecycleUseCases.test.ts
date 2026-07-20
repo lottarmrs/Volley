@@ -10,6 +10,7 @@ import {
   buildManualSessionStartResult,
   buildSessionDeletionResult,
   buildSessionFromCommunity,
+  buildSessionPatchResult,
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
   removeOrphanedSessionData,
@@ -175,6 +176,28 @@ test('buildActiveSessionClearResult does nothing without an active session', () 
   const result = buildActiveSessionClearResult(null);
 
   assert.equal(result, null);
+});
+
+test('buildSessionPatchResult applies patch and refreshes updatedAt', () => {
+  const activeSession = makeSession('session-1', {
+    name: 'Treino antigo',
+    selectedPlayerIds: ['player-1'],
+    updatedAt: '2026-01-01T12:00:00.000Z',
+  });
+
+  const result = buildSessionPatchResult({
+    activeSession,
+    patch: {
+      name: 'Treino novo',
+      selectedPlayerIds: ['player-1', 'player-2'],
+    },
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.equal(result?.name, 'Treino novo');
+  assert.deepEqual(result?.selectedPlayerIds, ['player-1', 'player-2']);
+  assert.equal(result?.updatedAt, '2026-07-20T13:00:00.000Z');
+  assert.equal(result?.id, 'session-1');
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

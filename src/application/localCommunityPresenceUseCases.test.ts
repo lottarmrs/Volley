@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLocalPresence, upsertLocalPresence } from './localCommunityPresenceUseCases';
+import {
+  addLocalPresenceGuest,
+  applyLocalPresenceStatus,
+  clearLocalPresence,
+  createLocalPresence,
+  upsertLocalPresence,
+} from './localCommunityPresenceUseCases';
 import type { CommunityPresence } from '../types';
 
 const now = '2026-07-20T12:00:00.000Z';
@@ -72,4 +78,55 @@ test('upsertLocalPresence appends a missing presence as pending', () => {
   assert.equal(result.length, 2);
   assert.equal(result[1].date, today);
   assert.equal(result[1].syncStatus, 'pending');
+});
+
+test('applyLocalPresenceStatus marks a player in today presence', () => {
+  const result = applyLocalPresenceStatus({
+    records: [],
+    communityId: 'community-1',
+    playerId: 'player-1',
+    status: 'present',
+    date: today,
+    now,
+  });
+
+  assert.deepEqual(result[0], {
+    communityId: 'community-1',
+    date: today,
+    items: [{ playerId: 'player-1', status: 'present' }],
+    updatedAt: now,
+    syncStatus: 'pending',
+  });
+});
+
+test('clearLocalPresence replaces today presence with an empty pending record', () => {
+  const result = clearLocalPresence({
+    records: [presence('community-1', today, [{ playerId: 'player-1', status: 'present' }])],
+    communityId: 'community-1',
+    date: today,
+    now,
+  });
+
+  assert.deepEqual(result[0].items, []);
+  assert.equal(result[0].syncStatus, 'pending');
+});
+
+test('addLocalPresenceGuest trims guest names and ignores blank names', () => {
+  const withGuest = addLocalPresenceGuest({
+    records: [],
+    communityId: 'community-1',
+    temporaryName: '  Visitante  ',
+    date: today,
+    now,
+  });
+  const unchanged = addLocalPresenceGuest({
+    records: withGuest,
+    communityId: 'community-1',
+    temporaryName: '   ',
+    date: today,
+    now,
+  });
+
+  assert.deepEqual(withGuest[0].items, [{ temporaryName: 'Visitante', status: 'guest' }]);
+  assert.deepEqual(unchanged, withGuest);
 });

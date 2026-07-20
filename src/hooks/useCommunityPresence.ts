@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommunityPresence, CommunityPresenceStatus, Player } from '../types';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
-import { addGuestToPresence, setPresenceItemStatus } from '../logic/communityPresence';
+import { setPresenceItemStatus } from '../logic/communityPresence';
 import { formatLocalDateInput } from '../logic/date';
 import {
+  addLocalPresenceGuest,
+  applyLocalPresenceStatus,
+  clearLocalPresence,
   createLocalPresence,
   upsertLocalPresence,
 } from '../application/localCommunityPresenceUseCases';
@@ -61,17 +64,30 @@ export function useCommunityPresence() {
 
   const setPresenceStatus = useCallback(
     (communityId: string, playerId: string, status: CommunityPresenceStatus) => {
-      upsertPresence(setPresenceItemStatus(ensurePresence(communityId), playerId, status));
+      setPresenceRecords((prev) =>
+        applyLocalPresenceStatus({
+          records: prev,
+          communityId,
+          playerId,
+          status,
+          date: today(),
+          now: new Date().toISOString(),
+        }),
+      );
     },
-    [ensurePresence, upsertPresence],
+    [],
   );
 
-  const clearPresence = useCallback(
-    (communityId: string) => {
-      upsertPresence(createPresence(communityId));
-    },
-    [upsertPresence],
-  );
+  const clearPresence = useCallback((communityId: string) => {
+    setPresenceRecords((prev) =>
+      clearLocalPresence({
+        records: prev,
+        communityId,
+        date: today(),
+        now: new Date().toISOString(),
+      }),
+    );
+  }, []);
 
   const selectFrequentPlayers = useCallback(
     (communityId: string, players: Player[]) => {
@@ -98,12 +114,17 @@ export function useCommunityPresence() {
     [presenceRecords, upsertPresence],
   );
 
-  const addGuest = useCallback(
-    (communityId: string, temporaryName: string) => {
-      upsertPresence(addGuestToPresence(ensurePresence(communityId), temporaryName));
-    },
-    [ensurePresence, upsertPresence],
-  );
+  const addGuest = useCallback((communityId: string, temporaryName: string) => {
+    setPresenceRecords((prev) =>
+      addLocalPresenceGuest({
+        records: prev,
+        communityId,
+        temporaryName,
+        date: today(),
+        now: new Date().toISOString(),
+      }),
+    );
+  }, []);
 
   const getPresentPlayers = useCallback(
     (communityId: string, players: Player[]) => {

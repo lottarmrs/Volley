@@ -11,6 +11,10 @@ import {
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import { normalizeGames, normalizeSession, normalizeSessions } from '../logic/migrations';
 import { propagateKnockoutResults } from '../logic/tournament';
+import {
+  buildSessionDeletionResult,
+  removeOrphanedSessionData,
+} from '../application/sessionLifecycleUseCases';
 
 export function useSessions() {
   const [sessions, setSessions] = useState<Session[]>(() =>
@@ -50,23 +54,22 @@ export function useSessions() {
     if (didCleanup.current) return;
     didCleanup.current = true;
 
-    const validSessionIds = new Set(sessions.map((s) => s.id));
-    if (activeSession) validSessionIds.add(activeSession.id);
+    const cleaned = removeOrphanedSessionData({
+      sessions,
+      activeSession,
+      games,
+      pointEvents,
+      teams,
+      gameReports,
+      sessionReports,
+    });
 
-    const isValid = (id: string | undefined | null) => !!id && validSessionIds.has(id);
-
-    const cleanGames = games.filter((g) => isValid(g.sessionId));
-    const cleanPoints = pointEvents.filter((p) => isValid(p.sessionId));
-    const cleanTeams = teams.filter((t) => isValid(t.sessionId));
-    const cleanGameReports = gameReports.filter((r) => isValid(r.sessionId));
-    const cleanSessionReports = sessionReports.filter((r) => isValid(r.sessionId));
-
-    if (cleanGames.length !== games.length) setGames(cleanGames);
-    if (cleanPoints.length !== pointEvents.length) setPointEvents(cleanPoints);
-    if (cleanTeams.length !== teams.length) setTeams(cleanTeams);
-    if (cleanGameReports.length !== gameReports.length) setGameReports(cleanGameReports);
-    if (cleanSessionReports.length !== sessionReports.length)
-      setSessionReports(cleanSessionReports);
+    if (cleaned.games.length !== games.length) setGames(cleaned.games);
+    if (cleaned.pointEvents.length !== pointEvents.length) setPointEvents(cleaned.pointEvents);
+    if (cleaned.teams.length !== teams.length) setTeams(cleaned.teams);
+    if (cleaned.gameReports.length !== gameReports.length) setGameReports(cleaned.gameReports);
+    if (cleaned.sessionReports.length !== sessionReports.length)
+      setSessionReports(cleaned.sessionReports);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Propagate knockout results reactively
@@ -91,36 +94,28 @@ export function useSessions() {
     setSessions((prev) => prev.map((old) => (old.id === s.id ? s : old)));
   }, []);
 
-  const deleteSession = useCallback((sessionId: string) => {
-    const now = new Date().toISOString();
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId ? { ...s, deletedAt: now, syncStatus: 'pending' as const } : s,
-      ),
-    );
+  const deleteSession = useCallback(
+    (sessionId: string) => {
+      const result = buildSessionDeletionResult({
+        sessionId,
+        sessions,
+        games,
+        pointEvents,
+        teams,
+        gameReports,
+        sessionReports,
+        now: new Date().toISOString(),
+      });
 
-    const softDeleteOrFilter = <T extends { sessionId: string; cloudId?: string }>(
-      items: T[],
-    ): T[] => {
-      return items
-        .map((item) => {
-          if (item.sessionId === sessionId) {
-            if (item.cloudId) {
-              return { ...item, deletedAt: now, syncStatus: 'pending' as const };
-            }
-            return null;
-          }
-          return item;
-        })
-        .filter((item): item is T => item !== null);
-    };
-
-    setGames((prev) => softDeleteOrFilter(prev));
-    setPointEvents((prev) => softDeleteOrFilter(prev));
-    setTeams((prev) => softDeleteOrFilter(prev));
-    setGameReports((prev) => softDeleteOrFilter(prev));
-    setSessionReports((prev) => softDeleteOrFilter(prev));
-  }, []);
+      setSessions(result.sessions);
+      setGames(result.games);
+      setPointEvents(result.pointEvents);
+      setTeams(result.teams);
+      setGameReports(result.gameReports);
+      setSessionReports(result.sessionReports);
+    },
+    [gameReports, games, pointEvents, sessionReports, sessions, teams],
+  );
 
   return {
     sessions: sessions.filter((s) => !s.deletedAt),

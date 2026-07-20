@@ -7,12 +7,14 @@ import {
   buildFreePlayConfigFromCommunityRules,
   buildManualSessionDraft,
   buildManualSessionStartResult,
+  buildSessionDeletionResult,
   buildSessionFromCommunity,
+  removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
 } from './sessionLifecycleUseCases';
-import type { Community, CommunityRules } from '../types';
-import { makePlayer, makeSession, makeTeam } from '../test/fixtures';
+import type { Community, CommunityRules, GameReport, PointEvent, SessionReport } from '../types';
+import { makeGame, makePlayer, makeSession, makeTeam } from '../test/fixtures';
 
 const community = {
   id: 'community-1',
@@ -163,6 +165,110 @@ test('buildActiveSessionClearResult does nothing without an active session', () 
   const result = buildActiveSessionClearResult(null);
 
   assert.equal(result, null);
+});
+
+test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {
+  const result = removeOrphanedSessionData({
+    sessions: [makeSession('session-1')],
+    activeSession: makeSession('active-session'),
+    games: [
+      makeGame('game-1', 'session-1'),
+      makeGame('game-active', 'active-session'),
+      makeGame('game-orphan', 'orphan-session'),
+    ],
+    pointEvents: [
+      { id: 'point-1', sessionId: 'session-1' },
+      { id: 'point-orphan', sessionId: 'orphan-session' },
+    ] as PointEvent[],
+    teams: [makeTeam('team-1', 'session-1', []), makeTeam('team-orphan', 'orphan-session', [])],
+    gameReports: [
+      { id: 'report-1', sessionId: 'active-session' },
+      { id: 'report-orphan', sessionId: 'orphan-session' },
+    ] as GameReport[],
+    sessionReports: [
+      { id: 'session-report-1', sessionId: 'session-1' },
+      { id: 'session-report-orphan', sessionId: 'orphan-session' },
+    ] as SessionReport[],
+  });
+
+  assert.deepEqual(
+    result.games.map((game) => game.id),
+    ['game-1', 'game-active'],
+  );
+  assert.deepEqual(
+    result.pointEvents.map((point) => point.id),
+    ['point-1'],
+  );
+  assert.deepEqual(
+    result.teams.map((team) => team.id),
+    ['team-1'],
+  );
+  assert.deepEqual(
+    result.gameReports.map((report) => report.id),
+    ['report-1'],
+  );
+  assert.deepEqual(
+    result.sessionReports.map((report) => report.id),
+    ['session-report-1'],
+  );
+});
+
+test('buildSessionDeletionResult soft-deletes cloud children and removes local children', () => {
+  const result = buildSessionDeletionResult({
+    sessionId: 'session-1',
+    sessions: [makeSession('session-1'), makeSession('session-2')],
+    games: [
+      makeGame('cloud-game', 'session-1', { cloudId: 'cloud-game-id' }),
+      makeGame('local-game', 'session-1'),
+      makeGame('other-game', 'session-2'),
+    ],
+    pointEvents: [
+      { id: 'cloud-point', sessionId: 'session-1', cloudId: 'cloud-point-id' },
+      { id: 'local-point', sessionId: 'session-1' },
+      { id: 'other-point', sessionId: 'session-2' },
+    ] as PointEvent[],
+    teams: [
+      makeTeam('cloud-team', 'session-1', [], { cloudId: 'cloud-team-id' }),
+      makeTeam('local-team', 'session-1', []),
+      makeTeam('other-team', 'session-2', []),
+    ],
+    gameReports: [
+      { id: 'cloud-report', sessionId: 'session-1', cloudId: 'cloud-report-id' },
+      { id: 'local-report', sessionId: 'session-1' },
+      { id: 'other-report', sessionId: 'session-2' },
+    ] as GameReport[],
+    sessionReports: [
+      { id: 'cloud-session-report', sessionId: 'session-1', cloudId: 'cloud-session-report-id' },
+      { id: 'local-session-report', sessionId: 'session-1' },
+      { id: 'other-session-report', sessionId: 'session-2' },
+    ] as SessionReport[],
+    now: '2026-07-20T12:00:00.000Z',
+  });
+
+  assert.equal(result.sessions[0].deletedAt, '2026-07-20T12:00:00.000Z');
+  assert.equal(result.sessions[0].syncStatus, 'pending');
+  assert.deepEqual(
+    result.games.map((game) => game.id),
+    ['cloud-game', 'other-game'],
+  );
+  assert.equal(result.games[0].deletedAt, '2026-07-20T12:00:00.000Z');
+  assert.equal(result.games[0].syncStatus, 'pending');
+  assert.deepEqual(
+    result.pointEvents.map((point) => point.id),
+    ['cloud-point', 'other-point'],
+  );
+  assert.deepEqual(
+    result.teams.map((team) => team.id),
+    ['cloud-team', 'other-team'],
+  );
+  assert.deepEqual(
+    result.gameReports.map((report) => report.id),
+    ['cloud-report', 'other-report'],
+  );
+  assert.deepEqual(
+    result.sessionReports.map((report) => report.id),
+    ['cloud-session-report', 'other-session-report'],
+  );
 });
 
 test('selectSessionTeams returns only teams from the active session', () => {

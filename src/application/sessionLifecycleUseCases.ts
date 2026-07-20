@@ -3,6 +3,7 @@ import type {
   CommunityRules,
   FreePlayConfig,
   Game,
+  GameReport,
   Player,
   PointEvent,
   Session,
@@ -158,6 +159,77 @@ export function buildActiveSessionClearResult(activeSession: Session | null): {
     sessionIdToDelete: activeSession.id,
     nextSessionDraft: null,
     nextActiveSession: null,
+  };
+}
+
+export function removeOrphanedSessionData(input: {
+  sessions: Session[];
+  activeSession: Session | null;
+  games: Game[];
+  pointEvents: PointEvent[];
+  teams: Team[];
+  gameReports: GameReport[];
+  sessionReports: SessionReport[];
+}) {
+  const validSessionIds = new Set(input.sessions.map((session) => session.id));
+  if (input.activeSession) validSessionIds.add(input.activeSession.id);
+
+  const isValid = (id: string | undefined | null) => Boolean(id && validSessionIds.has(id));
+
+  return {
+    games: input.games.filter((game) => isValid(game.sessionId)),
+    pointEvents: input.pointEvents.filter((point) => isValid(point.sessionId)),
+    teams: input.teams.filter((team) => isValid(team.sessionId)),
+    gameReports: input.gameReports.filter((report) => isValid(report.sessionId)),
+    sessionReports: input.sessionReports.filter((report) => isValid(report.sessionId)),
+  };
+}
+
+function softDeleteOrRemoveLocalSessionChildren<
+  T extends { sessionId: string; cloudId?: string; deletedAt?: string; syncStatus?: string },
+>(items: T[], sessionId: string, now: string): T[] {
+  return items
+    .map((item) => {
+      if (item.sessionId !== sessionId) return item;
+      if (!item.cloudId) return null;
+      return { ...item, deletedAt: now, syncStatus: 'pending' as const };
+    })
+    .filter((item): item is T => item !== null);
+}
+
+export function buildSessionDeletionResult(input: {
+  sessionId: string;
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  teams: Team[];
+  gameReports: GameReport[];
+  sessionReports: SessionReport[];
+  now: string;
+}) {
+  return {
+    sessions: input.sessions.map((session) =>
+      session.id === input.sessionId
+        ? { ...session, deletedAt: input.now, syncStatus: 'pending' as const }
+        : session,
+    ),
+    games: softDeleteOrRemoveLocalSessionChildren(input.games, input.sessionId, input.now),
+    pointEvents: softDeleteOrRemoveLocalSessionChildren(
+      input.pointEvents,
+      input.sessionId,
+      input.now,
+    ),
+    teams: softDeleteOrRemoveLocalSessionChildren(input.teams, input.sessionId, input.now),
+    gameReports: softDeleteOrRemoveLocalSessionChildren(
+      input.gameReports,
+      input.sessionId,
+      input.now,
+    ),
+    sessionReports: softDeleteOrRemoveLocalSessionChildren(
+      input.sessionReports,
+      input.sessionId,
+      input.now,
+    ),
   };
 }
 

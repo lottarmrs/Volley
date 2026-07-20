@@ -173,6 +173,22 @@ export function buildSessionPatchResult(input: {
   return { ...input.activeSession, ...input.patch, updatedAt: input.now };
 }
 
+export function buildSessionDraftResumeResult(draft: {
+  session: Session;
+  wizardStep: number;
+  bestDivisions: Division[];
+  selectedDivisionIndex: number;
+  updatedAt?: string;
+}) {
+  return {
+    nextActiveSession: draft.session,
+    nextWizardStep: draft.wizardStep,
+    nextBestDivisions: draft.bestDivisions,
+    nextSelectedDivisionIndex: draft.selectedDivisionIndex,
+    nextPage: 'session-wizard' as const,
+  };
+}
+
 export function removeOrphanedSessionData(input: {
   sessions: Session[];
   activeSession: Session | null;

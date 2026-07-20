@@ -9,6 +9,7 @@ import {
   buildManualSessionDraft,
   buildManualSessionStartResult,
   buildSessionDeletionResult,
+  buildSessionDraftResumeResult,
   buildSessionFromCommunity,
   buildSessionPatchResult,
   buildTournamentStartResult,
@@ -198,6 +199,29 @@ test('buildSessionPatchResult applies patch and refreshes updatedAt', () => {
   assert.deepEqual(result?.selectedPlayerIds, ['player-1', 'player-2']);
   assert.equal(result?.updatedAt, '2026-07-20T13:00:00.000Z');
   assert.equal(result?.id, 'session-1');
+});
+
+test('buildSessionDraftResumeResult restores wizard state from draft', () => {
+  const session = makeSession('session-1', { status: 'draft' });
+  const division = {
+    teams: [makeTeam('team-a', 'session-1', []), makeTeam('team-b', 'session-1', [])],
+    penalty: 0,
+    score: 100,
+  };
+
+  const result = buildSessionDraftResumeResult({
+    session,
+    wizardStep: 2,
+    bestDivisions: [division],
+    selectedDivisionIndex: 0,
+    updatedAt: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.equal(result.nextActiveSession.id, 'session-1');
+  assert.equal(result.nextWizardStep, 2);
+  assert.deepEqual(result.nextBestDivisions, [division]);
+  assert.equal(result.nextSelectedDivisionIndex, 0);
+  assert.equal(result.nextPage, 'session-wizard');
 });
 
 test('removeOrphanedSessionData keeps records from existing and active sessions only', () => {

@@ -8,6 +8,7 @@ import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
   buildFreePlayDivisionConfirmationResult,
+  buildSessionDraftResumeResult,
   buildSessionPatchResult,
   buildTournamentDivisionConfirmationResult,
   buildTournamentStartResult,
@@ -336,11 +337,12 @@ export function useSessionWizard({
   };
 
   const resumeDraft = (draft: any) => {
-    setActiveSession(draft.session);
-    setWizardStep(draft.wizardStep);
-    setBestDivisions(draft.bestDivisions);
-    setSelectedDivisionIndex(draft.selectedDivisionIndex);
-    setPage('session-wizard');
+    const result = buildSessionDraftResumeResult(draft);
+    setActiveSession(result.nextActiveSession);
+    setWizardStep(result.nextWizardStep);
+    setBestDivisions(result.nextBestDivisions);
+    setSelectedDivisionIndex(result.nextSelectedDivisionIndex);
+    setPage(result.nextPage);
   };
 
   return {

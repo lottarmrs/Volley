@@ -12,6 +12,7 @@ import type {
   Team,
   TournamentConfig,
 } from '../types';
+import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
 import { calculateAttributeProgression } from '../logic/progression';
 import { applySessionRatingToForm } from '../logic/rating';
@@ -268,6 +269,90 @@ export function buildFreePlayDivisionConfirmationResult(input: {
     updatedTeams: [
       ...input.teams.filter((team) => team.sessionId !== finalSession.id),
       ...input.division.teams,
+    ],
+  };
+}
+
+export function buildTournamentDivisionConfirmationResult(input: {
+  activeSession: Session;
+  division: Division;
+  sessions: Session[];
+  teams: Team[];
+  games: Game[];
+  schedule: ScheduledTournamentMatch[];
+  now: string;
+  createGameId: () => string;
+}) {
+  const cfg = input.activeSession.config as TournamentConfig;
+  const teamIds = input.division.teams.map((team) => team.id);
+  let updatedConfig = { ...cfg };
+
+  if (cfg.format === 'groups_knockout' || cfg.format === 'group_stage') {
+    const groupATeamIds = input.division.teams
+      .filter((_, index) => index % 2 === 0)
+      .map((team) => team.id);
+    const groupBTeamIds = input.division.teams
+      .filter((_, index) => index % 2 === 1)
+      .map((team) => team.id);
+    updatedConfig = {
+      ...cfg,
+      groups: [
+        { id: 'A', name: 'Grupo A', teamIds: groupATeamIds },
+        { id: 'B', name: 'Grupo B', teamIds: groupBTeamIds },
+      ],
+    };
+  }
+
+  const scheduledGames: Game[] = input.schedule.map((match, index) => {
+    const isPlayoff = match.stage === 'final' || match.stage === 'third_place';
+    const setTargets = isPlayoff ? cfg.playoffSetTargets || [12, 12, 7] : undefined;
+
+    return {
+      id: input.createGameId(),
+      sessionId: input.activeSession.id,
+      type: 'tournament',
+      sequenceNumber: index + 1,
+      round: match.round,
+      stage: match.stage || 'group',
+      groupId: match.groupId || null,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      scoreA: 0,
+      scoreB: 0,
+      status: 'scheduled',
+      pointIds: [],
+      startedAt: null,
+      sets: isPlayoff ? [] : undefined,
+      setTargets,
+      metadata: {
+        originalTeamAId: match.teamAId,
+        originalTeamBId: match.teamBId,
+      },
+    };
+  });
+
+  const finalSession: Session = {
+    ...input.activeSession,
+    status: 'teams_generated',
+    teamIds,
+    config: updatedConfig,
+    updatedAt: input.now,
+  };
+
+  return {
+    finalSession,
+    scheduledGames,
+    updatedSessions: [
+      ...input.sessions.filter((session) => session.id !== finalSession.id),
+      finalSession,
+    ],
+    updatedTeams: [
+      ...input.teams.filter((team) => team.sessionId !== finalSession.id),
+      ...input.division.teams,
+    ],
+    updatedGames: [
+      ...input.games.filter((game) => game.sessionId !== finalSession.id),
+      ...scheduledGames,
     ],
   };
 }

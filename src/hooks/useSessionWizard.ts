@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Session, Player, Team, Division, SessionStatus, TournamentConfig } from '../types';
+import { Session, Player, Team, Division, Game, TournamentConfig } from '../types';
 import { balanceTeams } from '../logic/balancing';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
-import { buildFreePlayDivisionConfirmationResult } from '../application/sessionLifecycleUseCases';
+import {
+  buildFreePlayDivisionConfirmationResult,
+  buildTournamentDivisionConfirmationResult,
+} from '../application/sessionLifecycleUseCases';
 import {
   addPlayerPairConstraint,
   removePlayerPairConstraint,
@@ -22,7 +25,8 @@ interface UseSessionWizardProps {
   setActiveSession: (session: Session | null) => void;
   setSessions: React.Dispatch<React.SetStateAction<Session[]>>;
   setTeams: React.Dispatch<React.SetStateAction<Team[]>>;
-  setGames: React.Dispatch<React.SetStateAction<any[]>>;
+  games: Game[];
+  setGames: React.Dispatch<React.SetStateAction<Game[]>>;
   setPage: (page: any) => void;
   sessions: Session[];
   teams: Team[];
@@ -34,6 +38,7 @@ export function useSessionWizard({
   setActiveSession,
   setSessions,
   setTeams,
+  games,
   setGames,
   setPage,
   sessions,
@@ -250,72 +255,36 @@ export function useSessionWizard({
     const currentDiv = bestDivisions[selectedDivisionIndex];
 
     let finalSession: Session;
+    const now = new Date().toISOString();
 
     if (activeSession.type === 'tournament') {
       const cfg = activeSession.config as TournamentConfig;
-      let updatedConfig = { ...cfg };
-      if (cfg.format === 'groups_knockout' || cfg.format === 'group_stage') {
-        const groupATeamIds = currentDiv.teams.filter((_, idx) => idx % 2 === 0).map((t) => t.id);
-        const groupBTeamIds = currentDiv.teams.filter((_, idx) => idx % 2 === 1).map((t) => t.id);
-        updatedConfig = {
-          ...cfg,
-          groups: [
-            { id: 'A', name: 'Grupo A', teamIds: groupATeamIds },
-            { id: 'B', name: 'Grupo B', teamIds: groupBTeamIds },
-          ],
-        };
-      }
-
       const schedule = generateTournamentSchedule(
         currentDiv.teams.map((t) => t.id),
         cfg.format,
         cfg,
       );
-      const scheduledGames = schedule.map((match, idx) => {
-        const isPlayoff = match.stage === 'final' || match.stage === 'third_place';
-        const setTargets = isPlayoff ? cfg.playoffSetTargets || [12, 12, 7] : undefined;
-        return {
-          id: generateUUID(),
-          sessionId: activeSession.id,
-          type: 'tournament' as const,
-          sequenceNumber: idx + 1,
-          round: match.round,
-          stage: match.stage || ('group' as const),
-          groupId: match.groupId || null,
-          teamAId: match.teamAId,
-          teamBId: match.teamBId,
-          scoreA: 0,
-          scoreB: 0,
-          status: 'scheduled' as const,
-          pointIds: [],
-          startedAt: null,
-          sets: isPlayoff ? [] : undefined,
-          setTargets,
-          metadata: {
-            originalTeamAId: match.teamAId,
-            originalTeamBId: match.teamBId,
-          },
-        };
+      const result = buildTournamentDivisionConfirmationResult({
+        activeSession,
+        division: currentDiv,
+        sessions,
+        teams,
+        games,
+        schedule,
+        now,
+        createGameId: generateUUID,
       });
-      setGames((prev: any[]) => [
-        ...prev.filter((g) => g.sessionId !== activeSession.id),
-        ...scheduledGames,
-      ]);
-
-      finalSession = {
-        ...activeSession,
-        status: 'teams_generated' as SessionStatus,
-        teamIds: currentDiv.teams.map((t) => t.id),
-        config: updatedConfig,
-        updatedAt: new Date().toISOString(),
-      };
+      finalSession = result.finalSession;
+      setSessions(result.updatedSessions);
+      setTeams(result.updatedTeams);
+      setGames(result.updatedGames);
     } else {
       const result = buildFreePlayDivisionConfirmationResult({
         activeSession,
         division: currentDiv,
         sessions,
         teams,
-        now: new Date().toISOString(),
+        now,
       });
       finalSession = result.finalSession;
       setSessions(result.updatedSessions);
@@ -323,13 +292,6 @@ export function useSessionWizard({
     }
 
     setActiveSession(finalSession);
-    if (finalSession.type === 'tournament') {
-      setSessions((prev) => [...prev.filter((s) => s.id !== finalSession.id), finalSession]);
-      setTeams((prev) => [
-        ...prev.filter((t) => t.sessionId !== finalSession.id),
-        ...currentDiv.teams,
-      ]);
-    }
 
     localStorage.setItem(
       'vpg_last_selected_player_ids',

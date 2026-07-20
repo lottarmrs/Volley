@@ -10,11 +10,19 @@ import {
   buildManualSessionStartResult,
   buildSessionDeletionResult,
   buildSessionFromCommunity,
+  buildTournamentDivisionConfirmationResult,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
 } from './sessionLifecycleUseCases';
-import type { Community, CommunityRules, GameReport, PointEvent, SessionReport } from '../types';
+import type {
+  Community,
+  CommunityRules,
+  GameReport,
+  PointEvent,
+  SessionReport,
+  TournamentConfig,
+} from '../types';
 import { makeGame, makePlayer, makeSession, makeTeam } from '../test/fixtures';
 
 const community = {
@@ -332,6 +340,94 @@ test('buildFreePlayDivisionConfirmationResult activates session and stores gener
     result.updatedTeams.map((team) => team.id),
     ['other-team', 'team-a', 'team-b', 'team-c'],
   );
+});
+
+test('buildTournamentDivisionConfirmationResult schedules games and stores generated teams', () => {
+  const config: TournamentConfig = {
+    type: 'tournament',
+    format: 'groups_knockout',
+    teamCount: 4,
+    useGroupStage: true,
+    roundTrip: false,
+    maxPoints: 15,
+    tieBreakMethod: 'direct_3',
+    victoryRule: 'direct_3',
+    hardPointCap: null,
+    hasFinal: true,
+    hasThirdPlaceMatch: true,
+    playoffSetTargets: [12, 12, 7],
+    classificationPoints: {
+      win: 3,
+      loss: 0,
+      walkoverWin: 3,
+      walkoverLoss: 0,
+    },
+    standingsRules: ['classificationPoints', 'wins'],
+  };
+  const activeSession = makeSession('session-1', {
+    status: 'draft',
+    type: 'tournament',
+    teamIds: [],
+    config,
+  });
+  const otherSession = makeSession('session-2', { status: 'draft' });
+  const teams = [makeTeam('old-team', 'session-1', []), makeTeam('other-team', 'session-2', [])];
+  const games = [makeGame('old-game', 'session-1'), makeGame('other-game', 'session-2')];
+  const division = {
+    teams: [
+      makeTeam('team-a', 'session-1', []),
+      makeTeam('team-b', 'session-1', []),
+      makeTeam('team-c', 'session-1', []),
+      makeTeam('team-d', 'session-1', []),
+    ],
+    penalty: 0,
+    score: 100,
+  };
+
+  const result = buildTournamentDivisionConfirmationResult({
+    activeSession,
+    division,
+    sessions: [otherSession, activeSession],
+    teams,
+    games,
+    schedule: [
+      { round: 1, stage: 'group', groupId: 'A', teamAId: 'team-a', teamBId: 'team-c' },
+      { round: 2, stage: 'final', teamAId: 'team-a', teamBId: 'team-b' },
+    ],
+    now: '2026-07-20T12:00:00.000Z',
+    createGameId: () => 'new-game',
+  });
+
+  assert.equal(result.finalSession.status, 'teams_generated');
+  assert.deepEqual(result.finalSession.teamIds, ['team-a', 'team-b', 'team-c', 'team-d']);
+  assert.deepEqual((result.finalSession.config as TournamentConfig).groups, [
+    { id: 'A', name: 'Grupo A', teamIds: ['team-a', 'team-c'] },
+    { id: 'B', name: 'Grupo B', teamIds: ['team-b', 'team-d'] },
+  ]);
+  assert.deepEqual(
+    result.updatedSessions.map((session) => [session.id, session.status]),
+    [
+      ['session-2', 'draft'],
+      ['session-1', 'teams_generated'],
+    ],
+  );
+  assert.deepEqual(
+    result.updatedTeams.map((team) => team.id),
+    ['other-team', 'team-a', 'team-b', 'team-c', 'team-d'],
+  );
+  assert.deepEqual(
+    result.updatedGames.map((game) => [game.id, game.sessionId, game.stage, game.status]),
+    [
+      ['other-game', 'session-2', undefined, 'active'],
+      ['new-game', 'session-1', 'group', 'scheduled'],
+      ['new-game', 'session-1', 'final', 'scheduled'],
+    ],
+  );
+  assert.deepEqual(result.updatedGames[2].setTargets, [12, 12, 7]);
+  assert.deepEqual(result.updatedGames[2].metadata, {
+    originalTeamAId: 'team-a',
+    originalTeamBId: 'team-b',
+  });
 });
 
 test('buildFinishedSessionResult marks active session finished and builds updated collections', () => {

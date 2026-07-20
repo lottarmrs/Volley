@@ -354,6 +354,7 @@ export default function App() {
     setActiveSession: sess.setActiveSession,
     setSessions: sess.setSessions,
     setTeams: sess.setTeams,
+    games: sess.games,
     setGames: sess.setGames,
     setPage,
     sessions: sess.sessions,

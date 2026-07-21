@@ -9,6 +9,16 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@app': path.resolve(__dirname, 'src/application'),
+        '@domain': path.resolve(__dirname, 'src/domain'),
+        '@ui': path.resolve(__dirname, 'src/components'),
+        '@hooks': path.resolve(__dirname, 'src/hooks'),
+        '@logic': path.resolve(__dirname, 'src/logic'),
+        '@services': path.resolve(__dirname, 'src/services'),
+        '@storage': path.resolve(__dirname, 'src/storage'),
+        '@shared/types': path.resolve(__dirname, 'src/types.ts'),
+        '@shared/constants': path.resolve(__dirname, 'src/constants.ts'),
+        '@test': path.resolve(__dirname, 'src/test'),
       },
     },
     server: {

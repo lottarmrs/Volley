@@ -14,7 +14,17 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@app/*": ["./src/application/*"],
+      "@domain/*": ["./src/domain/*"],
+      "@ui/*": ["./src/components/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@logic/*": ["./src/logic/*"],
+      "@services/*": ["./src/services/*"],
+      "@storage/*": ["./src/storage/*"],
+      "@shared/types": ["./src/types.ts"],
+      "@shared/constants": ["./src/constants.ts"],
+      "@test/*": ["./src/test/*"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true

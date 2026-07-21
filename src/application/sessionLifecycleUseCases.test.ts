@@ -12,6 +12,7 @@ import {
   buildDivisionGenerationStatusApplicationResult,
   buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
+  buildDivisionWorkerFallbackApplicationResult,
   buildDraftClearResult,
   buildFinishedSessionResult,
   buildFreePlayDivisionConfirmationResult,
@@ -786,6 +787,31 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
     type: 'fallback',
     message: 'boom',
   });
+});
+
+test('buildDivisionWorkerFallbackApplicationResult routes worker failures to sync fallback', () => {
+  assert.deepEqual(
+    buildDivisionWorkerFallbackApplicationResult({
+      source: 'worker-message',
+      message: 'boom',
+    }),
+    {
+      shouldTerminateWorker: true,
+      shouldRunFallback: true,
+      logMessage: 'Balancer worker error: boom',
+    },
+  );
+  assert.deepEqual(
+    buildDivisionWorkerFallbackApplicationResult({
+      source: 'runtime-error',
+      message: 'network failed',
+    }),
+    {
+      shouldTerminateWorker: true,
+      shouldRunFallback: true,
+      logMessage: 'Balancer worker failed, falling back to sync: network failed',
+    },
+  );
 });
 
 test('shouldClearDivisionWorkerReference clears only the current worker', () => {

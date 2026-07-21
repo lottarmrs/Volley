@@ -600,6 +600,24 @@ export function buildDivisionWorkerMessageResult(
   return { type: 'fallback', message: message.message };
 }
 
+export function buildDivisionWorkerFallbackApplicationResult(input: {
+  source: 'worker-message' | 'runtime-error';
+  message: string;
+}): {
+  shouldTerminateWorker: true;
+  shouldRunFallback: true;
+  logMessage: string;
+} {
+  return {
+    shouldTerminateWorker: true,
+    shouldRunFallback: true,
+    logMessage:
+      input.source === 'worker-message'
+        ? `Balancer worker error: ${input.message}`
+        : `Balancer worker failed, falling back to sync: ${input.message}`,
+  };
+}
+
 export function shouldClearDivisionWorkerReference(
   currentWorker: unknown,
   workerToClear: unknown,

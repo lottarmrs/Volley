@@ -12,6 +12,7 @@ import {
   buildDivisionGenerationCompletionApplicationResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationStatusApplicationResult,
+  buildDivisionWorkerFallbackApplicationResult,
   buildDivisionWorkerMessageResult,
   buildGeneratedTournamentStartApplicationResult,
   buildSessionDraftResumeResult,
@@ -220,16 +221,24 @@ export function useSessionWizard({
         finish(action.divisions);
       } else {
         // erro: encerra e cai no cálculo síncrono para não travar o fluxo.
-        console.error('Balancer worker error:', action.message);
-        terminateWorker(worker);
-        runFallback();
+        const fallback = buildDivisionWorkerFallbackApplicationResult({
+          source: 'worker-message',
+          message: action.message,
+        });
+        console.error(fallback.logMessage);
+        if (fallback.shouldTerminateWorker) terminateWorker(worker);
+        if (fallback.shouldRunFallback) runFallback();
       }
     };
 
     worker.onerror = (err) => {
-      console.error('Balancer worker failed, falling back to sync:', err.message);
-      terminateWorker(worker);
-      runFallback();
+      const fallback = buildDivisionWorkerFallbackApplicationResult({
+        source: 'runtime-error',
+        message: err.message,
+      });
+      console.error(fallback.logMessage);
+      if (fallback.shouldTerminateWorker) terminateWorker(worker);
+      if (fallback.shouldRunFallback) runFallback();
     };
 
     worker.postMessage(plan.request);

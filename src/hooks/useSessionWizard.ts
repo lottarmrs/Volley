@@ -21,12 +21,12 @@ import {
   buildSessionPatchResult,
   buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerLockResult,
+  buildSessionPlayerPairConstraintResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildWizardCancelApplicationResult,
   shouldClearDivisionWorkerReference,
 } from '../application/sessionLifecycleUseCases';
-import { addPlayerPairConstraint, removePlayerPairConstraint } from '../domain/sessionSetup';
 
 interface UseSessionWizardProps {
   players: Player[];
@@ -253,13 +253,27 @@ export function useSessionWizard({
   };
 
   const addPairConstraint = (p1: string, p2: string, type: 'together' | 'separated') => {
-    if (!activeSession || !activeSession.config) return;
-    updateSession({ config: addPlayerPairConstraint(activeSession.config, p1, p2, type) });
+    const result = buildSessionPlayerPairConstraintResult({
+      activeSession,
+      playerAId: p1,
+      playerBId: p2,
+      type,
+      mode: 'add',
+      now: new Date().toISOString(),
+    });
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
   };
 
   const removePairConstraint = (p1: string, p2: string, type: 'together' | 'separated') => {
-    if (!activeSession || !activeSession.config) return;
-    updateSession({ config: removePlayerPairConstraint(activeSession.config, p1, p2, type) });
+    const result = buildSessionPlayerPairConstraintResult({
+      activeSession,
+      playerAId: p1,
+      playerBId: p2,
+      type,
+      mode: 'remove',
+      now: new Date().toISOString(),
+    });
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
   };
 
   const confirmDivision = () => {

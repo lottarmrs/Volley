@@ -15,6 +15,8 @@ import type {
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
+  addPlayerPairConstraint,
+  removePlayerPairConstraint,
   selectPlayablePlayerIds,
   toggleLockedPlayerTeam,
   toggleSessionPlayerSelection,
@@ -360,6 +362,44 @@ export function buildSessionPlayerLockResult(input: {
       patch: {
         config: toggleLockedPlayerTeam(input.activeSession.config, input.playerId, input.teamIndex),
       },
+      now: input.now,
+    }),
+  };
+}
+
+export function buildSessionPlayerPairConstraintResult(input: {
+  activeSession: Session | null;
+  playerAId: string;
+  playerBId: string;
+  type: 'together' | 'separated';
+  mode: 'add' | 'remove';
+  now: string;
+}): {
+  nextActiveSession: Session | null;
+} {
+  if (!input.activeSession?.config) {
+    return { nextActiveSession: null };
+  }
+
+  const nextConfig =
+    input.mode === 'add'
+      ? addPlayerPairConstraint(
+          input.activeSession.config,
+          input.playerAId,
+          input.playerBId,
+          input.type,
+        )
+      : removePlayerPairConstraint(
+          input.activeSession.config,
+          input.playerAId,
+          input.playerBId,
+          input.type,
+        );
+
+  return {
+    nextActiveSession: buildSessionPatchResult({
+      activeSession: input.activeSession,
+      patch: { config: nextConfig },
       now: input.now,
     }),
   };

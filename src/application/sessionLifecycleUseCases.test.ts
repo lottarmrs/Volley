@@ -24,6 +24,7 @@ import {
   buildSessionPatchResult,
   buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerLockResult,
+  buildSessionPlayerPairConstraintResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildGeneratedTournamentStartApplicationResult,
@@ -476,6 +477,62 @@ test('buildSessionPlayerLockResult toggles a locked team inside session config',
       activeSession: null,
       playerId: 'player-1',
       teamIndex: 1,
+      now: '2026-07-20T13:00:00.000Z',
+    }),
+    { nextActiveSession: null },
+  );
+});
+
+test('buildSessionPlayerPairConstraintResult adds and removes pair constraints', () => {
+  const activeSession = makeSession('session-1', {
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  });
+
+  const addedResult = buildSessionPlayerPairConstraintResult({
+    activeSession,
+    playerAId: 'player-1',
+    playerBId: 'player-2',
+    type: 'together',
+    mode: 'add',
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.equal(addedResult.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
+  assert.deepEqual(addedResult.nextActiveSession?.config?.balanceConstraints?.pairsTogether, [
+    ['player-1', 'player-2'],
+  ]);
+
+  const duplicateResult = buildSessionPlayerPairConstraintResult({
+    activeSession: addedResult.nextActiveSession,
+    playerAId: 'player-2',
+    playerBId: 'player-1',
+    type: 'together',
+    mode: 'add',
+    now: '2026-07-20T14:00:00.000Z',
+  });
+
+  assert.deepEqual(duplicateResult.nextActiveSession?.config?.balanceConstraints?.pairsTogether, [
+    ['player-1', 'player-2'],
+  ]);
+
+  const removedResult = buildSessionPlayerPairConstraintResult({
+    activeSession: duplicateResult.nextActiveSession,
+    playerAId: 'player-2',
+    playerBId: 'player-1',
+    type: 'together',
+    mode: 'remove',
+    now: '2026-07-20T15:00:00.000Z',
+  });
+
+  assert.deepEqual(removedResult.nextActiveSession?.config?.balanceConstraints?.pairsTogether, []);
+  assert.deepEqual(
+    buildSessionPlayerPairConstraintResult({
+      activeSession: null,
+      playerAId: 'player-1',
+      playerBId: 'player-2',
+      type: 'separated',
+      mode: 'add',
       now: '2026-07-20T13:00:00.000Z',
     }),
     { nextActiveSession: null },

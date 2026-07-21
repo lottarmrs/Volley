@@ -4,7 +4,6 @@ import { balanceTeams } from '../logic/balancing';
 import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
-import { buildPartnershipMatrix } from '../logic/partnershipHistory';
 import { generateUUID } from '../logic/uuid';
 import {
   buildDivisionConfirmationResult,
@@ -19,6 +18,7 @@ import {
   buildSessionDraftPersistenceResult,
   buildSessionLastSelectionApplicationResult,
   buildSessionPatchResult,
+  buildSessionPartnershipMatrixResult,
   buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerLockResult,
   buildSessionPlayerPairConstraintResult,
@@ -69,9 +69,11 @@ export function useSessionWizard({
   };
 
   const partnershipMatrix = useMemo(() => {
-    if (!activeSession || !activeSession.communityId) return undefined;
-    const historySessions = sessions.filter((s) => s.communityId === activeSession.communityId);
-    return buildPartnershipMatrix(historySessions, teams);
+    return buildSessionPartnershipMatrixResult({
+      activeSession,
+      sessions,
+      teams,
+    }).partnershipMatrix;
   }, [activeSession?.communityId, sessions, teams]);
 
   // Garante que o worker é encerrado se o componente desmontar no meio do cálculo.

@@ -19,6 +19,7 @@ import {
   buildSessionLastSelectionApplicationResult,
   buildSessionDraftResumeResult,
   buildSessionDraftPersistenceResult,
+  buildSessionPartnershipMatrixResult,
   buildSessionFromCommunity,
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
@@ -340,6 +341,41 @@ test('buildSessionDraftPersistenceResult saves only draft sessions with wizard s
       now: '2026-07-20T12:00:00.000Z',
     }),
     { draft: null },
+  );
+});
+
+test('buildSessionPartnershipMatrixResult builds history only for the active community', () => {
+  const activeSession = makeSession('session-active', { communityId: 'community-1' });
+  const sameCommunitySession = makeSession('session-history-1', {
+    communityId: 'community-1',
+    status: 'finished',
+    date: '2026-07-19',
+  });
+  const otherCommunitySession = makeSession('session-history-2', {
+    communityId: 'community-2',
+    status: 'finished',
+    date: '2026-07-20',
+  });
+  const teams = [
+    makeTeam('team-a', 'session-history-1', ['player-1', 'player-2']),
+    makeTeam('team-b', 'session-history-2', ['player-1', 'player-3']),
+  ];
+
+  assert.deepEqual(
+    buildSessionPartnershipMatrixResult({
+      activeSession,
+      sessions: [sameCommunitySession, otherCommunitySession],
+      teams,
+    }),
+    { partnershipMatrix: { 'player-1|player-2': 1 } },
+  );
+  assert.deepEqual(
+    buildSessionPartnershipMatrixResult({
+      activeSession: makeSession('session-without-community', { communityId: null }),
+      sessions: [sameCommunitySession],
+      teams,
+    }),
+    { partnershipMatrix: undefined },
   );
 });
 

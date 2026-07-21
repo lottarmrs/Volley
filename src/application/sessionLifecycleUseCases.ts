@@ -22,7 +22,7 @@ import {
   toggleSessionPlayerSelection,
   validateSessionWizardStep,
 } from '../domain/sessionSetup';
-import type { PartnershipMatrix } from '../logic/partnershipHistory';
+import { buildPartnershipMatrix, type PartnershipMatrix } from '../logic/partnershipHistory';
 import type { ScheduledTournamentMatch } from '../logic/tournament';
 import { formatLocalDateInput } from '../logic/date';
 import { calculateAttributeProgression } from '../logic/progression';
@@ -272,6 +272,25 @@ export function buildSessionDraftPersistenceResult(input: {
       selectedDivisionIndex: input.selectedDivisionIndex,
       updatedAt: input.now,
     },
+  };
+}
+
+export function buildSessionPartnershipMatrixResult(input: {
+  activeSession: Session | null;
+  sessions: Session[];
+  teams: Team[];
+}): {
+  partnershipMatrix: PartnershipMatrix | undefined;
+} {
+  if (!input.activeSession?.communityId) {
+    return { partnershipMatrix: undefined };
+  }
+
+  const historySessions = input.sessions.filter(
+    (session) => session.communityId === input.activeSession?.communityId,
+  );
+  return {
+    partnershipMatrix: buildPartnershipMatrix(historySessions, input.teams),
   };
 }
 

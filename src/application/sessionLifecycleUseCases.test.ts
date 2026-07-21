@@ -264,6 +264,7 @@ test('buildSessionLastSelectionApplicationResult applies valid selection and fla
   assert.equal(validResult.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
   assert.equal(validResult.shouldRemoveStoredSelection, false);
   assert.equal(validResult.shouldWarnInvalidSelection, false);
+  assert.equal(validResult.warningMessage, null);
   assert.deepEqual(validResult.storageRemovals, []);
 
   const invalidResult = buildSessionLastSelectionApplicationResult({
@@ -275,6 +276,7 @@ test('buildSessionLastSelectionApplicationResult applies valid selection and fla
   assert.equal(invalidResult.nextActiveSession, null);
   assert.equal(invalidResult.shouldRemoveStoredSelection, true);
   assert.equal(invalidResult.shouldWarnInvalidSelection, true);
+  assert.equal(invalidResult.warningMessage, 'Ignoring invalid last player selection from storage');
   assert.deepEqual(invalidResult.storageRemovals, ['lastSelectedPlayerIds']);
 });
 

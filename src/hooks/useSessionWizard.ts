@@ -148,8 +148,8 @@ export function useSessionWizard({
       now: new Date().toISOString(),
     });
     if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
-    if (result.shouldWarnInvalidSelection) {
-      console.warn('Ignoring invalid last player selection from storage');
+    if (result.warningMessage) {
+      console.warn(result.warningMessage);
     }
     result.storageRemovals.forEach((target) => {
       localStorage.removeItem(STORAGE_KEYS[target]);

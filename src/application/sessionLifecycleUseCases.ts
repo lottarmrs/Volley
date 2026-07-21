@@ -585,6 +585,16 @@ export function buildDivisionGenerationStatusApplicationResult(
   return buildDivisionGenerationStartResult(mode);
 }
 
+export function buildDivisionWorkerUnavailableApplicationResult(): {
+  generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
+  shouldRunFallback: true;
+} {
+  return {
+    generationStatus: buildDivisionGenerationStatusApplicationResult('start'),
+    shouldRunFallback: true,
+  };
+}
+
 export function buildDivisionWorkerMessageResult(
   message: BalanceResponse,
 ):

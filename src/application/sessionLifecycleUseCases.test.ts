@@ -11,6 +11,7 @@ import {
   buildDivisionGenerationResult,
   buildDivisionGenerationStatusApplicationResult,
   buildDivisionGenerationStartResult,
+  buildDivisionWorkerUnavailableApplicationResult,
   buildDivisionWorkerMessageResult,
   buildDivisionWorkerFallbackApplicationResult,
   buildDraftClearResult,
@@ -707,6 +708,16 @@ test('buildDivisionGenerationStatusApplicationResult exposes status state for UI
   assert.deepEqual(buildDivisionGenerationStatusApplicationResult('cancel'), {
     nextIsGenerating: false,
     nextProgress: 0,
+  });
+});
+
+test('buildDivisionWorkerUnavailableApplicationResult starts generation and uses sync fallback', () => {
+  assert.deepEqual(buildDivisionWorkerUnavailableApplicationResult(), {
+    generationStatus: {
+      nextIsGenerating: true,
+      nextProgress: 0,
+    },
+    shouldRunFallback: true,
   });
 });
 

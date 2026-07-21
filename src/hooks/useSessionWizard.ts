@@ -14,6 +14,7 @@ import {
   buildDivisionGenerationStatusApplicationResult,
   buildDivisionWorkerFallbackApplicationResult,
   buildDivisionWorkerMessageResult,
+  buildDivisionWorkerUnavailableApplicationResult,
   buildGeneratedTournamentStartApplicationResult,
   buildSessionDraftResumeResult,
   buildSessionDraftPersistenceResult,
@@ -201,8 +202,9 @@ export function useSessionWizard({
 
     // Fallback síncrono quando Web Workers não estão disponíveis (ex.: testes/SSR).
     if (typeof Worker === 'undefined') {
-      applyGenerationStatusState(buildDivisionGenerationStatusApplicationResult('start'));
-      runFallback();
+      const fallback = buildDivisionWorkerUnavailableApplicationResult();
+      applyGenerationStatusState(fallback.generationStatus);
+      if (fallback.shouldRunFallback) runFallback();
       return;
     }
 

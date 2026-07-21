@@ -24,6 +24,7 @@
       "@services/*": ["./src/services/*"],
       "@storage/*": ["./src/storage/*"],
       "@shared/types": ["./src/types.ts"],
+      "@shared/types/*": ["./src/shared/types/*"],
       "@shared/constants": ["./src/constants.ts"],
       "@test/*": ["./src/test/*"]
     },

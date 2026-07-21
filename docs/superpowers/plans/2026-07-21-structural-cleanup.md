@@ -216,21 +216,33 @@ Verified on 2026-07-21:
 **Interfaces:**
 - Keep `@shared/types` as the public compatibility surface.
 
-- [ ] **Step 1: Identify type clusters**
+- [x] **Step 1: Identify type clusters**
 
 Use the graph report god nodes: `Player`, `Team`, `Game`, `Session`, `PointEvent`, `Community`.
 
-- [ ] **Step 2: Split one cluster at a time**
+- [x] **Step 2: Split one cluster at a time**
 
 Start with community/member types because they already connect to RBAC and Supabase boundaries.
 
-- [ ] **Step 3: Keep barrel compatibility**
+- [x] **Step 3: Keep barrel compatibility**
 
 `src/types.ts` should re-export moved types until every import migrates.
 
-- [ ] **Step 4: Verify and commit each cluster**
+- [x] **Step 4: Verify and commit each cluster**
 
 Run full verification after each cluster.
+
+First cluster completed on 2026-07-21:
+
+- Created `src/shared/types/community.ts` for community, presence, rules, ranking, profile, and membership types.
+- Created `src/shared/types/sync.ts` for `CloudSyncStatus`.
+- Kept `src/types.ts` as the compatibility barrel.
+- Added `@shared/types/*` submodule aliases.
+- `npm run lint`
+- `npm run format:check`
+- `npm run test:unit` (395 passed)
+- `npm run test:ui` (51 passed)
+- `npm run build`
 
 ## Task 5: Remove Defasados Only With Evidence
 

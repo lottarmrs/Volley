@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import type { AppResult } from '@app/appResult';
 import type { LocalSyncPayload } from '@infra/supabase/syncService';
+import type { Community, CommunityMember } from '@shared/types/community';
 import type { Session } from '@shared/types';
 
 test('architecture aliases resolve through TypeScript', () => {
@@ -22,4 +23,16 @@ test('supabase services live under the infra boundary', () => {
   assert.deepEqual(payload.players, []);
   assert.equal(existsSync('src/infra/supabase/syncService.ts'), true);
   assert.equal(existsSync('src/services/supabase/syncService.ts'), false);
+});
+
+test('community types live under shared type modules with barrel compatibility', () => {
+  const community: Pick<Community, 'id' | 'name'> = { id: 'community-1', name: 'Panelinha' };
+  const member: Pick<CommunityMember, 'communityId' | 'userId' | 'role'> = {
+    communityId: community.id,
+    userId: 'user-1',
+    role: 'member',
+  };
+
+  assert.equal(member.communityId, community.id);
+  assert.equal(existsSync('src/shared/types/community.ts'), true);
 });

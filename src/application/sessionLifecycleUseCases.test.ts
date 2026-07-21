@@ -11,6 +11,7 @@ import {
   buildDivisionGenerationResult,
   buildDivisionGenerationStatusApplicationResult,
   buildDivisionGenerationStartResult,
+  buildDivisionWorkerStartApplicationResult,
   buildDivisionWorkerUnavailableApplicationResult,
   buildDivisionWorkerMessageResult,
   buildDivisionWorkerFallbackApplicationResult,
@@ -711,6 +712,27 @@ test('buildDivisionGenerationStatusApplicationResult exposes status state for UI
     nextIsGenerating: false,
     nextProgress: 0,
   });
+});
+
+test('buildDivisionWorkerStartApplicationResult starts generation and exposes worker request', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1', 'player-2'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const plan = buildDivisionGenerationPlan({
+    activeSession,
+    players: [makePlayer('player-1'), makePlayer('player-2')],
+    seed: 123,
+  });
+
+  assert.deepEqual(buildDivisionWorkerStartApplicationResult(plan), {
+    generationStatus: {
+      nextIsGenerating: true,
+      nextProgress: 0,
+    },
+    message: plan?.request,
+  });
+  assert.equal(buildDivisionWorkerStartApplicationResult(null), null);
 });
 
 test('buildDivisionWorkerUnavailableApplicationResult starts generation and uses sync fallback', () => {

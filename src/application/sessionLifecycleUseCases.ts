@@ -589,6 +589,18 @@ export function buildDivisionGenerationStatusApplicationResult(
   return buildDivisionGenerationStartResult(mode);
 }
 
+export function buildDivisionWorkerStartApplicationResult(plan: DivisionGenerationPlan | null): {
+  generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
+  message: BalanceRequest;
+} | null {
+  if (!plan) return null;
+
+  return {
+    generationStatus: buildDivisionGenerationStatusApplicationResult('start'),
+    message: plan.request,
+  };
+}
+
 export function buildDivisionWorkerUnavailableApplicationResult(): {
   generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
   shouldRunFallback: true;

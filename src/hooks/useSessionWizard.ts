@@ -14,6 +14,7 @@ import {
   buildDivisionGenerationStatusApplicationResult,
   buildDivisionWorkerFallbackApplicationResult,
   buildDivisionWorkerMessageResult,
+  buildDivisionWorkerStartApplicationResult,
   buildDivisionWorkerUnavailableApplicationResult,
   buildGeneratedTournamentStartApplicationResult,
   buildSessionDraftResumeResult,
@@ -211,8 +212,10 @@ export function useSessionWizard({
     const worker = new Worker(new URL('../logic/balancer.worker.ts', import.meta.url), {
       type: 'module',
     });
+    const start = buildDivisionWorkerStartApplicationResult(plan);
+    if (!start) return;
     workerRef.current = worker;
-    applyGenerationStatusState(buildDivisionGenerationStatusApplicationResult('start'));
+    applyGenerationStatusState(start.generationStatus);
 
     worker.onmessage = (e: MessageEvent<BalanceResponse>) => {
       const action = buildDivisionWorkerMessageResult(e.data);
@@ -243,7 +246,7 @@ export function useSessionWizard({
       if (fallback.shouldRunFallback) runFallback();
     };
 
-    worker.postMessage(plan.request);
+    worker.postMessage(start.message);
   };
 
   const cancelGeneration = () => {

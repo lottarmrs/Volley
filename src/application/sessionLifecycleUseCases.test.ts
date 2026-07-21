@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildActiveSessionClearResult,
+  buildDivisionConfirmationApplicationResult,
   buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
@@ -1186,6 +1187,55 @@ test('buildDivisionConfirmationResult confirms free play directly and delegates 
     tournamentResult.updatedGames?.map((game) => [game.id, game.type, game.status]),
     [['scheduled-game', 'tournament', 'scheduled']],
   );
+});
+
+test('buildDivisionConfirmationApplicationResult returns updated state and completion plan', () => {
+  const now = '2026-07-20T12:00:00.000Z';
+  const activeSession = makeSession('free-play-session', {
+    type: 'free_play',
+    status: 'draft',
+    selectedPlayerIds: ['player-1', 'player-2'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const division = {
+    teams: [
+      makeTeam('free-team-a', 'free-play-session', []),
+      makeTeam('free-team-b', 'free-play-session', []),
+    ],
+    penalty: 0,
+    score: 100,
+  };
+
+  const result = buildDivisionConfirmationApplicationResult({
+    activeSession,
+    division,
+    sessions: [activeSession],
+    teams: [],
+    games: [],
+    now,
+    createGameId: () => 'unused-game',
+    generateTournamentSchedule: () => {
+      throw new Error('free play should not schedule tournament games');
+    },
+  });
+
+  assert.equal(result.nextActiveSession.status, 'active');
+  assert.deepEqual(result.nextSessions, result.updatedSessions);
+  assert.deepEqual(result.nextTeams, result.updatedTeams);
+  assert.equal(result.nextGames, null);
+  assert.deepEqual(result.completion.storageWrites, [
+    {
+      target: 'lastSelectedPlayerIds',
+      value: JSON.stringify(['player-1', 'player-2']),
+    },
+    {
+      target: 'lastSessionConfig',
+      value: JSON.stringify(result.nextActiveSession.config),
+    },
+  ]);
+  assert.equal(result.completion.shouldClearSessionDraft, true);
+  assert.equal(result.completion.shouldAdvanceStep, false);
+  assert.equal(result.completion.nextPage, 'session-active');
 });
 
 test('buildTournamentDivisionConfirmationResult schedules games and stores generated teams', () => {

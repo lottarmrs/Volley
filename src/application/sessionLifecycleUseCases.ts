@@ -847,6 +847,38 @@ export function buildDivisionConfirmationResult(input: {
   return result;
 }
 
+export function buildDivisionConfirmationApplicationResult(input: {
+  activeSession: Session;
+  division: Division;
+  sessions: Session[];
+  teams: Team[];
+  games: Game[];
+  now: string;
+  createGameId: () => string;
+  generateTournamentSchedule: (
+    teamIds: string[],
+    format: TournamentConfig['format'],
+    config: TournamentConfig,
+  ) => ScheduledTournamentMatch[];
+}): ReturnType<typeof buildDivisionConfirmationResult> & {
+  nextActiveSession: Session;
+  nextSessions: Session[];
+  nextTeams: Team[];
+  nextGames: Game[] | null;
+  completion: ReturnType<typeof buildDivisionConfirmationCompletionResult>;
+} {
+  const result = buildDivisionConfirmationResult(input);
+
+  return {
+    ...result,
+    nextActiveSession: result.finalSession,
+    nextSessions: result.updatedSessions,
+    nextTeams: result.updatedTeams,
+    nextGames: result.updatedGames,
+    completion: buildDivisionConfirmationCompletionResult(result.finalSession),
+  };
+}
+
 export function buildTournamentDivisionConfirmationResult(input: {
   activeSession: Session;
   division: Division;

@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Player, Team, Division, Game } from '../types';
 import type { BalanceResponse } from '../logic/balancerMessages';
-import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
+import { saveSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { generateUUID } from '../logic/uuid';
 import { STORAGE_KEYS } from '../storage/localStorageRepository';
 import {
-  buildDivisionConfirmationResult,
-  buildDivisionConfirmationCompletionResult,
+  buildDivisionConfirmationApplicationResult,
   buildDivisionFallbackBalanceResult,
   buildDivisionGenerationCancelApplicationResult,
   buildDivisionGenerationCompletionApplicationResult,
@@ -293,7 +292,7 @@ export function useSessionWizard({
     if (!activeSession || bestDivisions.length === 0) return;
     const currentDiv = bestDivisions[selectedDivisionIndex];
 
-    const result = buildDivisionConfirmationResult({
+    const result = buildDivisionConfirmationApplicationResult({
       activeSession,
       division: currentDiv,
       sessions,
@@ -303,14 +302,13 @@ export function useSessionWizard({
       createGameId: generateUUID,
       generateTournamentSchedule,
     });
-    const finalSession = result.finalSession;
 
-    setActiveSession(finalSession);
-    setSessions(result.updatedSessions);
-    setTeams(result.updatedTeams);
-    if (result.updatedGames) setGames(result.updatedGames);
+    setActiveSession(result.nextActiveSession);
+    setSessions(result.nextSessions);
+    setTeams(result.nextTeams);
+    if (result.nextGames) setGames(result.nextGames);
 
-    const completion = buildDivisionConfirmationCompletionResult(finalSession);
+    const completion = result.completion;
     completion.storageWrites.forEach((write) => {
       localStorage.setItem(STORAGE_KEYS[write.target], write.value);
     });

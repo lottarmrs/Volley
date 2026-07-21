@@ -5,6 +5,7 @@ import {
   buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
+  buildDivisionFallbackBalanceResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
   buildDivisionGenerationStartResult,
@@ -674,6 +675,36 @@ test('buildDivisionFallbackBalanceInput reuses the generation request for sync b
     config: plan?.request.config,
     partnershipMatrix: { 'player-1|player-2': 1 },
   });
+});
+
+test('buildDivisionFallbackBalanceResult runs sync balancing from the generation plan', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1', 'player-2', 'player-3', 'player-4'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const players = [
+    makePlayer('player-1'),
+    makePlayer('player-2'),
+    makePlayer('player-3'),
+    makePlayer('player-4'),
+  ];
+  const plan = buildDivisionGenerationPlan({
+    activeSession,
+    players,
+    seed: 777,
+  });
+
+  const result = buildDivisionFallbackBalanceResult(plan);
+
+  assert.ok(result);
+  assert.ok(result.divisions.length > 0);
+  assert.deepEqual(result.divisions[0].teams.flatMap((team) => team.playerIds).sort(), [
+    'player-1',
+    'player-2',
+    'player-3',
+    'player-4',
+  ]);
+  assert.equal(buildDivisionFallbackBalanceResult(null), null);
 });
 
 test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions', () => {

@@ -13,6 +13,7 @@ import type {
   TournamentConfig,
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
+import { balanceTeams } from '../logic/balancing';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
   addPlayerPairConstraint,
@@ -501,6 +502,24 @@ export function buildDivisionFallbackBalanceInput(plan: DivisionGenerationPlan |
     sessionId: plan.request.sessionId,
     config: plan.request.config,
     partnershipMatrix: plan.request.partnershipMatrix,
+  };
+}
+
+export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan | null): {
+  divisions: Division[];
+} | null {
+  const input = buildDivisionFallbackBalanceInput(plan);
+  if (!input) return null;
+
+  return {
+    divisions: balanceTeams(
+      input.players,
+      input.numTeams,
+      input.sessionId,
+      input.config,
+      undefined,
+      input.partnershipMatrix,
+    ),
   };
 }
 

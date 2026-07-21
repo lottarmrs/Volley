@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Player, Team, Division, Game } from '../types';
-import { balanceTeams } from '../logic/balancing';
 import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
@@ -8,7 +7,7 @@ import { generateUUID } from '../logic/uuid';
 import {
   buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
-  buildDivisionFallbackBalanceInput,
+  buildDivisionFallbackBalanceResult,
   buildDivisionGenerationResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationStartResult,
@@ -185,17 +184,8 @@ export function useSessionWizard({
       if (result.shouldAdvanceStep) nextStep();
     };
     const runFallback = () => {
-      const fallbackInput = buildDivisionFallbackBalanceInput(plan);
-      if (!fallbackInput) return;
-      const divisions = balanceTeams(
-        fallbackInput.players,
-        fallbackInput.numTeams,
-        fallbackInput.sessionId,
-        fallbackInput.config,
-        undefined,
-        fallbackInput.partnershipMatrix,
-      );
-      finish(divisions);
+      const result = buildDivisionFallbackBalanceResult(plan);
+      if (result) finish(result.divisions);
     };
     // Encerra qualquer cálculo anterior ainda em andamento.
     terminateWorker(workerRef.current);

@@ -17,7 +17,7 @@
       "@/*": ["./*"],
       "@app/*": ["./src/application/*"],
       "@domain/*": ["./src/domain/*"],
-      "@ui/*": ["./src/components/*"],
+      "@ui/*": ["./src/ui/*"],
       "@hooks/*": ["./src/hooks/*"],
       "@logic/*": ["./src/logic/*"],
       "@services/*": ["./src/services/*"],

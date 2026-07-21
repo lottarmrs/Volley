@@ -119,11 +119,11 @@ git push origin main
 - Consumes aliases from Task 1.
 - Produces a future home for presentational components: `@ui/...`.
 
-- [ ] **Step 1: Pick one low-risk component folder**
+- [x] **Step 1: Pick one low-risk component folder**
 
 Start with `src/components/common` because it has low domain coupling.
 
-- [ ] **Step 2: Move files and update imports**
+- [x] **Step 2: Move files and update imports**
 
 Move:
 
@@ -133,21 +133,30 @@ src/components/common/ToastViewport.tsx -> src/ui/common/ToastViewport.tsx
 
 Update imports from `./components/common/ToastViewport` or relative equivalents to `@ui/common/ToastViewport`.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 
 ```bash
 npm run lint
 npm run format:check
+npm run test:unit
 npm run test:ui
 npm run build
 ```
 
-- [ ] **Step 4: Commit**
+Verified on 2026-07-21:
+
+- `npm run lint`
+- `npm run format:check`
+- `npm run test:unit` (393 passed)
+- `npm run test:ui` (51 passed)
+- `npm run build`
+
+- [x] **Step 4: Commit**
 
 ```bash
-git add src/ui/common/ToastViewport.tsx src/App.tsx
+git add src/ui/common/ToastViewport.tsx src/components/common/ToastViewport.tsx src/App.tsx tsconfig.json vite.config.ts src/architecture/importAliases.test.ts
 git commit -m "refactor(ui): mover common para ui"
 ```
 

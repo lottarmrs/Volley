@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle, Info, X } from 'lucide-react';
-import { Toast, ToastVariant } from '../../hooks/useToasts';
+import { Toast, ToastVariant } from '@hooks/useToasts';
 
 const VARIANT: Record<ToastVariant, { cls: string; Icon: typeof Info }> = {
   success: { cls: 'alert-success', Icon: CheckCircle },

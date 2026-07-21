@@ -46,7 +46,7 @@ import { HistoryView } from './components/history/HistoryView';
 import { CommunitiesView } from './components/community/CommunitiesView';
 import { AccountSyncView } from './components/account/AccountSyncView';
 import { GestaoView } from './components/admin/GestaoView';
-import { ToastViewport } from './components/common/ToastViewport';
+import { ToastViewport } from '@ui/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';

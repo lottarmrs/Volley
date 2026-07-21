@@ -16,6 +16,7 @@ import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages'
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
   selectPlayablePlayerIds,
+  toggleLockedPlayerTeam,
   toggleSessionPlayerSelection,
   validateSessionWizardStep,
 } from '../domain/sessionSetup';
@@ -336,6 +337,29 @@ export function buildSessionPlayerBulkSelectionResult(input: {
     nextActiveSession: buildSessionPatchResult({
       activeSession: input.activeSession,
       patch: { selectedPlayerIds },
+      now: input.now,
+    }),
+  };
+}
+
+export function buildSessionPlayerLockResult(input: {
+  activeSession: Session | null;
+  playerId: string;
+  teamIndex: number;
+  now: string;
+}): {
+  nextActiveSession: Session | null;
+} {
+  if (!input.activeSession?.config) {
+    return { nextActiveSession: null };
+  }
+
+  return {
+    nextActiveSession: buildSessionPatchResult({
+      activeSession: input.activeSession,
+      patch: {
+        config: toggleLockedPlayerTeam(input.activeSession.config, input.playerId, input.teamIndex),
+      },
       now: input.now,
     }),
   };

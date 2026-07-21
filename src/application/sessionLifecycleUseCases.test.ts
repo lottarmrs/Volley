@@ -23,6 +23,7 @@ import {
   buildSessionLastSelectionResult,
   buildSessionPatchResult,
   buildSessionPlayerBulkSelectionResult,
+  buildSessionPlayerLockResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildGeneratedTournamentStartApplicationResult,
@@ -436,6 +437,46 @@ test('buildSessionPlayerBulkSelectionResult selects playable players or clears s
       players,
       mode: 'clear',
       now: '2026-07-20T14:00:00.000Z',
+    }),
+    { nextActiveSession: null },
+  );
+});
+
+test('buildSessionPlayerLockResult toggles a locked team inside session config', () => {
+  const activeSession = makeSession('session-1', {
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+    updatedAt: '2026-07-20T10:00:00.000Z',
+  });
+
+  const lockedResult = buildSessionPlayerLockResult({
+    activeSession,
+    playerId: 'player-1',
+    teamIndex: 1,
+    now: '2026-07-20T13:00:00.000Z',
+  });
+
+  assert.equal(lockedResult.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
+  assert.deepEqual(lockedResult.nextActiveSession?.config?.balanceConstraints?.lockedPlayerIdxs, {
+    'player-1': 1,
+  });
+
+  const unlockedResult = buildSessionPlayerLockResult({
+    activeSession: lockedResult.nextActiveSession,
+    playerId: 'player-1',
+    teamIndex: 1,
+    now: '2026-07-20T14:00:00.000Z',
+  });
+
+  assert.deepEqual(
+    unlockedResult.nextActiveSession?.config?.balanceConstraints?.lockedPlayerIdxs,
+    {},
+  );
+  assert.deepEqual(
+    buildSessionPlayerLockResult({
+      activeSession: null,
+      playerId: 'player-1',
+      teamIndex: 1,
+      now: '2026-07-20T13:00:00.000Z',
     }),
     { nextActiveSession: null },
   );

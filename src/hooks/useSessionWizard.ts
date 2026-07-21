@@ -20,16 +20,13 @@ import {
   buildSessionLastSelectionApplicationResult,
   buildSessionPatchResult,
   buildSessionPlayerBulkSelectionResult,
+  buildSessionPlayerLockResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildWizardCancelApplicationResult,
   shouldClearDivisionWorkerReference,
 } from '../application/sessionLifecycleUseCases';
-import {
-  addPlayerPairConstraint,
-  removePlayerPairConstraint,
-  toggleLockedPlayerTeam,
-} from '../domain/sessionSetup';
+import { addPlayerPairConstraint, removePlayerPairConstraint } from '../domain/sessionSetup';
 
 interface UseSessionWizardProps {
   players: Player[];
@@ -246,8 +243,13 @@ export function useSessionWizard({
   };
 
   const togglePlayerLock = (playerId: string, teamIdx: number) => {
-    if (!activeSession || !activeSession.config) return;
-    updateSession({ config: toggleLockedPlayerTeam(activeSession.config, playerId, teamIdx) });
+    const result = buildSessionPlayerLockResult({
+      activeSession,
+      playerId,
+      teamIndex: teamIdx,
+      now: new Date().toISOString(),
+    });
+    if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
   };
 
   const addPairConstraint = (p1: string, p2: string, type: 'together' | 'separated') => {

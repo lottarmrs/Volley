@@ -9,6 +9,7 @@ import {
   buildDivisionGenerationCompletionApplicationResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
+  buildDivisionGenerationStatusApplicationResult,
   buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
   buildDraftClearResult,
@@ -683,6 +684,17 @@ test('buildDivisionGenerationStartResult resets progress for start and cancel st
     nextProgress: 0,
   });
   assert.deepEqual(buildDivisionGenerationStartResult('cancel'), {
+    nextIsGenerating: false,
+    nextProgress: 0,
+  });
+});
+
+test('buildDivisionGenerationStatusApplicationResult exposes status state for UI application', () => {
+  assert.deepEqual(buildDivisionGenerationStatusApplicationResult('start'), {
+    nextIsGenerating: true,
+    nextProgress: 0,
+  });
+  assert.deepEqual(buildDivisionGenerationStatusApplicationResult('cancel'), {
     nextIsGenerating: false,
     nextProgress: 0,
   });

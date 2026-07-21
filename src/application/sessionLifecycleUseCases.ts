@@ -569,6 +569,12 @@ export function buildDivisionGenerationStartResult(mode: 'start' | 'cancel'): {
   };
 }
 
+export function buildDivisionGenerationStatusApplicationResult(
+  mode: 'start' | 'cancel',
+): ReturnType<typeof buildDivisionGenerationStartResult> {
+  return buildDivisionGenerationStartResult(mode);
+}
+
 export function buildDivisionWorkerMessageResult(
   message: BalanceResponse,
 ):

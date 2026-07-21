@@ -29,6 +29,7 @@ import {
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
   buildWizardCancelResult,
+  buildWizardCancelApplicationResult,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
@@ -446,6 +447,17 @@ test('buildWizardCancelResult clears draft state and returns to dashboard', () =
   assert.equal(result.nextSessionDraft, null);
   assert.equal(result.nextActiveSession, null);
   assert.equal(result.nextPage, 'dashboard');
+});
+
+test('buildWizardCancelApplicationResult applies cancel only after user confirmation', () => {
+  assert.equal(buildWizardCancelApplicationResult(false), null);
+
+  assert.deepEqual(buildWizardCancelApplicationResult(true), {
+    nextSessionDraft: null,
+    nextActiveSession: null,
+    nextPage: 'dashboard',
+    shouldClearSessionDraft: true,
+  });
 });
 
 test('buildDivisionGenerationPlan prepares selected players and seeded balance request', () => {

@@ -22,7 +22,7 @@ import {
   buildSessionPlayerBulkSelectionResult,
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
-  buildWizardCancelResult,
+  buildWizardCancelApplicationResult,
   shouldClearDivisionWorkerReference,
 } from '../application/sessionLifecycleUseCases';
 import {
@@ -308,12 +308,13 @@ export function useSessionWizard({
   };
 
   const cancelWizard = () => {
-    if (confirm('Deseja cancelar a criação da sessão? O progresso será perdido.')) {
-      const result = buildWizardCancelResult();
-      clearSessionDraft();
-      setActiveSession(result.nextActiveSession);
-      setPage(result.nextPage);
-    }
+    const result = buildWizardCancelApplicationResult(
+      confirm('Deseja cancelar a criação da sessão? O progresso será perdido.'),
+    );
+    if (!result) return;
+    if (result.shouldClearSessionDraft) clearSessionDraft();
+    setActiveSession(result.nextActiveSession);
+    setPage(result.nextPage);
   };
 
   const resumeDraft = (draft: any) => {

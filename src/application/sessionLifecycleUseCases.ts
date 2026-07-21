@@ -353,6 +353,17 @@ export function buildWizardCancelResult(): {
   };
 }
 
+export function buildWizardCancelApplicationResult(
+  isConfirmed: boolean,
+): (ReturnType<typeof buildWizardCancelResult> & { shouldClearSessionDraft: true }) | null {
+  if (!isConfirmed) return null;
+
+  return {
+    ...buildWizardCancelResult(),
+    shouldClearSessionDraft: true,
+  };
+}
+
 export type DivisionGenerationPlan = {
   sessionPlayers: Player[];
   updatedConfig: FreePlayConfig | TournamentConfig;

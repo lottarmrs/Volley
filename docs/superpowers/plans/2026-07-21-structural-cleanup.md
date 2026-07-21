@@ -253,7 +253,7 @@ First cluster completed on 2026-07-21:
 **Interfaces:**
 - Produces `docs/archive/` for historical documents still useful.
 
-- [ ] **Step 1: Reference scan**
+- [x] **Step 1: Reference scan**
 
 Run:
 
@@ -261,12 +261,12 @@ Run:
 rg -n "PLANO_|TAREFAS_MULTISET|GUIA_DE_IMPLEMENTACAO|audit-output" .
 ```
 
-- [ ] **Step 2: Classify**
+- [x] **Step 2: Classify**
 
 Move still-useful historical docs to `docs/archive/`.
 Delete only generated artifacts that are reproducible and unreferenced.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 
@@ -277,6 +277,17 @@ npm run test:unit
 npm run test:ui
 npm run build
 ```
+
+Completed on 2026-07-21:
+
+- Moved tracked historical root docs into `docs/archive/`.
+- Added `docs/archive/README.md`.
+- Kept ignored local `audit-output/` outside version control because it is generated and still referenced by a historical spec.
+- `npm run lint`
+- `npm run format:check`
+- `npm run test:unit`
+- `npm run test:ui`
+- `npm run build`
 
 ## Self-Review
 

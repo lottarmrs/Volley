@@ -981,6 +981,16 @@ test('buildDivisionConfirmationCompletionResult persists selection and routes by
   assert.deepEqual(buildDivisionConfirmationCompletionResult(freePlaySession), {
     selectedPlayerIdsValue: JSON.stringify(['player-1', 'player-2']),
     sessionConfigValue: JSON.stringify(freePlaySession.config),
+    storageWrites: [
+      {
+        target: 'lastSelectedPlayerIds',
+        value: JSON.stringify(['player-1', 'player-2']),
+      },
+      {
+        target: 'lastSessionConfig',
+        value: JSON.stringify(freePlaySession.config),
+      },
+    ],
     shouldClearSessionDraft: true,
     shouldAdvanceStep: false,
     nextPage: 'session-active',
@@ -988,6 +998,16 @@ test('buildDivisionConfirmationCompletionResult persists selection and routes by
   assert.deepEqual(buildDivisionConfirmationCompletionResult(tournamentSession), {
     selectedPlayerIdsValue: JSON.stringify(['player-3']),
     sessionConfigValue: JSON.stringify(tournamentSession.config),
+    storageWrites: [
+      {
+        target: 'lastSelectedPlayerIds',
+        value: JSON.stringify(['player-3']),
+      },
+      {
+        target: 'lastSessionConfig',
+        value: JSON.stringify(tournamentSession.config),
+      },
+    ],
     shouldClearSessionDraft: true,
     shouldAdvanceStep: true,
     nextPage: null,

@@ -4,6 +4,7 @@ import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, loadSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { generateUUID } from '../logic/uuid';
+import { STORAGE_KEYS } from '../storage/localStorageRepository';
 import {
   buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
@@ -294,8 +295,9 @@ export function useSessionWizard({
     if (result.updatedGames) setGames(result.updatedGames);
 
     const completion = buildDivisionConfirmationCompletionResult(finalSession);
-    localStorage.setItem('vpg_last_selected_player_ids', completion.selectedPlayerIdsValue);
-    localStorage.setItem('vpg_last_session_config', completion.sessionConfigValue);
+    completion.storageWrites.forEach((write) => {
+      localStorage.setItem(STORAGE_KEYS[write.target], write.value);
+    });
 
     if (completion.shouldClearSessionDraft) clearSessionDraft();
     if (completion.shouldAdvanceStep) {

@@ -709,13 +709,24 @@ export function buildFreePlayDivisionConfirmationResult(input: {
 export function buildDivisionConfirmationCompletionResult(finalSession: Session): {
   selectedPlayerIdsValue: string;
   sessionConfigValue: string;
+  storageWrites: Array<{
+    target: 'lastSelectedPlayerIds' | 'lastSessionConfig';
+    value: string;
+  }>;
   shouldClearSessionDraft: boolean;
   shouldAdvanceStep: boolean;
   nextPage: 'session-active' | null;
 } {
+  const selectedPlayerIdsValue = JSON.stringify(finalSession.selectedPlayerIds);
+  const sessionConfigValue = JSON.stringify(finalSession.config);
+
   return {
-    selectedPlayerIdsValue: JSON.stringify(finalSession.selectedPlayerIds),
-    sessionConfigValue: JSON.stringify(finalSession.config),
+    selectedPlayerIdsValue,
+    sessionConfigValue,
+    storageWrites: [
+      { target: 'lastSelectedPlayerIds', value: selectedPlayerIdsValue },
+      { target: 'lastSessionConfig', value: sessionConfigValue },
+    ],
     shouldClearSessionDraft: true,
     shouldAdvanceStep: finalSession.type === 'tournament',
     nextPage: finalSession.type === 'tournament' ? null : 'session-active',

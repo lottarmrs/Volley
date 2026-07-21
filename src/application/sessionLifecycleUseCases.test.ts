@@ -6,6 +6,7 @@ import {
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceInput,
   buildDivisionFallbackBalanceResult,
+  buildDivisionGenerationCompletionApplicationResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationResult,
   buildDivisionGenerationStartResult,
@@ -641,6 +642,39 @@ test('buildDivisionGenerationResult stores generated divisions and resets genera
   assert.equal(result.nextIsGenerating, false);
   assert.equal(result.nextProgress, 100);
   assert.equal(result.shouldAdvanceStep, true);
+});
+
+test('buildDivisionGenerationCompletionApplicationResult advances the wizard when requested', () => {
+  const divisions = [
+    {
+      teams: [makeTeam('team-a', 'session-1', []), makeTeam('team-b', 'session-1', [])],
+      penalty: 0,
+      score: 100,
+    },
+  ];
+
+  assert.deepEqual(
+    buildDivisionGenerationCompletionApplicationResult({
+      divisions,
+      advanceStep: true,
+      currentWizardStep: 2,
+    }),
+    {
+      nextBestDivisions: divisions,
+      nextSelectedDivisionIndex: 0,
+      nextIsGenerating: false,
+      nextProgress: 100,
+      nextWizardStep: 3,
+    },
+  );
+  assert.equal(
+    buildDivisionGenerationCompletionApplicationResult({
+      divisions,
+      advanceStep: false,
+      currentWizardStep: 2,
+    }).nextWizardStep,
+    null,
+  );
 });
 
 test('buildDivisionGenerationStartResult resets progress for start and cancel states', () => {

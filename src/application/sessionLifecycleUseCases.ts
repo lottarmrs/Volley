@@ -542,6 +542,23 @@ export function buildDivisionGenerationResult(input: {
   };
 }
 
+export function buildDivisionGenerationCompletionApplicationResult(input: {
+  divisions: Division[];
+  advanceStep: boolean;
+  currentWizardStep: number;
+}): Omit<ReturnType<typeof buildDivisionGenerationResult>, 'shouldAdvanceStep'> & {
+  nextWizardStep: number | null;
+} {
+  const result = buildDivisionGenerationResult(input);
+  return {
+    nextBestDivisions: result.nextBestDivisions,
+    nextSelectedDivisionIndex: result.nextSelectedDivisionIndex,
+    nextIsGenerating: result.nextIsGenerating,
+    nextProgress: result.nextProgress,
+    nextWizardStep: result.shouldAdvanceStep ? input.currentWizardStep + 1 : null,
+  };
+}
+
 export function buildDivisionGenerationStartResult(mode: 'start' | 'cancel'): {
   nextIsGenerating: boolean;
   nextProgress: number;

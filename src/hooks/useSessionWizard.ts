@@ -8,7 +8,7 @@ import {
   buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceResult,
-  buildDivisionGenerationResult,
+  buildDivisionGenerationCompletionApplicationResult,
   buildDivisionGenerationPlan,
   buildDivisionGenerationStartResult,
   buildDivisionWorkerMessageResult,
@@ -176,12 +176,16 @@ export function useSessionWizard({
     };
 
     const finish = (divisions: Division[]) => {
-      const result = buildDivisionGenerationResult({ divisions, advanceStep });
+      const result = buildDivisionGenerationCompletionApplicationResult({
+        divisions,
+        advanceStep,
+        currentWizardStep: wizardStep,
+      });
       setBestDivisions(result.nextBestDivisions);
       setSelectedDivisionIndex(result.nextSelectedDivisionIndex);
       setIsGenerating(result.nextIsGenerating);
       setProgress(result.nextProgress);
-      if (result.shouldAdvanceStep) nextStep();
+      if (result.nextWizardStep !== null) setWizardStep(result.nextWizardStep);
     };
     const runFallback = () => {
       const result = buildDivisionFallbackBalanceResult(plan);

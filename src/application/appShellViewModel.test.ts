@@ -8,6 +8,7 @@ import {
   getHistoryNavigationTarget,
   getHistorySessionNavigationTarget,
   getLiveSessionNavigationTarget,
+  getModuleNavigationItems,
   getModuleNavigationTarget,
   getPlayersNavigationTarget,
 } from './appShellViewModel';
@@ -100,4 +101,24 @@ test('specific shell navigation targets describe common routes', () => {
     activeModule: 'historico',
     selectedHistorySessionId: 'session-1',
   });
+});
+
+test('module navigation items expose staff-only management and pending sync badge', () => {
+  assert.deepEqual(
+    getModuleNavigationItems({ isStaff: false, pendingChanges: 3 }).map((item) => ({
+      id: item.id,
+      badge: item.badge,
+    })),
+    [
+      { id: 'dashboard', badge: undefined },
+      { id: 'torneios', badge: undefined },
+      { id: 'players', badge: undefined },
+      { id: 'ranking', badge: undefined },
+      { id: 'historico', badge: undefined },
+      { id: 'conta', badge: 3 },
+      { id: 'configuracoes', badge: undefined },
+    ],
+  );
+
+  assert.equal(getModuleNavigationItems({ isStaff: true, pendingChanges: 0 }).at(-1)?.id, 'gestao');
 });

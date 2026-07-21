@@ -24,6 +24,10 @@
       "@services/*": ["./src/services/*"],
       "@storage/*": ["./src/storage/*"],
       "@shared/types": ["./src/types.ts"],
+      "@shared/types/community": ["./src/shared/types/community.ts"],
+      "@shared/types/player": ["./src/shared/types/player.ts"],
+      "@shared/types/session": ["./src/shared/types/session.ts"],
+      "@shared/types/sync": ["./src/shared/types/sync.ts"],
       "@shared/types/*": ["./src/shared/types/*"],
       "@shared/constants": ["./src/constants.ts"],
       "@test/*": ["./src/test/*"]

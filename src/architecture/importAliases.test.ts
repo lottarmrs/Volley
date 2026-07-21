@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import type { AppResult } from '@app/appResult';
 import type { LocalSyncPayload } from '@infra/supabase/syncService';
 import type { Community, CommunityMember } from '@shared/types/community';
-import type { Session } from '@shared/types';
+import type { Player } from '@shared/types/player';
+import type { Session } from '@shared/types/session';
 
 test('architecture aliases resolve through TypeScript', () => {
   const result: AppResult<Session | null> = { ok: true, value: null, issues: [] };
@@ -35,4 +36,22 @@ test('community types live under shared type modules with barrel compatibility',
 
   assert.equal(member.communityId, community.id);
   assert.equal(existsSync('src/shared/types/community.ts'), true);
+});
+
+test('core product contracts live under domain-specific shared type modules', () => {
+  const player: Pick<Player, 'id' | 'nome' | 'apelido'> = {
+    id: 'player-1',
+    nome: 'Matheus',
+    apelido: 'Math',
+  };
+  const session: Pick<Session, 'id' | 'name' | 'selectedPlayerIds' | 'teamIds'> = {
+    id: 'session-1',
+    name: 'Treino',
+    selectedPlayerIds: [player.id],
+    teamIds: [],
+  };
+
+  assert.deepEqual(session.selectedPlayerIds, [player.id]);
+  assert.equal(existsSync('src/shared/types/player.ts'), true);
+  assert.equal(existsSync('src/shared/types/session.ts'), true);
 });

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   LayoutDashboard,
@@ -37,15 +37,6 @@ import { useToasts } from './hooks/useToasts';
 import { useCommunityPermissions } from './hooks/useCommunityPermissions';
 import { usePlayerLinkProposals } from './hooks/usePlayerLinkProposals';
 
-import { Dashboard } from './components/dashboard/Dashboard';
-import { PlayersView } from './components/player/PlayersView';
-import { PlayerEditView } from './components/player/PlayerEditView';
-import { SessionWizard } from './components/session/SessionWizard';
-import { SessionActiveView } from './components/live/SessionActiveView';
-import { HistoryView } from './components/history/HistoryView';
-import { CommunitiesView } from './components/community/CommunitiesView';
-import { AccountSyncView } from './components/account/AccountSyncView';
-import { GestaoView } from './components/admin/GestaoView';
 import { ToastViewport } from '@ui/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
@@ -88,9 +79,11 @@ import {
   getHistoryNavigationTarget,
   getHistorySessionNavigationTarget,
   getLiveSessionNavigationTarget,
+  getModuleNavigationItems,
   getModuleNavigationTarget,
   getPlayersNavigationTarget,
   type Module,
+  type ModuleNavigationItem,
   type Page,
   type ShellNavigationTarget,
 } from './application/appShellViewModel';
@@ -109,6 +102,44 @@ import { buildTournamentListViewModel } from './application/tournamentViewModel'
 import { buildVutRevealItems } from './application/vutRevealUseCases';
 import { getPlayerEditActionErrorMessage } from './application/playerEditActionUseCases';
 import { planStartupCloudDownload } from './application/cloudSyncStartupUseCases';
+
+const Dashboard = lazy(() =>
+  import('./components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
+);
+const PlayersView = lazy(() =>
+  import('./components/player/PlayersView').then((module) => ({ default: module.PlayersView })),
+);
+const PlayerEditView = lazy(() =>
+  import('./components/player/PlayerEditView').then((module) => ({
+    default: module.PlayerEditView,
+  })),
+);
+const SessionWizard = lazy(() =>
+  import('./components/session/SessionWizard').then((module) => ({
+    default: module.SessionWizard,
+  })),
+);
+const SessionActiveView = lazy(() =>
+  import('./components/live/SessionActiveView').then((module) => ({
+    default: module.SessionActiveView,
+  })),
+);
+const HistoryView = lazy(() =>
+  import('./components/history/HistoryView').then((module) => ({ default: module.HistoryView })),
+);
+const CommunitiesView = lazy(() =>
+  import('./components/community/CommunitiesView').then((module) => ({
+    default: module.CommunitiesView,
+  })),
+);
+const AccountSyncView = lazy(() =>
+  import('./components/account/AccountSyncView').then((module) => ({
+    default: module.AccountSyncView,
+  })),
+);
+const GestaoView = lazy(() =>
+  import('./components/admin/GestaoView').then((module) => ({ default: module.GestaoView })),
+);
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -1231,24 +1262,23 @@ export default function App() {
     );
   };
 
-  const navItems: Array<{ id: Module; label: string; icon: ReactNode; badge?: number }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'torneios', label: 'Torneios', icon: <Trophy className="w-5 h-5" /> },
-    { id: 'players', label: 'Jogadores', icon: <Users className="w-5 h-5" /> },
-    { id: 'ranking', label: 'Ranking', icon: <Medal className="w-5 h-5" /> },
-    { id: 'historico', label: 'Histórico', icon: <BarChart3 className="w-5 h-5" /> },
-    {
-      id: 'conta',
-      label: 'Nuvem & Conta',
-      icon: <Cloud className="w-5 h-5" />,
-      badge: pendingChanges,
-    },
-    { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" /> },
-    ...(auth.isStaff
-      ? [{ id: 'gestao' as Module, label: 'Gestão', icon: <ShieldCheck className="w-5 h-5" /> }]
-      : []),
-  ];
-
+  const navigationIconByKey: Record<ModuleNavigationItem['icon'], ReactNode> = {
+    dashboard: <LayoutDashboard className="w-5 h-5" />,
+    tournament: <Trophy className="w-5 h-5" />,
+    players: <Users className="w-5 h-5" />,
+    ranking: <Medal className="w-5 h-5" />,
+    history: <BarChart3 className="w-5 h-5" />,
+    cloud: <Cloud className="w-5 h-5" />,
+    settings: <Settings className="w-5 h-5" />,
+    admin: <ShieldCheck className="w-5 h-5" />,
+  };
+  const navItems = getModuleNavigationItems({
+    isStaff: auth.isStaff,
+    pendingChanges,
+  }).map((item) => ({
+    ...item,
+    icon: navigationIconByKey[item.icon],
+  }));
   return (
     <div className="drawer lg:drawer-open">
       <ToastViewport toasts={toasts.toasts} onDismiss={toasts.dismiss} />
@@ -1317,7 +1347,7 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.15 }}
             >
-              {renderActiveContent()}
+              <Suspense fallback={null}>{renderActiveContent()}</Suspense>
             </motion.div>
           </AnimatePresence>
         </main>

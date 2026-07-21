@@ -16,6 +16,8 @@ export default defineConfig({
       '@services': path.resolve(__dirname, 'src/services'),
       '@storage': path.resolve(__dirname, 'src/storage'),
       '@shared/types/community': path.resolve(__dirname, 'src/shared/types/community.ts'),
+      '@shared/types/player': path.resolve(__dirname, 'src/shared/types/player.ts'),
+      '@shared/types/session': path.resolve(__dirname, 'src/shared/types/session.ts'),
       '@shared/types/sync': path.resolve(__dirname, 'src/shared/types/sync.ts'),
       '@shared/types': path.resolve(__dirname, 'src/types.ts'),
       '@shared/types/': path.resolve(__dirname, 'src/shared/types') + '/',

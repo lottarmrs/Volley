@@ -17,6 +17,21 @@ export type Module =
   | 'conta'
   | 'gestao';
 
+export interface ModuleNavigationItem {
+  id: Module;
+  label: string;
+  icon:
+    | 'dashboard'
+    | 'tournament'
+    | 'players'
+    | 'ranking'
+    | 'history'
+    | 'cloud'
+    | 'settings'
+    | 'admin';
+  badge?: number;
+}
+
 export function getCurrentPageTitle(input: { page: Page; activeModule: Module }) {
   switch (input.activeModule) {
     case 'dashboard':
@@ -56,6 +71,32 @@ export function getAccountDisplay(input: {
     name,
     initials: initialsSource.slice(0, 2).toUpperCase(),
   };
+}
+
+export function getModuleNavigationItems(input: {
+  isStaff: boolean;
+  pendingChanges: number;
+}): ModuleNavigationItem[] {
+  const items: ModuleNavigationItem[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { id: 'torneios', label: 'Torneios', icon: 'tournament' },
+    { id: 'players', label: 'Jogadores', icon: 'players' },
+    { id: 'ranking', label: 'Ranking', icon: 'ranking' },
+    { id: 'historico', label: 'HistÃ³rico', icon: 'history' },
+    {
+      id: 'conta',
+      label: 'Nuvem & Conta',
+      icon: 'cloud',
+      badge: input.pendingChanges,
+    },
+    { id: 'configuracoes', label: 'ConfiguraÃ§Ãµes', icon: 'settings' },
+  ];
+
+  if (input.isStaff) {
+    items.push({ id: 'gestao', label: 'GestÃ£o', icon: 'admin' });
+  }
+
+  return items;
 }
 
 export function getModuleNavigationTarget(input: {

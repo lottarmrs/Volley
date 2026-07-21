@@ -9,9 +9,9 @@ import {
   buildDivisionConfirmationResult,
   buildDivisionConfirmationCompletionResult,
   buildDivisionFallbackBalanceResult,
+  buildDivisionGenerationCancelApplicationResult,
   buildDivisionGenerationCompletionApplicationResult,
   buildDivisionGenerationPlan,
-  buildDivisionGenerationStatusApplicationResult,
   buildDivisionWorkerFallbackApplicationResult,
   buildDivisionWorkerMessageResult,
   buildDivisionWorkerStartApplicationResult,
@@ -250,8 +250,9 @@ export function useSessionWizard({
   };
 
   const cancelGeneration = () => {
-    terminateWorker(workerRef.current);
-    applyGenerationStatusState(buildDivisionGenerationStatusApplicationResult('cancel'));
+    const result = buildDivisionGenerationCancelApplicationResult(workerRef.current);
+    terminateWorker(result.workerToTerminate);
+    applyGenerationStatusState(result.generationStatus);
   };
 
   const togglePlayerLock = (playerId: string, teamIdx: number) => {

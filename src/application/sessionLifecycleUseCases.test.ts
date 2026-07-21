@@ -8,6 +8,7 @@ import {
   buildDivisionFallbackBalanceResult,
   buildDivisionGenerationCompletionApplicationResult,
   buildDivisionGenerationPlan,
+  buildDivisionGenerationCancelApplicationResult,
   buildDivisionGenerationResult,
   buildDivisionGenerationStatusApplicationResult,
   buildDivisionGenerationStartResult,
@@ -711,6 +712,25 @@ test('buildDivisionGenerationStatusApplicationResult exposes status state for UI
   assert.deepEqual(buildDivisionGenerationStatusApplicationResult('cancel'), {
     nextIsGenerating: false,
     nextProgress: 0,
+  });
+});
+
+test('buildDivisionGenerationCancelApplicationResult terminates current worker and resets status', () => {
+  const worker = {};
+
+  assert.deepEqual(buildDivisionGenerationCancelApplicationResult(worker), {
+    workerToTerminate: worker,
+    generationStatus: {
+      nextIsGenerating: false,
+      nextProgress: 0,
+    },
+  });
+  assert.deepEqual(buildDivisionGenerationCancelApplicationResult(null), {
+    workerToTerminate: null,
+    generationStatus: {
+      nextIsGenerating: false,
+      nextProgress: 0,
+    },
   });
 });
 

@@ -589,6 +589,16 @@ export function buildDivisionGenerationStatusApplicationResult(
   return buildDivisionGenerationStartResult(mode);
 }
 
+export function buildDivisionGenerationCancelApplicationResult<TWorker>(worker: TWorker): {
+  workerToTerminate: TWorker;
+  generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
+} {
+  return {
+    workerToTerminate: worker,
+    generationStatus: buildDivisionGenerationStatusApplicationResult('cancel'),
+  };
+}
+
 export function buildDivisionWorkerStartApplicationResult(plan: DivisionGenerationPlan | null): {
   generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
   message: BalanceRequest;

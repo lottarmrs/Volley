@@ -19,8 +19,8 @@
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { Community, Player } from '../src/types';
-import { mapCommunityToDb } from '../src/services/supabase/communityCloudService';
-import { mapPlayerToDb } from '../src/services/supabase/playerCloudService';
+import { mapCommunityToDb } from '../src/infra/supabase/communityCloudService';
+import { mapPlayerToDb } from '../src/infra/supabase/playerCloudService';
 import { generateUsernames } from '../src/logic/username';
 
 interface Backup {

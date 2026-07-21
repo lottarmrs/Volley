@@ -11,6 +11,7 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
         '@app': path.resolve(__dirname, 'src/application'),
         '@domain': path.resolve(__dirname, 'src/domain'),
+        '@infra': path.resolve(__dirname, 'src/infra'),
         '@ui': path.resolve(__dirname, 'src/ui'),
         '@hooks': path.resolve(__dirname, 'src/hooks'),
         '@logic': path.resolve(__dirname, 'src/logic'),

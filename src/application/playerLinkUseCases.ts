@@ -4,8 +4,8 @@ import {
   linkPlayerToUser,
   supersedePendingProposalsForLink,
 } from '../domain/playerLink';
-import { playerCloudService } from '../services/supabase/playerCloudService';
-import { playerLinkProposalCloudService } from '../services/supabase/playerLinkProposalCloudService';
+import { playerCloudService } from '@infra/supabase/playerCloudService';
+import { playerLinkProposalCloudService } from '@infra/supabase/playerLinkProposalCloudService';
 import { appOk, productError, recoverableIssue } from './appResult';
 import type { AppResult } from './appResult';
 

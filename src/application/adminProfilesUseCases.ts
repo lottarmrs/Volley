@@ -1,5 +1,5 @@
 import type { AuthRole, UserProfile } from '../types';
-import { profilesAdminCloudService } from '../services/supabase/profilesAdminCloudService';
+import { profilesAdminCloudService } from '@infra/supabase/profilesAdminCloudService';
 import { appOk, productError, technicalError, type AppResult } from './appResult';
 
 export interface AdminProfilesGateway {

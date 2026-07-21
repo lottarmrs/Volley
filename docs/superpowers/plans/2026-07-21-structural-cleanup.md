@@ -170,7 +170,7 @@ git commit -m "refactor(ui): mover common para ui"
 - Consumes aliases from Task 1.
 - Produces canonical infrastructure import root: `@infra/supabase/...` after adding alias in the same task.
 
-- [ ] **Step 1: Add `@infra/*` alias test**
+- [x] **Step 1: Add `@infra/*` alias test**
 
 Extend `src/architecture/importAliases.test.ts`:
 
@@ -180,7 +180,7 @@ import type { LocalSyncPayload } from '@infra/supabase/syncService';
 
 Run `npm run lint`; expect missing alias.
 
-- [ ] **Step 2: Add alias and move files**
+- [x] **Step 2: Add alias and move files**
 
 Add:
 
@@ -190,14 +190,22 @@ Add:
 
 Move the Supabase folder and update imports from `../services/supabase/...` to `@infra/supabase/...`.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run full verification and commit:
 
 ```bash
-git add src/infra src/application src/hooks src/logic src/services tsconfig.json vite.config.ts
+git add src/infra src/application src/hooks scripts vitest.config.ts tsconfig.json vite.config.ts src/architecture/importAliases.test.ts
 git commit -m "refactor(infra): mover supabase para infra"
 ```
+
+Verified on 2026-07-21:
+
+- `npm run lint`
+- `npm run format:check`
+- `npm run test:unit` (394 passed)
+- `npm run test:ui` (51 passed)
+- `npm run build`
 
 ## Task 4: Split `src/types.ts` Only After Imports Are Stable
 

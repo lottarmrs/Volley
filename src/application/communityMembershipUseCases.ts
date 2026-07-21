@@ -1,9 +1,9 @@
 import type { AuthRole, CommunityMember, CommunityMemberRole } from '../types';
-import { membershipCloudService } from '../services/supabase/membershipCloudService';
+import { membershipCloudService } from '@infra/supabase/membershipCloudService';
 import {
   communityDiscoveryService,
   type PublicCommunityResult,
-} from '../services/supabase/communityDiscoveryService';
+} from '@infra/supabase/communityDiscoveryService';
 import { appOk, productError, recoverableIssue, technicalError } from './appResult';
 import type { AppResult } from './appResult';
 

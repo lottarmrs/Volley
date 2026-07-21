@@ -1,8 +1,5 @@
 import type { PlayerAvatarProposal } from '../types';
-import {
-  avatarStorageService,
-  type ProposeResult,
-} from '../services/supabase/avatarStorageService';
+import { avatarStorageService, type ProposeResult } from '@infra/supabase/avatarStorageService';
 import { appOk, productError, technicalError, type AppResult } from './appResult';
 
 export type AvatarApprovalQueueItem = PlayerAvatarProposal & { playerName: string };

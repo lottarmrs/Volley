@@ -1,10 +1,6 @@
-import {
-  syncService,
-  type LocalSyncPayload,
-  type SyncOptions,
-} from '../services/supabase/syncService';
+import { syncService, type LocalSyncPayload, type SyncOptions } from '@infra/supabase/syncService';
 
-export type { LocalSyncPayload } from '../services/supabase/syncService';
+export type { LocalSyncPayload } from '@infra/supabase/syncService';
 
 export interface CloudSyncGateway {
   uploadLocalDataToCloud(

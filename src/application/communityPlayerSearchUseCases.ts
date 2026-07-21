@@ -1,6 +1,6 @@
 import type { Player } from '../types';
-import { communityPlayerCloudService } from '../services/supabase/communityPlayerCloudService';
-import { playerCloudService } from '../services/supabase/playerCloudService';
+import { communityPlayerCloudService } from '@infra/supabase/communityPlayerCloudService';
+import { playerCloudService } from '@infra/supabase/playerCloudService';
 import { appOk, productError, technicalError, type AppResult } from './appResult';
 
 export type FoundCommunityPlayer = { cloudId: string; username: string; name: string };

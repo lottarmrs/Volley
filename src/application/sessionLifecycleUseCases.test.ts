@@ -35,6 +35,7 @@ import {
   buildTournamentStartResult,
   buildTournamentDivisionConfirmationResult,
   buildWizardCancelResult,
+  buildWizardCancelRequestResult,
   buildWizardCancelApplicationResult,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
@@ -586,6 +587,12 @@ test('buildWizardCancelResult clears draft state and returns to dashboard', () =
   assert.equal(result.nextSessionDraft, null);
   assert.equal(result.nextActiveSession, null);
   assert.equal(result.nextPage, 'dashboard');
+});
+
+test('buildWizardCancelRequestResult exposes confirmation copy', () => {
+  assert.deepEqual(buildWizardCancelRequestResult(), {
+    confirmationMessage: 'Deseja cancelar a criação da sessão? O progresso será perdido.',
+  });
 });
 
 test('buildWizardCancelApplicationResult applies cancel only after user confirmation', () => {

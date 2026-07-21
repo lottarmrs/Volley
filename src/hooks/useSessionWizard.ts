@@ -25,6 +25,7 @@ import {
   buildSessionPlayerToggleResult,
   buildSessionStepValidationResult,
   buildWizardCancelApplicationResult,
+  buildWizardCancelRequestResult,
   shouldClearDivisionWorkerReference,
 } from '../application/sessionLifecycleUseCases';
 
@@ -322,9 +323,8 @@ export function useSessionWizard({
   };
 
   const cancelWizard = () => {
-    const result = buildWizardCancelApplicationResult(
-      confirm('Deseja cancelar a criação da sessão? O progresso será perdido.'),
-    );
+    const request = buildWizardCancelRequestResult();
+    const result = buildWizardCancelApplicationResult(confirm(request.confirmationMessage));
     if (!result) return;
     if (result.shouldClearSessionDraft) clearSessionDraft();
     setActiveSession(result.nextActiveSession);

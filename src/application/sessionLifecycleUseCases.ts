@@ -439,6 +439,14 @@ export function buildWizardCancelResult(): {
   };
 }
 
+export function buildWizardCancelRequestResult(): {
+  confirmationMessage: string;
+} {
+  return {
+    confirmationMessage: 'Deseja cancelar a criação da sessão? O progresso será perdido.',
+  };
+}
+
 export function buildWizardCancelApplicationResult(
   isConfirmed: boolean,
 ): (ReturnType<typeof buildWizardCancelResult> & { shouldClearSessionDraft: true }) | null {

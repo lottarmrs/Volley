@@ -261,6 +261,7 @@ test('buildSessionLastSelectionApplicationResult applies valid selection and fla
   assert.equal(validResult.nextActiveSession?.updatedAt, '2026-07-20T13:00:00.000Z');
   assert.equal(validResult.shouldRemoveStoredSelection, false);
   assert.equal(validResult.shouldWarnInvalidSelection, false);
+  assert.deepEqual(validResult.storageRemovals, []);
 
   const invalidResult = buildSessionLastSelectionApplicationResult({
     activeSession,
@@ -271,6 +272,7 @@ test('buildSessionLastSelectionApplicationResult applies valid selection and fla
   assert.equal(invalidResult.nextActiveSession, null);
   assert.equal(invalidResult.shouldRemoveStoredSelection, true);
   assert.equal(invalidResult.shouldWarnInvalidSelection, true);
+  assert.deepEqual(invalidResult.storageRemovals, ['lastSelectedPlayerIds']);
 });
 
 test('buildSessionDraftResumeResult restores wizard state from draft', () => {

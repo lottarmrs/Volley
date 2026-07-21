@@ -141,16 +141,16 @@ export function useSessionWizard({
   const useLastSelection = () => {
     const result = buildSessionLastSelectionApplicationResult({
       activeSession,
-      rawSelection: localStorage.getItem('vpg_last_selected_player_ids'),
+      rawSelection: localStorage.getItem(STORAGE_KEYS.lastSelectedPlayerIds),
       now: new Date().toISOString(),
     });
     if (result.nextActiveSession) setActiveSession(result.nextActiveSession);
     if (result.shouldWarnInvalidSelection) {
       console.warn('Ignoring invalid last player selection from storage');
     }
-    if (result.shouldRemoveStoredSelection) {
-      localStorage.removeItem('vpg_last_selected_player_ids');
-    }
+    result.storageRemovals.forEach((target) => {
+      localStorage.removeItem(STORAGE_KEYS[target]);
+    });
   };
 
   const validateCurrentStep = () => {

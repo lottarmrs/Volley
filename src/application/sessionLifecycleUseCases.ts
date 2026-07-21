@@ -213,6 +213,7 @@ export function buildSessionLastSelectionApplicationResult(input: {
   nextActiveSession: Session | null;
   shouldRemoveStoredSelection: boolean;
   shouldWarnInvalidSelection: boolean;
+  storageRemovals: Array<'lastSelectedPlayerIds'>;
 } {
   const selection = buildSessionLastSelectionResult(input.rawSelection);
   const nextActiveSession = selection.patch
@@ -227,6 +228,7 @@ export function buildSessionLastSelectionApplicationResult(input: {
     nextActiveSession,
     shouldRemoveStoredSelection: selection.shouldRemoveStoredSelection,
     shouldWarnInvalidSelection: selection.shouldRemoveStoredSelection,
+    storageRemovals: selection.shouldRemoveStoredSelection ? ['lastSelectedPlayerIds'] : [],
   };
 }
 

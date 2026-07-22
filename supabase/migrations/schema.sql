@@ -49,6 +49,7 @@ create table public.players (
   forma_atual jsonb default '{}'::jsonb not null,
   status jsonb default '{}'::jsonb not null,
   notes text,
+  avatar_url text,
   username text constraint players_username_account_format_check check (
     username is null
     or (
@@ -78,11 +79,188 @@ create table public.community_players (
   community_id uuid not null references public.communities(id) on delete cascade,
   player_id uuid not null references public.players(id) on delete cascade,
   active boolean default true not null,
+  status text default 'active' not null check (status in ('active', 'inactive', 'banned')),
+  role text default 'player' not null check (role in ('owner', 'admin', 'player', 'guest')),
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
   joined_at timestamptz default now() not null,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
   unique (community_id, player_id)
 );
+
+create table public.community_members (
+  id uuid primary key default gen_random_uuid(),
+  community_id uuid not null references public.communities(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  role text not null default 'member'
+    check (role in ('owner', 'admin', 'moderator', 'member')),
+  status text not null default 'active'
+    check (status in ('active', 'pending', 'invited', 'rejected')),
+  created_by uuid references public.profiles(id) on delete set null,
+  invited_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  unique (community_id, user_id)
+);
+
+create index if not exists community_members_community_id_idx
+  on public.community_members (community_id);
+create index if not exists community_members_user_id_idx
+  on public.community_members (user_id);
+create index if not exists community_members_status_idx
+  on public.community_members (community_id, status);
+
+create or replace function public.is_superadmin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and role = 'master'
+  );
+$$;
+
+create or replace function public.is_app_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and role in ('master', 'programmer')
+  );
+$$;
+
+create or replace function public.current_user_can_access_player(target_player_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.is_app_staff()
+  or exists (
+    select 1
+    from public.players p
+    where p.id = target_player_id
+      and p.owner_id = (select auth.uid())
+  )
+  or exists (
+    select 1
+    from public.community_players cp
+    join public.community_members cm on cm.community_id = cp.community_id
+    where cp.player_id = target_player_id
+      and cp.active = true
+      and cm.user_id = (select auth.uid())
+      and cm.status = 'active'
+  );
+$$;
+
+create or replace function public.current_user_is_player_admin(target_player_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.is_superadmin()
+  or exists (
+    select 1
+    from public.players p
+    where p.id = target_player_id
+      and p.owner_id = (select auth.uid())
+  )
+  or exists (
+    select 1
+    from public.community_players cp
+    join public.community_members cm on cm.community_id = cp.community_id
+    where cp.player_id = target_player_id
+      and cp.active = true
+      and cm.user_id = (select auth.uid())
+      and cm.status = 'active'
+      and cm.role = any(array['owner', 'admin'])
+  );
+$$;
+
+revoke execute on function public.is_superadmin() from public, anon;
+revoke execute on function public.is_app_staff() from public, anon;
+revoke execute on function public.current_user_can_access_player(uuid) from public, anon;
+revoke execute on function public.current_user_is_player_admin(uuid) from public, anon;
+grant execute on function public.is_superadmin() to authenticated;
+grant execute on function public.is_app_staff() to authenticated;
+grant execute on function public.current_user_can_access_player(uuid) to authenticated;
+grant execute on function public.current_user_is_player_admin(uuid) to authenticated;
+
+create table public.player_link_proposals (
+  id uuid primary key default gen_random_uuid(),
+  player_id uuid not null references public.players(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected', 'superseded')),
+  reviewed_by uuid references auth.users(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists pending_link_proposal_idx
+  on public.player_link_proposals (player_id, user_id) where status = 'pending';
+create index if not exists player_link_proposals_player_id_idx
+  on public.player_link_proposals (player_id);
+create index if not exists player_link_proposals_user_id_idx
+  on public.player_link_proposals (user_id);
+create index if not exists player_link_proposals_status_idx
+  on public.player_link_proposals (status);
+
+create table public.player_evaluations (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete cascade,
+  attributes jsonb default '{}'::jsonb not null,
+  profile jsonb default '{}'::jsonb not null,
+  status jsonb default '{}'::jsonb not null,
+  notes text,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create unique index if not exists player_evaluations_owner_player_idx
+  on public.player_evaluations (owner_id, player_id);
+create index if not exists player_evaluations_player_id_idx
+  on public.player_evaluations (player_id);
+create index if not exists player_evaluations_updated_at_idx
+  on public.player_evaluations (updated_at);
+create index if not exists player_evaluations_deleted_at_idx
+  on public.player_evaluations (deleted_at);
+
+create table public.player_avatar_proposals (
+  id uuid primary key default gen_random_uuid(),
+  player_id uuid not null references public.players(id) on delete cascade,
+  proposed_by uuid not null references auth.users(id) on delete cascade,
+  image_url text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected', 'superseded')),
+  reviewed_by uuid references auth.users(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists player_avatar_proposals_player_status_idx
+  on public.player_avatar_proposals (player_id, status);
+create index if not exists player_avatar_proposals_pending_idx
+  on public.player_avatar_proposals (player_id) where status = 'pending';
 
 -- 5. Create Community Rules Table
 create table public.community_rules (
@@ -153,6 +331,10 @@ alter table public.profiles enable row level security;
 alter table public.communities enable row level security;
 alter table public.players enable row level security;
 alter table public.community_players enable row level security;
+alter table public.community_members enable row level security;
+alter table public.player_link_proposals enable row level security;
+alter table public.player_evaluations enable row level security;
+alter table public.player_avatar_proposals enable row level security;
 alter table public.community_rules enable row level security;
 alter table public.whatsapp_list_templates enable row level security;
 alter table public.modification_logs enable row level security;
@@ -200,6 +382,42 @@ create policy "Users can update own community players" on public.community_playe
   for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own community players" on public.community_players
   for delete to authenticated using (owner_id = (select auth.uid()));
+
+create policy "Users can read their own membership" on public.community_members
+  for select to authenticated using (user_id = (select auth.uid()));
+
+create policy "Users can read their own link proposals" on public.player_link_proposals
+  for select to authenticated using (user_id = (select auth.uid()));
+create policy "Admins can read proposals for their players" on public.player_link_proposals
+  for select to authenticated using (public.current_user_is_player_admin(player_id));
+create policy "Users can create their own link proposals" on public.player_link_proposals
+  for insert to authenticated with check (user_id = (select auth.uid()));
+
+create policy "Community members can read player evaluations" on public.player_evaluations
+  for select to authenticated using (
+    owner_id = (select auth.uid())
+    or public.current_user_can_access_player(player_id)
+  );
+create policy "Organizers can insert own player evaluations" on public.player_evaluations
+  for insert to authenticated with check (
+    owner_id = (select auth.uid())
+    and public.current_user_can_access_player(player_id)
+  );
+create policy "Organizers can update own player evaluations" on public.player_evaluations
+  for update to authenticated using (owner_id = (select auth.uid())) with check (
+    owner_id = (select auth.uid())
+    and public.current_user_can_access_player(player_id)
+  );
+create policy "Organizers can delete own player evaluations" on public.player_evaluations
+  for delete to authenticated using (owner_id = (select auth.uid()));
+
+create policy "Admins can read avatar proposals" on public.player_avatar_proposals
+  for select to authenticated using (public.current_user_is_player_admin(player_id));
+
+grant select, insert, update, delete on public.community_members to authenticated;
+grant select on public.player_link_proposals to authenticated;
+grant select, insert, update, delete on public.player_evaluations to authenticated;
+grant select on public.player_avatar_proposals to authenticated;
 
 -- Create Policies for Community Rules
 create policy "Users can read own community rules" on public.community_rules
@@ -537,3 +755,576 @@ create or replace trigger on_auth_user_created
 -- Revoke execution from PUBLIC, anon, and authenticated to secure SECURITY DEFINER trigger functions
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 revoke execute on function public.log_table_changes() from public, anon, authenticated;
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+revoke execute on function public.set_updated_at() from public, anon, authenticated;
+
+create trigger set_player_evaluations_updated_at
+  before update on public.player_evaluations
+  for each row execute function public.set_updated_at();
+
+create trigger audit_player_evaluations
+  after insert or update or delete on public.player_evaluations
+  for each row execute function public.log_table_changes();
+create table if not exists public.player_identity_claims (
+  id uuid primary key default gen_random_uuid(),
+  proposal_id uuid not null unique references public.player_link_proposals(id) on delete restrict,
+  idempotency_key uuid not null,
+  user_id uuid not null references auth.users(id) on delete restrict,
+  canonical_player_id uuid not null references public.players(id) on delete restrict,
+  legacy_player_id uuid not null references public.players(id) on delete restrict,
+  reviewed_by uuid not null references auth.users(id) on delete restrict,
+  status text not null check (status in ('approved', 'conflict')),
+  result jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz,
+  unique (idempotency_key),
+  unique (legacy_player_id),
+  check (canonical_player_id <> legacy_player_id)
+);
+
+create table if not exists public.player_identity_aliases (
+  legacy_player_id uuid primary key references public.players(id) on delete restrict,
+  legacy_local_id text,
+  canonical_player_id uuid not null references public.players(id) on delete restrict,
+  claim_id uuid not null unique references public.player_identity_claims(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  check (legacy_player_id <> canonical_player_id)
+);
+
+create index if not exists player_identity_claims_user_id_idx
+  on public.player_identity_claims (user_id);
+create index if not exists player_identity_claims_canonical_player_id_idx
+  on public.player_identity_claims (canonical_player_id);
+create index if not exists player_identity_aliases_canonical_player_id_idx
+  on public.player_identity_aliases (canonical_player_id);
+
+alter table public.player_identity_claims enable row level security;
+alter table public.player_identity_aliases enable row level security;
+
+drop policy if exists "Authorized users can read player identity claims"
+  on public.player_identity_claims;
+create policy "Authorized users can read player identity claims"
+  on public.player_identity_claims
+  for select to authenticated
+  using (
+    user_id = (select auth.uid())
+    or exists (
+      select 1
+      from public.players p
+      where p.id in (canonical_player_id, legacy_player_id)
+        and p.owner_id = (select auth.uid())
+    )
+    or public.current_user_can_access_player(canonical_player_id)
+    or public.current_user_can_access_player(legacy_player_id)
+  );
+
+drop policy if exists "Authorized users can read player identity aliases"
+  on public.player_identity_aliases;
+create policy "Authorized users can read player identity aliases"
+  on public.player_identity_aliases
+  for select to authenticated
+  using (
+    exists (
+      select 1
+      from public.players p
+      where p.id in (canonical_player_id, legacy_player_id)
+        and (
+          p.user_id = (select auth.uid())
+          or p.owner_id = (select auth.uid())
+        )
+    )
+    or public.current_user_can_access_player(canonical_player_id)
+    or public.current_user_can_access_player(legacy_player_id)
+  );
+
+revoke all on table public.player_identity_claims from public, anon, authenticated;
+revoke all on table public.player_identity_aliases from public, anon, authenticated;
+grant select on public.player_identity_claims to authenticated;
+grant select on public.player_identity_aliases to authenticated;
+
+create or replace function public.merge_player_identity_claim(
+  p_proposal_id uuid,
+  p_reviewer uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor uuid := (select auth.uid());
+  v_lock_player_id uuid;
+  v_lock_user_id uuid;
+  v_player_lock bigint;
+  v_user_lock bigint;
+  v_proposal public.player_link_proposals%rowtype;
+  v_legacy public.players%rowtype;
+  v_canonical public.players%rowtype;
+  v_existing_claim public.player_identity_claims%rowtype;
+  v_user_id uuid;
+  v_legacy_player_id uuid;
+  v_canonical_player_id uuid;
+  v_claim_id uuid := gen_random_uuid();
+  v_result jsonb;
+begin
+  if v_actor is null or v_actor is distinct from p_reviewer then
+    raise exception 'Reviewer must be the authenticated user' using errcode = '42501';
+  end if;
+
+  select player_id, user_id
+    into v_lock_player_id, v_lock_user_id
+    from public.player_link_proposals
+   where id = p_proposal_id;
+
+  if v_lock_player_id is null then
+    raise exception 'Proposal not found' using errcode = '22023';
+  end if;
+
+  -- Serialize claims that share either the legacy player or the account.
+  v_player_lock := hashtextextended('player:' || v_lock_player_id::text, 0);
+  v_user_lock := hashtextextended('user:' || v_lock_user_id::text, 0);
+  perform pg_advisory_xact_lock(least(v_player_lock, v_user_lock));
+  if v_player_lock <> v_user_lock then
+    perform pg_advisory_xact_lock(greatest(v_player_lock, v_user_lock));
+  end if;
+
+  select *
+    into v_proposal
+    from public.player_link_proposals
+   where id = p_proposal_id
+   for update;
+
+  if v_proposal.player_id is distinct from v_lock_player_id
+     or v_proposal.user_id is distinct from v_lock_user_id then
+    raise exception 'Proposal changed while claim was starting' using errcode = '40001';
+  end if;
+
+  v_user_id := v_proposal.user_id;
+  v_legacy_player_id := v_proposal.player_id;
+
+  select *
+    into v_legacy
+    from public.players
+   where id = v_legacy_player_id
+   for update;
+
+  if v_legacy.id is null then
+    raise exception 'Legacy player not found' using errcode = '22023';
+  end if;
+
+  select *
+    into v_canonical
+    from public.players
+   where user_id = v_user_id
+     and deleted_at is null
+   order by created_at, id
+   limit 1
+   for update;
+
+  if v_canonical.id is null then
+    raise exception 'Canonical account player not found' using errcode = '22023';
+  end if;
+
+  v_canonical_player_id := v_canonical.id;
+
+  if v_canonical_player_id = v_legacy_player_id then
+    raise exception 'Player is already the canonical account player' using errcode = '22023';
+  end if;
+
+  if v_proposal.status not in ('pending', 'approved') then
+    raise exception 'Proposal not pending or approved' using errcode = '22023';
+  end if;
+
+  select *
+    into v_existing_claim
+    from public.player_identity_claims
+   where proposal_id = v_proposal.id;
+
+  if v_existing_claim.id is not null then
+    if v_proposal.status <> 'approved'
+       or v_proposal.reviewed_by is distinct from p_reviewer then
+      raise exception 'Claim reviewer mismatch' using errcode = '42501';
+    end if;
+    return v_existing_claim.result;
+  end if;
+
+  if v_proposal.status <> 'pending' then
+    raise exception 'Approved proposal has no completed claim' using errcode = '23505';
+  end if;
+
+  if not public.current_user_is_player_admin(v_legacy_player_id) then
+    raise exception 'Only the athlete creator or community admins can approve a link proposal'
+      using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1
+      from public.player_identity_aliases
+     where legacy_player_id = v_legacy_player_id
+  ) or exists (
+    select 1
+      from public.player_identity_claims
+     where legacy_player_id = v_legacy_player_id
+  ) then
+    raise exception 'Player already claimed' using errcode = '23505';
+  end if;
+
+  perform 1
+    from public.community_players
+   where player_id in (v_canonical_player_id, v_legacy_player_id)
+   order by id
+   for update;
+  perform 1
+    from public.player_evaluations
+   where player_id in (v_canonical_player_id, v_legacy_player_id)
+   order by id
+   for update;
+  perform 1
+    from public.player_avatar_proposals
+   where player_id in (v_canonical_player_id, v_legacy_player_id)
+   order by id
+   for update;
+  perform 1
+    from public.player_link_proposals
+   where player_id = v_legacy_player_id
+      or user_id = v_user_id
+   order by id
+   for update;
+
+  -- Canonical identity fields are intentionally absent from this update.
+  update public.players as canonical
+     set nickname = case
+           when nullif(trim(canonical.nickname), '') is null then v_legacy.nickname
+           else canonical.nickname
+         end,
+         gender = coalesce(canonical.gender, v_legacy.gender),
+         height = coalesce(canonical.height, v_legacy.height),
+         dominant_hand = case
+           when nullif(trim(canonical.dominant_hand), '') is null then v_legacy.dominant_hand
+           else canonical.dominant_hand
+         end,
+         primary_position = case
+           when nullif(trim(canonical.primary_position), '') is null then v_legacy.primary_position
+           else canonical.primary_position
+         end,
+         secondary_positions = case
+           when coalesce(cardinality(canonical.secondary_positions), 0) = 0
+             then v_legacy.secondary_positions
+           else canonical.secondary_positions
+         end,
+         attributes = canonical.attributes || coalesce((
+           select jsonb_object_agg(entry.key, entry.value)
+             from jsonb_each(v_legacy.attributes) as entry
+            where not canonical.attributes ? entry.key
+         ), '{}'::jsonb),
+         profile = canonical.profile || coalesce((
+           select jsonb_object_agg(entry.key, entry.value)
+             from jsonb_each(v_legacy.profile) as entry
+            where not canonical.profile ? entry.key
+         ), '{}'::jsonb),
+         forma_atual = canonical.forma_atual || coalesce((
+           select jsonb_object_agg(entry.key, entry.value)
+             from jsonb_each(v_legacy.forma_atual) as entry
+            where not canonical.forma_atual ? entry.key
+         ), '{}'::jsonb),
+         status = canonical.status || coalesce((
+           select jsonb_object_agg(entry.key, entry.value)
+             from jsonb_each(v_legacy.status) as entry
+            where not canonical.status ? entry.key
+         ), '{}'::jsonb),
+         notes = case
+           when nullif(trim(canonical.notes), '') is null then v_legacy.notes
+           else canonical.notes
+         end,
+         avatar_url = case
+           when nullif(trim(canonical.avatar_url), '') is null then v_legacy.avatar_url
+           else canonical.avatar_url
+         end,
+         sync_version = greatest(canonical.sync_version, v_legacy.sync_version),
+         updated_at = now()
+   where canonical.id = v_canonical_player_id;
+
+  -- Membership unique (community_id, player_id): banned wins, then active.
+  insert into public.community_players as canonical (
+    owner_id,
+    community_id,
+    player_id,
+    active,
+    joined_at,
+    created_at,
+    updated_at,
+    status,
+    role,
+    sync_version,
+    deleted_at
+  )
+  select
+    legacy.owner_id,
+    legacy.community_id,
+    v_canonical_player_id,
+    legacy.active,
+    legacy.joined_at,
+    legacy.created_at,
+    legacy.updated_at,
+    legacy.status,
+    legacy.role,
+    legacy.sync_version,
+    legacy.deleted_at
+  from public.community_players as legacy
+  where legacy.player_id = v_legacy_player_id
+  on conflict (community_id, player_id) do update
+    set active = case
+          when canonical.status = 'banned' or excluded.status = 'banned' then false
+          when canonical.status = 'active' or excluded.status = 'active' then true
+          else false
+        end,
+        status = case
+          when canonical.status = 'banned' or excluded.status = 'banned' then 'banned'
+          when canonical.status = 'active' or excluded.status = 'active' then 'active'
+          else 'inactive'
+        end,
+        role = case
+          when canonical.role = 'player' then excluded.role
+          else canonical.role
+        end,
+        joined_at = least(canonical.joined_at, excluded.joined_at),
+        created_at = least(canonical.created_at, excluded.created_at),
+        updated_at = greatest(canonical.updated_at, excluded.updated_at),
+        sync_version = greatest(canonical.sync_version, excluded.sync_version),
+        deleted_at = case
+          when canonical.status <> 'banned'
+           and excluded.status <> 'banned'
+           and (canonical.status = 'active' or excluded.status = 'active') then null
+          else coalesce(canonical.deleted_at, excluded.deleted_at)
+        end;
+
+  delete from public.community_players
+   where player_id = v_legacy_player_id;
+
+  -- Evaluation unique (owner_id, player_id): newest updated_at wins, then id.
+  delete from public.player_evaluations as legacy
+  using public.player_evaluations as canonical
+   where legacy.player_id = v_legacy_player_id
+     and canonical.player_id = v_canonical_player_id
+     and canonical.owner_id = legacy.owner_id
+     and (
+       canonical.updated_at > legacy.updated_at
+       or (canonical.updated_at = legacy.updated_at and canonical.id < legacy.id)
+     );
+
+  delete from public.player_evaluations as canonical
+  using public.player_evaluations as legacy
+   where canonical.player_id = v_canonical_player_id
+     and legacy.player_id = v_legacy_player_id
+     and canonical.owner_id = legacy.owner_id
+     and (
+       legacy.updated_at > canonical.updated_at
+       or (legacy.updated_at = canonical.updated_at and legacy.id < canonical.id)
+     );
+
+  update public.player_evaluations
+     set player_id = v_canonical_player_id
+   where player_id = v_legacy_player_id;
+
+  -- Keep one deterministic pending avatar proposal across both identities.
+  with ranked_pending as (
+    select
+      proposal.id,
+      row_number() over (
+        order by proposal.created_at desc, proposal.id desc
+      ) as pending_rank
+    from public.player_avatar_proposals as proposal
+    where proposal.player_id in (v_canonical_player_id, v_legacy_player_id)
+      and proposal.status = 'pending'
+  )
+  update public.player_avatar_proposals as proposal
+     set status = 'superseded'
+    from ranked_pending as ranked
+   where proposal.id = ranked.id
+     and ranked.pending_rank > 1;
+
+  update public.player_avatar_proposals
+     set player_id = v_canonical_player_id
+   where player_id = v_legacy_player_id;
+
+  update public.player_link_proposals
+     set status = 'approved',
+         reviewed_by = p_reviewer,
+         reviewed_at = now()
+   where id = v_proposal.id;
+
+  update public.player_link_proposals
+     set status = 'superseded',
+         reviewed_by = p_reviewer,
+         reviewed_at = now()
+   where (player_id = v_legacy_player_id or user_id = v_user_id)
+     and status = 'pending'
+     and id <> v_proposal.id;
+
+  v_result := jsonb_build_object(
+    'claim_id', v_claim_id,
+    'canonical_player_id', v_canonical_player_id,
+    'legacy_player_id', v_legacy_player_id,
+    'legacy_local_id', v_legacy.local_id
+  );
+
+  insert into public.player_identity_claims (
+    id,
+    proposal_id,
+    idempotency_key,
+    user_id,
+    canonical_player_id,
+    legacy_player_id,
+    reviewed_by,
+    status,
+    result,
+    completed_at
+  )
+  values (
+    v_claim_id,
+    v_proposal.id,
+    v_proposal.id,
+    v_user_id,
+    v_canonical_player_id,
+    v_legacy_player_id,
+    p_reviewer,
+    'approved',
+    v_result,
+    now()
+  );
+
+  insert into public.player_identity_aliases (
+    legacy_player_id,
+    legacy_local_id,
+    canonical_player_id,
+    claim_id
+  )
+  values (
+    v_legacy_player_id,
+    v_legacy.local_id,
+    v_canonical_player_id,
+    v_claim_id
+  );
+
+  perform set_config('app.allow_user_link_promotion', 'on', true);
+  update public.players
+     set username = null,
+         user_id = null,
+         active = false,
+         deleted_at = coalesce(deleted_at, now()),
+         updated_at = now()
+   where id = v_legacy_player_id;
+
+  return v_result;
+end;
+$$;
+
+revoke execute on function public.merge_player_identity_claim(uuid, uuid) from public, anon, authenticated;
+
+create or replace function public.propose_player_link(
+  p_player_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_owner_id uuid;
+  v_proposal uuid;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  select owner_id
+    into v_owner_id
+    from public.players
+   where id = p_player_id
+     and deleted_at is null;
+
+  if v_owner_id is null then
+    raise exception 'Athlete not found' using errcode = '22023';
+  end if;
+
+  insert into public.player_link_proposals (player_id, user_id, status)
+  values (p_player_id, v_uid, 'pending')
+  on conflict (player_id, user_id) where status = 'pending'
+  do update set created_at = public.player_link_proposals.created_at
+  returning id into v_proposal;
+
+  if v_owner_id = v_uid then
+    perform public.merge_player_identity_claim(v_proposal, v_uid);
+  end if;
+
+  return v_proposal;
+end;
+$$;
+
+revoke execute on function public.propose_player_link(uuid) from public, anon;
+grant execute on function public.propose_player_link(uuid) to authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.approve_player_link(uuid)') is not null then
+    execute 'revoke execute on function public.approve_player_link(uuid) from public, anon, authenticated';
+  end if;
+end;
+$$;
+drop function if exists public.approve_player_link(uuid);
+
+create or replace function public.approve_player_link(
+  p_proposal_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_player_id uuid;
+  v_status text;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  select player_id, status
+    into v_player_id, v_status
+    from public.player_link_proposals
+   where id = p_proposal_id;
+
+  if v_player_id is null or v_status not in ('pending', 'approved') then
+    raise exception 'Proposal not found or not claimable' using errcode = '22023';
+  end if;
+
+  if not public.current_user_is_player_admin(v_player_id)
+     and not exists (
+       select 1
+         from public.player_identity_claims
+        where proposal_id = p_proposal_id
+          and reviewed_by = v_uid
+     ) then
+    raise exception 'Only the athlete creator or community admins can approve a link proposal'
+      using errcode = '42501';
+  end if;
+
+  return public.merge_player_identity_claim(p_proposal_id, v_uid);
+end;
+$$;
+
+revoke execute on function public.approve_player_link(uuid) from public, anon;
+grant execute on function public.approve_player_link(uuid) to authenticated;

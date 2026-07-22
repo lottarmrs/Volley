@@ -343,6 +343,137 @@ test('membership cloud service uses RPCs for sensitive member role mutations', (
   );
 });
 
+test('account claim keeps canonical identity and records an immutable alias', () => {
+  for (const dependency of [
+    'player_link_proposals',
+    'player_evaluations',
+    'player_avatar_proposals',
+  ]) {
+    assert.match(
+      baseSchema,
+      new RegExp(`create table(?: if not exists)? public\\.${dependency}`, 'i'),
+      `consolidated schema is missing ${dependency}`,
+    );
+  }
+
+  assert.match(
+    accountIdentityMigration,
+    /create table if not exists public\.player_identity_claims/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /create table if not exists public\.player_identity_aliases/i,
+  );
+  assert.match(accountIdentityMigration, /unique\s*\(legacy_player_id\)/i);
+  assert.match(accountIdentityMigration, /unique\s*\(idempotency_key\)/i);
+  assert.match(accountIdentityMigration, /canonical_player_id[\s\S]*legacy_player_id/i);
+  assert.match(
+    accountIdentityMigration,
+    /jsonb_build_object\([\s\S]*canonical_player_id/i,
+  );
+
+  const mergeFunction = accountIdentityMigration.match(
+    /create or replace function public\.merge_player_identity_claim\([\s\S]*?\$\$;/i,
+  )?.[0];
+  assert.ok(mergeFunction, 'missing internal claim merge helper');
+  assert.match(mergeFunction, /security definer[\s\S]*set search_path = public/i);
+  assert.match(mergeFunction, /auth\.uid\(\)[\s\S]*p_reviewer/i);
+  assert.match(mergeFunction, /idempotency_key[\s\S]*v_proposal\.id/i);
+  assert.doesNotMatch(mergeFunction, /raw_user_meta_data|user_metadata|auth\.jwt/i);
+  assert.match(
+    accountIdentityMigration,
+    /revoke execute on function public\.merge_player_identity_claim\(uuid, uuid\) from public, anon, authenticated;/i,
+  );
+  assert.doesNotMatch(
+    accountIdentityMigration,
+    /grant execute on function public\.merge_player_identity_claim/i,
+  );
+});
+
+test('approved legacy links merge into the existing account player', () => {
+  assert.match(
+    accountIdentityMigration,
+    /create or replace function public\.merge_player_identity_claim/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /where user_id = v_user_id[\s\S]*for update/i,
+  );
+  assert.doesNotMatch(
+    accountIdentityMigration,
+    /update public\.players\s+set user_id = v_user_id\s+where id = v_legacy_player_id/i,
+  );
+  assert.match(accountIdentityMigration, /insert into public\.player_identity_aliases/i);
+  assert.match(
+    accountIdentityMigration,
+    /set username = null,\s*user_id = null,[\s\S]*deleted_at = coalesce\(deleted_at, now\(\)\)/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /perform set_config\('app\.allow_user_link_promotion', 'on', true\);/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /drop function if exists public\.approve_player_link\(uuid\)[\s\S]*create or replace function public\.approve_player_link\([\s\S]*returns jsonb/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /create or replace function public\.propose_player_link\([\s\S]*returns uuid[\s\S]*merge_player_identity_claim/i,
+  );
+});
+
+test('claim migrates relational references before archiving the legacy player', () => {
+  for (const relation of [
+    'community_players',
+    'player_evaluations',
+    'player_avatar_proposals',
+  ]) {
+    assert.match(
+      accountIdentityMigration,
+      new RegExp(`public\\.${relation}[\\s\\S]*canonical`, 'i'),
+      `missing explicit ${relation} merge policy`,
+    );
+  }
+
+  assert.match(
+    accountIdentityMigration,
+    /on conflict \(community_id, player_id\)[\s\S]*do update/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /deleted_at = case\s+when canonical\.status <> 'banned'\s+and excluded\.status <> 'banned'[\s\S]*then null/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /player_evaluations[\s\S]*updated_at[\s\S]*id[\s\S]*player_id = v_canonical_player_id/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /row_number\(\) over[\s\S]*player_avatar_proposals[\s\S]*status = 'superseded'/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /status = 'superseded'[\s\S]*player_link_proposals/i,
+  );
+
+  const mergeFunction = accountIdentityMigration.match(
+    /create or replace function public\.merge_player_identity_claim\([\s\S]*?\$\$;/i,
+  )?.[0];
+  assert.ok(mergeFunction, 'missing internal claim merge helper');
+
+  const archivePosition = mergeFunction.indexOf('set username = null');
+  assert.ok(archivePosition >= 0, 'missing legacy player archive');
+  for (const relation of [
+    'insert into public.community_players',
+    'delete from public.player_evaluations',
+    'update public.player_avatar_proposals',
+  ]) {
+    const mergePosition = mergeFunction.indexOf(relation);
+    assert.ok(mergePosition >= 0, `missing ${relation}`);
+    assert.ok(mergePosition < archivePosition, `${relation} must happen before legacy archive`);
+  }
+});
+
 test('account identity migration creates one canonical player per account', () => {
   assert.match(
     accountIdentityMigration,

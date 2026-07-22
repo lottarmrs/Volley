@@ -871,6 +871,59 @@ test('all claim reference writers reject archived or aliased players', () => {
   assert.ok(aliasPosition >= 0 && aliasPosition < archivePosition);
 });
 
+test('link proposal guard narrowly permits workflow updates after deterministic cleanup', () => {
+  for (const artifact of [accountIdentityMigration, baseSchema]) {
+    const guard = extractSqlFunction(artifact, 'guard_active_player_reference');
+    const workflowBypass = guard.match(
+      /if tg_table_name = 'player_link_proposals'[\s\S]*?return new;[\s\S]*?end if;/i,
+    )?.[0];
+    assert.ok(workflowBypass, 'missing link proposal workflow bypass');
+    assert.match(workflowBypass, /tg_op = 'UPDATE'/i);
+    assert.match(workflowBypass, /new\.player_id is not distinct from old\.player_id/i);
+    assert.match(
+      workflowBypass,
+      /to_jsonb\(new\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
+    );
+    assert.match(
+      workflowBypass,
+      /to_jsonb\(old\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
+    );
+    assert.doesNotMatch(workflowBypass, /user_id|created_at|\bid\b/i);
+
+    const cleanup = artifact.match(
+      /update public\.player_link_proposals as proposal\s+set status = 'superseded'[\s\S]*?;/i,
+    )?.[0];
+    assert.ok(cleanup, 'missing invalid pending proposal cleanup');
+    assert.match(cleanup, /proposal\.status = 'pending'/i);
+    assert.match(cleanup, /player\.deleted_at is not null/i);
+    assert.match(cleanup, /public\.player_identity_aliases[\s\S]*legacy_player_id = proposal\.player_id/i);
+    assert.match(cleanup, /set status = 'superseded'\s+where/i);
+
+    const cleanupPosition = artifact.indexOf(cleanup);
+    const guardPosition = artifact.indexOf(
+      'create or replace function public.guard_active_player_reference()',
+    );
+    const proposalTriggerPosition = artifact.indexOf(
+      'create trigger trg_guard_active_player_reference',
+      guardPosition,
+    );
+    assert.ok(cleanupPosition >= 0 && cleanupPosition < guardPosition);
+    assert.ok(guardPosition >= 0 && guardPosition < proposalTriggerPosition);
+  }
+
+  const merge = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
+  const approve = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
+  assert.match(merge, /set status = 'approved',[\s\S]*reviewed_by[\s\S]*reviewed_at/i);
+  assert.match(merge, /set status = 'superseded',[\s\S]*reviewed_by[\s\S]*reviewed_at/i);
+  assert.match(approve, /return public\.merge_player_identity_claim/i);
+  for (const functionName of ['reject_player_link', 'cancel_my_link_proposal']) {
+    assert.match(
+      extractSqlFunction(accountIdentityMigration, functionName),
+      /set status = 'rejected',[\s\S]*reviewed_by[\s\S]*reviewed_at/i,
+    );
+  }
+});
+
 test('canonical account players cannot be deleted while pure legacy players can', () => {
   for (const artifact of [accountIdentityMigration, baseSchema]) {
     const guard = extractSqlFunction(artifact, 'guard_player_account_identity_delete');

@@ -509,6 +509,23 @@ create policy "App staff can read link proposals"
   for select to authenticated
   using (public.is_app_staff());
 
+update public.player_link_proposals as proposal
+   set status = 'superseded'
+ where proposal.status = 'pending'
+   and (
+     exists (
+       select 1
+         from public.players as player
+        where player.id = proposal.player_id
+          and player.deleted_at is not null
+     )
+     or exists (
+       select 1
+         from public.player_identity_aliases as alias
+        where alias.legacy_player_id = proposal.player_id
+     )
+   );
+
 create or replace function public.guard_active_player_reference()
 returns trigger
 language plpgsql
@@ -519,6 +536,14 @@ declare
   v_deleted_at timestamptz;
   v_has_alias boolean;
 begin
+  if tg_table_name = 'player_link_proposals'
+     and tg_op = 'UPDATE'
+     and new.player_id is not distinct from old.player_id
+     and to_jsonb(new) - array['status', 'reviewed_by', 'reviewed_at', 'updated_at']
+       = to_jsonb(old) - array['status', 'reviewed_by', 'reviewed_at', 'updated_at'] then
+    return new;
+  end if;
+
   select deleted_at
     into v_deleted_at
     from public.players

@@ -1185,6 +1185,55 @@ test('uploadLocalDataToCloud repairs legacy unlink intent without rpc or clearin
   }
 });
 
+test('syncNow restores cloud user id while repairing a newer legacy unlink intent', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUnlink = playerLinkProposalCloudService.unlink;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const unlinkCalls: string[] = [];
+
+  try {
+    syncService.downloadCloudDataToLocal = async () =>
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            cloudOwnerId: 'other-owner',
+            userId: 'account-user',
+            updatedAt: '2026-07-01T00:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      });
+    playerLinkProposalCloudService.unlink = async (playerId: string) => {
+      unlinkCalls.push(playerId);
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => undefined;
+
+    const result = await syncService.syncNow(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            cloudOwnerId: 'other-owner',
+            userId: undefined,
+            pendingUserLinkAction: 'unlink',
+            updatedAt: '2026-07-02T00:00:00.000Z',
+            syncStatus: 'pending',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(unlinkCalls, []);
+    assert.equal(result.players[0].userId, 'account-user');
+    assert.equal(result.players[0].pendingUserLinkAction, undefined);
+    assert.equal(result.players[0].updatedAt, '2026-07-02T00:00:00.000Z');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    playerLinkProposalCloudService.unlink = originalUnlink;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
 test('syncNow accepts newer cloud player link reviews over stale local pending state', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpload = syncService.uploadLocalDataToCloud;

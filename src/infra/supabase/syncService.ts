@@ -679,10 +679,23 @@ function shouldSkipOwnerAutoApprovedProposal(
   );
 }
 
-function repairLegacyPlayerUnlinkIntent(player: Player): Player {
-  return player.pendingUserLinkAction === 'unlink'
-    ? { ...player, pendingUserLinkAction: undefined }
-    : player;
+function findCorrespondingCloudPlayer(player: Player, cloudPlayers: Player[]): Player | undefined {
+  const playerIds = new Set(
+    [player.id, player.cloudId].map(normalizeIdValue).filter((id) => id.length > 0),
+  );
+
+  return cloudPlayers.find((cloudPlayer) =>
+    [cloudPlayer.id, cloudPlayer.cloudId]
+      .map(normalizeIdValue)
+      .some((id) => id.length > 0 && playerIds.has(id)),
+  );
+}
+
+function repairLegacyPlayerUnlinkIntent(player: Player, cloudPlayer?: Player): Player {
+  if (player.pendingUserLinkAction !== 'unlink') return player;
+
+  const repaired = { ...player, pendingUserLinkAction: undefined };
+  return cloudPlayer?.userId !== undefined ? { ...repaired, userId: cloudPlayer.userId } : repaired;
 }
 
 class PlayerLinkProposalReplayError extends Error {
@@ -1575,13 +1588,19 @@ export const syncService = {
   ): Promise<LocalSyncPayload> {
     const repairedLocal = consolidateDuplicateRecords(local, { ownerId }).payload;
     const cloud = await this.downloadCloudDataToLocal(ownerId);
+    const playersForMerge = repairedLocal.players.map((player) =>
+      repairLegacyPlayerUnlinkIntent(
+        player,
+        findCorrespondingCloudPlayer(player, cloud.players),
+      ),
+    );
 
     const merged: LocalSyncPayload = {
       communities: mergeEntityLists<Community>(repairedLocal.communities, cloud.communities, {
         getId: (item) => item.id,
         getSemanticKey: (community) => communitySemanticKey(community),
       }),
-      players: mergeEntityLists<Player>(repairedLocal.players, cloud.players, {
+      players: mergeEntityLists<Player>(playersForMerge, cloud.players, {
         getId: (item) => item.id,
         getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
         getSemanticKey: (player) => playerSemanticKey(player),

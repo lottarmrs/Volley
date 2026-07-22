@@ -880,6 +880,11 @@ test('link proposal guard narrowly permits workflow updates after deterministic 
     assert.ok(workflowBypass, 'missing link proposal workflow bypass');
     assert.match(workflowBypass, /tg_op = 'UPDATE'/i);
     assert.match(workflowBypass, /new\.player_id is not distinct from old\.player_id/i);
+    assert.match(workflowBypass, /old\.status = 'pending'/i);
+    assert.match(
+      workflowBypass,
+      /new\.status in \('approved', 'rejected', 'superseded'\)/i,
+    );
     assert.match(
       workflowBypass,
       /to_jsonb\(new\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
@@ -889,6 +894,22 @@ test('link proposal guard narrowly permits workflow updates after deterministic 
       /to_jsonb\(old\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
     );
     assert.doesNotMatch(workflowBypass, /user_id|created_at|\bid\b/i);
+
+    const requiredOldStatus = workflowBypass.match(/old\.status = '([^']+)'/i)?.[1];
+    const allowedNewStatuses = workflowBypass
+      .match(/new\.status in \(([^)]+)\)/i)?.[1]
+      .split(',')
+      .map((status) => status.trim().replaceAll("'", ''));
+    assert.ok(requiredOldStatus && allowedNewStatuses);
+    const bypassesTransition = (oldStatus: string, newStatus: string) =>
+      oldStatus === requiredOldStatus && allowedNewStatuses.includes(newStatus);
+    assert.equal(bypassesTransition('pending', 'approved'), true);
+    assert.equal(bypassesTransition('pending', 'rejected'), true);
+    assert.equal(bypassesTransition('pending', 'superseded'), true);
+    assert.equal(bypassesTransition('pending', 'pending'), false);
+    assert.equal(bypassesTransition('approved', 'pending'), false);
+    assert.equal(bypassesTransition('approved', 'rejected'), false);
+    assert.equal(bypassesTransition('rejected', 'superseded'), false);
 
     const cleanup = artifact.match(
       /update public\.player_link_proposals as proposal\s+set status = 'superseded'[\s\S]*?;/i,

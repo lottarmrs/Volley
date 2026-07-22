@@ -539,6 +539,8 @@ begin
   if tg_table_name = 'player_link_proposals'
      and tg_op = 'UPDATE'
      and new.player_id is not distinct from old.player_id
+     and old.status = 'pending'
+     and new.status in ('approved', 'rejected', 'superseded')
      and to_jsonb(new) - array['status', 'reviewed_by', 'reviewed_at', 'updated_at']
        = to_jsonb(old) - array['status', 'reviewed_by', 'reviewed_at', 'updated_at'] then
     return new;

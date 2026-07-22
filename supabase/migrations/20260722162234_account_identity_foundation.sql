@@ -32,7 +32,8 @@ alter table public.players
     )
   ) not valid;
 
-with normalized_usernames as (
+-- Username remediation phase 1: clear invalid values and normalized duplicates.
+with username_candidates as (
   select
     id,
     public.normalize_account_username(username) as normalized_username,
@@ -44,15 +45,29 @@ with normalized_usernames as (
   where username is not null
 )
 update public.players as p
-   set username = case
-         when n.normalized_username ~ '^[a-z0-9][a-z0-9_-]{2,29}$'
-          and n.username_rank = 1
-         then n.normalized_username
-         else null
-       end,
+   set username = null,
        updated_at = now()
-  from normalized_usernames as n
- where p.id = n.id;
+  from username_candidates as c
+ where p.id = c.id
+   and (
+     c.normalized_username !~ '^[a-z0-9][a-z0-9_-]{2,29}$'
+     or c.username_rank > 1
+   );
+
+-- Username remediation phase 2: normalize only the surviving winners.
+with username_winners as (
+  select
+    id,
+    public.normalize_account_username(username) as normalized_username
+  from public.players
+  where username is not null
+)
+update public.players as p
+   set username = w.normalized_username,
+       updated_at = now()
+  from username_winners as w
+ where p.id = w.id
+   and p.username is distinct from w.normalized_username;
 
 alter table public.players
   validate constraint players_username_account_format_check;

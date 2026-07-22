@@ -323,6 +323,28 @@ create trigger audit_whatsapp_list_templates
   after insert or update or delete on public.whatsapp_list_templates
   for each row execute function public.log_table_changes();
 
+create or replace function public.guard_player_user_id()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.user_id is distinct from old.user_id
+     and coalesce(current_setting('app.allow_user_link_promotion', true), '') <> 'on'
+     and not (new.deleted_at is not null and old.deleted_at is null) then
+    raise exception 'user_id can only be changed through the player link approval flow'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_guard_player_user_id
+  before update on public.players
+  for each row execute function public.guard_player_user_id();
+
+revoke execute on function public.guard_player_user_id() from public, anon, authenticated;
+
 create or replace function public.normalize_account_username(value text)
 returns text
 language sql

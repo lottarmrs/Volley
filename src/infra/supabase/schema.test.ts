@@ -325,17 +325,49 @@ test('account usernames use the exact format and a validated table invariant', (
     accountIdentityMigration,
     /add constraint players_username_account_format_check[\s\S]*check \(\s*username is null\s*or \(\s*username = lower\(username\)[\s\S]*username ~ '\^\[a-z0-9\]\[a-z0-9_-\]\{2,29\}\$'[\s\S]*\)\s*\) not valid/i,
   );
-  assert.match(
-    accountIdentityMigration,
-    /public\.normalize_account_username\(username\) as normalized_username[\s\S]*set username = case[\s\S]*else null[\s\S]*end/i,
-  );
-
-  const remediationPosition = accountIdentityMigration.indexOf('set username = case');
   const validationPosition = accountIdentityMigration.indexOf(
     'validate constraint players_username_account_format_check',
   );
-  assert.ok(remediationPosition >= 0, 'missing deterministic username remediation');
-  assert.ok(validationPosition > remediationPosition, 'username constraint validated before remediation');
+  assert.ok(validationPosition >= 0, 'missing username constraint validation');
+});
+
+test('username remediation clears trim collisions before normalizing winners', () => {
+  const clearPhase = accountIdentityMigration.match(
+    /-- Username remediation phase 1: clear invalid values and normalized duplicates\.[\s\S]*?;/i,
+  )?.[0];
+  const normalizePhase = accountIdentityMigration.match(
+    /-- Username remediation phase 2: normalize only the surviving winners\.[\s\S]*?;/i,
+  )?.[0];
+
+  assert.ok(clearPhase, 'missing collision-safe username clear phase');
+  assert.match(
+    clearPhase,
+    /partition by public\.normalize_account_username\(username\)[\s\S]*order by created_at, id/i,
+  );
+  assert.match(clearPhase, /set username = null/i);
+  assert.match(clearPhase, /normalized_username !~ '\^\[a-z0-9\]\[a-z0-9_-\]\{2,29\}\$'/i);
+  assert.match(clearPhase, /username_rank > 1/i);
+  assert.doesNotMatch(clearPhase, /set username = [a-z]+\.normalized_username/i);
+
+  assert.ok(normalizePhase, 'missing winner-only username normalization phase');
+  assert.match(normalizePhase, /set username = w\.normalized_username/i);
+  assert.match(normalizePhase, /where username is not null/i);
+  assert.match(normalizePhase, /username is distinct from w\.normalized_username/i);
+
+  const indexPosition = accountIdentityMigration.indexOf('players_username_lower_idx');
+  const clearPosition = accountIdentityMigration.indexOf('-- Username remediation phase 1');
+  const normalizePosition = accountIdentityMigration.indexOf('-- Username remediation phase 2');
+  const validationPosition = accountIdentityMigration.indexOf(
+    'validate constraint players_username_account_format_check',
+  );
+
+  assert.ok(indexPosition >= 0 && indexPosition < clearPosition, 'case-insensitive index not active');
+  assert.ok(clearPosition < normalizePosition, 'winner normalized before duplicate is cleared');
+  assert.ok(normalizePosition < validationPosition, 'constraint validated before both phases');
+  assert.doesNotMatch(
+    accountIdentityMigration.slice(indexPosition, normalizePosition),
+    /drop index[^;]*players_username_lower_idx/i,
+  );
 });
 
 test('player insert policy blocks attacker-owned rows linked to a victim account', () => {
@@ -410,5 +442,30 @@ test('consolidated schema mirrors hardened account identity invariants', () => {
   assert.match(
     baseSchema,
     /values \(new\.id, new\.id, v_name, null\)[\s\S]*when unique_violation then\s+null;/i,
+  );
+});
+
+test('consolidated schema guards direct player user_id updates', () => {
+  const guardFunction = baseSchema.match(
+    /create or replace function public\.guard_player_user_id\(\)[\s\S]*?\$\$;/i,
+  )?.[0];
+
+  assert.ok(guardFunction, 'missing players.user_id guard function');
+  assert.match(guardFunction, /set search_path = public/i);
+  assert.match(guardFunction, /new\.user_id is distinct from old\.user_id/i);
+  assert.match(
+    guardFunction,
+    /current_setting\('app\.allow_user_link_promotion', true\)[\s\S]*<> 'on'/i,
+  );
+  assert.match(guardFunction, /raise exception 'user_id can only be changed/i);
+  assert.match(guardFunction, /errcode = '42501'/i);
+
+  assert.match(
+    baseSchema,
+    /create trigger trg_guard_player_user_id\s+before update on public\.players\s+for each row execute function public\.guard_player_user_id\(\);/i,
+  );
+  assert.match(
+    baseSchema,
+    /revoke execute on function public\.guard_player_user_id\(\) from public, anon, authenticated;/i,
   );
 });

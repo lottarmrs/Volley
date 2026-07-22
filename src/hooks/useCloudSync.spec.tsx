@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSyncIssueLedger, recordStoredSyncIssue } from '../logic/syncIssueLedger';
-import { syncService, type LocalSyncPayload } from '../services/supabase/syncService';
+import { syncService, type LocalSyncPayload } from '@infra/supabase/syncService';
 import type { CloudSyncDeps } from './useCloudSync';
 import { useCloudSync } from './useCloudSync';
 

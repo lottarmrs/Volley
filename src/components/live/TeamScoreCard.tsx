@@ -211,7 +211,7 @@ export const TeamScoreCard = ({
             Rápido
           </button>
           <button
-            onClick={onOpenDetailModal}
+            onClick={() => onOpenDetailModal()}
             className="btn btn-accent btn-sm flex-1 font-bold uppercase tracking-wider flex items-center justify-center gap-2"
           >
             <Plus className="w-3 h-3" /> Detalhar

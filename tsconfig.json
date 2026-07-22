@@ -34,5 +34,6 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": ["dist", "developer-roadmap", "graphify-out", "node_modules"]
 }

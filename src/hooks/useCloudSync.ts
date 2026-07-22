@@ -6,7 +6,10 @@ import {
   uploadCloudDataCommand,
   type LocalSyncPayload,
 } from '../application/cloudSyncUseCases';
-import { normalizeGames, normalizeSessions } from '../logic/migrations';
+import {
+  buildLocalSyncPayload,
+  normalizeCloudSyncResultPayload,
+} from '../application/cloudSyncPayload';
 import {
   buildRecoverableSyncActions,
   buildSyncIssueSummary,
@@ -94,37 +97,25 @@ export function useCloudSync(deps: CloudSyncDeps) {
     loadFromStorage<string | null>(LAST_SYNCED_AT_KEY, null),
   );
 
-  const buildPayload = (): LocalSyncPayload => ({
-    communities: deps.communities,
-    players: deps.players,
-    rules: deps.rules,
-    templates: deps.templates,
-    sessions: deps.sessions,
-    teams: deps.teams,
-    games: deps.games,
-    pointEvents: deps.pointEvents,
-    gameReports: deps.gameReports,
-    sessionReports: deps.sessionReports,
-    presenceRecords: deps.presenceRecords,
-    drafts: deps.drafts,
-    linkProposals: deps.linkProposals,
-  });
+  const buildPayload = (): LocalSyncPayload => buildLocalSyncPayload(deps);
 
   const applyResult = (result: LocalSyncPayload) => {
-    deps.setCommunities(result.communities);
-    deps.setPlayers(result.players);
-    deps.setRules(result.rules);
-    deps.setTemplates(result.templates);
-    deps.setSessions(normalizeSessions(result.sessions));
-    deps.setTeams(result.teams);
-    deps.setGames(normalizeGames(result.games));
-    deps.setPointEvents(result.pointEvents);
-    deps.setGameReports(result.gameReports);
-    deps.setSessionReports(result.sessionReports);
-    deps.setPresenceRecords(result.presenceRecords);
-    deps.setDrafts(result.drafts);
-    if (result.linkProposals) {
-      deps.setLinkProposals(result.linkProposals);
+    const normalized = normalizeCloudSyncResultPayload(result);
+
+    deps.setCommunities(normalized.communities);
+    deps.setPlayers(normalized.players);
+    deps.setRules(normalized.rules);
+    deps.setTemplates(normalized.templates);
+    deps.setSessions(normalized.sessions);
+    deps.setTeams(normalized.teams);
+    deps.setGames(normalized.games);
+    deps.setPointEvents(normalized.pointEvents);
+    deps.setGameReports(normalized.gameReports);
+    deps.setSessionReports(normalized.sessionReports);
+    deps.setPresenceRecords(normalized.presenceRecords);
+    deps.setDrafts(normalized.drafts);
+    if (normalized.linkProposals) {
+      deps.setLinkProposals(normalized.linkProposals);
     }
 
     const nowStr = new Date().toISOString();

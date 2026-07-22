@@ -6,7 +6,9 @@ import {
   clearLocalPresence,
   createLocalPresence,
   reuseLastLocalPresence,
+  selectLocalPresence,
   selectFrequentLocalPresencePlayers,
+  selectPresentLocalPresencePlayers,
   upsertLocalPresence,
 } from './localCommunityPresenceUseCases';
 import type { CommunityPresence, Player } from '../types';
@@ -110,6 +112,37 @@ test('upsertLocalPresence appends a missing presence as pending', () => {
   assert.equal(result.length, 2);
   assert.equal(result[1].date, today);
   assert.equal(result[1].syncStatus, 'pending');
+});
+
+test('selectLocalPresence returns only the requested community and date', () => {
+  const records = [
+    presence('community-1', '2026-07-19'),
+    presence('community-2', today),
+    presence('community-1', today, [{ playerId: 'player-1', status: 'present' }]),
+  ];
+
+  assert.deepEqual(selectLocalPresence(records, 'community-1', today), records[2]);
+  assert.equal(selectLocalPresence(records, 'missing', today), null);
+});
+
+test('selectPresentLocalPresencePlayers returns active player records marked present', () => {
+  const records = [
+    presence('community-1', today, [
+      { playerId: 'present', status: 'present' },
+      { playerId: 'absent', status: 'absent' },
+      { temporaryName: 'Visitante', status: 'guest' },
+    ]),
+  ];
+
+  assert.deepEqual(
+    selectPresentLocalPresencePlayers({
+      records,
+      communityId: 'community-1',
+      date: today,
+      players: [player('present'), player('absent'), player('unmarked')],
+    }).map((presentPlayer) => presentPlayer.id),
+    ['present'],
+  );
 });
 
 test('applyLocalPresenceStatus marks a player in today presence', () => {

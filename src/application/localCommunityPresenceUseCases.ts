@@ -36,7 +36,7 @@ export function upsertLocalPresence(input: {
   );
 }
 
-function getLocalPresence(
+export function selectLocalPresence(
   records: CommunityPresence[],
   communityId: string,
   date: string,
@@ -53,7 +53,7 @@ function ensureLocalPresence(input: {
   now: string;
 }): CommunityPresence {
   return (
-    getLocalPresence(input.records, input.communityId, input.date) ??
+    selectLocalPresence(input.records, input.communityId, input.date) ??
     createLocalPresence({
       communityId: input.communityId,
       date: input.date,
@@ -76,6 +76,19 @@ export function applyLocalPresenceStatus(input: {
     presence: setPresenceItemStatus(presence, input.playerId, input.status),
     now: input.now,
   });
+}
+
+export function selectPresentLocalPresencePlayers(input: {
+  records: CommunityPresence[];
+  communityId: string;
+  date: string;
+  players: Player[];
+}): Player[] {
+  const presence = selectLocalPresence(input.records, input.communityId, input.date);
+
+  return input.players.filter((player) =>
+    presence?.items.some((item) => item.playerId === player.id && item.status === 'present'),
+  );
 }
 
 export function clearLocalPresence(input: {

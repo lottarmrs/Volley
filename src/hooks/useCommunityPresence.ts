@@ -8,6 +8,8 @@ import {
   clearLocalPresence,
   reuseLastLocalPresence,
   selectFrequentLocalPresencePlayers,
+  selectLocalPresence,
+  selectPresentLocalPresencePlayers,
 } from '../application/localCommunityPresenceUseCases';
 
 function today() {
@@ -25,11 +27,7 @@ export function useCommunityPresence() {
 
   const getPresence = useCallback(
     (communityId: string) => {
-      return (
-        presenceRecords.find(
-          (record) => record.communityId === communityId && record.date === today(),
-        ) || null
-      );
+      return selectLocalPresence(presenceRecords, communityId, today());
     },
     [presenceRecords],
   );
@@ -98,12 +96,14 @@ export function useCommunityPresence() {
 
   const getPresentPlayers = useCallback(
     (communityId: string, players: Player[]) => {
-      const presence = getPresence(communityId);
-      return players.filter((player) =>
-        presence?.items.some((item) => item.playerId === player.id && item.status === 'present'),
-      );
+      return selectPresentLocalPresencePlayers({
+        records: presenceRecords,
+        communityId,
+        date: today(),
+        players,
+      });
     },
-    [getPresence],
+    [presenceRecords],
   );
 
   return useMemo(

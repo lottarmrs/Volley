@@ -648,6 +648,21 @@ function hasPendingTerminalCloudReplay(proposal: PlayerLinkProposal): boolean {
   );
 }
 
+function playerLinkProposalContentionKeys(proposal: PlayerLinkProposal): string[] {
+  const keys = new Set<string>();
+  if (proposal.playerId) keys.add(`player:${proposal.playerId}`);
+  if (proposal.playerCloudId) keys.add(`player:${proposal.playerCloudId}`);
+  if (proposal.userId) keys.add(`user:${proposal.userId}`);
+  return [...keys];
+}
+
+function hasBlockedPlayerLinkContention(
+  proposal: PlayerLinkProposal,
+  blockedContentionKeys: Set<string>,
+): boolean {
+  return playerLinkProposalContentionKeys(proposal).some((key) => blockedContentionKeys.has(key));
+}
+
 function markLinkProposalSynced(
   proposal: PlayerLinkProposal,
   playerCloudId: string,
@@ -1515,8 +1530,15 @@ export const syncService = {
     const replayOrder = updatedProposals
       .map((proposal, index) => ({ index, priority: hasPendingTerminalCloudReplay(proposal) ? 0 : 1 }))
       .sort((left, right) => left.priority - right.priority || left.index - right.index);
+    const blockedContentionKeys = new Set<string>();
     for (const { index } of replayOrder) {
       const proposal = updatedProposals[index];
+      if (
+        isPendingPlayerLinkIntent(proposal) &&
+        hasBlockedPlayerLinkContention(proposal, blockedContentionKeys)
+      ) {
+        continue;
+      }
       try {
         const replayed = await syncPlayerLinkProposalIntent(
           proposal,
@@ -1543,6 +1565,11 @@ export const syncService = {
         const replayError = error instanceof PlayerLinkProposalReplayError ? error : null;
         onIssue('proposta de vinculo', replayError?.originalError || error);
         updatedProposals[index] = replayError?.retryProposal || proposal;
+        if (hasPendingTerminalCloudReplay(proposal)) {
+          for (const key of playerLinkProposalContentionKeys(proposal)) {
+            blockedContentionKeys.add(key);
+          }
+        }
       }
     }
     return {

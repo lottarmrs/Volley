@@ -148,7 +148,7 @@ export async function reviewPlayerLinkCommand(
   );
   if (!player) return productError('not_found', 'Atleta associado nao encontrado.');
 
-  const isTemp = proposal.syncStatus === 'pending';
+  const isTemp = proposal.syncStatus === 'pending' || proposal.syncStatus === 'local';
   let players: Player[] = input.players;
   let linkProposals: PlayerLinkProposal[];
 

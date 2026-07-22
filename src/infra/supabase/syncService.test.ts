@@ -977,6 +977,13 @@ test('uploadLocalDataToCloud applies the cloud claim result while replaying a cl
             reviewedBy: 'admin-1',
             reviewedAt: '2026-06-01T01:00:00.000Z',
           }),
+          makeSyncProposal({
+            id: 'proposal-local-competitor',
+            playerId: 'legacy-local',
+            playerCloudId: 'legacy-cloud',
+            status: 'pending',
+            syncStatus: 'local',
+          }),
         ],
       }),
       'admin-1',
@@ -984,12 +991,15 @@ test('uploadLocalDataToCloud applies the cloud claim result while replaying a cl
 
     assert.deepEqual(calls, [`approve:${proposalId}`]);
     assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+    assert.equal(result.linkProposals?.[1].status, 'superseded');
+    assert.equal(result.linkProposals?.[1].syncStatus, 'synced');
     assert.equal(result.players.find((player) => player.cloudId === 'canonical-cloud')?.username, 'ana');
     assert.equal(result.players.find((player) => player.cloudId === 'canonical-cloud')?.userId, 'canonical-user');
     assert.equal(result.players.find((player) => player.cloudId === 'legacy-cloud'), undefined);
 
     const retried = await syncService.uploadLocalDataToCloud(result, 'admin-1');
     assert.deepEqual(calls, [`approve:${proposalId}`]);
+    assert.equal(retried.linkProposals?.[1].status, 'superseded');
     assert.equal(retried.players.find((player) => player.cloudId === 'canonical-cloud')?.username, 'ana');
     assert.equal(retried.players.find((player) => player.cloudId === 'canonical-cloud')?.userId, 'canonical-user');
     assert.equal(retried.players.find((player) => player.cloudId === 'legacy-cloud'), undefined);

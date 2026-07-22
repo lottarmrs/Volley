@@ -178,6 +178,30 @@ test('reviewPlayerLinkCommand preserves the pending cloud intent when claim resu
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
 });
 
+test('reviewPlayerLinkCommand approves a local proposal without calling a cloud RPC', async () => {
+  const players = [makePlayer('player-1', { cloudId: 'cloud-player-1', userId: undefined })];
+  const result = await reviewPlayerLinkCommand(
+    {
+      players,
+      linkProposals: [proposal({ syncStatus: 'local' })],
+      currentUserId: 'reviewer-1',
+      proposalId: 'proposal-1',
+      action: 'approve',
+      nowIso: now,
+    },
+    {
+      approve: async () => assert.fail('local proposal must not call approve'),
+      reject: async () => assert.fail('local proposal must not call reject'),
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.players?.[0].userId, 'user-1');
+  assert.equal(result.value.linkProposals[0].status, 'approved');
+  assert.equal(result.value.linkProposals[0].syncStatus, 'pending');
+});
+
 test('reviewPlayerLinkCommand keeps rejected cloud proposal pending when cloud reject fails', async () => {
   const players = [makePlayer('player-1', { cloudId: 'cloud-player-1', userId: undefined })];
   const result = await reviewPlayerLinkCommand(

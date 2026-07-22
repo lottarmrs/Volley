@@ -8,6 +8,7 @@ import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
 import { applyClaimToPlayers } from '../../application/playerClaim';
 import type { PlayerClaimResult } from '../../application/playerClaim';
+import { supersedePendingProposalsForLink } from '../../domain/playerLink';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
@@ -1502,8 +1503,9 @@ export const syncService = {
     // (computeStaleRelationIds segue exportada/testada para uso futuro deliberado.)
     void options.reconcileRelations;
 
-    const updatedProposals: PlayerLinkProposal[] = [];
-    for (const proposal of local.linkProposals || []) {
+    let updatedProposals = [...(local.linkProposals || [])];
+    for (let index = 0; index < updatedProposals.length; index += 1) {
+      const proposal = updatedProposals[index];
       try {
         const replayed = await syncPlayerLinkProposalIntent(
           proposal,
@@ -1514,12 +1516,22 @@ export const syncService = {
         );
         if (replayed.claim) {
           updatedPlayers = applyClaimToPlayers(updatedPlayers, replayed.claim, syncedAt);
+          updatedProposals = supersedePendingProposalsForLink(
+            updatedProposals,
+            {
+              playerId: replayed.claim.legacyLocalId || replayed.claim.legacyPlayerId,
+              playerCloudId: replayed.claim.legacyPlayerId,
+              userId: proposal.userId,
+            },
+            ownerId,
+            syncedAt,
+          );
         }
-        updatedProposals.push(replayed.proposal);
+        updatedProposals[index] = replayed.proposal;
       } catch (error) {
         const replayError = error instanceof PlayerLinkProposalReplayError ? error : null;
         onIssue('proposta de vinculo', replayError?.originalError || error);
-        updatedProposals.push(replayError?.retryProposal || proposal);
+        updatedProposals[index] = replayError?.retryProposal || proposal;
       }
     }
     return {

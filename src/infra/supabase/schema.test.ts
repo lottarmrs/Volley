@@ -52,6 +52,22 @@ const linkedPlayerSelfReadMigration = readFileSync(
   'utf8',
 );
 
+const roleManagementMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260624141708_role_management_rpc.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+const hardenedTriggerFunctionsMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260624134502_harden_trigger_functions.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const communityMemberRoleRpcMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260707143343_community_member_role_remove_rpc.sql',
@@ -82,6 +98,21 @@ const requiredTables = [
   'community_presence',
   'whatsapp_list_drafts',
 ];
+
+function extractSqlFunction(sql: string, functionName: string): string {
+  return (
+    sql.match(
+      new RegExp(
+        `create or replace function public\\.${functionName}\\([\\s\\S]*?\\$\\$;`,
+        'i',
+      ),
+    )?.[0] ?? ''
+  );
+}
+
+function normalizeSql(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
 
 function assertPlayerSoftDeleteUserUnlinkContract(sql: string, artifact: string): void {
   const guardFunction = sql.match(
@@ -471,6 +502,197 @@ test('claim migrates relational references before archiving the legacy player', 
     const mergePosition = mergeFunction.indexOf(relation);
     assert.ok(mergePosition >= 0, `missing ${relation}`);
     assert.ok(mergePosition < archivePosition, `${relation} must happen before legacy archive`);
+  }
+});
+
+test('claim rejects linked or archived legacy players before merge', () => {
+  const mergeFunction = extractSqlFunction(
+    accountIdentityMigration,
+    'merge_player_identity_claim',
+  );
+  const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
+  const approveFunction = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
+
+  for (const [name, sql] of [
+    ['merge helper', mergeFunction],
+    ['propose RPC', proposeFunction],
+    ['approve RPC', approveFunction],
+  ] as const) {
+    assert.ok(sql, `missing ${name}`);
+    assert.match(
+      sql,
+      /user_id is not null[\s\S]*deleted_at is not null[\s\S]*raise exception 'Player already claimed' using errcode = '23505'/i,
+      `${name} does not reject a linked or archived legacy player`,
+    );
+  }
+
+  const legacyConflictPosition = mergeFunction.indexOf('v_legacy.user_id is not null');
+  const firstMergePosition = mergeFunction.indexOf('update public.players as canonical');
+  assert.ok(legacyConflictPosition >= 0 && legacyConflictPosition < firstMergePosition);
+});
+
+test('claim idempotency returns a completed result before mutable player state', () => {
+  const mergeFunction = extractSqlFunction(
+    accountIdentityMigration,
+    'merge_player_identity_claim',
+  );
+  const proposalLockPosition = mergeFunction.indexOf('where id = p_proposal_id\n   for update');
+  const completedClaimPosition = mergeFunction.indexOf(
+    'from public.player_identity_claims\n   where proposal_id = v_proposal.id',
+  );
+  const completedReturnPosition = mergeFunction.indexOf('return v_existing_claim.result');
+  const legacyLockPosition = mergeFunction.indexOf('into v_legacy');
+  const canonicalLockPosition = mergeFunction.indexOf('into v_canonical');
+
+  assert.ok(proposalLockPosition >= 0, 'proposal is not locked');
+  assert.ok(completedClaimPosition > proposalLockPosition, 'claim read precedes proposal lock');
+  assert.ok(completedReturnPosition > completedClaimPosition, 'completed claim is not returned');
+  assert.ok(completedReturnPosition < legacyLockPosition, 'retry depends on legacy player state');
+  assert.ok(completedReturnPosition < canonicalLockPosition, 'retry depends on canonical player state');
+
+  const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
+  const recoveredProposalPosition = proposeFunction.indexOf('claim.proposal_id');
+  const recoveredResultPosition = proposeFunction.indexOf('claim.result');
+  const activePlayerPosition = proposeFunction.indexOf('from public.players');
+  assert.ok(recoveredProposalPosition >= 0, 'propose does not recover completed proposal id');
+  assert.ok(recoveredResultPosition >= 0, 'propose does not read the completed result');
+  assert.ok(recoveredProposalPosition < activePlayerPosition);
+  assert.ok(recoveredResultPosition < activePlayerPosition);
+});
+
+test('claim entrypoints serialize consistently and prefer winner conflicts', () => {
+  for (const functionName of [
+    'merge_player_identity_claim',
+    'propose_player_link',
+    'approve_player_link',
+  ]) {
+    const sql = extractSqlFunction(accountIdentityMigration, functionName);
+    assert.ok(sql, `missing ${functionName}`);
+    assert.match(sql, /hashtextextended\('player:'[\s\S]*hashtextextended\('user:'/i);
+    assert.match(
+      sql,
+      /pg_advisory_xact_lock\(least\([^)]+\)\)[\s\S]*pg_advisory_xact_lock\(greatest\([^)]+\)\)/i,
+    );
+  }
+
+  const mergeFunction = extractSqlFunction(
+    accountIdentityMigration,
+    'merge_player_identity_claim',
+  );
+  const mergeWinnerPosition = mergeFunction.indexOf('from public.player_identity_aliases');
+  const mergeStatusPosition = mergeFunction.indexOf("v_proposal.status <> 'pending'");
+  assert.ok(mergeWinnerPosition >= 0 && mergeWinnerPosition < mergeStatusPosition);
+  assert.match(
+    mergeFunction,
+    /from public\.player_identity_claims[\s\S]*legacy_player_id = v_legacy_player_id\s+or user_id = v_user_id/i,
+  );
+
+  const approveFunction = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
+  const approveWinnerPosition = approveFunction.indexOf('from public.player_identity_aliases');
+  const approveStatusPosition = approveFunction.indexOf("v_proposal.status <> 'pending'");
+  assert.ok(approveWinnerPosition >= 0 && approveWinnerPosition < approveStatusPosition);
+  assert.match(
+    approveFunction,
+    /raise exception 'Player already claimed' using errcode = '23505'/i,
+  );
+  assert.match(
+    approveFunction,
+    /from public\.player_identity_claims[\s\S]*legacy_player_id = v_proposal\.player_id\s+or user_id = v_proposal\.user_id/i,
+  );
+
+  const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
+  assert.match(
+    proposeFunction,
+    /from public\.player_identity_claims[\s\S]*legacy_player_id = p_player_id\s+or user_id = v_uid/i,
+  );
+});
+
+test('consolidated schema guards profile roles while preserving role RPC', () => {
+  const expectedGuard = extractSqlFunction(roleManagementMigration, 'guard_profile_role');
+  const actualGuard = extractSqlFunction(baseSchema, 'guard_profile_role');
+  assert.ok(actualGuard, 'missing consolidated profile role guard');
+  assert.equal(normalizeSql(actualGuard), normalizeSql(expectedGuard));
+
+  const guardPosition = baseSchema.indexOf(
+    'create or replace function public.guard_profile_role()',
+  );
+  const revokePosition = baseSchema.indexOf(
+    'revoke execute on function public.guard_profile_role() from public, anon, authenticated;',
+  );
+  const triggerPosition = baseSchema.indexOf('create trigger trg_guard_profile_role');
+  assert.ok(guardPosition >= 0 && guardPosition < revokePosition);
+  assert.ok(revokePosition < triggerPosition);
+  assert.match(
+    baseSchema,
+    /create trigger trg_guard_profile_role\s+before update on public\.profiles\s+for each row execute function public\.guard_profile_role\(\);/i,
+  );
+
+  const expectedRpc = extractSqlFunction(roleManagementMigration, 'set_user_role');
+  const actualRpc = extractSqlFunction(baseSchema, 'set_user_role');
+  assert.ok(actualRpc, 'missing legitimate set_user_role RPC');
+  assert.equal(normalizeSql(actualRpc), normalizeSql(expectedRpc));
+  assert.match(actualRpc, /perform set_config\('app\.allow_role_change', 'on', true\)/i);
+  assert.match(
+    baseSchema,
+    /revoke execute on function public\.set_user_role\(uuid, text\) from public, anon;[\s\S]*grant execute on function public\.set_user_role\(uuid, text\) to authenticated;/i,
+  );
+});
+
+test('claim never promotes avatar implicitly and consolidated schema guards avatar', () => {
+  const mergeFunction = extractSqlFunction(
+    accountIdentityMigration,
+    'merge_player_identity_claim',
+  );
+  assert.doesNotMatch(mergeFunction, /avatar_url\s*=/i);
+
+  const expectedGuard = extractSqlFunction(
+    hardenedTriggerFunctionsMigration,
+    'guard_avatar_url',
+  );
+  const actualGuard = extractSqlFunction(baseSchema, 'guard_avatar_url');
+  assert.ok(actualGuard, 'missing consolidated avatar guard');
+  assert.equal(normalizeSql(actualGuard), normalizeSql(expectedGuard));
+  assert.match(
+    baseSchema,
+    /revoke execute on function public\.guard_avatar_url\(\) from public, anon, authenticated;/i,
+  );
+  assert.match(
+    baseSchema,
+    /create trigger trg_guard_avatar_url\s+before update on public\.players\s+for each row execute function public\.guard_avatar_url\(\);/i,
+  );
+});
+
+test('claim requires a ready canonical account', () => {
+  const mergeFunction = extractSqlFunction(
+    accountIdentityMigration,
+    'merge_player_identity_claim',
+  );
+  assert.match(
+    mergeFunction,
+    /v_canonical\.username is null[\s\S]*v_canonical\.username <> public\.normalize_account_username\(v_canonical\.username\)[\s\S]*not public\.is_valid_account_username\(v_canonical\.username\)/i,
+  );
+  assert.match(
+    mergeFunction,
+    /raise exception 'Canonical account is not ready for player claim' using errcode = '22023'/i,
+  );
+  const readinessPosition = mergeFunction.indexOf('v_canonical.username is null');
+  const childLockPosition = mergeFunction.indexOf('from public.community_players');
+  assert.ok(readinessPosition >= 0 && readinessPosition < childLockPosition);
+});
+
+test('consolidated schema defines claim objects and guards exactly once', () => {
+  const definitions = [
+    /create table if not exists public\.player_identity_claims/gi,
+    /create table if not exists public\.player_identity_aliases/gi,
+    /create or replace function public\.merge_player_identity_claim\(/gi,
+    /create or replace function public\.propose_player_link\(/gi,
+    /create or replace function public\.approve_player_link\(/gi,
+    /create or replace function public\.guard_profile_role\(\)/gi,
+    /create or replace function public\.guard_avatar_url\(\)/gi,
+  ];
+
+  for (const definition of definitions) {
+    assert.equal(baseSchema.match(definition)?.length, 1, definition.source);
   }
 });
 

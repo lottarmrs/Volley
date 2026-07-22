@@ -83,6 +83,66 @@ const requiredTables = [
   'whatsapp_list_drafts',
 ];
 
+function assertPlayerSoftDeleteUserUnlinkContract(sql: string, artifact: string): void {
+  const guardFunction = sql.match(
+    /create or replace function public\.guard_player_user_id\(\)[\s\S]*?\$\$;/i,
+  )?.[0];
+  const unlinkFunction = sql.match(
+    /create or replace function public\.handle_player_soft_delete_user_unlink\(\)[\s\S]*?\$\$;/i,
+  )?.[0];
+  const guardTrigger = sql.match(
+    /create trigger trg_guard_player_user_id\s+before update on public\.players\s+for each row execute function public\.guard_player_user_id\(\);/i,
+  )?.[0];
+  const unlinkTrigger = sql.match(
+    /create trigger trg_player_soft_delete_user_unlink\s+before update on public\.players\s+for each row execute function public\.handle_player_soft_delete_user_unlink\(\);/i,
+  )?.[0];
+
+  assert.ok(guardFunction, `${artifact}: missing players.user_id guard function`);
+  assert.match(guardFunction, /set search_path = public/i);
+  assert.match(guardFunction, /new\.user_id is distinct from old\.user_id/i);
+  assert.match(
+    guardFunction,
+    /current_setting\('app\.allow_user_link_promotion', true\)[\s\S]*<> 'on'/i,
+  );
+  assert.match(
+    guardFunction,
+    /and not \(\s*new\.deleted_at is not null\s+and old\.deleted_at is null\s+and new\.user_id is null\s*\) then/i,
+  );
+  assert.doesNotMatch(
+    guardFunction,
+    /and not \(\s*new\.deleted_at is not null\s+and old\.deleted_at is null\s*\) then/i,
+  );
+  assert.match(guardFunction, /raise exception 'user_id can only be changed/i);
+  assert.match(guardFunction, /errcode = '42501'/i);
+
+  assert.ok(unlinkFunction, `${artifact}: missing soft-delete user unlink function`);
+  assert.match(unlinkFunction, /set search_path = public/i);
+  assert.match(
+    unlinkFunction,
+    /if new\.deleted_at is not null and old\.deleted_at is null then\s+new\.user_id := null;/i,
+  );
+
+  assert.ok(guardTrigger, `${artifact}: missing players.user_id guard trigger`);
+  assert.ok(unlinkTrigger, `${artifact}: missing soft-delete user unlink trigger`);
+  assert.ok(
+    sql.indexOf(guardTrigger) < sql.indexOf(unlinkTrigger),
+    `${artifact}: guard trigger must be defined before unlink trigger`,
+  );
+  assert.ok(
+    'trg_guard_player_user_id'.localeCompare('trg_player_soft_delete_user_unlink') < 0,
+    `${artifact}: trigger names do not fire guard before unlink`,
+  );
+
+  assert.match(
+    sql,
+    /revoke execute on function public\.guard_player_user_id\(\) from public, anon, authenticated;/i,
+  );
+  assert.match(
+    sql,
+    /revoke execute on function public\.handle_player_soft_delete_user_unlink\(\) from public, anon, authenticated;/i,
+  );
+}
+
 test('backend migration creates required operational tables', () => {
   for (const table of requiredTables) {
     assert.match(
@@ -424,6 +484,10 @@ test('new auth users receive both profile and canonical player rows', () => {
   assert.doesNotMatch(signupTrigger, /not exists \(select 1 from public\.players/i);
 });
 
+test('account identity migration composes a narrow guard with soft-delete unlink', () => {
+  assertPlayerSoftDeleteUserUnlinkContract(accountIdentityMigration, 'account identity migration');
+});
+
 test('consolidated schema mirrors hardened account identity invariants', () => {
   assert.match(
     baseSchema,
@@ -445,27 +509,6 @@ test('consolidated schema mirrors hardened account identity invariants', () => {
   );
 });
 
-test('consolidated schema guards direct player user_id updates', () => {
-  const guardFunction = baseSchema.match(
-    /create or replace function public\.guard_player_user_id\(\)[\s\S]*?\$\$;/i,
-  )?.[0];
-
-  assert.ok(guardFunction, 'missing players.user_id guard function');
-  assert.match(guardFunction, /set search_path = public/i);
-  assert.match(guardFunction, /new\.user_id is distinct from old\.user_id/i);
-  assert.match(
-    guardFunction,
-    /current_setting\('app\.allow_user_link_promotion', true\)[\s\S]*<> 'on'/i,
-  );
-  assert.match(guardFunction, /raise exception 'user_id can only be changed/i);
-  assert.match(guardFunction, /errcode = '42501'/i);
-
-  assert.match(
-    baseSchema,
-    /create trigger trg_guard_player_user_id\s+before update on public\.players\s+for each row execute function public\.guard_player_user_id\(\);/i,
-  );
-  assert.match(
-    baseSchema,
-    /revoke execute on function public\.guard_player_user_id\(\) from public, anon, authenticated;/i,
-  );
+test('consolidated schema composes a narrow guard with soft-delete unlink', () => {
+  assertPlayerSoftDeleteUserUnlinkContract(baseSchema, 'consolidated schema');
 });

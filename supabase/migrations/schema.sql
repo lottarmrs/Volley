@@ -331,7 +331,11 @@ as $$
 begin
   if new.user_id is distinct from old.user_id
      and coalesce(current_setting('app.allow_user_link_promotion', true), '') <> 'on'
-     and not (new.deleted_at is not null and old.deleted_at is null) then
+     and not (
+       new.deleted_at is not null
+       and old.deleted_at is null
+       and new.user_id is null
+     ) then
     raise exception 'user_id can only be changed through the player link approval flow'
       using errcode = '42501';
   end if;
@@ -339,11 +343,30 @@ begin
 end;
 $$;
 
+create or replace function public.handle_player_soft_delete_user_unlink()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.deleted_at is not null and old.deleted_at is null then
+    new.user_id := null;
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.guard_player_user_id() from public, anon, authenticated;
+revoke execute on function public.handle_player_soft_delete_user_unlink() from public, anon, authenticated;
+
+-- PostgreSQL fires same-event triggers by name: guard first, then forced unlink.
 create trigger trg_guard_player_user_id
   before update on public.players
   for each row execute function public.guard_player_user_id();
 
-revoke execute on function public.guard_player_user_id() from public, anon, authenticated;
+create trigger trg_player_soft_delete_user_unlink
+  before update on public.players
+  for each row execute function public.handle_player_soft_delete_user_unlink();
 
 create or replace function public.normalize_account_username(value text)
 returns text

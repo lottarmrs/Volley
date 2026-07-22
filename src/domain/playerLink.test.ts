@@ -81,6 +81,7 @@ test('supersedePendingProposalsForLink closes competing pending proposals', () =
       playerId: 'player-4',
       userId: 'user-3',
       status: 'rejected',
+      syncStatus: 'synced',
     }),
   ];
   const updated = supersedePendingProposalsForLink(
@@ -94,4 +95,45 @@ test('supersedePendingProposalsForLink closes competing pending proposals', () =
   assert.equal(updated.find((item) => item.id === 'same-cloud')?.status, 'superseded');
   assert.equal(updated.find((item) => item.id === 'same-user')?.status, 'superseded');
   assert.equal(updated.find((item) => item.id === 'already-rejected')?.status, 'rejected');
+});
+
+test('supersedePendingProposalsForLink closes locally approved competitors without changing synced history', () => {
+  const proposals = [
+    proposal({
+      id: 'winner-rejected',
+      status: 'rejected',
+      syncStatus: 'pending',
+      reviewedBy: 'reviewer-1',
+    }),
+    proposal({
+      id: 'local-approved-competitor',
+      status: 'approved',
+      syncStatus: 'local',
+      userId: 'other-user',
+    }),
+    proposal({
+      id: 'synced-approved-history',
+      status: 'approved',
+      syncStatus: 'synced',
+      userId: 'other-user',
+    }),
+  ];
+
+  const updated = supersedePendingProposalsForLink(
+    proposals,
+    {
+      playerId: 'player-1',
+      playerCloudId: 'player-cloud',
+      userId: 'user-1',
+      winnerProposalId: 'winner-rejected',
+    },
+    'reviewer-1',
+    now,
+  );
+
+  assert.equal(updated.find((item) => item.id === 'winner-rejected')?.status, 'rejected');
+  assert.equal(updated.find((item) => item.id === 'local-approved-competitor')?.status, 'superseded');
+  assert.equal(updated.find((item) => item.id === 'local-approved-competitor')?.syncStatus, 'synced');
+  assert.equal(updated.find((item) => item.id === 'synced-approved-history')?.status, 'approved');
+  assert.equal(updated.find((item) => item.id === 'synced-approved-history')?.syncStatus, 'synced');
 });

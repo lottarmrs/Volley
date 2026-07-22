@@ -4,6 +4,7 @@ export interface LinkTarget {
   playerId: string;
   playerCloudId?: string;
   userId: string;
+  winnerProposalId?: string;
 }
 
 export function canDirectlyLinkPlayer(player: Player, userId: string | null): boolean {
@@ -56,7 +57,14 @@ export function supersedePendingProposalsForLink(
       (!!proposal.playerCloudId && proposal.playerCloudId === target.playerCloudId);
     const sameUser = proposal.userId === target.userId;
 
-    if (proposal.status === 'pending' && (samePlayer || sameUser)) {
+    const pendingSyncIntent = proposal.syncStatus === 'pending' || proposal.syncStatus === 'local';
+    const unresolvedIntent =
+      proposal.status === 'pending' || (pendingSyncIntent && proposal.status !== 'superseded');
+    if (
+      proposal.id !== target.winnerProposalId &&
+      unresolvedIntent &&
+      (samePlayer || sameUser)
+    ) {
       return {
         ...proposal,
         status: 'superseded',

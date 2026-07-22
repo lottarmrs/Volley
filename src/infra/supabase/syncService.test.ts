@@ -1059,6 +1059,51 @@ test('uploadLocalDataToCloud blocks an earlier local competitor when terminal cl
   }
 });
 
+test('uploadLocalDataToCloud supersedes local competitors after a terminal cancellation', async () => {
+  const originalPropose = playerLinkProposalCloudService.propose;
+  const originalCancel = playerLinkProposalCloudService.cancel;
+  const calls: string[] = [];
+  const proposalId = '00000000-0000-4000-8000-000000000011';
+
+  try {
+    playerLinkProposalCloudService.propose = async (playerId: string) => {
+      calls.push(`propose:${playerId}`);
+      return '00000000-0000-4000-8000-000000000012';
+    };
+    playerLinkProposalCloudService.cancel = async (id: string) => {
+      calls.push(`cancel:${id}`);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        linkProposals: [
+          makeSyncProposal({
+            id: 'proposal-local-competitor',
+            status: 'pending',
+            syncStatus: 'local',
+          }),
+          makeSyncProposal({
+            id: proposalId,
+            status: 'rejected',
+            reviewedBy: 'owner-1',
+            reviewedAt: '2026-06-01T01:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(calls, [`cancel:${proposalId}`]);
+    assert.equal(result.linkProposals?.[0].status, 'superseded');
+    assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
+    assert.equal(result.linkProposals?.[1].status, 'rejected');
+    assert.equal(result.linkProposals?.[1].syncStatus, 'synced');
+  } finally {
+    playerLinkProposalCloudService.propose = originalPropose;
+    playerLinkProposalCloudService.cancel = originalCancel;
+  }
+});
+
 test('uploadLocalDataToCloud replays rejected admin review with reject rpc', async () => {
   const originalReject = playerLinkProposalCloudService.reject;
   const originalCancel = playerLinkProposalCloudService.cancel;

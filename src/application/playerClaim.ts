@@ -22,6 +22,24 @@ export function applyClaimToPlayers(
 
   if (legacyIndex < 0 || legacyIndex === canonicalIndex) return players;
 
+  if (canonicalIndex < 0) {
+    return players.map((player, index) =>
+      index === legacyIndex
+        ? {
+            ...player,
+            cloudId: claim.canonicalPlayerId,
+            ativo: true,
+            deletedAt: undefined,
+            syncStatus: 'synced',
+            lastSyncedAt: nowIso,
+            updatedAt: nowIso,
+            username: undefined,
+            userId: undefined,
+          }
+        : player,
+    );
+  }
+
   return players.map((player, index) =>
     index === legacyIndex
       ? {

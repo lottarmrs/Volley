@@ -1547,14 +1547,17 @@ export const syncService = {
           ownerId,
           syncedAt,
         );
-        if (replayed.claim) {
-          updatedPlayers = applyClaimToPlayers(updatedPlayers, replayed.claim, syncedAt);
+        if (hasPendingTerminalCloudReplay(proposal)) {
+          if (replayed.claim) {
+            updatedPlayers = applyClaimToPlayers(updatedPlayers, replayed.claim, syncedAt);
+          }
           updatedProposals = supersedePendingProposalsForLink(
             updatedProposals,
             {
-              playerId: replayed.claim.legacyLocalId || replayed.claim.legacyPlayerId,
-              playerCloudId: replayed.claim.legacyPlayerId,
+              playerId: replayed.claim?.legacyLocalId || replayed.claim?.legacyPlayerId || proposal.playerId,
+              playerCloudId: replayed.claim?.legacyPlayerId || proposal.playerCloudId,
               userId: proposal.userId,
+              winnerProposalId: proposal.id,
             },
             ownerId,
             syncedAt,

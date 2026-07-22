@@ -103,3 +103,31 @@ test('applyClaimToPlayers does not archive canonical player when aliases resolve
   assert.equal(result[0], canonical);
   assert.equal(result[1], legacy);
 });
+
+test('applyClaimToPlayers preserves a visible canonical placeholder when canonical is absent locally', () => {
+  const legacy = makePlayer('legacy-local', {
+    cloudId: 'legacy-cloud',
+    username: 'legacy-ana',
+    userId: 'legacy-user',
+  });
+
+  const result = applyClaimToPlayers(
+    [legacy],
+    {
+      claimId: 'claim-1',
+      canonicalPlayerId: 'canonical-cloud',
+      legacyPlayerId: 'legacy-cloud',
+      legacyLocalId: 'legacy-local',
+    },
+    now,
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, 'legacy-local');
+  assert.equal(result[0].cloudId, 'canonical-cloud');
+  assert.equal(result[0].ativo, true);
+  assert.equal(result[0].deletedAt, undefined);
+  assert.equal(result[0].username, undefined);
+  assert.equal(result[0].userId, undefined);
+  assert.equal(result[0].syncStatus, 'synced');
+});

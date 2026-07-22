@@ -679,19 +679,10 @@ function shouldSkipOwnerAutoApprovedProposal(
   );
 }
 
-function shouldSyncPlayerUnlink(player: Player): boolean {
-  return (
-    player.pendingUserLinkAction === 'unlink' && !!player.cloudId && player.syncStatus === 'pending'
-  );
-}
-
-function markPlayerUnlinkSynced(player: Player, syncedAt: string): Player {
-  return {
-    ...player,
-    pendingUserLinkAction: undefined,
-    syncStatus: 'synced',
-    lastSyncedAt: syncedAt,
-  };
+function repairLegacyPlayerUnlinkIntent(player: Player): Player {
+  return player.pendingUserLinkAction === 'unlink'
+    ? { ...player, pendingUserLinkAction: undefined }
+    : player;
 }
 
 class PlayerLinkProposalReplayError extends Error {
@@ -1141,21 +1132,19 @@ export const syncService = {
 
     const updatedPlayers: Player[] = [];
     for (const player of local.players) {
+      const playerForUpload = repairLegacyPlayerUnlinkIntent(player);
       try {
-        if (player.deletedAt) {
+        if (playerForUpload.deletedAt) {
           const canDeleteGlobalPlayer =
-            player.cloudId && (!player.cloudOwnerId || player.cloudOwnerId === ownerId);
+            playerForUpload.cloudId &&
+            (!playerForUpload.cloudOwnerId || playerForUpload.cloudOwnerId === ownerId);
           if (canDeleteGlobalPlayer) {
-            await playerCloudService.softDelete(player.cloudId);
+            await playerCloudService.softDelete(playerForUpload.cloudId!);
           }
-          updatedPlayers.push(markSynced(player, player.cloudId, syncedAt));
+          updatedPlayers.push(
+            markSynced(playerForUpload, playerForUpload.cloudId, syncedAt),
+          );
           continue;
-        }
-
-        let playerForUpload = player;
-        if (shouldSyncPlayerUnlink(player)) {
-          await playerLinkProposalCloudService.unlink(player.cloudId!);
-          playerForUpload = markPlayerUnlinkSynced(player, syncedAt);
         }
 
         const isSharedPlayer =
@@ -1174,7 +1163,7 @@ export const syncService = {
         );
       } catch (error) {
         onIssue(`atleta "${player.nome}"`, error);
-        updatedPlayers.push(player);
+        updatedPlayers.push(playerForUpload);
       }
     }
 

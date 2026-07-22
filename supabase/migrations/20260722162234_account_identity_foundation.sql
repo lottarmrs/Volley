@@ -180,18 +180,40 @@ begin
 end;
 $$;
 
+create or replace function public.guard_player_account_identity_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.has_account_identity_history then
+    raise exception 'Canonical account identity cannot be deleted'
+      using errcode = '42501';
+  end if;
+  return old;
+end;
+$$;
+
 revoke execute on function public.guard_player_user_id() from public, anon, authenticated;
 revoke execute on function public.handle_player_soft_delete_user_unlink() from public, anon, authenticated;
 revoke execute on function public.guard_player_account_identity_history() from public, anon, authenticated;
+revoke execute on function public.guard_player_account_identity_delete()
+  from public, anon, authenticated;
 
 drop trigger if exists trg_guard_player_user_id on public.players;
 drop trigger if exists trg_player_soft_delete_user_unlink on public.players;
 drop trigger if exists trg_guard_player_account_identity_history on public.players;
+drop trigger if exists trg_guard_player_account_identity_delete on public.players;
 
 -- PostgreSQL fires same-event triggers by name: guard first, then forced unlink.
 create trigger trg_guard_player_account_identity_history
   before update on public.players
   for each row execute function public.guard_player_account_identity_history();
+
+create trigger trg_guard_player_account_identity_delete
+  before delete on public.players
+  for each row execute function public.guard_player_account_identity_delete();
 
 create trigger trg_guard_player_user_id
   before update on public.players
@@ -211,6 +233,16 @@ create policy "Users can insert unlinked owned players" on public.players
   with check (
     owner_id = (select auth.uid())
     and user_id is null
+  );
+
+drop policy if exists "Users can delete own players" on public.players;
+drop policy if exists "Users can delete owned legacy players" on public.players;
+create policy "Users can delete owned legacy players" on public.players
+  for delete
+  to authenticated
+  using (
+    owner_id = (select auth.uid())
+    and not has_account_identity_history
   );
 
 create or replace function public.unlink_player_user(
@@ -480,6 +512,7 @@ create policy "App staff can read link proposals"
 create or replace function public.guard_active_player_reference()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 declare

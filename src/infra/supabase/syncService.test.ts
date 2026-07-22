@@ -1145,7 +1145,7 @@ test('uploadLocalDataToCloud refuses to create local proposal for a different us
   }
 });
 
-test('uploadLocalDataToCloud replays pending player unlink intent through rpc', async () => {
+test('uploadLocalDataToCloud repairs legacy unlink intent without rpc or clearing user id', async () => {
   const originalUnlink = playerLinkProposalCloudService.unlink;
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
@@ -1165,7 +1165,7 @@ test('uploadLocalDataToCloud replays pending player unlink intent through rpc', 
         players: [
           makeSyncPlayer({
             cloudOwnerId: 'other-owner',
-            userId: undefined,
+            userId: 'account-user',
             pendingUserLinkAction: 'unlink',
             syncStatus: 'pending',
           }),
@@ -1174,7 +1174,8 @@ test('uploadLocalDataToCloud replays pending player unlink intent through rpc', 
       'owner-1',
     );
 
-    assert.deepEqual(calls, ['unlink:player-cloud']);
+    assert.deepEqual(calls, []);
+    assert.equal(result.players[0].userId, 'account-user');
     assert.equal(result.players[0].pendingUserLinkAction, undefined);
     assert.equal(result.players[0].syncStatus, 'synced');
   } finally {

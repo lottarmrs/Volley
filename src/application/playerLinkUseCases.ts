@@ -264,62 +264,17 @@ export async function unlinkPlayerCommand(
     playerId: string;
     nowIso: string;
   },
-  gateway: PlayerLinkCommandGateway = supabasePlayerLinkCommandGateway,
+  _gateway: PlayerLinkCommandGateway = supabasePlayerLinkCommandGateway,
 ): Promise<AppResult<PlayerLinkStateChange>> {
   if (!input.currentUserId) {
     return productError('not_authenticated', 'Usuario nao autenticado.');
   }
   const player = input.players.find((item) => item.id === input.playerId);
   if (!player) return productError('not_found', 'Atleta nao encontrado.');
-
-  let players: Player[] = input.players.map(
-    (item): Player =>
-      item.id === input.playerId
-        ? {
-            ...item,
-            userId: undefined,
-            pendingUserLinkAction: item.cloudId ? 'unlink' : undefined,
-            syncStatus: 'pending',
-            updatedAt: input.nowIso,
-          }
-        : item,
+  return productError(
+    'permission_denied',
+    'A identidade canonica do jogador e imutavel; desvinculo nao e suportado.',
   );
-  const linkProposals: PlayerLinkProposal[] = input.linkProposals.map(
-    (proposal): PlayerLinkProposal => {
-      const samePlayer =
-        proposal.playerId === input.playerId ||
-        (!!proposal.playerCloudId && !!player.cloudId && proposal.playerCloudId === player.cloudId);
-
-      if (samePlayer && proposal.status === 'pending') {
-        return {
-          ...proposal,
-          status: 'superseded',
-          reviewedBy: input.currentUserId,
-          reviewedAt: input.nowIso,
-          syncStatus: proposal.syncStatus === 'pending' ? 'pending' : 'synced',
-        };
-      }
-
-      return proposal;
-    },
-  );
-
-  if (player.cloudId) {
-    try {
-      await gateway.unlink?.(player.cloudId);
-      players = markPlayerUserLinkSynced(players, input.playerId, input.nowIso);
-    } catch (error) {
-      return appOk({ players, linkProposals }, [
-        recoverableIssue(
-          'cloud_unavailable',
-          'Desvinculo salvo localmente; a nuvem sera sincronizada depois.',
-          error,
-        ),
-      ]);
-    }
-  }
-
-  return appOk({ players, linkProposals });
 }
 
 export async function fetchAccountPlayerLinkQuery(
@@ -380,19 +335,5 @@ function markProposalPending(
   return proposals.map(
     (proposal): PlayerLinkProposal =>
       proposal.id === proposalId ? { ...proposal, syncStatus: 'pending' } : proposal,
-  );
-}
-
-function markPlayerUserLinkSynced(players: Player[], playerId: string, syncedAt: string): Player[] {
-  return players.map(
-    (player): Player =>
-      player.id === playerId
-        ? {
-            ...player,
-            pendingUserLinkAction: undefined,
-            syncStatus: 'synced',
-            lastSyncedAt: syncedAt,
-          }
-        : player,
   );
 }

@@ -818,6 +818,7 @@ test('reject and cancel serialize with claim and only transition pending proposa
 test('all claim reference writers reject archived or aliased players', () => {
   for (const artifact of [accountIdentityMigration, baseSchema]) {
     const guard = extractSqlFunction(artifact, 'guard_active_player_reference');
+    assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
     assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
     assert.match(guard, /from public\.player_identity_aliases[\s\S]*legacy_player_id = new\.player_id/i);
     assert.match(guard, /v_deleted_at is not null or v_has_alias/i);
@@ -829,6 +830,10 @@ test('all claim reference writers reject archived or aliased players', () => {
     assert.match(
       artifact,
       /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated/i,
+    );
+    assert.doesNotMatch(
+      artifact,
+      /grant execute on function public\.guard_active_player_reference\(\)/i,
     );
 
     for (const relation of [
@@ -864,6 +869,39 @@ test('all claim reference writers reject archived or aliased players', () => {
     assert.ok(mutationPosition >= 0 && mutationPosition < aliasPosition);
   }
   assert.ok(aliasPosition >= 0 && aliasPosition < archivePosition);
+});
+
+test('canonical account players cannot be deleted while pure legacy players can', () => {
+  for (const artifact of [accountIdentityMigration, baseSchema]) {
+    const guard = extractSqlFunction(artifact, 'guard_player_account_identity_delete');
+    assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
+    assert.match(guard, /if old\.has_account_identity_history then/i);
+    assert.match(
+      guard,
+      /raise exception 'Canonical account identity cannot be deleted'\s+using errcode = '42501'/i,
+    );
+    assert.match(guard, /return old;/i);
+    assert.match(
+      artifact,
+      /revoke execute on function public\.guard_player_account_identity_delete\(\)\s+from public, anon, authenticated/i,
+    );
+    assert.doesNotMatch(
+      artifact,
+      /grant execute on function public\.guard_player_account_identity_delete\(\)/i,
+    );
+    assert.match(
+      artifact,
+      /create trigger trg_guard_player_account_identity_delete\s+before delete on public\.players\s+for each row execute function public\.guard_player_account_identity_delete\(\);/i,
+    );
+
+    const policy = artifact.match(
+      /create policy "Users can delete owned legacy players"\s+on public\.players[\s\S]*?;/i,
+    )?.[0];
+    assert.ok(policy, 'missing legacy-only player DELETE policy');
+    assert.match(policy, /for delete\s+to authenticated/i);
+    assert.match(policy, /owner_id = \(select auth\.uid\(\)\)/i);
+    assert.match(policy, /not has_account_identity_history/i);
+  }
 });
 
 test('consolidated schema preserves app staff link proposal read policy', () => {

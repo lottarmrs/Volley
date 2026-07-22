@@ -196,49 +196,35 @@ test('cancelPlayerLinkCommand rejects the proposal locally and tolerates cloud f
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
 });
 
-test('unlinkPlayerCommand clears player user id and reports recoverable cloud issue', async () => {
+test('unlinkPlayerCommand rejects canonical unlink without changing state or calling cloud', async () => {
+  const players = [makePlayer('player-1', { userId: 'user-1', cloudId: 'cloud-player-1' })];
+  const linkProposals = [proposal()];
+  let unlinkCalls = 0;
   const result = await unlinkPlayerCommand(
     {
-      players: [makePlayer('player-1', { userId: 'user-1', cloudId: 'cloud-player-1' })],
-      linkProposals: [proposal()],
+      players,
+      linkProposals,
       currentUserId: 'user-1',
       playerId: 'player-1',
       nowIso: now,
     },
     {
       unlink: async () => {
-        throw new Error('offline');
+        unlinkCalls += 1;
       },
     },
   );
 
-  assert.equal(result.ok, true);
-  if (!result.ok) return;
-  assert.equal(result.value.players?.[0].userId, undefined);
-  assert.equal(result.value.players?.[0].pendingUserLinkAction, 'unlink');
-  assert.equal(result.value.linkProposals[0].status, 'superseded');
-  assert.equal(result.issues?.[0].code, 'cloud_unavailable');
-});
-
-test('unlinkPlayerCommand clears unlink intent when cloud unlink succeeds', async () => {
-  const result = await unlinkPlayerCommand(
-    {
-      players: [makePlayer('player-1', { userId: 'user-1', cloudId: 'cloud-player-1' })],
-      linkProposals: [proposal()],
-      currentUserId: 'reviewer-1',
-      playerId: 'player-1',
-      nowIso: now,
-    },
-    {
-      unlink: async () => undefined,
-    },
-  );
-
-  assert.equal(result.ok, true);
-  if (!result.ok) return;
-  assert.equal(result.value.players?.[0].userId, undefined);
-  assert.equal(result.value.players?.[0].pendingUserLinkAction, undefined);
-  assert.equal(result.value.players?.[0].syncStatus, 'synced');
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.error.kind, 'product');
+  assert.equal(result.error.code, 'permission_denied');
+  assert.equal(result.error.recoverable, false);
+  assert.match(result.error.message, /identidade canonica.*imutavel/i);
+  assert.equal(unlinkCalls, 0);
+  assert.equal(players[0].userId, 'user-1');
+  assert.equal(players[0].pendingUserLinkAction, undefined);
+  assert.equal(linkProposals[0].status, 'pending');
 });
 
 test('fetchAccountPlayerLinkQuery maps cloud lookup success', async () => {

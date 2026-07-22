@@ -52,6 +52,17 @@ A abordagem escolhida e uma reforma de plataforma com protecao incremental:
 - Trabalhar por fases pequenas o bastante para verificar.
 - Fechar cada fase com testes, typecheck, fluxo real e decisao documentada.
 - Aceitar refatoracao profunda apenas quando ela reduz risco de dados, acoplamento ou ambiguidade de produto.
+- Usar os roadmaps `backend.pdf` e `system-design.pdf` como criterios globais da reestruturacao completa do app, atravessando backend, dominio, sync, armazenamento local, navegacao, frontend e operacao.
+
+### Como aplicar os roadmaps
+
+Os roadmaps entram como filtros de decisao para cada fase, nao como uma lista para adicionar bibliotecas ou complexidade sem necessidade.
+
+- Backend: contratos de dados, auth, seguranca, cache, APIs, migrations, testes, boundaries e evolucao para DDD.
+- System design: consistencia, disponibilidade, idempotencia, filas/outbox quando necessario, retries, observabilidade, sharding/replicacao apenas como preparo conceitual, nao como implementacao imediata.
+- Produto: cada melhoria tecnica precisa preservar ou melhorar uma jornada real do Panelinha.
+- Frontend: a experiencia final deve nascer de View Models e estados confiaveis, nao de componentes tentando deduzir dados brutos.
+- Operacao: toda decisao critica precisa ter gate de verificacao e caminho de rollback/migracao quando envolver dados.
 
 ## Arquitetura alvo
 
@@ -468,6 +479,8 @@ Mitigacao:
 ## Fontes e referencias
 
 - Auditoria local: `audit-output/2026-06-28-full-audit/REPORT.md`.
+- Roadmap de backend fornecido pelo usuario: `C:/Users/Matheus Silva/Downloads/backend.pdf`.
+- Roadmap de system design fornecido pelo usuario: `C:/Users/Matheus Silva/Downloads/system-design.pdf`.
 - Supabase changelog oficial: https://supabase.com/changelog.md.
 - Supabase security/RLS guidance: skill local `supabase`.
 - Supabase Postgres best practices: skill local `supabase-postgres-best-practices`.

@@ -1748,7 +1748,11 @@ export const syncService = {
     ownerId: string,
     options: SyncOptions = {},
   ): Promise<LocalSyncPayload> {
-    const repairedLocal = consolidateDuplicateRecords(local, { ownerId }).payload;
+    const aliases = await playerIdentityAliasCloudService.fetchAll();
+    const repairedLocal = consolidateDuplicateRecords(
+      applyPlayerIdentityAliases(local, aliases),
+      { ownerId },
+    ).payload;
     const cloud = await this.downloadCloudDataToLocal(ownerId);
     const playersForMerge = repairedLocal.players.map((player) =>
       repairLegacyPlayerUnlinkIntent(
@@ -1801,7 +1805,6 @@ export const syncService = {
       ),
     };
 
-    const aliases = await playerIdentityAliasCloudService.fetchAll();
     return this.uploadLocalDataToCloud(applyPlayerIdentityAliases(merged, aliases), ownerId, {
       ...options,
       reconcileRelations: true,

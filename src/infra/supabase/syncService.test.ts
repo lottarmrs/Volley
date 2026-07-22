@@ -1617,6 +1617,83 @@ test('syncNow accepts newer cloud player link reviews over stale local pending s
   }
 });
 
+test('syncNow applies aliases before semantic player consolidation', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const originalAliasesFetch = playerIdentityAliasCloudService.fetchAll;
+  let capturedPayload: LocalSyncPayload | null = null;
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    playerIdentityAliasCloudService.fetchAll = async () => [
+      {
+        legacyPlayerId: 'legacy-cloud',
+        legacyLocalId: 'legacy-local',
+        canonicalPlayerId: 'canonical-cloud',
+      },
+    ];
+    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+      capturedPayload = payload;
+      return payload;
+    };
+
+    const result = await syncService.syncNow(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            id: 'canonical-local',
+            cloudId: 'canonical-cloud',
+            username: 'same-player',
+            updatedAt: '2026-07-01T00:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+          makeSyncPlayer({
+            id: 'legacy-local',
+            cloudId: 'legacy-cloud',
+            username: 'same-player',
+            updatedAt: '2026-07-02T00:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+        sessions: [makeSession({ selectedPlayerIds: ['legacy-local'], syncStatus: 'synced' })],
+        pointEvents: [
+          { id: 'point-1', playerId: 'legacy-cloud', syncStatus: 'synced' } as PointEvent,
+        ],
+        linkProposals: [
+          makeSyncProposal({
+            id: '00000000-0000-4000-8000-000000000099',
+            playerId: 'legacy-local',
+            playerCloudId: 'legacy-cloud',
+            status: 'approved',
+            reviewedBy: 'owner-1',
+            reviewedAt: '2026-07-02T00:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(
+      capturedPayload?.players.filter((player) => !player.deletedAt).map((player) => player.id),
+      ['canonical-local'],
+    );
+    assert.equal(
+      capturedPayload?.players.find((player) => player.id === 'legacy-local')?.deletedAt !== undefined,
+      true,
+    );
+    assert.equal(result.sessions[0].selectedPlayerIds[0], 'canonical-local');
+    assert.equal(result.pointEvents[0].playerId, 'canonical-local');
+    assert.equal(result.linkProposals?.[0].status, 'approved');
+    assert.equal(result.linkProposals?.[0].playerId, 'canonical-local');
+    assert.equal(result.linkProposals?.[0].playerCloudId, 'canonical-cloud');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+    playerIdentityAliasCloudService.fetchAll = originalAliasesFetch;
+  }
+});
+
 test('syncNow auto-repairs duplicate local players before uploading', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpload = syncService.uploadLocalDataToCloud;

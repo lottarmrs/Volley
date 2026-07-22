@@ -927,7 +927,7 @@ test('uploadLocalDataToCloud replays direct owner-approved local proposal with p
   }
 });
 
-test('uploadLocalDataToCloud applies the cloud claim result while replaying a cloud-backed approval', async () => {
+test('uploadLocalDataToCloud replays cloud-backed approval before an earlier local competitor', async () => {
   const originalPropose = playerLinkProposalCloudService.propose;
   const originalApprove = playerLinkProposalCloudService.approve;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
@@ -951,8 +951,9 @@ test('uploadLocalDataToCloud applies the cloud claim result while replaying a cl
   });
 
   try {
-    playerLinkProposalCloudService.propose = async () => {
-      assert.fail('cloud-backed proposal should not be proposed again');
+    playerLinkProposalCloudService.propose = async (playerId: string) => {
+      calls.push(`propose:${playerId}`);
+      return '00000000-0000-4000-8000-000000000008';
     };
     playerLinkProposalCloudService.approve = async (id: string) => {
       calls.push(`approve:${id}`);
@@ -970,6 +971,14 @@ test('uploadLocalDataToCloud applies the cloud claim result while replaying a cl
         players: [canonical, legacy],
         linkProposals: [
           makeSyncProposal({
+            id: 'proposal-local-competitor',
+            playerId: 'legacy-local',
+            playerCloudId: 'legacy-cloud',
+            userId: 'admin-1',
+            status: 'pending',
+            syncStatus: 'local',
+          }),
+          makeSyncProposal({
             id: proposalId,
             playerId: 'legacy-local',
             playerCloudId: 'legacy-cloud',
@@ -977,21 +986,14 @@ test('uploadLocalDataToCloud applies the cloud claim result while replaying a cl
             reviewedBy: 'admin-1',
             reviewedAt: '2026-06-01T01:00:00.000Z',
           }),
-          makeSyncProposal({
-            id: 'proposal-local-competitor',
-            playerId: 'legacy-local',
-            playerCloudId: 'legacy-cloud',
-            status: 'pending',
-            syncStatus: 'local',
-          }),
         ],
       }),
       'admin-1',
     );
 
     assert.deepEqual(calls, [`approve:${proposalId}`]);
+    assert.equal(result.linkProposals?.[0].status, 'superseded');
     assert.equal(result.linkProposals?.[0].syncStatus, 'synced');
-    assert.equal(result.linkProposals?.[1].status, 'superseded');
     assert.equal(result.linkProposals?.[1].syncStatus, 'synced');
     assert.equal(result.players.find((player) => player.cloudId === 'canonical-cloud')?.username, 'ana');
     assert.equal(result.players.find((player) => player.cloudId === 'canonical-cloud')?.userId, 'canonical-user');
@@ -999,7 +1001,7 @@ test('uploadLocalDataToCloud applies the cloud claim result while replaying a cl
 
     const retried = await syncService.uploadLocalDataToCloud(result, 'admin-1');
     assert.deepEqual(calls, [`approve:${proposalId}`]);
-    assert.equal(retried.linkProposals?.[1].status, 'superseded');
+    assert.equal(retried.linkProposals?.[0].status, 'superseded');
     assert.equal(retried.players.find((player) => player.cloudId === 'canonical-cloud')?.username, 'ana');
     assert.equal(retried.players.find((player) => player.cloudId === 'canonical-cloud')?.userId, 'canonical-user');
     assert.equal(retried.players.find((player) => player.cloudId === 'legacy-cloud'), undefined);

@@ -640,6 +640,14 @@ function isPendingPlayerLinkIntent(proposal: PlayerLinkProposal): boolean {
   return proposal.syncStatus === 'pending' || proposal.syncStatus === 'local';
 }
 
+function hasPendingTerminalCloudReplay(proposal: PlayerLinkProposal): boolean {
+  return (
+    isUuid(proposal.id) &&
+    isPendingPlayerLinkIntent(proposal) &&
+    (proposal.status === 'approved' || proposal.status === 'rejected')
+  );
+}
+
 function markLinkProposalSynced(
   proposal: PlayerLinkProposal,
   playerCloudId: string,
@@ -1504,7 +1512,10 @@ export const syncService = {
     void options.reconcileRelations;
 
     let updatedProposals = [...(local.linkProposals || [])];
-    for (let index = 0; index < updatedProposals.length; index += 1) {
+    const replayOrder = updatedProposals
+      .map((proposal, index) => ({ index, priority: hasPendingTerminalCloudReplay(proposal) ? 0 : 1 }))
+      .sort((left, right) => left.priority - right.priority || left.index - right.index);
+    for (const { index } of replayOrder) {
       const proposal = updatedProposals[index];
       try {
         const replayed = await syncPlayerLinkProposalIntent(

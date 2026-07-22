@@ -49,7 +49,13 @@ create table public.players (
   forma_atual jsonb default '{}'::jsonb not null,
   status jsonb default '{}'::jsonb not null,
   notes text,
-  username text,
+  username text constraint players_username_account_format_check check (
+    username is null
+    or (
+      username = lower(username)
+      and username ~ '^[a-z0-9][a-z0-9_-]{2,29}$'
+    )
+  ),
   user_id uuid references auth.users(id) on delete set null,
   local_id text,
   sync_version integer default 1 not null,
@@ -61,9 +67,9 @@ create table public.players (
 create unique index if not exists players_username_lower_idx
   on public.players (lower(username));
 
-create unique index if not exists players_user_id_active_unique_idx
+create unique index if not exists players_user_id_unique_idx
   on public.players (user_id)
-  where user_id is not null and deleted_at is null;
+  where user_id is not null;
 
 -- 4. Create Community Players Vínculo Table
 create table public.community_players (
@@ -175,8 +181,11 @@ create policy "Linked users can read their own player" on public.players
     user_id = (select auth.uid())
     and deleted_at is null
   );
-create policy "Users can insert own players" on public.players
-  for insert to authenticated with check (owner_id = (select auth.uid()));
+create policy "Users can insert unlinked owned players" on public.players
+  for insert to authenticated with check (
+    owner_id = (select auth.uid())
+    and user_id is null
+  );
 create policy "Users can update own players" on public.players
   for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
 create policy "Users can delete own players" on public.players
@@ -329,7 +338,7 @@ language sql
 immutable
 set search_path = public
 as $$
-  select public.normalize_account_username(value) ~ '^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$';
+  select public.normalize_account_username(value) ~ '^[a-z0-9][a-z0-9_-]{2,29}$';
 $$;
 
 create or replace function public.ensure_account_ready(p_username text default null)
@@ -388,10 +397,14 @@ begin
   if v_player.id is null then
     insert into public.players (owner_id, user_id, name, username)
     values (v_uid, v_uid, v_name, nullif(v_username, ''))
-    on conflict (user_id) where user_id is not null and deleted_at is null
+    on conflict (user_id) where user_id is not null
     do update set updated_at = now()
     returning * into v_player;
-  elsif v_player.username is null and nullif(v_username, '') is not null then
+  elsif (
+    v_player.username is null
+    or v_player.username <> public.normalize_account_username(v_player.username)
+    or not public.is_valid_account_username(v_player.username)
+  ) and nullif(v_username, '') is not null then
     if not public.is_valid_account_username(v_username) then
       raise exception 'Invalid username' using errcode = '22023';
     end if;
@@ -401,7 +414,9 @@ begin
      returning * into v_player;
   end if;
 
-  if v_player.username is null then
+  if v_player.username is null
+     or v_player.username <> public.normalize_account_username(v_player.username)
+     or not public.is_valid_account_username(v_player.username) then
     return query select
       'needs_username'::text,
       v_profile.id,
@@ -449,18 +464,23 @@ begin
   on conflict (id) do nothing;
 
   insert into public.players (owner_id, user_id, name, username)
-  values (
-    new.id,
-    new.id,
-    v_name,
-    case
-      when public.is_valid_account_username(v_username)
-       and not exists (select 1 from public.players p where lower(p.username) = v_username)
-      then v_username
-      else null
-    end
-  )
-  on conflict (user_id) where user_id is not null and deleted_at is null do nothing;
+  values (new.id, new.id, v_name, null)
+  on conflict (user_id) where user_id is not null do nothing;
+
+  if public.is_valid_account_username(v_username) then
+    begin
+      update public.players
+         set username = v_username,
+             updated_at = now()
+       where user_id = new.id
+         and deleted_at is null
+         and username is null;
+    exception
+      when unique_violation then
+        null;
+    end;
+  end if;
+
   return new;
 end;
 $$;

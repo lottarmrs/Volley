@@ -284,11 +284,74 @@ test('membership cloud service uses RPCs for sensitive member role mutations', (
 });
 
 test('account identity migration creates one canonical player per account', () => {
-  assert.match(accountIdentityMigration, /players_user_id_active_unique_idx/i);
+  assert.match(
+    accountIdentityMigration,
+    /drop index if exists public\.players_user_id_active_unique_idx/i,
+  );
+
+  const userIdIndex = accountIdentityMigration.match(
+    /create unique index if not exists players_user_id_unique_idx[\s\S]*?;/i,
+  )?.[0];
+
+  assert.ok(userIdIndex, 'missing global players.user_id unique index');
+  assert.match(userIdIndex, /on public\.players \(user_id\)/i);
+  assert.match(userIdIndex, /where user_id is not null/i);
+  assert.doesNotMatch(userIdIndex, /deleted_at/i);
+  assert.match(
+    accountIdentityMigration,
+    /row_number\(\) over\s*\(\s*partition by user_id\s*order by \(deleted_at is null\) desc, created_at, id\s*\)/i,
+  );
+  assert.match(accountIdentityMigration, /set user_id = null/i);
+
+  const userIdConflictTargets =
+    accountIdentityMigration.match(/on conflict \(user_id\)[^\n]*/gi) ?? [];
+  assert.ok(userIdConflictTargets.length >= 2, 'missing canonical player conflict targets');
+  for (const conflictTarget of userIdConflictTargets) {
+    assert.match(conflictTarget, /where user_id is not null/i);
+    assert.doesNotMatch(conflictTarget, /deleted_at/i);
+  }
+
   assert.match(accountIdentityMigration, /create or replace function public\.ensure_account_ready/i);
   assert.match(accountIdentityMigration, /insert into public\.players/i);
-  assert.match(accountIdentityMigration, /on conflict \(user_id\)/i);
   assert.match(accountIdentityMigration, /lower\(username\)/i);
+});
+
+test('account usernames use the exact format and a validated table invariant', () => {
+  const exactUsernamePattern = "'^[a-z0-9][a-z0-9_-]{2,29}$'";
+
+  assert.ok(accountIdentityMigration.includes(exactUsernamePattern));
+  assert.doesNotMatch(accountIdentityMigration, /\{1,28\}\[a-z0-9\]/i);
+  assert.match(
+    accountIdentityMigration,
+    /add constraint players_username_account_format_check[\s\S]*check \(\s*username is null\s*or \(\s*username = lower\(username\)[\s\S]*username ~ '\^\[a-z0-9\]\[a-z0-9_-\]\{2,29\}\$'[\s\S]*\)\s*\) not valid/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /public\.normalize_account_username\(username\) as normalized_username[\s\S]*set username = case[\s\S]*else null[\s\S]*end/i,
+  );
+
+  const remediationPosition = accountIdentityMigration.indexOf('set username = case');
+  const validationPosition = accountIdentityMigration.indexOf(
+    'validate constraint players_username_account_format_check',
+  );
+  assert.ok(remediationPosition >= 0, 'missing deterministic username remediation');
+  assert.ok(validationPosition > remediationPosition, 'username constraint validated before remediation');
+});
+
+test('player insert policy blocks attacker-owned rows linked to a victim account', () => {
+  assert.match(
+    accountIdentityMigration,
+    /drop policy if exists "Users can insert owned players" on public\.players/i,
+  );
+
+  const insertPolicy = accountIdentityMigration.match(
+    /create policy "Users can insert unlinked owned players" on public\.players[\s\S]*?;/i,
+  )?.[0];
+
+  assert.ok(insertPolicy, 'missing hardened players INSERT policy');
+  assert.match(insertPolicy, /for insert\s+to authenticated/i);
+  assert.match(insertPolicy, /owner_id = \(select auth\.uid\(\)\)/i);
+  assert.match(insertPolicy, /and user_id is null/i);
 });
 
 test('account bootstrap RPC is authenticated, hardened and idempotent', () => {
@@ -300,6 +363,10 @@ test('account bootstrap RPC is authenticated, hardened and idempotent', () => {
   assert.match(accountIdentityMigration, /state text[\s\S]*needs_username[\s\S]*ready/i);
   assert.match(
     accountIdentityMigration,
+    /if v_player\.username is null[\s\S]*or v_player\.username <> public\.normalize_account_username\(v_player\.username\)[\s\S]*or not public\.is_valid_account_username\(v_player\.username\)[\s\S]*then[\s\S]*'needs_username'/i,
+  );
+  assert.match(
+    accountIdentityMigration,
     /revoke execute on function public\.ensure_account_ready\(text\) from public, anon/i,
   );
   assert.match(
@@ -309,9 +376,39 @@ test('account bootstrap RPC is authenticated, hardened and idempotent', () => {
 });
 
 test('new auth users receive both profile and canonical player rows', () => {
+  const signupTrigger = accountIdentityMigration.match(
+    /create or replace function public\.handle_new_user\(\)[\s\S]*?revoke execute on function public\.handle_new_user\(\)/i,
+  )?.[0];
+
+  assert.ok(signupTrigger, 'missing auth signup trigger function');
+  assert.match(signupTrigger, /insert into public\.profiles/i);
+  assert.match(signupTrigger, /insert into public\.players/i);
+  assert.match(signupTrigger, /values \(new\.id, new\.id, v_name, null\)/i);
+  assert.match(signupTrigger, /new\.raw_user_meta_data->>'username'/i);
   assert.match(
-    accountIdentityMigration,
-    /create or replace function public\.handle_new_user\(\)[\s\S]*insert into public\.profiles[\s\S]*insert into public\.players/i,
+    signupTrigger,
+    /begin[\s\S]*update public\.players[\s\S]*set username = v_username[\s\S]*exception\s+when unique_violation then\s+null;[\s\S]*end;/i,
   );
-  assert.match(accountIdentityMigration, /new\.raw_user_meta_data->>'username'/i);
+  assert.doesNotMatch(signupTrigger, /not exists \(select 1 from public\.players/i);
+});
+
+test('consolidated schema mirrors hardened account identity invariants', () => {
+  assert.match(
+    baseSchema,
+    /create unique index if not exists players_user_id_unique_idx[\s\S]*where user_id is not null;/i,
+  );
+  assert.doesNotMatch(
+    baseSchema,
+    /players_user_id_unique_idx[\s\S]{0,120}deleted_at/i,
+  );
+  assert.ok(baseSchema.includes("username ~ '^[a-z0-9][a-z0-9_-]{2,29}$'"));
+  assert.match(baseSchema, /constraint players_username_account_format_check/i);
+  assert.match(
+    baseSchema,
+    /create policy "Users can insert unlinked owned players"[\s\S]*owner_id = \(select auth\.uid\(\)\)[\s\S]*and user_id is null/i,
+  );
+  assert.match(
+    baseSchema,
+    /values \(new\.id, new\.id, v_name, null\)[\s\S]*when unique_violation then\s+null;/i,
+  );
 });

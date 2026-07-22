@@ -6,6 +6,8 @@ import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
+import { applyClaimToPlayers } from '../../application/playerClaim';
+import type { PlayerClaimResult } from '../../application/playerClaim';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
@@ -714,18 +716,23 @@ class PlayerLinkProposalReplayError extends Error {
   }
 }
 
+interface PlayerLinkProposalReplayResult {
+  proposal: PlayerLinkProposal;
+  claim?: PlayerClaimResult;
+}
+
 async function syncPlayerLinkProposalIntent(
   proposal: PlayerLinkProposal,
   playerCloudIds: Map<string, string>,
   playerCloudOwners: Map<string, string>,
   ownerId: string,
   syncedAt: string,
-): Promise<PlayerLinkProposal> {
+): Promise<PlayerLinkProposalReplayResult> {
   const playerCloudId = proposal.playerCloudId || resolveCloudId(proposal.playerId, playerCloudIds);
-  if (!playerCloudId) return proposal;
+  if (!playerCloudId) return { proposal };
 
   if (proposal.deletedAt) {
-    return markLinkProposalSynced(proposal, playerCloudId, syncedAt);
+    return { proposal: markLinkProposalSynced(proposal, playerCloudId, syncedAt) };
   }
 
   const pendingIntent = isPendingPlayerLinkIntent(proposal);
@@ -734,11 +741,11 @@ async function syncPlayerLinkProposalIntent(
     (isUuid(proposal.id) && pendingIntent && proposal.status !== 'pending');
 
   if (proposal.status === 'superseded') {
-    return markLinkProposalSynced(proposal, playerCloudId, syncedAt);
+    return { proposal: markLinkProposalSynced(proposal, playerCloudId, syncedAt) };
   }
 
   if (cloudBacked && !pendingIntent) {
-    return markLinkProposalSynced(proposal, playerCloudId, syncedAt);
+    return { proposal: markLinkProposalSynced(proposal, playerCloudId, syncedAt) };
   }
 
   if (!cloudBacked && proposal.userId !== ownerId) {
@@ -753,6 +760,7 @@ async function syncPlayerLinkProposalIntent(
     proposalId = await playerLinkProposalCloudService.propose(playerCloudId);
   }
 
+  let claim: PlayerClaimResult | undefined;
   try {
     const playerCloudOwner =
       playerCloudOwners.get(playerCloudId.toLowerCase()) ||
@@ -762,7 +770,7 @@ async function syncPlayerLinkProposalIntent(
       proposal.status === 'approved' &&
       !(proposedNow && shouldSkipOwnerAutoApprovedProposal(proposal, ownerId, playerCloudOwner))
     ) {
-      await playerLinkProposalCloudService.approve(proposalId);
+      claim = await playerLinkProposalCloudService.approve(proposalId);
     } else if (proposal.status === 'rejected') {
       if (shouldCancelRejectedProposal(proposal)) {
         await playerLinkProposalCloudService.cancel(proposalId);
@@ -780,7 +788,10 @@ async function syncPlayerLinkProposalIntent(
     throw error;
   }
 
-  return markLinkProposalSynced(proposal, playerCloudId, syncedAt, proposalId);
+  return {
+    proposal: markLinkProposalSynced(proposal, playerCloudId, syncedAt, proposalId),
+    claim,
+  };
 }
 
 /**
@@ -1143,7 +1154,7 @@ export const syncService = {
       }
     }
 
-    const updatedPlayers: Player[] = [];
+    let updatedPlayers: Player[] = [];
     for (const player of local.players) {
       const playerForUpload = repairLegacyPlayerUnlinkIntent(player);
       try {
@@ -1494,15 +1505,17 @@ export const syncService = {
     const updatedProposals: PlayerLinkProposal[] = [];
     for (const proposal of local.linkProposals || []) {
       try {
-        updatedProposals.push(
-          await syncPlayerLinkProposalIntent(
-            proposal,
-            playerCloudIds,
-            playerCloudOwners,
-            ownerId,
-            syncedAt,
-          ),
+        const replayed = await syncPlayerLinkProposalIntent(
+          proposal,
+          playerCloudIds,
+          playerCloudOwners,
+          ownerId,
+          syncedAt,
         );
+        if (replayed.claim) {
+          updatedPlayers = applyClaimToPlayers(updatedPlayers, replayed.claim, syncedAt);
+        }
+        updatedProposals.push(replayed.proposal);
       } catch (error) {
         const replayError = error instanceof PlayerLinkProposalReplayError ? error : null;
         onIssue('proposta de vinculo', replayError?.originalError || error);

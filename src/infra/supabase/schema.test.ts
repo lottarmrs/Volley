@@ -59,6 +59,13 @@ const communityMemberRoleRpcMigration = readFixture(
   ),
 );
 
+const accountIdentityMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260722162234_account_identity_foundation.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -274,4 +281,37 @@ test('membership cloud service uses RPCs for sensitive member role mutations', (
     membershipCloudServiceSource,
     /\.from\('community_members'\)\s*[\s\S]{0,160}\.delete\(/i,
   );
+});
+
+test('account identity migration creates one canonical player per account', () => {
+  assert.match(accountIdentityMigration, /players_user_id_active_unique_idx/i);
+  assert.match(accountIdentityMigration, /create or replace function public\.ensure_account_ready/i);
+  assert.match(accountIdentityMigration, /insert into public\.players/i);
+  assert.match(accountIdentityMigration, /on conflict \(user_id\)/i);
+  assert.match(accountIdentityMigration, /lower\(username\)/i);
+});
+
+test('account bootstrap RPC is authenticated, hardened and idempotent', () => {
+  assert.match(
+    accountIdentityMigration,
+    /security definer[\s\S]*set search_path = public/i,
+  );
+  assert.match(accountIdentityMigration, /v_uid uuid := \(select auth\.uid\(\)\)/i);
+  assert.match(accountIdentityMigration, /state text[\s\S]*needs_username[\s\S]*ready/i);
+  assert.match(
+    accountIdentityMigration,
+    /revoke execute on function public\.ensure_account_ready\(text\) from public, anon/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /grant execute on function public\.ensure_account_ready\(text\) to authenticated/i,
+  );
+});
+
+test('new auth users receive both profile and canonical player rows', () => {
+  assert.match(
+    accountIdentityMigration,
+    /create or replace function public\.handle_new_user\(\)[\s\S]*insert into public\.profiles[\s\S]*insert into public\.players/i,
+  );
+  assert.match(accountIdentityMigration, /new\.raw_user_meta_data->>'username'/i);
 });

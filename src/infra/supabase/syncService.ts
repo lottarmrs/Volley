@@ -6,8 +6,9 @@ import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
+import { playerIdentityAliasCloudService } from './playerIdentityAliasCloudService';
 import { applyClaimToPlayers } from '../../application/playerClaim';
-import type { PlayerClaimResult } from '../../application/playerClaim';
+import type { PlayerClaimResult, PlayerIdentityAlias } from '../../application/playerClaim';
 import { supersedePendingProposalsForLink } from '../../domain/playerLink';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
@@ -842,7 +843,12 @@ export function computeStaleRelationIds(
 
 export function consolidateDuplicateRecords(
   local: LocalSyncPayload,
-  options: { ownerId?: string; deletedAt?: string } = {},
+  options: {
+    ownerId?: string;
+    deletedAt?: string;
+    aliases?: PlayerIdentityAlias[];
+    aliasOnly?: boolean;
+  } = {},
 ): DuplicateConsolidationResult {
   const deletedAt = options.deletedAt || nowIso();
   const summary: DuplicateConsolidationSummary = {
@@ -858,23 +864,43 @@ export function consolidateDuplicateRecords(
   const playerCloudIdMap = new Map<string, string>();
   const canonicalPlayerCommunityIds = new Map<string, string[]>();
 
-  for (const community of local.communities) {
-    if (!community.deletedAt) {
-      addIdMapping(communityIdMap, community.cloudId, community.id);
+  if (!options.aliasOnly) {
+    for (const community of local.communities) {
+      if (!community.deletedAt) {
+        addIdMapping(communityIdMap, community.cloudId, community.id);
+      }
+    }
+
+    for (const player of local.players) {
+      if (!player.deletedAt) {
+        addIdMapping(playerIdMap, player.cloudId, player.id);
+      }
     }
   }
 
-  for (const player of local.players) {
-    if (!player.deletedAt) {
-      addIdMapping(playerIdMap, player.cloudId, player.id);
-    }
+  for (const alias of options.aliases || []) {
+    const canonical = local.players.find(
+      (player) =>
+        !player.deletedAt &&
+        (normalizeIdValue(player.cloudId) === normalizeIdValue(alias.canonicalPlayerId) ||
+          normalizeIdValue(player.id) === normalizeIdValue(alias.canonicalPlayerId)),
+    );
+    if (!canonical) continue;
+
+    addIdMapping(playerIdMap, alias.legacyPlayerId, canonical.id);
+    addIdMapping(playerIdMap, alias.legacyLocalId, canonical.id);
+    addIdMapping(duplicatePlayerIdMap, alias.legacyPlayerId, canonical.id);
+    addIdMapping(duplicatePlayerIdMap, alias.legacyLocalId, canonical.id);
+    addIdMapping(playerCloudIdMap, alias.legacyPlayerId, canonical.cloudId || canonical.id);
   }
 
-  const communityGroups = groupActiveDuplicates<Community>(
-    local.communities.filter((community) => canConsolidateOwnedEntity(community, options.ownerId)),
-    (community) => communitySemanticKey(community),
-    (community) => community.cloudOwnerId || options.ownerId || 'local',
-  );
+  const communityGroups = options.aliasOnly
+    ? []
+    : groupActiveDuplicates<Community>(
+        local.communities.filter((community) => canConsolidateOwnedEntity(community, options.ownerId)),
+        (community) => communitySemanticKey(community),
+        (community) => community.cloudOwnerId || options.ownerId || 'local',
+      );
 
   for (const group of communityGroups) {
     const canonical = chooseCommunityCanonical(group);
@@ -888,14 +914,16 @@ export function consolidateDuplicateRecords(
     }
   }
 
-  const playerGroups = groupActiveDuplicates<Player>(
-    local.players.filter((player) => canConsolidateOwnedEntity(player, options.ownerId)),
-    (player) => playerSemanticKey(player),
-    (player) => player.cloudOwnerId || options.ownerId || 'local',
-  ).filter((group) => {
-    const linkedUsers = new Set(group.map((player) => player.userId).filter(Boolean));
-    return linkedUsers.size <= 1;
-  });
+  const playerGroups = options.aliasOnly
+    ? []
+    : groupActiveDuplicates<Player>(
+        local.players.filter((player) => canConsolidateOwnedEntity(player, options.ownerId)),
+        (player) => playerSemanticKey(player),
+        (player) => player.cloudOwnerId || options.ownerId || 'local',
+      ).filter((group) => {
+        const linkedUsers = new Set(group.map((player) => player.userId).filter(Boolean));
+        return linkedUsers.size <= 1;
+      });
 
   for (const group of playerGroups) {
     const canonical = choosePlayerCanonical(local, group);
@@ -937,7 +965,9 @@ export function consolidateDuplicateRecords(
 
     const mergedCommunityIds =
       canonicalPlayerCommunityIds.get(normalizeIdValue(player.id)) ||
-      remapIdArray(player.communityIds, communityIdMap, summary);
+      (options.aliasOnly
+        ? player.communityIds
+        : remapIdArray(player.communityIds, communityIdMap, summary));
 
     return {
       ...player,
@@ -1064,6 +1094,70 @@ export function consolidateDuplicateRecords(
     },
     summary,
   };
+}
+
+export function applyPlayerIdentityAliases(
+  payload: LocalSyncPayload,
+  aliases: PlayerIdentityAlias[],
+): LocalSyncPayload {
+  if (aliases.length === 0) return payload;
+
+  const repaired = consolidateDuplicateRecords(payload, { aliases, aliasOnly: true }).payload;
+  return preserveUnchangedAliasSyncStatus(payload, repaired);
+}
+
+function preserveUnchangedAliasSyncStatus(
+  source: LocalSyncPayload,
+  repaired: LocalSyncPayload,
+): LocalSyncPayload {
+  return {
+    ...repaired,
+    players: preserveUnchangedSyncStatus(source.players, repaired.players, (player) => player.id),
+    sessions: preserveUnchangedSyncStatus(source.sessions, repaired.sessions, (session) => session.id),
+    teams: preserveUnchangedSyncStatus(source.teams, repaired.teams, (team) => team.id),
+    games: preserveUnchangedSyncStatus(source.games, repaired.games, (game) => game.id),
+    pointEvents: preserveUnchangedSyncStatus(source.pointEvents, repaired.pointEvents, (point) => point.id),
+    gameReports: preserveUnchangedSyncStatus(
+      source.gameReports,
+      repaired.gameReports,
+      (report) => report.id,
+    ),
+    sessionReports: preserveUnchangedSyncStatus(
+      source.sessionReports,
+      repaired.sessionReports,
+      (report) => report.id,
+    ),
+    presenceRecords: preserveUnchangedSyncStatus(
+      source.presenceRecords,
+      repaired.presenceRecords,
+      (presence) => `${presence.communityId}:${presence.date}`,
+    ),
+    drafts: preserveUnchangedSyncStatus(source.drafts, repaired.drafts, (draft) => draft.id),
+    linkProposals: preserveUnchangedSyncStatus(
+      source.linkProposals || [],
+      repaired.linkProposals || [],
+      (proposal) => proposal.id,
+    ),
+  };
+}
+
+function preserveUnchangedSyncStatus<T extends Syncable>(
+  source: T[],
+  repaired: T[],
+  getKey: (item: T) => string,
+): T[] {
+  const sourceByKey = new Map(source.map((item) => [getKey(item), item]));
+  return repaired.map((item) => {
+    const original = sourceByKey.get(getKey(item));
+    if (!original || !hasSameContentExceptSyncStatus(original, item)) return item;
+    return { ...item, syncStatus: original.syncStatus };
+  });
+}
+
+function hasSameContentExceptSyncStatus<T extends Syncable>(source: T, repaired: T): boolean {
+  const { syncStatus: sourceSyncStatus, ...sourceContent } = source;
+  const { syncStatus: repairedSyncStatus, ...repairedContent } = repaired;
+  return JSON.stringify(sourceContent) === JSON.stringify(repairedContent);
 }
 
 async function bulkUploadSessionChildren<T extends Syncable>(
@@ -1603,6 +1697,7 @@ export const syncService = {
       cloudEvaluations,
       operational,
       cloudProposals,
+      aliases,
     ] = await Promise.all([
       communityRulesCloudService.fetchAll(),
       whatsappTemplateCloudService.fetchAll(),
@@ -1610,6 +1705,7 @@ export const syncService = {
       playerEvaluationCloudService.fetchAll(),
       operationalCloudService.fetchAll(),
       playerLinkProposalCloudService.fetchAll(),
+      playerIdentityAliasCloudService.fetchAll(),
     ]);
 
     const playerMemberships: Record<string, string[]> = {};
@@ -1637,14 +1733,14 @@ export const syncService = {
       );
     });
 
-    return {
+    return applyPlayerIdentityAliases({
       communities: cloudCommunities,
       players: mappedPlayers,
       rules: cloudRules,
       templates: cloudTemplates,
       linkProposals: cloudProposals,
       ...operational,
-    };
+    }, aliases);
   },
 
   async syncNow(
@@ -1705,7 +1801,8 @@ export const syncService = {
       ),
     };
 
-    return this.uploadLocalDataToCloud(merged, ownerId, {
+    const aliases = await playerIdentityAliasCloudService.fetchAll();
+    return this.uploadLocalDataToCloud(applyPlayerIdentityAliases(merged, aliases), ownerId, {
       ...options,
       reconcileRelations: true,
     });

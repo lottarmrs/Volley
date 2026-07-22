@@ -7,6 +7,7 @@ import {
   isUuid,
   isCloudBackedPlayerLinkProposal,
   playerSemanticKey,
+  applyPlayerIdentityAliases,
   consolidateDuplicateRecords,
   syncService,
   type LocalSyncPayload,
@@ -15,6 +16,11 @@ import { operationalCloudService } from './operationalCloudService';
 import { playerCloudService } from './playerCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
+import { playerIdentityAliasCloudService } from './playerIdentityAliasCloudService';
+import { communityCloudService } from './communityCloudService';
+import { communityPlayerCloudService } from './communityPlayerCloudService';
+import { communityRulesCloudService } from './communityRulesCloudService';
+import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import {
   CloudSyncStatus,
   Community,
@@ -1009,6 +1015,193 @@ test('uploadLocalDataToCloud replays cloud-backed approval before an earlier loc
     playerLinkProposalCloudService.propose = originalPropose;
     playerLinkProposalCloudService.approve = originalApprove;
     playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('player identity aliases repair stale references without reviving the legacy player', () => {
+  const payload = applyPlayerIdentityAliases(
+    emptyPayload({
+      players: [
+        makeSyncPlayer({
+          id: 'legacy-local',
+          cloudId: 'legacy-cloud',
+          username: 'legacy-user',
+          userId: 'legacy-user-id',
+          syncStatus: 'synced',
+        }),
+        makeSyncPlayer({
+          id: 'canonical-local',
+          cloudId: 'canonical-cloud',
+          username: 'canonical-user',
+          userId: 'canonical-user-id',
+          syncStatus: 'synced',
+        }),
+      ],
+      sessions: [
+        makeSession({
+          selectedPlayerIds: ['legacy-cloud'],
+          config: {
+            playerPositions: { 'legacy-local': 'ponteiro' },
+            balanceConstraints: {
+              lockedPlayerIdxs: { 'legacy-cloud': 1 },
+              pairsTogether: [['legacy-local', 'other-player']],
+              pairsSeparated: [['legacy-cloud', 'other-player']],
+            },
+          } as unknown as Session['config'],
+          syncStatus: 'synced',
+        }),
+      ],
+      teams: [makeTeam({ playerIds: ['legacy-local'], syncStatus: 'synced' })],
+      pointEvents: [
+        { id: 'point-1', playerId: 'legacy-cloud', assistPlayerId: 'legacy-local', syncStatus: 'synced' } as PointEvent,
+      ],
+      gameReports: [
+        {
+          id: 'game-report-1',
+          teamA: { playerIds: ['legacy-cloud'] },
+          teamB: { playerIds: [] },
+          playerStats: [{ playerId: 'legacy-local' }],
+          syncStatus: 'synced',
+        } as any,
+      ],
+      sessionReports: [
+        {
+          id: 'session-report-1',
+          playerRanking: [{ playerId: 'legacy-cloud' }],
+          games: [
+            {
+              teamA: { playerIds: ['legacy-local'] },
+              teamB: { playerIds: [] },
+              playerStats: [{ playerId: 'legacy-cloud' }],
+            },
+          ],
+          syncStatus: 'synced',
+        } as any,
+      ],
+      presenceRecords: [
+        {
+          communityId: 'community-local',
+          date: '2026-07-22',
+          items: [{ playerId: 'legacy-local', status: 'present' }],
+          syncStatus: 'synced',
+        } as CommunityPresence,
+      ],
+      drafts: [
+        {
+          id: 'draft-1',
+          setters: [{ index: 0, playerId: 'legacy-cloud' }],
+          mainSlots: [{ index: 0, playerId: 'legacy-local' }],
+          reserveSlots: [],
+          syncStatus: 'synced',
+        } as WhatsAppListDraft,
+      ],
+      linkProposals: [
+        makeSyncProposal({
+          playerId: 'legacy-local',
+          playerCloudId: 'legacy-cloud',
+          syncStatus: 'synced',
+        }),
+      ],
+    }),
+    [
+      {
+        legacyPlayerId: 'legacy-cloud',
+        legacyLocalId: 'legacy-local',
+        canonicalPlayerId: 'canonical-cloud',
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    payload.players.filter((player) => !player.deletedAt).map((player) => player.id),
+    ['canonical-local'],
+  );
+  assert.equal(payload.players.find((player) => player.id === 'legacy-local')?.syncStatus, 'pending');
+  assert.equal(payload.players.find((player) => player.id === 'canonical-local')?.syncStatus, 'synced');
+  assert.deepEqual(payload.sessions[0].selectedPlayerIds, ['canonical-local']);
+  assert.deepEqual(payload.sessions[0].config?.playerPositions, { 'canonical-local': 'ponteiro' });
+  assert.deepEqual(payload.sessions[0].config?.balanceConstraints?.lockedPlayerIdxs, { 'canonical-local': 1 });
+  assert.deepEqual(payload.sessions[0].config?.balanceConstraints?.pairsTogether, [['canonical-local', 'other-player']]);
+  assert.deepEqual(payload.sessions[0].config?.balanceConstraints?.pairsSeparated, [['canonical-local', 'other-player']]);
+  assert.deepEqual(payload.teams[0].playerIds, ['canonical-local']);
+  assert.equal(payload.pointEvents[0].playerId, 'canonical-local');
+  assert.equal(payload.pointEvents[0].assistPlayerId, 'canonical-local');
+  assert.deepEqual(payload.gameReports[0].teamA.playerIds, ['canonical-local']);
+  assert.equal(payload.gameReports[0].playerStats[0].playerId, 'canonical-local');
+  assert.equal(payload.sessionReports[0].playerRanking[0].playerId, 'canonical-local');
+  assert.deepEqual(payload.sessionReports[0].games[0].teamA.playerIds, ['canonical-local']);
+  assert.equal(payload.sessionReports[0].games[0].playerStats[0].playerId, 'canonical-local');
+  assert.equal(payload.presenceRecords[0].items[0].playerId, 'canonical-local');
+  assert.equal(payload.drafts[0].setters[0].playerId, 'canonical-local');
+  assert.equal(payload.drafts[0].mainSlots[0].playerId, 'canonical-local');
+  assert.equal(payload.linkProposals?.[0].playerId, 'canonical-local');
+  assert.equal(payload.linkProposals?.[0].playerCloudId, 'canonical-cloud');
+  assert.equal(payload.sessions[0].syncStatus, 'pending');
+  assert.equal(payload.teams[0].syncStatus, 'pending');
+  assert.equal(payload.pointEvents[0].syncStatus, 'pending');
+  assert.equal(payload.gameReports[0].syncStatus, 'pending');
+  assert.equal(payload.sessionReports[0].syncStatus, 'pending');
+  assert.equal(payload.presenceRecords[0].syncStatus, 'pending');
+  assert.equal(payload.drafts[0].syncStatus, 'pending');
+  assert.equal(payload.linkProposals?.[0].syncStatus, 'pending');
+});
+
+test('downloads aliases before merge', async () => {
+  const originalCommunityFetch = communityCloudService.fetchAll;
+  const originalPlayerFetch = playerCloudService.fetchAll;
+  const originalRulesFetch = communityRulesCloudService.fetchAll;
+  const originalTemplatesFetch = whatsappTemplateCloudService.fetchAll;
+  const originalRelationsFetch = communityPlayerCloudService.fetchAll;
+  const originalEvaluationsFetch = playerEvaluationCloudService.fetchAll;
+  const originalOperationalFetch = operationalCloudService.fetchAll;
+  const originalProposalsFetch = playerLinkProposalCloudService.fetchAll;
+  const originalAliasesFetch = playerIdentityAliasCloudService.fetchAll;
+
+  try {
+    communityCloudService.fetchAll = async () => [];
+    playerCloudService.fetchAll = async () => [
+      makeSyncPlayer({ id: 'legacy-local', cloudId: 'legacy-cloud', username: 'legacy-user' }),
+      makeSyncPlayer({ id: 'canonical-local', cloudId: 'canonical-cloud', username: 'canonical-user' }),
+    ];
+    communityRulesCloudService.fetchAll = async () => [];
+    whatsappTemplateCloudService.fetchAll = async () => [];
+    communityPlayerCloudService.fetchAll = async () => [];
+    playerEvaluationCloudService.fetchAll = async () => [];
+    operationalCloudService.fetchAll = async () => ({
+      sessions: [],
+      teams: [],
+      games: [],
+      pointEvents: [],
+      gameReports: [],
+      sessionReports: [],
+      presenceRecords: [],
+      drafts: [],
+    });
+    playerLinkProposalCloudService.fetchAll = async () => [];
+    playerIdentityAliasCloudService.fetchAll = async () => [
+      {
+        legacyPlayerId: 'legacy-cloud',
+        legacyLocalId: 'legacy-local',
+        canonicalPlayerId: 'canonical-cloud',
+      },
+    ];
+
+    const cloud = await syncService.downloadCloudDataToLocal('owner-1');
+
+    assert.deepEqual(
+      cloud.players.filter((player) => !player.deletedAt).map((player) => player.id),
+      ['canonical-local'],
+    );
+  } finally {
+    communityCloudService.fetchAll = originalCommunityFetch;
+    playerCloudService.fetchAll = originalPlayerFetch;
+    communityRulesCloudService.fetchAll = originalRulesFetch;
+    whatsappTemplateCloudService.fetchAll = originalTemplatesFetch;
+    communityPlayerCloudService.fetchAll = originalRelationsFetch;
+    playerEvaluationCloudService.fetchAll = originalEvaluationsFetch;
+    operationalCloudService.fetchAll = originalOperationalFetch;
+    playerLinkProposalCloudService.fetchAll = originalProposalsFetch;
+    playerIdentityAliasCloudService.fetchAll = originalAliasesFetch;
   }
 });
 

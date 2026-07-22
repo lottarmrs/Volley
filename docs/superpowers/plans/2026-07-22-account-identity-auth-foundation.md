@@ -8,6 +8,11 @@
 
 **Tech Stack:** React 19, React Router 7, TypeScript 5.8, `@supabase/supabase-js` 2.x, PostgreSQL/Supabase migrations, Node test runner, Vitest, Testing Library.
 
+> **Execution prerequisite:** before Task 1 can be accepted, execute
+> `docs/superpowers/plans/2026-07-22-player-claim-prerequisite.md`. The canonical
+> bootstrap makes the legacy link RPCs incompatible until claims preserve the
+> account player and publish aliases for sync repair.
+
 ## Global Constraints
 
 - Preservar Supabase Auth como autoridade de identidade.

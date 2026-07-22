@@ -68,6 +68,14 @@ const hardenedTriggerFunctionsMigration = readFileSync(
   'utf8',
 );
 
+const rbacHardeningMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260624133529_rbac_global_roles_and_hardening.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const communityMemberRoleRpcMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260707143343_community_member_role_remove_rpc.sql',
@@ -680,6 +688,201 @@ test('claim requires a ready canonical account', () => {
   assert.ok(readinessPosition >= 0 && readinessPosition < childLockPosition);
 });
 
+test('canonical account identity cannot be unlinked or reclaimed', () => {
+  assert.match(
+    accountIdentityMigration,
+    /add column if not exists has_account_identity_history boolean not null default false/i,
+  );
+  const markerBackfillPosition = accountIdentityMigration.indexOf(
+    'set has_account_identity_history = true',
+  );
+  const duplicateUnlinkPosition = accountIdentityMigration.indexOf(
+    'with ranked_player_links as',
+  );
+  assert.ok(markerBackfillPosition >= 0 && markerBackfillPosition < duplicateUnlinkPosition);
+  assert.match(
+    accountIdentityMigration,
+    /has_account_identity_history = true[\s\S]*user_id is not null[\s\S]*status = 'approved'/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /check \(user_id is null or has_account_identity_history\)/i,
+  );
+
+  const identityGuard = extractSqlFunction(
+    accountIdentityMigration,
+    'guard_player_account_identity_history',
+  );
+  assert.match(identityGuard, /old\.has_account_identity_history/i);
+  assert.match(identityGuard, /new\.user_id is distinct from old\.user_id/i);
+  assert.match(identityGuard, /new\.deleted_at is not null/i);
+  assert.match(
+    accountIdentityMigration,
+    /revoke execute on function public\.guard_player_account_identity_history\(\) from public, anon, authenticated/i,
+  );
+  assert.equal(
+    normalizeSql(identityGuard),
+    normalizeSql(extractSqlFunction(baseSchema, 'guard_player_account_identity_history')),
+  );
+  for (const artifact of [accountIdentityMigration, baseSchema]) {
+    assert.match(
+      artifact,
+      /create trigger trg_guard_player_account_identity_history\s+before update on public\.players\s+for each row execute function public\.guard_player_account_identity_history\(\);/i,
+    );
+    assert.ok(
+      artifact.indexOf('create trigger trg_guard_player_account_identity_history') <
+        artifact.indexOf('create trigger trg_player_soft_delete_user_unlink'),
+    );
+  }
+
+  const unlinkFunction = extractSqlFunction(accountIdentityMigration, 'unlink_player_user');
+  assert.match(unlinkFunction, /security definer[\s\S]*set search_path = public/i);
+  assert.match(unlinkFunction, /v_uid uuid := \(select auth\.uid\(\)\)/i);
+  assert.match(
+    unlinkFunction,
+    /raise exception 'Canonical account identity is immutable; unlink is unsupported'\s+using errcode = '0A000'/i,
+  );
+  assert.doesNotMatch(unlinkFunction, /current_user_is_player_admin/i);
+  assert.doesNotMatch(unlinkFunction, /from public\.players|update public\.players|set_config/i);
+  assert.equal(
+    normalizeSql(unlinkFunction),
+    normalizeSql(extractSqlFunction(baseSchema, 'unlink_player_user')),
+  );
+  assert.match(
+    accountIdentityMigration,
+    /revoke execute on function public\.unlink_player_user\(uuid\) from public, anon;[\s\S]*grant execute on function public\.unlink_player_user\(uuid\) to authenticated;/i,
+  );
+
+  for (const functionName of [
+    'merge_player_identity_claim',
+    'propose_player_link',
+    'approve_player_link',
+  ]) {
+    const sql = extractSqlFunction(accountIdentityMigration, functionName);
+    assert.match(sql, /v_legacy\.has_account_identity_history/i, functionName);
+    assert.match(
+      sql,
+      /has_account_identity_history[\s\S]*raise exception 'Player already claimed' using errcode = '23505'/i,
+      functionName,
+    );
+  }
+
+  const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
+  const approveFunction = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
+  assert.ok(
+    proposeFunction.indexOf('v_legacy.has_account_identity_history') <
+      proposeFunction.indexOf('insert into public.player_link_proposals'),
+  );
+  assert.ok(
+    approveFunction.indexOf('v_legacy.has_account_identity_history') <
+      approveFunction.indexOf('return public.merge_player_identity_claim'),
+  );
+});
+
+test('reject and cancel serialize with claim and only transition pending proposals', () => {
+  for (const functionName of ['reject_player_link', 'cancel_my_link_proposal']) {
+    const sql = extractSqlFunction(accountIdentityMigration, functionName);
+    assert.ok(sql, `missing ${functionName}`);
+    assert.match(sql, /security definer[\s\S]*set search_path = public/i);
+    assert.match(sql, /v_uid uuid := \(select auth\.uid\(\)\)/i);
+    assert.match(sql, /hashtextextended\('player:'[\s\S]*hashtextextended\('user:'/i);
+    assert.match(
+      sql,
+      /pg_advisory_xact_lock\(least\([^)]+\)\)[\s\S]*pg_advisory_xact_lock\(greatest\([^)]+\)\)/i,
+    );
+
+    const proposalLockPosition = sql.indexOf('where id = p_proposal_id\n   for update');
+    const revalidationPosition = sql.indexOf('Proposal changed while transition was starting');
+    const pendingCheckPosition = sql.indexOf("v_proposal.status <> 'pending'");
+    const conditionalUpdatePosition = sql.lastIndexOf("and status = 'pending'");
+    assert.ok(proposalLockPosition >= 0);
+    assert.ok(revalidationPosition > proposalLockPosition);
+    assert.ok(pendingCheckPosition > revalidationPosition);
+    assert.ok(conditionalUpdatePosition > pendingCheckPosition);
+    assert.match(sql, /if not found then[\s\S]*Proposal no longer pending/i);
+    assert.equal(
+      normalizeSql(sql),
+      normalizeSql(extractSqlFunction(baseSchema, functionName)),
+      `${functionName} differs in schema.sql`,
+    );
+    assert.match(
+      accountIdentityMigration,
+      new RegExp(
+        `revoke execute on function public\\.${functionName}\\(uuid\\) from public, anon;[\\s\\S]*grant execute on function public\\.${functionName}\\(uuid\\) to authenticated;`,
+        'i',
+      ),
+    );
+  }
+});
+
+test('all claim reference writers reject archived or aliased players', () => {
+  for (const artifact of [accountIdentityMigration, baseSchema]) {
+    const guard = extractSqlFunction(artifact, 'guard_active_player_reference');
+    assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
+    assert.match(guard, /from public\.player_identity_aliases[\s\S]*legacy_player_id = new\.player_id/i);
+    assert.match(guard, /v_deleted_at is not null or v_has_alias/i);
+    assert.match(
+      guard,
+      /raise exception 'Player reference must target an active canonical player'\s+using errcode = '23503'/i,
+    );
+    assert.doesNotMatch(guard, /avatar_url|allow_avatar/i);
+    assert.match(
+      artifact,
+      /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated/i,
+    );
+
+    for (const relation of [
+      'community_players',
+      'player_evaluations',
+      'player_avatar_proposals',
+      'player_link_proposals',
+    ]) {
+      assert.match(
+        artifact,
+        new RegExp(
+          `create trigger trg_guard_active_player_reference[\\s\\S]*before insert or update on public\\.${relation}[\\s\\S]*guard_active_player_reference\\(\\);`,
+          'i',
+        ),
+        relation,
+      );
+    }
+  }
+
+  const mergeFunction = extractSqlFunction(
+    accountIdentityMigration,
+    'merge_player_identity_claim',
+  );
+  const aliasPosition = mergeFunction.indexOf('insert into public.player_identity_aliases');
+  const archivePosition = mergeFunction.indexOf('set username = null');
+  for (const relationMutation of [
+    'insert into public.community_players',
+    'update public.player_evaluations',
+    'update public.player_avatar_proposals',
+    'update public.player_link_proposals',
+  ]) {
+    const mutationPosition = mergeFunction.indexOf(relationMutation);
+    assert.ok(mutationPosition >= 0 && mutationPosition < aliasPosition);
+  }
+  assert.ok(aliasPosition >= 0 && aliasPosition < archivePosition);
+});
+
+test('consolidated schema preserves app staff link proposal read policy', () => {
+  assert.match(
+    rbacHardeningMigration,
+    /create policy "App staff can read link proposals"\s+on public\.player_link_proposals[\s\S]*for select to authenticated using \(public\.is_app_staff\(\)\)/i,
+  );
+  const policy = baseSchema.match(
+    /create policy "App staff can read link proposals"\s+on public\.player_link_proposals[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(policy, 'missing consolidated app staff link proposal policy');
+  assert.equal(
+    normalizeSql(policy),
+    normalizeSql(
+      'create policy "App staff can read link proposals" on public.player_link_proposals for select to authenticated using (public.is_app_staff());',
+    ),
+  );
+});
+
 test('consolidated schema defines claim objects and guards exactly once', () => {
   const definitions = [
     /create table if not exists public\.player_identity_claims/gi,
@@ -828,7 +1031,7 @@ test('new auth users receive both profile and canonical player rows', () => {
   assert.ok(signupTrigger, 'missing auth signup trigger function');
   assert.match(signupTrigger, /insert into public\.profiles/i);
   assert.match(signupTrigger, /insert into public\.players/i);
-  assert.match(signupTrigger, /values \(new\.id, new\.id, v_name, null\)/i);
+  assert.match(signupTrigger, /values \(new\.id, new\.id, v_name, null, true\)/i);
   assert.match(signupTrigger, /new\.raw_user_meta_data->>'username'/i);
   assert.match(
     signupTrigger,
@@ -858,7 +1061,7 @@ test('consolidated schema mirrors hardened account identity invariants', () => {
   );
   assert.match(
     baseSchema,
-    /values \(new\.id, new\.id, v_name, null\)[\s\S]*when unique_violation then\s+null;/i,
+    /values \(new\.id, new\.id, v_name, null, true\)[\s\S]*when unique_violation then\s+null;/i,
   );
 });
 

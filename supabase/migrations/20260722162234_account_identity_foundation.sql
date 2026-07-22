@@ -72,6 +72,32 @@ update public.players as p
 alter table public.players
   validate constraint players_username_account_format_check;
 
+alter table public.players
+  add column if not exists has_account_identity_history boolean not null default false;
+
+-- Preserve evidence of every current or historically approved account identity
+-- before duplicate links are cleared below.
+update public.players as p
+   set has_account_identity_history = true,
+       updated_at = now()
+ where p.user_id is not null
+    or exists (
+      select 1
+        from public.player_link_proposals as proposal
+       where proposal.player_id = p.id
+         and proposal.status = 'approved'
+    );
+
+alter table public.players
+  drop constraint if exists players_account_identity_history_check;
+
+alter table public.players
+  add constraint players_account_identity_history_check
+  check (user_id is null or has_account_identity_history) not valid;
+
+alter table public.players
+  validate constraint players_account_identity_history_check;
+
 drop index if exists public.players_user_id_active_unique_idx;
 drop index if exists public.players_user_id_unique_idx;
 
@@ -135,13 +161,38 @@ begin
 end;
 $$;
 
+create or replace function public.guard_player_account_identity_history()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if old.has_account_identity_history
+     and (
+       not new.has_account_identity_history
+       or new.user_id is distinct from old.user_id
+       or new.deleted_at is not null
+     ) then
+    raise exception 'Canonical account identity is immutable'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
 revoke execute on function public.guard_player_user_id() from public, anon, authenticated;
 revoke execute on function public.handle_player_soft_delete_user_unlink() from public, anon, authenticated;
+revoke execute on function public.guard_player_account_identity_history() from public, anon, authenticated;
 
 drop trigger if exists trg_guard_player_user_id on public.players;
 drop trigger if exists trg_player_soft_delete_user_unlink on public.players;
+drop trigger if exists trg_guard_player_account_identity_history on public.players;
 
 -- PostgreSQL fires same-event triggers by name: guard first, then forced unlink.
+create trigger trg_guard_player_account_identity_history
+  before update on public.players
+  for each row execute function public.guard_player_account_identity_history();
+
 create trigger trg_guard_player_user_id
   before update on public.players
   for each row execute function public.guard_player_user_id();
@@ -161,6 +212,29 @@ create policy "Users can insert unlinked owned players" on public.players
     owner_id = (select auth.uid())
     and user_id is null
   );
+
+create or replace function public.unlink_player_user(
+  p_player_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  raise exception 'Canonical account identity is immutable; unlink is unsupported'
+    using errcode = '0A000';
+end;
+$$;
+
+revoke execute on function public.unlink_player_user(uuid) from public, anon;
+grant execute on function public.unlink_player_user(uuid) to authenticated;
 
 create or replace function public.ensure_account_ready(p_username text default null)
 returns table (
@@ -216,8 +290,14 @@ begin
   end if;
 
   if v_player.id is null then
-    insert into public.players (owner_id, user_id, name, username)
-    values (v_uid, v_uid, v_name, nullif(v_username, ''))
+    insert into public.players (
+      owner_id,
+      user_id,
+      name,
+      username,
+      has_account_identity_history
+    )
+    values (v_uid, v_uid, v_name, nullif(v_username, ''), true)
     on conflict (user_id) where user_id is not null
     do update set updated_at = now()
     returning * into v_player;
@@ -283,8 +363,14 @@ begin
   values (new.id, v_name, new.email, 'user')
   on conflict (id) do nothing;
 
-  insert into public.players (owner_id, user_id, name, username)
-  values (new.id, new.id, v_name, null)
+  insert into public.players (
+    owner_id,
+    user_id,
+    name,
+    username,
+    has_account_identity_history
+  )
+  values (new.id, new.id, v_name, null, true)
   on conflict (user_id) where user_id is not null do nothing;
 
   if public.is_valid_account_username(v_username) then
@@ -384,6 +470,71 @@ revoke all on table public.player_identity_aliases from public, anon, authentica
 grant select on public.player_identity_claims to authenticated;
 grant select on public.player_identity_aliases to authenticated;
 
+drop policy if exists "App staff can read link proposals"
+  on public.player_link_proposals;
+create policy "App staff can read link proposals"
+  on public.player_link_proposals
+  for select to authenticated
+  using (public.is_app_staff());
+
+create or replace function public.guard_active_player_reference()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_deleted_at timestamptz;
+  v_has_alias boolean;
+begin
+  select deleted_at
+    into v_deleted_at
+    from public.players
+   where id = new.player_id
+   for update;
+
+  select exists (
+    select 1
+      from public.player_identity_aliases
+     where legacy_player_id = new.player_id
+  )
+    into v_has_alias;
+
+  if v_deleted_at is not null or v_has_alias then
+    raise exception 'Player reference must target an active canonical player'
+      using errcode = '23503';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.guard_active_player_reference()
+  from public, anon, authenticated;
+
+drop trigger if exists trg_guard_active_player_reference
+  on public.community_players;
+create trigger trg_guard_active_player_reference
+  before insert or update on public.community_players
+  for each row execute function public.guard_active_player_reference();
+
+drop trigger if exists trg_guard_active_player_reference
+  on public.player_evaluations;
+create trigger trg_guard_active_player_reference
+  before insert or update on public.player_evaluations
+  for each row execute function public.guard_active_player_reference();
+
+drop trigger if exists trg_guard_active_player_reference
+  on public.player_avatar_proposals;
+create trigger trg_guard_active_player_reference
+  before insert or update on public.player_avatar_proposals
+  for each row execute function public.guard_active_player_reference();
+
+drop trigger if exists trg_guard_active_player_reference
+  on public.player_link_proposals;
+create trigger trg_guard_active_player_reference
+  before insert or update on public.player_link_proposals
+  for each row execute function public.guard_active_player_reference();
+
 create or replace function public.merge_player_identity_claim(
   p_proposal_id uuid,
   p_reviewer uuid
@@ -479,7 +630,9 @@ begin
     raise exception 'Legacy player not found' using errcode = '22023';
   end if;
 
-  if v_legacy.user_id is not null or v_legacy.deleted_at is not null then
+  if v_legacy.user_id is not null
+     or v_legacy.deleted_at is not null
+     or v_legacy.has_account_identity_history then
     raise exception 'Player already claimed' using errcode = '23505';
   end if;
 
@@ -824,7 +977,9 @@ begin
     raise exception 'Athlete not found' using errcode = '22023';
   end if;
 
-  if v_legacy.user_id is not null or v_legacy.deleted_at is not null then
+  if v_legacy.user_id is not null
+     or v_legacy.deleted_at is not null
+     or v_legacy.has_account_identity_history then
     raise exception 'Player already claimed' using errcode = '23505';
   end if;
 
@@ -950,7 +1105,9 @@ begin
     raise exception 'Legacy player not found' using errcode = '22023';
   end if;
 
-  if v_legacy.user_id is not null or v_legacy.deleted_at is not null then
+  if v_legacy.user_id is not null
+     or v_legacy.deleted_at is not null
+     or v_legacy.has_account_identity_history then
     raise exception 'Player already claimed' using errcode = '23505';
   end if;
 
@@ -969,3 +1126,150 @@ $$;
 
 revoke execute on function public.approve_player_link(uuid) from public, anon;
 grant execute on function public.approve_player_link(uuid) to authenticated;
+
+create or replace function public.reject_player_link(
+  p_proposal_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_lock_player_id uuid;
+  v_lock_user_id uuid;
+  v_player_lock bigint;
+  v_user_lock bigint;
+  v_proposal public.player_link_proposals%rowtype;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  select player_id, user_id
+    into v_lock_player_id, v_lock_user_id
+    from public.player_link_proposals
+   where id = p_proposal_id;
+
+  if v_lock_player_id is null then
+    raise exception 'Proposal not found' using errcode = '22023';
+  end if;
+
+  v_player_lock := hashtextextended('player:' || v_lock_player_id::text, 0);
+  v_user_lock := hashtextextended('user:' || v_lock_user_id::text, 0);
+  perform pg_advisory_xact_lock(least(v_player_lock, v_user_lock));
+  if v_player_lock <> v_user_lock then
+    perform pg_advisory_xact_lock(greatest(v_player_lock, v_user_lock));
+  end if;
+
+  select *
+    into v_proposal
+    from public.player_link_proposals
+   where id = p_proposal_id
+   for update;
+
+  if v_proposal.id is null
+     or v_proposal.player_id is distinct from v_lock_player_id
+     or v_proposal.user_id is distinct from v_lock_user_id then
+    raise exception 'Proposal changed while transition was starting'
+      using errcode = '40001';
+  end if;
+
+  if v_proposal.status <> 'pending' then
+    raise exception 'Proposal not pending' using errcode = '22023';
+  end if;
+
+  if not public.current_user_is_player_admin(v_proposal.player_id) then
+    raise exception 'Only the athlete creator or community admins can reject a link proposal'
+      using errcode = '42501';
+  end if;
+
+  update public.player_link_proposals
+     set status = 'rejected',
+         reviewed_by = v_uid,
+         reviewed_at = now()
+   where id = p_proposal_id
+     and status = 'pending';
+
+  if not found then
+    raise exception 'Proposal no longer pending' using errcode = '40001';
+  end if;
+end;
+$$;
+
+revoke execute on function public.reject_player_link(uuid) from public, anon;
+grant execute on function public.reject_player_link(uuid) to authenticated;
+
+create or replace function public.cancel_my_link_proposal(
+  p_proposal_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_lock_player_id uuid;
+  v_lock_user_id uuid;
+  v_player_lock bigint;
+  v_user_lock bigint;
+  v_proposal public.player_link_proposals%rowtype;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  select player_id, user_id
+    into v_lock_player_id, v_lock_user_id
+    from public.player_link_proposals
+   where id = p_proposal_id;
+
+  if v_lock_player_id is null then
+    raise exception 'Proposal not found' using errcode = '22023';
+  end if;
+
+  v_player_lock := hashtextextended('player:' || v_lock_player_id::text, 0);
+  v_user_lock := hashtextextended('user:' || v_lock_user_id::text, 0);
+  perform pg_advisory_xact_lock(least(v_player_lock, v_user_lock));
+  if v_player_lock <> v_user_lock then
+    perform pg_advisory_xact_lock(greatest(v_player_lock, v_user_lock));
+  end if;
+
+  select *
+    into v_proposal
+    from public.player_link_proposals
+   where id = p_proposal_id
+   for update;
+
+  if v_proposal.id is null
+     or v_proposal.player_id is distinct from v_lock_player_id
+     or v_proposal.user_id is distinct from v_lock_user_id then
+    raise exception 'Proposal changed while transition was starting'
+      using errcode = '40001';
+  end if;
+
+  if v_proposal.status <> 'pending' then
+    raise exception 'Proposal not pending' using errcode = '22023';
+  end if;
+
+  if v_proposal.user_id is distinct from v_uid then
+    raise exception 'You can only cancel your own proposal' using errcode = '42501';
+  end if;
+
+  update public.player_link_proposals
+     set status = 'rejected',
+         reviewed_by = v_uid,
+         reviewed_at = now()
+   where id = p_proposal_id
+     and status = 'pending';
+
+  if not found then
+    raise exception 'Proposal no longer pending' using errcode = '40001';
+  end if;
+end;
+$$;
+
+revoke execute on function public.cancel_my_link_proposal(uuid) from public, anon;
+grant execute on function public.cancel_my_link_proposal(uuid) to authenticated;

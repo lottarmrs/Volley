@@ -23,7 +23,11 @@ import {
   mapTeamToDb,
 } from './operationalCloudService';
 import { mapDbToCommunityMember } from './membershipCloudService';
-import { mapProposalToDb, mapDbToProposal } from './playerLinkProposalCloudService';
+import {
+  mapDbToPlayerClaimResult,
+  mapProposalToDb,
+  mapDbToProposal,
+} from './playerLinkProposalCloudService';
 import {
   deduplicatePlayerEvaluationRecords,
   mapPlayerEvaluationToDb,
@@ -559,6 +563,22 @@ test('player link proposal mapper round-trips fields and maps local-to-cloud pla
   assert.equal(mapped.userId, 'user-auth-uuid');
   assert.equal(mapped.status, 'pending');
   assert.equal(mapped.syncStatus, 'synced');
+});
+
+test('player claim result mapper converts RPC snake_case fields', () => {
+  const result = mapDbToPlayerClaimResult({
+    claim_id: 'claim-cloud',
+    canonical_player_id: 'canonical-cloud',
+    legacy_player_id: 'legacy-cloud',
+    legacy_local_id: 'legacy-local',
+  });
+
+  assert.deepEqual(result, {
+    claimId: 'claim-cloud',
+    canonicalPlayerId: 'canonical-cloud',
+    legacyPlayerId: 'legacy-cloud',
+    legacyLocalId: 'legacy-local',
+  });
 });
 
 test('player evaluation mapper omits the id key so the DB default applies', () => {

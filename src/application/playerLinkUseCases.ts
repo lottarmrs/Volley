@@ -8,10 +8,12 @@ import { playerCloudService } from '@infra/supabase/playerCloudService';
 import { playerLinkProposalCloudService } from '@infra/supabase/playerLinkProposalCloudService';
 import { appOk, productError, recoverableIssue } from './appResult';
 import type { AppResult } from './appResult';
+import { applyClaimToPlayers } from './playerClaim';
+import type { PlayerClaimResult } from './playerClaim';
 
 export interface PlayerLinkCommandGateway {
   propose?: (playerCloudId: string) => Promise<string>;
-  approve?: (proposalId: string) => Promise<void>;
+  approve?: (proposalId: string) => Promise<PlayerClaimResult>;
   reject?: (proposalId: string) => Promise<void>;
   cancel?: (proposalId: string) => Promise<void>;
   unlink?: (playerCloudId: string) => Promise<void>;
@@ -150,6 +152,45 @@ export async function reviewPlayerLinkCommand(
   let players: Player[] = input.players;
   let linkProposals: PlayerLinkProposal[];
 
+  if (input.action === 'approve' && !isTemp) {
+    try {
+      const claim = await gateway.approve?.(input.proposalId);
+      if (!claim) throw new Error('approve_player_link did not return a claim result');
+
+      players = applyClaimToPlayers(input.players, claim, input.nowIso);
+      linkProposals = supersedePendingProposalsForLink(
+        input.linkProposals,
+        {
+          playerId: proposal.playerId,
+          playerCloudId: claim.legacyPlayerId,
+          userId: proposal.userId,
+        },
+        input.currentUserId,
+        input.nowIso,
+      ).map(
+        (item): PlayerLinkProposal =>
+          item.id === input.proposalId
+            ? {
+                ...item,
+                status: 'approved',
+                reviewedBy: input.currentUserId,
+                reviewedAt: input.nowIso,
+                syncStatus: 'synced',
+              }
+            : item,
+      );
+      return appOk({ players, linkProposals: markProposalSynced(linkProposals, input.proposalId) });
+    } catch (error) {
+      return appOk({ players: input.players, linkProposals: markProposalPending(input.linkProposals, input.proposalId) }, [
+        recoverableIssue(
+          'cloud_unavailable',
+          'Nao foi possivel concluir a revisao na nuvem agora.',
+          error,
+        ),
+      ]);
+    }
+  }
+
   if (input.action === 'approve') {
     players = linkPlayerToUser(input.players, player.id, proposal.userId, input.nowIso);
     linkProposals = supersedePendingProposalsForLink(
@@ -190,8 +231,7 @@ export async function reviewPlayerLinkCommand(
 
   if (!isTemp) {
     try {
-      if (input.action === 'approve') await gateway.approve?.(input.proposalId);
-      else await gateway.reject?.(input.proposalId);
+      await gateway.reject?.(input.proposalId);
       linkProposals = markProposalSynced(linkProposals, input.proposalId);
     } catch (error) {
       linkProposals = markProposalPending(linkProposals, input.proposalId);

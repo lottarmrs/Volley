@@ -89,8 +89,18 @@ test('proposePlayerLinkCommand returns permission error for anonymous user', asy
   assert.equal(result.error.code, 'not_authenticated');
 });
 
-test('reviewPlayerLinkCommand approves proposal and supersedes competing pending proposals', async () => {
-  const players = [makePlayer('player-1', { cloudId: 'cloud-player-1', userId: undefined })];
+test('reviewPlayerLinkCommand applies the canonical claim result without linking the legacy player', async () => {
+  const canonical = makePlayer('canonical-local', {
+    cloudId: 'canonical-cloud',
+    username: 'ana',
+    userId: 'canonical-user',
+  });
+  const legacy = makePlayer('player-1', {
+    cloudId: 'cloud-player-1',
+    username: 'legacy-ana',
+    userId: undefined,
+  });
+  const players = [canonical, legacy];
   const proposals = [
     proposal({ id: 'proposal-1', userId: 'user-1' }),
     proposal({ id: 'proposal-2', userId: 'other-user', status: 'pending' }),
@@ -105,14 +115,22 @@ test('reviewPlayerLinkCommand approves proposal and supersedes competing pending
       nowIso: now,
     },
     {
-      approve: async () => undefined,
+      approve: async () => ({
+        claimId: 'claim-1',
+        canonicalPlayerId: 'canonical-cloud',
+        legacyPlayerId: 'cloud-player-1',
+        legacyLocalId: 'player-1',
+      }),
       reject: async () => undefined,
     },
   );
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.value.players?.[0].userId, 'user-1');
+  assert.equal(result.value.players?.[0], canonical);
+  assert.equal(result.value.players?.[1].deletedAt, now);
+  assert.equal(result.value.players?.[1].username, undefined);
+  assert.equal(result.value.players?.[1].userId, undefined);
   assert.equal(
     result.value.linkProposals.find((item) => item.id === 'proposal-1')?.status,
     'approved',
@@ -123,8 +141,18 @@ test('reviewPlayerLinkCommand approves proposal and supersedes competing pending
   );
 });
 
-test('reviewPlayerLinkCommand keeps approved cloud proposal pending when cloud approve fails', async () => {
-  const players = [makePlayer('player-1', { cloudId: 'cloud-player-1', userId: undefined })];
+test('reviewPlayerLinkCommand preserves the pending cloud intent when claim result fails', async () => {
+  const canonical = makePlayer('canonical-local', {
+    cloudId: 'canonical-cloud',
+    username: 'ana',
+    userId: 'canonical-user',
+  });
+  const legacy = makePlayer('player-1', {
+    cloudId: 'cloud-player-1',
+    username: 'legacy-ana',
+    userId: undefined,
+  });
+  const players = [canonical, legacy];
   const result = await reviewPlayerLinkCommand(
     {
       players,
@@ -143,8 +171,9 @@ test('reviewPlayerLinkCommand keeps approved cloud proposal pending when cloud a
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.value.players?.[0].userId, 'user-1');
-  assert.equal(result.value.linkProposals[0].status, 'approved');
+  assert.equal(result.value.players?.[0], canonical);
+  assert.equal(result.value.players?.[1], legacy);
+  assert.equal(result.value.linkProposals[0].status, 'pending');
   assert.equal(result.value.linkProposals[0].syncStatus, 'pending');
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
 });

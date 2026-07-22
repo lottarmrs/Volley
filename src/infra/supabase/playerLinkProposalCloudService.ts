@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { PlayerLinkProposal } from '../../types';
+import type { PlayerClaimResult } from '../../application/playerClaim';
 
 export function mapProposalToDb(local: PlayerLinkProposal) {
   return {
@@ -25,6 +26,23 @@ export function mapDbToProposal(db: any): PlayerLinkProposal {
     syncStatus: 'synced',
     lastSyncedAt: new Date().toISOString(),
   };
+}
+
+export function mapDbToPlayerClaimResult(db: Record<string, unknown>): PlayerClaimResult {
+  return {
+    claimId: requiredClaimField(db, 'claim_id'),
+    canonicalPlayerId: requiredClaimField(db, 'canonical_player_id'),
+    legacyPlayerId: requiredClaimField(db, 'legacy_player_id'),
+    ...(typeof db.legacy_local_id === 'string' ? { legacyLocalId: db.legacy_local_id } : {}),
+  };
+}
+
+function requiredClaimField(db: Record<string, unknown>, field: string): string {
+  const value = db[field];
+  if (typeof value !== 'string' || !value) {
+    throw new Error(`approve_player_link returned an invalid ${field}`);
+  }
+  return value;
 }
 
 export const playerLinkProposalCloudService = {
@@ -60,11 +78,12 @@ export const playerLinkProposalCloudService = {
     return data;
   },
 
-  async approve(proposalId: string): Promise<void> {
-    const { error } = await supabase.rpc('approve_player_link', {
+  async approve(proposalId: string): Promise<PlayerClaimResult> {
+    const { data, error } = await supabase.rpc('approve_player_link', {
       p_proposal_id: proposalId,
     });
     if (error) throw error;
+    return mapDbToPlayerClaimResult(data);
   },
 
   async reject(proposalId: string): Promise<void> {

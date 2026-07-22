@@ -939,6 +939,11 @@ test('uploadLocalDataToCloud replays cloud-backed approved pending proposal with
     };
     playerLinkProposalCloudService.approve = async (id: string) => {
       calls.push(`approve:${id}`);
+      return {
+        claimId: 'claim-1',
+        canonicalPlayerId: 'canonical-player',
+        legacyPlayerId: 'player-cloud',
+      };
     };
 
     const result = await syncService.uploadLocalDataToCloud(

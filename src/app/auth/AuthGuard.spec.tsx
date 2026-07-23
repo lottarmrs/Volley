@@ -14,10 +14,12 @@ const account: AccountSnapshot = {
 
 describe('routeForAuthState', () => {
   it('maps auth states to transition routes', () => {
+    expect(routeForAuthState({ kind: 'initializing' })).toBe('/auth/loading');
     expect(routeForAuthState({ kind: 'anonymous' })).toBe('/entrar');
     expect(routeForAuthState({ kind: 'email_verification', userId: 'u1' })).toBe('/verificar-email');
     expect(routeForAuthState({ kind: 'onboarding', userId: 'u1', playerId: 'p1' })).toBe('/escolher-username');
     expect(routeForAuthState({ kind: 'mfa_required', userId: 'u1', account: account })).toBe('/confirmar-mfa');
+    expect(routeForAuthState({ kind: 'recoverable_error', userId: 'u1', message: 'Session recovery needed' })).toBe('/auth/recuperar-sessao');
     expect(routeForAuthState({ kind: 'ready', userId: 'u1', account })).toBeNull();
   });
 });

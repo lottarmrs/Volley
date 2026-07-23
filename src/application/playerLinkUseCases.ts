@@ -6,9 +6,9 @@ import {
 } from '../domain/playerLink';
 import { playerCloudService } from '@infra/supabase/playerCloudService';
 import { playerLinkProposalCloudService } from '@infra/supabase/playerLinkProposalCloudService';
-import { appOk, productError, recoverableIssue } from './appResult';
+import { appOk, productError, recoverableIssue, terminalIssue } from './appResult';
 import type { AppResult } from './appResult';
-import { applyClaimToPlayers } from './playerClaim';
+import { applyClaimToPlayers, classifyPermanentPlayerLinkFailure } from './playerClaim';
 import type { PlayerClaimResult } from './playerClaim';
 
 export interface PlayerLinkCommandGateway {
@@ -58,6 +58,7 @@ export async function proposePlayerLinkCommand(
     playerId: string;
     nowIso: string;
     proposalId: string;
+    persistApprovalIntent?: (proposals: PlayerLinkProposal[]) => void | Promise<void>;
   },
   gateway: PlayerLinkCommandGateway = supabasePlayerLinkCommandGateway,
 ): Promise<AppResult<PlayerLinkStateChange>> {
@@ -80,8 +81,8 @@ export async function proposePlayerLinkCommand(
     input.nowIso,
     input.proposalId,
   );
-  const players: Player[] =
-    newProposal.status === 'approved'
+  let players: Player[] =
+    newProposal.status === 'approved' && !player.cloudId
       ? linkPlayerToUser(input.players, input.playerId, input.currentUserId, input.nowIso)
       : input.players;
   let linkProposals: PlayerLinkProposal[] = [
@@ -96,6 +97,20 @@ export async function proposePlayerLinkCommand(
     newProposal,
   ];
 
+  if (player.cloudId && newProposal.status === 'approved') {
+    try {
+      await input.persistApprovalIntent?.(linkProposals);
+    } catch (error) {
+      return appOk({ players, linkProposals }, [
+        recoverableIssue(
+          'cloud_unavailable',
+          'Nao foi possivel salvar a intencao de aprovacao localmente.',
+          error,
+        ),
+      ]);
+    }
+  }
+
   if (player.cloudId && gateway.propose) {
     try {
       const cloudProposalId = await gateway.propose(player.cloudId);
@@ -105,12 +120,51 @@ export async function proposePlayerLinkCommand(
             ? {
                 ...proposal,
                 id: cloudProposalId,
-                syncStatus: 'synced',
-                lastSyncedAt: new Date().toISOString(),
+                syncStatus: newProposal.status === 'approved' ? 'pending' : 'synced',
+                ...(newProposal.status === 'approved'
+                  ? {}
+                  : { lastSyncedAt: new Date().toISOString() }),
               }
             : proposal,
       );
+      if (newProposal.status === 'approved') {
+        const claim = await gateway.approve?.(cloudProposalId);
+        if (!claim) throw new Error('approve_player_link did not return a claim result');
+        players = applyClaimToPlayers(players, claim, input.nowIso);
+        linkProposals = supersedePendingProposalsForLink(
+          linkProposals,
+          {
+            playerId: input.playerId,
+            playerCloudId: claim.legacyPlayerId,
+            userId: input.currentUserId,
+            winnerProposalId: cloudProposalId,
+          },
+          input.currentUserId,
+          input.nowIso,
+        );
+        linkProposals = markProposalSynced(linkProposals, cloudProposalId);
+      }
     } catch (error) {
+      const permanentFailure = classifyPermanentPlayerLinkFailure(error);
+      if (permanentFailure) {
+        const proposalId = linkProposals.find(
+          (proposal) => proposal.playerId === input.playerId,
+        )?.id;
+        return appOk(
+          {
+            players,
+            linkProposals: proposalId
+              ? settlePermanentProposalFailure(
+                  linkProposals,
+                  proposalId,
+                  permanentFailure.code,
+                  isUuidLike(proposalId),
+                )
+              : linkProposals,
+          },
+          [terminalIssue(permanentFailure.code, permanentFailure.message, error)],
+        );
+      }
       return appOk({ players, linkProposals }, [
         recoverableIssue(
           'cloud_unavailable',
@@ -132,6 +186,7 @@ export async function reviewPlayerLinkCommand(
     proposalId: string;
     action: 'approve' | 'reject';
     nowIso: string;
+    persistApprovalIntent?: (proposals: PlayerLinkProposal[]) => void | Promise<void>;
   },
   gateway: PlayerLinkCommandGateway = supabasePlayerLinkCommandGateway,
 ): Promise<AppResult<PlayerLinkStateChange>> {
@@ -153,6 +208,29 @@ export async function reviewPlayerLinkCommand(
   let linkProposals: PlayerLinkProposal[];
 
   if (input.action === 'approve' && !isTemp) {
+    const approvalIntent = input.linkProposals.map(
+      (item): PlayerLinkProposal =>
+        item.id === input.proposalId
+          ? {
+              ...item,
+              status: 'approved',
+              reviewedBy: input.currentUserId!,
+              reviewedAt: input.nowIso,
+              syncStatus: 'pending',
+            }
+          : item,
+    );
+    try {
+      await input.persistApprovalIntent?.(approvalIntent);
+    } catch (error) {
+      return appOk({ players: input.players, linkProposals: input.linkProposals }, [
+        recoverableIssue(
+          'cloud_unavailable',
+          'Nao foi possivel salvar a intencao de aprovacao localmente.',
+          error,
+        ),
+      ]);
+    }
     try {
       const claim = await gateway.approve?.(input.proposalId);
       if (!claim) throw new Error('approve_player_link did not return a claim result');
@@ -182,7 +260,21 @@ export async function reviewPlayerLinkCommand(
       );
       return appOk({ players, linkProposals: markProposalSynced(linkProposals, input.proposalId) });
     } catch (error) {
-      return appOk({ players: input.players, linkProposals: markProposalPending(input.linkProposals, input.proposalId) }, [
+      const permanentFailure = classifyPermanentPlayerLinkFailure(error);
+      if (permanentFailure) {
+        return appOk(
+          {
+            players: input.players,
+            linkProposals: settlePermanentProposalFailure(
+              approvalIntent,
+              input.proposalId,
+              permanentFailure.code,
+            ),
+          },
+          [terminalIssue(permanentFailure.code, permanentFailure.message, error)],
+        );
+      }
+      return appOk({ players: input.players, linkProposals: approvalIntent }, [
         recoverableIssue(
           'cloud_unavailable',
           'Nao foi possivel concluir a revisao na nuvem agora.',
@@ -236,6 +328,20 @@ export async function reviewPlayerLinkCommand(
       await gateway.reject?.(input.proposalId);
       linkProposals = markProposalSynced(linkProposals, input.proposalId);
     } catch (error) {
+      const permanentFailure = classifyPermanentPlayerLinkFailure(error);
+      if (permanentFailure) {
+        return appOk(
+          {
+            players,
+            linkProposals: settlePermanentProposalFailure(
+              linkProposals,
+              input.proposalId,
+              permanentFailure.code,
+            ),
+          },
+          [terminalIssue(permanentFailure.code, permanentFailure.message, error)],
+        );
+      }
       linkProposals = markProposalPending(linkProposals, input.proposalId);
       return appOk({ players, linkProposals }, [
         recoverableIssue(
@@ -284,6 +390,19 @@ export async function cancelPlayerLinkCommand(
       await gateway.cancel?.(input.proposalId);
       linkProposals = markProposalSynced(linkProposals, input.proposalId);
     } catch (error) {
+      const permanentFailure = classifyPermanentPlayerLinkFailure(error);
+      if (permanentFailure) {
+        return appOk(
+          {
+            linkProposals: settlePermanentProposalFailure(
+              linkProposals,
+              input.proposalId,
+              permanentFailure.code,
+            ),
+          },
+          [terminalIssue(permanentFailure.code, permanentFailure.message, error)],
+        );
+      }
       linkProposals = markProposalPending(linkProposals, input.proposalId);
       return appOk({ linkProposals }, [
         recoverableIssue(
@@ -378,4 +497,28 @@ function markProposalPending(
     (proposal): PlayerLinkProposal =>
       proposal.id === proposalId ? { ...proposal, syncStatus: 'pending' } : proposal,
   );
+}
+
+function settlePermanentProposalFailure(
+  proposals: PlayerLinkProposal[],
+  proposalId: string,
+  code: 'permission_denied' | 'conflict' | 'invalid_input' | 'not_found',
+  keepPending = true,
+): PlayerLinkProposal[] {
+  return proposals.map((proposal) =>
+    proposal.id === proposalId
+      ? {
+          ...proposal,
+          status: code === 'conflict' ? 'superseded' : keepPending ? 'pending' : 'rejected',
+          reviewedBy: code === 'conflict' ? proposal.reviewedBy : undefined,
+          reviewedAt: code === 'conflict' ? proposal.reviewedAt : undefined,
+          syncStatus: 'synced',
+          lastSyncedAt: new Date().toISOString(),
+        }
+      : proposal,
+  );
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

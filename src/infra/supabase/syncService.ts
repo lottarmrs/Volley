@@ -7,7 +7,7 @@ import { operationalCloudService, OperationalSyncPayload } from './operationalCl
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { playerLinkProposalCloudService } from './playerLinkProposalCloudService';
 import { playerIdentityAliasCloudService } from './playerIdentityAliasCloudService';
-import { applyClaimToPlayers } from '../../application/playerClaim';
+import { classifyPermanentPlayerLinkFailure } from '../../application/playerClaim';
 import type { PlayerClaimResult, PlayerIdentityAlias } from '../../application/playerClaim';
 import { supersedePendingProposalsForLink } from '../../domain/playerLink';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
@@ -602,18 +602,6 @@ function makeCloudIdLookup<T extends { id: string; cloudId?: string }>(items: T[
   return new Map(items.map((item) => [item.id.toLowerCase(), item.cloudId || item.id]));
 }
 
-function makePlayerCloudOwnerLookup(players: Player[]): Map<string, string> {
-  const lookup = new Map<string, string>();
-
-  for (const player of players) {
-    if (!player.cloudOwnerId) continue;
-    lookup.set(player.id.toLowerCase(), player.cloudOwnerId);
-    if (player.cloudId) lookup.set(player.cloudId.toLowerCase(), player.cloudOwnerId);
-  }
-
-  return lookup;
-}
-
 function resolveCloudId(
   localOrCloudId: string | null | undefined,
   lookup: Map<string, string>,
@@ -696,16 +684,6 @@ function shouldCancelRejectedProposal(proposal: PlayerLinkProposal): boolean {
   return proposal.status === 'rejected' && proposal.reviewedBy === proposal.userId;
 }
 
-function shouldSkipOwnerAutoApprovedProposal(
-  proposal: PlayerLinkProposal,
-  ownerId: string,
-  playerCloudOwner: string | undefined,
-): boolean {
-  return (
-    proposal.status === 'approved' && proposal.userId === ownerId && playerCloudOwner === ownerId
-  );
-}
-
 function findCorrespondingCloudPlayer(player: Player, cloudPlayers: Player[]): Player | undefined {
   const playerIds = new Set(
     [player.id, player.cloudId].map(normalizeIdValue).filter((id) => id.length > 0),
@@ -749,7 +727,6 @@ interface PlayerLinkProposalReplayResult {
 async function syncPlayerLinkProposalIntent(
   proposal: PlayerLinkProposal,
   playerCloudIds: Map<string, string>,
-  playerCloudOwners: Map<string, string>,
   ownerId: string,
   syncedAt: string,
 ): Promise<PlayerLinkProposalReplayResult> {
@@ -787,14 +764,7 @@ async function syncPlayerLinkProposalIntent(
 
   let claim: PlayerClaimResult | undefined;
   try {
-    const playerCloudOwner =
-      playerCloudOwners.get(playerCloudId.toLowerCase()) ||
-      playerCloudOwners.get(proposal.playerId.toLowerCase());
-
-    if (
-      proposal.status === 'approved' &&
-      !(proposedNow && shouldSkipOwnerAutoApprovedProposal(proposal, ownerId, playerCloudOwner))
-    ) {
+    if (proposal.status === 'approved') {
       claim = await playerLinkProposalCloudService.approve(proposalId);
     } else if (proposal.status === 'rejected') {
       if (shouldCancelRejectedProposal(proposal)) {
@@ -816,6 +786,114 @@ async function syncPlayerLinkProposalIntent(
   return {
     proposal: markLinkProposalSynced(proposal, playerCloudId, syncedAt, proposalId),
     claim,
+  };
+}
+
+async function replayPlayerLinkProposalIntents(
+  payload: LocalSyncPayload,
+  ownerId: string,
+  syncedAt: string,
+  onIssue: (context: string, error: unknown) => void,
+  attemptedProposalIds = new Set<string>(),
+): Promise<{ payload: LocalSyncPayload; attemptedProposalIds: Set<string> }> {
+  let updatedPayload = payload;
+  let updatedProposals = [...(payload.linkProposals || [])];
+  const playerCloudIds = new Map<string, string>();
+  for (const player of payload.players) {
+    if (!player.cloudId) continue;
+    playerCloudIds.set(player.id.toLowerCase(), player.cloudId);
+    playerCloudIds.set(player.cloudId.toLowerCase(), player.cloudId);
+  }
+  const replayOrder = updatedProposals
+    .map((proposal, index) => ({
+      index,
+      priority: hasPendingTerminalCloudReplay(proposal) ? 0 : 1,
+    }))
+    .sort((left, right) => left.priority - right.priority || left.index - right.index);
+  const blockedContentionKeys = new Set<string>();
+
+  for (const { index } of replayOrder) {
+    const proposal = updatedProposals[index];
+    if (attemptedProposalIds.has(proposal.id)) continue;
+    const playerCloudId =
+      proposal.playerCloudId || playerCloudIds.get(proposal.playerId.toLowerCase());
+    if (!playerCloudId) continue;
+    attemptedProposalIds.add(proposal.id);
+    if (
+      isPendingPlayerLinkIntent(proposal) &&
+      hasBlockedPlayerLinkContention(proposal, blockedContentionKeys)
+    ) {
+      continue;
+    }
+
+    try {
+      const replayed = await syncPlayerLinkProposalIntent(
+        proposal,
+        playerCloudIds,
+        ownerId,
+        syncedAt,
+      );
+      attemptedProposalIds.add(replayed.proposal.id);
+      updatedProposals[index] = replayed.proposal;
+      updatedPayload = { ...updatedPayload, linkProposals: updatedProposals };
+
+      if (replayed.claim) {
+        updatedProposals = supersedePendingProposalsForLink(
+          updatedPayload.linkProposals || [],
+          {
+            playerId: replayed.claim.legacyLocalId || replayed.claim.legacyPlayerId,
+            playerCloudId: replayed.claim.legacyPlayerId,
+            userId: proposal.userId,
+            winnerProposalId: replayed.proposal.id,
+          },
+          ownerId,
+          syncedAt,
+        );
+        updatedPayload = { ...updatedPayload, linkProposals: updatedProposals };
+        updatedPayload = applyPlayerIdentityAliases(updatedPayload, [replayed.claim]);
+        updatedProposals = updatedPayload.linkProposals || [];
+      }
+    } catch (error) {
+      const replayError = error instanceof PlayerLinkProposalReplayError ? error : null;
+      const originalError = replayError?.originalError || error;
+      const permanentFailure = classifyPermanentPlayerLinkFailure(originalError);
+      const retryProposal = replayError?.retryProposal || proposal;
+      attemptedProposalIds.add(retryProposal.id);
+
+      if (permanentFailure) {
+        updatedProposals[index] = settlePermanentReplayFailure(
+          retryProposal,
+          permanentFailure.code,
+          syncedAt,
+        );
+      } else {
+        onIssue('proposta de vinculo', originalError);
+        updatedProposals[index] = retryProposal;
+        if (proposal.status === 'approved') {
+          for (const key of playerLinkProposalContentionKeys(proposal)) {
+            blockedContentionKeys.add(key);
+          }
+        }
+      }
+      updatedPayload = { ...updatedPayload, linkProposals: updatedProposals };
+    }
+  }
+
+  return { payload: updatedPayload, attemptedProposalIds };
+}
+
+function settlePermanentReplayFailure(
+  proposal: PlayerLinkProposal,
+  code: 'permission_denied' | 'conflict' | 'invalid_input' | 'not_found',
+  syncedAt: string,
+): PlayerLinkProposal {
+  return {
+    ...proposal,
+    status: code === 'conflict' ? 'superseded' : 'pending',
+    reviewedBy: code === 'conflict' ? proposal.reviewedBy : undefined,
+    reviewedAt: code === 'conflict' ? proposal.reviewedAt : undefined,
+    syncStatus: 'synced',
+    lastSyncedAt: syncedAt,
   };
 }
 
@@ -897,7 +975,9 @@ export function consolidateDuplicateRecords(
   const communityGroups = options.aliasOnly
     ? []
     : groupActiveDuplicates<Community>(
-        local.communities.filter((community) => canConsolidateOwnedEntity(community, options.ownerId)),
+        local.communities.filter((community) =>
+          canConsolidateOwnedEntity(community, options.ownerId),
+        ),
         (community) => communitySemanticKey(community),
         (community) => community.cloudOwnerId || options.ownerId || 'local',
       );
@@ -1113,10 +1193,18 @@ function preserveUnchangedAliasSyncStatus(
   return {
     ...repaired,
     players: preserveUnchangedSyncStatus(source.players, repaired.players, (player) => player.id),
-    sessions: preserveUnchangedSyncStatus(source.sessions, repaired.sessions, (session) => session.id),
+    sessions: preserveUnchangedSyncStatus(
+      source.sessions,
+      repaired.sessions,
+      (session) => session.id,
+    ),
     teams: preserveUnchangedSyncStatus(source.teams, repaired.teams, (team) => team.id),
     games: preserveUnchangedSyncStatus(source.games, repaired.games, (game) => game.id),
-    pointEvents: preserveUnchangedSyncStatus(source.pointEvents, repaired.pointEvents, (point) => point.id),
+    pointEvents: preserveUnchangedSyncStatus(
+      source.pointEvents,
+      repaired.pointEvents,
+      (point) => point.id,
+    ),
     gameReports: preserveUnchangedSyncStatus(
       source.gameReports,
       repaired.gameReports,
@@ -1237,10 +1325,14 @@ export const syncService = {
     ownerId: string,
     options: UploadOptions = {},
   ): Promise<LocalSyncPayload> {
-    local = consolidateDuplicateRecords(local, { ownerId }).payload;
-
     const onIssue = options.onIssue || (() => {});
     const syncedAt = nowIso();
+    const aliases = await playerIdentityAliasCloudService.fetchAll();
+    local = consolidateDuplicateRecords(applyPlayerIdentityAliases(local, aliases), {
+      ownerId,
+    }).payload;
+    const initialReplay = await replayPlayerLinkProposalIntents(local, ownerId, syncedAt, onIssue);
+    local = initialReplay.payload;
 
     const updatedCommunities: Community[] = [];
     for (const community of local.communities) {
@@ -1283,9 +1375,7 @@ export const syncService = {
           if (canDeleteGlobalPlayer) {
             await playerCloudService.softDelete(playerForUpload.cloudId!);
           }
-          updatedPlayers.push(
-            markSynced(playerForUpload, playerForUpload.cloudId, syncedAt),
-          );
+          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
           continue;
         }
 
@@ -1309,9 +1399,19 @@ export const syncService = {
       }
     }
 
+    const replayAfterPlayerUpload = await replayPlayerLinkProposalIntents(
+      { ...local, players: updatedPlayers },
+      ownerId,
+      syncedAt,
+      onIssue,
+      initialReplay.attemptedProposalIds,
+    );
+    local = replayAfterPlayerUpload.payload;
+    updatedPlayers = visible(local.players);
+    local = { ...local, players: updatedPlayers };
+
     const communityCloudIds = makeCloudIdLookup(updatedCommunities);
     const playerCloudIds = makeCloudIdLookup(updatedPlayers);
-    const playerCloudOwners = makePlayerCloudOwnerLookup(updatedPlayers);
 
     try {
       await playerEvaluationCloudService.bulkUpsertForPlayers(updatedPlayers, ownerId);
@@ -1620,55 +1720,6 @@ export const syncService = {
     // (computeStaleRelationIds segue exportada/testada para uso futuro deliberado.)
     void options.reconcileRelations;
 
-    let updatedProposals = [...(local.linkProposals || [])];
-    const replayOrder = updatedProposals
-      .map((proposal, index) => ({ index, priority: hasPendingTerminalCloudReplay(proposal) ? 0 : 1 }))
-      .sort((left, right) => left.priority - right.priority || left.index - right.index);
-    const blockedContentionKeys = new Set<string>();
-    for (const { index } of replayOrder) {
-      const proposal = updatedProposals[index];
-      if (
-        isPendingPlayerLinkIntent(proposal) &&
-        hasBlockedPlayerLinkContention(proposal, blockedContentionKeys)
-      ) {
-        continue;
-      }
-      try {
-        const replayed = await syncPlayerLinkProposalIntent(
-          proposal,
-          playerCloudIds,
-          playerCloudOwners,
-          ownerId,
-          syncedAt,
-        );
-        if (hasPendingTerminalCloudReplay(proposal)) {
-          if (replayed.claim) {
-            updatedPlayers = applyClaimToPlayers(updatedPlayers, replayed.claim, syncedAt);
-          }
-          updatedProposals = supersedePendingProposalsForLink(
-            updatedProposals,
-            {
-              playerId: replayed.claim?.legacyLocalId || replayed.claim?.legacyPlayerId || proposal.playerId,
-              playerCloudId: replayed.claim?.legacyPlayerId || proposal.playerCloudId,
-              userId: proposal.userId,
-              winnerProposalId: proposal.id,
-            },
-            ownerId,
-            syncedAt,
-          );
-        }
-        updatedProposals[index] = replayed.proposal;
-      } catch (error) {
-        const replayError = error instanceof PlayerLinkProposalReplayError ? error : null;
-        onIssue('proposta de vinculo', replayError?.originalError || error);
-        updatedProposals[index] = replayError?.retryProposal || proposal;
-        if (hasPendingTerminalCloudReplay(proposal)) {
-          for (const key of playerLinkProposalContentionKeys(proposal)) {
-            blockedContentionKeys.add(key);
-          }
-        }
-      }
-    }
     return {
       communities: visible(updatedCommunities),
       players: visible(updatedPlayers),
@@ -1682,7 +1733,7 @@ export const syncService = {
       sessionReports: updatedSessionReports,
       presenceRecords: visibleOrPendingDelete(updatedPresenceRecords),
       drafts: visibleOrPendingDelete(updatedDrafts),
-      linkProposals: visible(updatedProposals),
+      linkProposals: visible(local.linkProposals || []),
     };
   },
 
@@ -1733,14 +1784,17 @@ export const syncService = {
       );
     });
 
-    return applyPlayerIdentityAliases({
-      communities: cloudCommunities,
-      players: mappedPlayers,
-      rules: cloudRules,
-      templates: cloudTemplates,
-      linkProposals: cloudProposals,
-      ...operational,
-    }, aliases);
+    return applyPlayerIdentityAliases(
+      {
+        communities: cloudCommunities,
+        players: mappedPlayers,
+        rules: cloudRules,
+        templates: cloudTemplates,
+        linkProposals: cloudProposals,
+        ...operational,
+      },
+      aliases,
+    );
   },
 
   async syncNow(
@@ -1749,16 +1803,12 @@ export const syncService = {
     options: SyncOptions = {},
   ): Promise<LocalSyncPayload> {
     const aliases = await playerIdentityAliasCloudService.fetchAll();
-    const repairedLocal = consolidateDuplicateRecords(
-      applyPlayerIdentityAliases(local, aliases),
-      { ownerId },
-    ).payload;
+    const repairedLocal = consolidateDuplicateRecords(applyPlayerIdentityAliases(local, aliases), {
+      ownerId,
+    }).payload;
     const cloud = await this.downloadCloudDataToLocal(ownerId);
     const playersForMerge = repairedLocal.players.map((player) =>
-      repairLegacyPlayerUnlinkIntent(
-        player,
-        findCorrespondingCloudPlayer(player, cloud.players),
-      ),
+      repairLegacyPlayerUnlinkIntent(player, findCorrespondingCloudPlayer(player, cloud.players)),
     );
 
     const merged: LocalSyncPayload = {

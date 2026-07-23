@@ -53,10 +53,7 @@ const linkedPlayerSelfReadMigration = readFileSync(
 );
 
 const roleManagementMigration = readFileSync(
-  new URL(
-    '../../../supabase/migrations/20260624141708_role_management_rpc.sql',
-    import.meta.url,
-  ),
+  new URL('../../../supabase/migrations/20260624141708_role_management_rpc.sql', import.meta.url),
   'utf8',
 );
 
@@ -110,10 +107,7 @@ const requiredTables = [
 function extractSqlFunction(sql: string, functionName: string): string {
   return (
     sql.match(
-      new RegExp(
-        `create or replace function public\\.${functionName}\\([\\s\\S]*?\\$\\$;`,
-        'i',
-      ),
+      new RegExp(`create or replace function public\\.${functionName}\\([\\s\\S]*?\\$\\$;`, 'i'),
     )?.[0] ?? ''
   );
 }
@@ -406,10 +400,7 @@ test('account claim keeps canonical identity and records an immutable alias', ()
   assert.match(accountIdentityMigration, /unique\s*\(legacy_player_id\)/i);
   assert.match(accountIdentityMigration, /unique\s*\(idempotency_key\)/i);
   assert.match(accountIdentityMigration, /canonical_player_id[\s\S]*legacy_player_id/i);
-  assert.match(
-    accountIdentityMigration,
-    /jsonb_build_object\([\s\S]*canonical_player_id/i,
-  );
+  assert.match(accountIdentityMigration, /jsonb_build_object\([\s\S]*canonical_player_id/i);
 
   const mergeFunction = accountIdentityMigration.match(
     /create or replace function public\.merge_player_identity_claim\([\s\S]*?\$\$;/i,
@@ -434,10 +425,7 @@ test('approved legacy links merge into the existing account player', () => {
     accountIdentityMigration,
     /create or replace function public\.merge_player_identity_claim/i,
   );
-  assert.match(
-    accountIdentityMigration,
-    /where user_id = v_user_id[\s\S]*for update/i,
-  );
+  assert.match(accountIdentityMigration, /where user_id = v_user_id[\s\S]*for update/i);
   assert.doesNotMatch(
     accountIdentityMigration,
     /update public\.players\s+set user_id = v_user_id\s+where id = v_legacy_player_id/i,
@@ -462,11 +450,7 @@ test('approved legacy links merge into the existing account player', () => {
 });
 
 test('claim migrates relational references before archiving the legacy player', () => {
-  for (const relation of [
-    'community_players',
-    'player_evaluations',
-    'player_avatar_proposals',
-  ]) {
+  for (const relation of ['community_players', 'player_evaluations', 'player_avatar_proposals']) {
     assert.match(
       accountIdentityMigration,
       new RegExp(`public\\.${relation}[\\s\\S]*canonical`, 'i'),
@@ -490,10 +474,7 @@ test('claim migrates relational references before archiving the legacy player', 
     accountIdentityMigration,
     /row_number\(\) over[\s\S]*player_avatar_proposals[\s\S]*status = 'superseded'/i,
   );
-  assert.match(
-    accountIdentityMigration,
-    /status = 'superseded'[\s\S]*player_link_proposals/i,
-  );
+  assert.match(accountIdentityMigration, /status = 'superseded'[\s\S]*player_link_proposals/i);
 
   const mergeFunction = accountIdentityMigration.match(
     /create or replace function public\.merge_player_identity_claim\([\s\S]*?\$\$;/i,
@@ -514,17 +495,12 @@ test('claim migrates relational references before archiving the legacy player', 
 });
 
 test('claim rejects linked or archived legacy players before merge', () => {
-  const mergeFunction = extractSqlFunction(
-    accountIdentityMigration,
-    'merge_player_identity_claim',
-  );
+  const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
-  const approveFunction = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
 
   for (const [name, sql] of [
     ['merge helper', mergeFunction],
     ['propose RPC', proposeFunction],
-    ['approve RPC', approveFunction],
   ] as const) {
     assert.ok(sql, `missing ${name}`);
     assert.match(
@@ -540,10 +516,7 @@ test('claim rejects linked or archived legacy players before merge', () => {
 });
 
 test('claim idempotency returns a completed result before mutable player state', () => {
-  const mergeFunction = extractSqlFunction(
-    accountIdentityMigration,
-    'merge_player_identity_claim',
-  );
+  const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   const proposalLockPosition = mergeFunction.indexOf('where id = p_proposal_id\n   for update');
   const completedClaimPosition = mergeFunction.indexOf(
     'from public.player_identity_claims\n   where proposal_id = v_proposal.id',
@@ -556,7 +529,10 @@ test('claim idempotency returns a completed result before mutable player state',
   assert.ok(completedClaimPosition > proposalLockPosition, 'claim read precedes proposal lock');
   assert.ok(completedReturnPosition > completedClaimPosition, 'completed claim is not returned');
   assert.ok(completedReturnPosition < legacyLockPosition, 'retry depends on legacy player state');
-  assert.ok(completedReturnPosition < canonicalLockPosition, 'retry depends on canonical player state');
+  assert.ok(
+    completedReturnPosition < canonicalLockPosition,
+    'retry depends on canonical player state',
+  );
 
   const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
   const recoveredProposalPosition = proposeFunction.indexOf('claim.proposal_id');
@@ -569,11 +545,7 @@ test('claim idempotency returns a completed result before mutable player state',
 });
 
 test('claim entrypoints serialize consistently and prefer winner conflicts', () => {
-  for (const functionName of [
-    'merge_player_identity_claim',
-    'propose_player_link',
-    'approve_player_link',
-  ]) {
+  for (const functionName of ['merge_player_identity_claim', 'propose_player_link']) {
     const sql = extractSqlFunction(accountIdentityMigration, functionName);
     assert.ok(sql, `missing ${functionName}`);
     assert.match(sql, /hashtextextended\('player:'[\s\S]*hashtextextended\('user:'/i);
@@ -583,10 +555,7 @@ test('claim entrypoints serialize consistently and prefer winner conflicts', () 
     );
   }
 
-  const mergeFunction = extractSqlFunction(
-    accountIdentityMigration,
-    'merge_player_identity_claim',
-  );
+  const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   const mergeWinnerPosition = mergeFunction.indexOf('from public.player_identity_aliases');
   const mergeStatusPosition = mergeFunction.indexOf("v_proposal.status <> 'pending'");
   assert.ok(mergeWinnerPosition >= 0 && mergeWinnerPosition < mergeStatusPosition);
@@ -596,22 +565,38 @@ test('claim entrypoints serialize consistently and prefer winner conflicts', () 
   );
 
   const approveFunction = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
-  const approveWinnerPosition = approveFunction.indexOf('from public.player_identity_aliases');
-  const approveStatusPosition = approveFunction.indexOf("v_proposal.status <> 'pending'");
-  assert.ok(approveWinnerPosition >= 0 && approveWinnerPosition < approveStatusPosition);
+  assert.match(approveFunction, /v_uid uuid := \(select auth\.uid\(\)\)/i);
   assert.match(
     approveFunction,
-    /raise exception 'Player already claimed' using errcode = '23505'/i,
+    /return public\.merge_player_identity_claim\(p_proposal_id, v_uid\)/i,
   );
-  assert.match(
-    approveFunction,
-    /from public\.player_identity_claims[\s\S]*legacy_player_id = v_proposal\.player_id\s+or user_id = v_proposal\.user_id/i,
-  );
+  assert.doesNotMatch(approveFunction, /pg_advisory_xact_lock|for update|from public\.players/i);
 
   const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
   assert.match(
     proposeFunction,
     /from public\.player_identity_claims[\s\S]*legacy_player_id = p_player_id\s+or user_id = v_uid/i,
+  );
+});
+
+test('aliased players cannot be reactivated by stale direct uploads', () => {
+  const guard = extractSqlFunction(accountIdentityMigration, 'guard_aliased_player_reactivation');
+  assert.ok(guard, 'missing aliased-player reactivation guard');
+  assert.match(guard, /security definer[\s\S]*set search_path = public/i);
+  assert.match(guard, /player_identity_aliases[\s\S]*legacy_player_id = old\.id/i);
+  assert.match(guard, /new\.active[\s\S]*new\.deleted_at is null/i);
+  assert.match(guard, /raise exception 'Aliased player cannot be reactivated'/i);
+  assert.match(
+    accountIdentityMigration,
+    /revoke execute on function public\.guard_aliased_player_reactivation\(\) from public, anon, authenticated;/i,
+  );
+  assert.match(
+    accountIdentityMigration,
+    /create trigger trg_guard_aliased_player_reactivation\s+before update on public\.players\s+for each row execute function public\.guard_aliased_player_reactivation\(\);/i,
+  );
+  assert.equal(
+    normalizeSql(guard),
+    normalizeSql(extractSqlFunction(baseSchema, 'guard_aliased_player_reactivation')),
   );
 });
 
@@ -647,16 +632,10 @@ test('consolidated schema guards profile roles while preserving role RPC', () =>
 });
 
 test('claim never promotes avatar implicitly and consolidated schema guards avatar', () => {
-  const mergeFunction = extractSqlFunction(
-    accountIdentityMigration,
-    'merge_player_identity_claim',
-  );
+  const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   assert.doesNotMatch(mergeFunction, /avatar_url\s*=/i);
 
-  const expectedGuard = extractSqlFunction(
-    hardenedTriggerFunctionsMigration,
-    'guard_avatar_url',
-  );
+  const expectedGuard = extractSqlFunction(hardenedTriggerFunctionsMigration, 'guard_avatar_url');
   const actualGuard = extractSqlFunction(baseSchema, 'guard_avatar_url');
   assert.ok(actualGuard, 'missing consolidated avatar guard');
   assert.equal(normalizeSql(actualGuard), normalizeSql(expectedGuard));
@@ -671,10 +650,7 @@ test('claim never promotes avatar implicitly and consolidated schema guards avat
 });
 
 test('claim requires a ready canonical account', () => {
-  const mergeFunction = extractSqlFunction(
-    accountIdentityMigration,
-    'merge_player_identity_claim',
-  );
+  const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   assert.match(
     mergeFunction,
     /v_canonical\.username is null[\s\S]*v_canonical\.username <> public\.normalize_account_username\(v_canonical\.username\)[\s\S]*not public\.is_valid_account_username\(v_canonical\.username\)/i,
@@ -696,9 +672,7 @@ test('canonical account identity cannot be unlinked or reclaimed', () => {
   const markerBackfillPosition = accountIdentityMigration.indexOf(
     'set has_account_identity_history = true',
   );
-  const duplicateUnlinkPosition = accountIdentityMigration.indexOf(
-    'with ranked_player_links as',
-  );
+  const duplicateUnlinkPosition = accountIdentityMigration.indexOf('with ranked_player_links as');
   assert.ok(markerBackfillPosition >= 0 && markerBackfillPosition < duplicateUnlinkPosition);
   assert.match(
     accountIdentityMigration,
@@ -753,11 +727,7 @@ test('canonical account identity cannot be unlinked or reclaimed', () => {
     /revoke execute on function public\.unlink_player_user\(uuid\) from public, anon;[\s\S]*grant execute on function public\.unlink_player_user\(uuid\) to authenticated;/i,
   );
 
-  for (const functionName of [
-    'merge_player_identity_claim',
-    'propose_player_link',
-    'approve_player_link',
-  ]) {
+  for (const functionName of ['merge_player_identity_claim', 'propose_player_link']) {
     const sql = extractSqlFunction(accountIdentityMigration, functionName);
     assert.match(sql, /v_legacy\.has_account_identity_history/i, functionName);
     assert.match(
@@ -768,14 +738,9 @@ test('canonical account identity cannot be unlinked or reclaimed', () => {
   }
 
   const proposeFunction = extractSqlFunction(accountIdentityMigration, 'propose_player_link');
-  const approveFunction = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
   assert.ok(
     proposeFunction.indexOf('v_legacy.has_account_identity_history') <
       proposeFunction.indexOf('insert into public.player_link_proposals'),
-  );
-  assert.ok(
-    approveFunction.indexOf('v_legacy.has_account_identity_history') <
-      approveFunction.indexOf('return public.merge_player_identity_claim'),
   );
 });
 
@@ -820,7 +785,10 @@ test('all claim reference writers reject archived or aliased players', () => {
     const guard = extractSqlFunction(artifact, 'guard_active_player_reference');
     assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
     assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
-    assert.match(guard, /from public\.player_identity_aliases[\s\S]*legacy_player_id = new\.player_id/i);
+    assert.match(
+      guard,
+      /from public\.player_identity_aliases[\s\S]*legacy_player_id = new\.player_id/i,
+    );
     assert.match(guard, /v_deleted_at is not null or v_has_alias/i);
     assert.match(
       guard,
@@ -853,10 +821,7 @@ test('all claim reference writers reject archived or aliased players', () => {
     }
   }
 
-  const mergeFunction = extractSqlFunction(
-    accountIdentityMigration,
-    'merge_player_identity_claim',
-  );
+  const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   const aliasPosition = mergeFunction.indexOf('insert into public.player_identity_aliases');
   const archivePosition = mergeFunction.indexOf('set username = null');
   for (const relationMutation of [
@@ -881,10 +846,7 @@ test('link proposal guard narrowly permits workflow updates after deterministic 
     assert.match(workflowBypass, /tg_op = 'UPDATE'/i);
     assert.match(workflowBypass, /new\.player_id is not distinct from old\.player_id/i);
     assert.match(workflowBypass, /old\.status = 'pending'/i);
-    assert.match(
-      workflowBypass,
-      /new\.status in \('approved', 'rejected', 'superseded'\)/i,
-    );
+    assert.match(workflowBypass, /new\.status in \('approved', 'rejected', 'superseded'\)/i);
     assert.match(
       workflowBypass,
       /to_jsonb\(new\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
@@ -917,7 +879,10 @@ test('link proposal guard narrowly permits workflow updates after deterministic 
     assert.ok(cleanup, 'missing invalid pending proposal cleanup');
     assert.match(cleanup, /proposal\.status = 'pending'/i);
     assert.match(cleanup, /player\.deleted_at is not null/i);
-    assert.match(cleanup, /public\.player_identity_aliases[\s\S]*legacy_player_id = proposal\.player_id/i);
+    assert.match(
+      cleanup,
+      /public\.player_identity_aliases[\s\S]*legacy_player_id = proposal\.player_id/i,
+    );
     assert.match(cleanup, /set status = 'superseded'\s+where/i);
 
     const cleanupPosition = artifact.indexOf(cleanup);
@@ -1039,7 +1004,10 @@ test('account identity migration creates one canonical player per account', () =
     assert.doesNotMatch(conflictTarget, /deleted_at/i);
   }
 
-  assert.match(accountIdentityMigration, /create or replace function public\.ensure_account_ready/i);
+  assert.match(
+    accountIdentityMigration,
+    /create or replace function public\.ensure_account_ready/i,
+  );
   assert.match(accountIdentityMigration, /insert into public\.players/i);
   assert.match(accountIdentityMigration, /lower\(username\)/i);
 });
@@ -1089,7 +1057,10 @@ test('username remediation clears trim collisions before normalizing winners', (
     'validate constraint players_username_account_format_check',
   );
 
-  assert.ok(indexPosition >= 0 && indexPosition < clearPosition, 'case-insensitive index not active');
+  assert.ok(
+    indexPosition >= 0 && indexPosition < clearPosition,
+    'case-insensitive index not active',
+  );
   assert.ok(clearPosition < normalizePosition, 'winner normalized before duplicate is cleared');
   assert.ok(normalizePosition < validationPosition, 'constraint validated before both phases');
   assert.doesNotMatch(
@@ -1115,10 +1086,7 @@ test('player insert policy blocks attacker-owned rows linked to a victim account
 });
 
 test('account bootstrap RPC is authenticated, hardened and idempotent', () => {
-  assert.match(
-    accountIdentityMigration,
-    /security definer[\s\S]*set search_path = public/i,
-  );
+  assert.match(accountIdentityMigration, /security definer[\s\S]*set search_path = public/i);
   assert.match(accountIdentityMigration, /v_uid uuid := \(select auth\.uid\(\)\)/i);
   assert.match(accountIdentityMigration, /state text[\s\S]*needs_username[\s\S]*ready/i);
   assert.match(
@@ -1161,10 +1129,7 @@ test('consolidated schema mirrors hardened account identity invariants', () => {
     baseSchema,
     /create unique index if not exists players_user_id_unique_idx[\s\S]*where user_id is not null;/i,
   );
-  assert.doesNotMatch(
-    baseSchema,
-    /players_user_id_unique_idx[\s\S]{0,120}deleted_at/i,
-  );
+  assert.doesNotMatch(baseSchema, /players_user_id_unique_idx[\s\S]{0,120}deleted_at/i);
   assert.ok(baseSchema.includes("username ~ '^[a-z0-9][a-z0-9_-]{2,29}$'"));
   assert.match(baseSchema, /constraint players_username_account_format_check/i);
   assert.match(

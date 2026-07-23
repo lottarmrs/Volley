@@ -70,6 +70,67 @@ test('proposePlayerLinkCommand preserves local pending proposal when cloud write
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
 });
 
+test('proposePlayerLinkCommand consumes an owner auto-approved claim result', async () => {
+  const canonical = makePlayer('canonical-local', {
+    cloudId: 'canonical-cloud',
+    username: 'ana',
+    userId: 'user-1',
+  });
+  const legacy = makePlayer('player-1', {
+    cloudId: 'cloud-player-1',
+    cloudOwnerId: 'user-1',
+  });
+  const calls: string[] = [];
+  let persistedBeforePropose = false;
+  const result = await proposePlayerLinkCommand(
+    {
+      players: [canonical, legacy],
+      linkProposals: [
+        proposal({
+          id: 'proposal-competitor',
+          playerId: 'player-1',
+          userId: 'other-user',
+          syncStatus: 'synced',
+        }),
+      ],
+      currentUserId: 'user-1',
+      playerId: 'player-1',
+      nowIso: now,
+      proposalId: 'proposal-local',
+      persistApprovalIntent: (proposals: PlayerLinkProposal[]) => {
+        persistedBeforePropose =
+          proposals.at(-1)?.status === 'approved' && proposals.at(-1)?.syncStatus === 'pending';
+      },
+    },
+    {
+      propose: async () => {
+        calls.push(`persisted:${persistedBeforePropose}`);
+        calls.push('propose');
+        return 'proposal-cloud';
+      },
+      approve: async () => {
+        calls.push('approve');
+        return {
+          claimId: 'claim-owner',
+          canonicalPlayerId: 'canonical-cloud',
+          legacyPlayerId: 'cloud-player-1',
+          legacyLocalId: 'player-1',
+        };
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(calls, ['persisted:true', 'propose', 'approve']);
+  assert.equal(result.value.players?.[0].username, 'ana');
+  assert.equal(result.value.players?.[1].deletedAt, now);
+  assert.equal(
+    result.value.linkProposals.find((item) => item.id === 'proposal-competitor')?.status,
+    'superseded',
+  );
+});
+
 test('proposePlayerLinkCommand returns permission error for anonymous user', async () => {
   const result = await proposePlayerLinkCommand(
     {
@@ -173,9 +234,89 @@ test('reviewPlayerLinkCommand preserves the pending cloud intent when claim resu
   if (!result.ok) return;
   assert.equal(result.value.players?.[0], canonical);
   assert.equal(result.value.players?.[1], legacy);
-  assert.equal(result.value.linkProposals[0].status, 'pending');
+  assert.equal(result.value.linkProposals[0].status, 'approved');
+  assert.equal(result.value.linkProposals[0].reviewedBy, 'reviewer-1');
+  assert.equal(result.value.linkProposals[0].reviewedAt, now);
   assert.equal(result.value.linkProposals[0].syncStatus, 'pending');
   assert.equal(result.issues?.[0].code, 'cloud_unavailable');
+});
+
+test('reviewPlayerLinkCommand terminates permanent approval failures without retrying them', async () => {
+  const result = await reviewPlayerLinkCommand(
+    {
+      players: [makePlayer('player-1', { cloudId: 'cloud-player-1' })],
+      linkProposals: [proposal({ syncStatus: 'synced' })],
+      currentUserId: 'reviewer-1',
+      proposalId: 'proposal-1',
+      action: 'approve',
+      nowIso: now,
+    },
+    {
+      approve: async () => {
+        throw { code: '42501', message: 'permission denied' };
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.linkProposals[0].status, 'pending');
+  assert.equal(result.value.linkProposals[0].syncStatus, 'synced');
+  assert.equal(result.issues?.[0].code, 'permission_denied');
+  assert.equal(result.issues?.[0].recoverable, false);
+});
+
+test('reviewPlayerLinkCommand classifies permanent validation failures', async () => {
+  const result = await reviewPlayerLinkCommand(
+    {
+      players: [makePlayer('player-1', { cloudId: 'cloud-player-1' })],
+      linkProposals: [proposal({ syncStatus: 'synced' })],
+      currentUserId: 'reviewer-1',
+      proposalId: 'proposal-1',
+      action: 'approve',
+      nowIso: now,
+    },
+    {
+      approve: async () => {
+        throw { code: '22023', message: 'invalid parameter value' };
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.linkProposals[0].status, 'pending');
+  assert.equal(result.value.linkProposals[0].syncStatus, 'synced');
+  assert.equal(result.issues?.[0].code, 'invalid_input');
+  assert.equal(result.issues?.[0].recoverable, false);
+});
+
+test('reviewPlayerLinkCommand persists approval intent before cloud approval', async () => {
+  let persisted: PlayerLinkProposal[] = [];
+  let observedPersistedIntent = false;
+  const result = await reviewPlayerLinkCommand(
+    {
+      players: [makePlayer('player-1', { cloudId: 'cloud-player-1' })],
+      linkProposals: [proposal({ syncStatus: 'synced' })],
+      currentUserId: 'reviewer-1',
+      proposalId: 'proposal-1',
+      action: 'approve',
+      nowIso: now,
+      persistApprovalIntent: (proposals: PlayerLinkProposal[]) => {
+        persisted = proposals;
+      },
+    },
+    {
+      approve: async () => {
+        observedPersistedIntent =
+          persisted[0]?.status === 'approved' && persisted[0]?.syncStatus === 'pending';
+        throw new Error('lost response');
+      },
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(observedPersistedIntent, true);
 });
 
 test('reviewPlayerLinkCommand approves a local proposal without calling a cloud RPC', async () => {

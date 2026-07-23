@@ -3,13 +3,14 @@ export type ProductErrorCode =
   | 'not_authenticated'
   | 'not_found'
   | 'invalid_input'
+  | 'conflict'
   | 'guest_player_cannot_be_linked'
   | 'cloud_unavailable';
 
 export interface AppIssue {
   code: ProductErrorCode;
   message: string;
-  recoverable: true;
+  recoverable: boolean;
   cause?: unknown;
 }
 
@@ -67,6 +68,10 @@ export function recoverableIssue(
   cause?: unknown,
 ): AppIssue {
   return { code, message, recoverable: true, cause };
+}
+
+export function terminalIssue(code: ProductErrorCode, message: string, cause?: unknown): AppIssue {
+  return { code, message, recoverable: false, cause };
 }
 
 export function isAppOk<T>(result: AppResult<T>): result is AppOkResult<T> {

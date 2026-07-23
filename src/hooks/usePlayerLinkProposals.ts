@@ -66,6 +66,11 @@ export function usePlayerLinkProposals(
     saveToStorage(STORAGE_KEYS.playerLinkProposals, linkProposals);
   }, [linkProposals]);
 
+  const persistApprovalIntent = useCallback((proposals: PlayerLinkProposal[]) => {
+    saveToStorage(STORAGE_KEYS.playerLinkProposals, proposals);
+    setLinkProposals(proposals);
+  }, []);
+
   const handleRefreshPlayerLinkProposals = useCallback(async () => {
     const result = await fetchAllPlayerLinkProposalsQuery();
 
@@ -86,6 +91,7 @@ export function usePlayerLinkProposals(
         playerId,
         nowIso: new Date().toISOString(),
         proposalId: `proposal-${generateUUID()}`,
+        persistApprovalIntent,
       });
 
       if (result.ok === false) throw new Error(result.error.message);
@@ -94,7 +100,7 @@ export function usePlayerLinkProposals(
       if (result.value.players) setPlayers(result.value.players);
       if (result.issues?.length) console.warn('[player-link] recoverable issue:', result.issues[0]);
     },
-    [players, setPlayers, linkProposals, currentUserId],
+    [players, setPlayers, linkProposals, currentUserId, persistApprovalIntent],
   );
 
   const handleReviewPlayerLink = useCallback(
@@ -106,6 +112,7 @@ export function usePlayerLinkProposals(
         proposalId,
         action,
         nowIso: new Date().toISOString(),
+        persistApprovalIntent,
       });
 
       if (result.ok === false) throw new Error(result.error.message);
@@ -114,7 +121,7 @@ export function usePlayerLinkProposals(
       setLinkProposals(result.value.linkProposals);
       if (result.issues?.length) console.warn('[player-link] recoverable issue:', result.issues[0]);
     },
-    [players, setPlayers, linkProposals, currentUserId],
+    [players, setPlayers, linkProposals, currentUserId, persistApprovalIntent],
   );
 
   const handleCancelPlayerLink = useCallback(

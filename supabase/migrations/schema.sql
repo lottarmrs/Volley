@@ -1032,6 +1032,32 @@ revoke all on table public.player_identity_aliases from public, anon, authentica
 grant select on public.player_identity_claims to authenticated;
 grant select on public.player_identity_aliases to authenticated;
 
+create or replace function public.guard_aliased_player_reactivation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (
+    select 1
+      from public.player_identity_aliases
+     where legacy_player_id = old.id
+  ) and (new.active or new.deleted_at is null) then
+    raise exception 'Aliased player cannot be reactivated' using errcode = '23505';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.guard_aliased_player_reactivation() from public, anon, authenticated;
+
+drop trigger if exists trg_guard_aliased_player_reactivation on public.players;
+create trigger trg_guard_aliased_player_reactivation
+  before update on public.players
+  for each row execute function public.guard_aliased_player_reactivation();
+
 drop policy if exists "App staff can read link proposals"
   on public.player_link_proposals;
 create policy "App staff can read link proposals"
@@ -1621,93 +1647,9 @@ set search_path = public
 as $$
 declare
   v_uid uuid := (select auth.uid());
-  v_lock_player_id uuid;
-  v_lock_user_id uuid;
-  v_player_lock bigint;
-  v_user_lock bigint;
-  v_proposal public.player_link_proposals%rowtype;
-  v_existing_claim public.player_identity_claims%rowtype;
-  v_legacy public.players%rowtype;
 begin
   if v_uid is null then
     raise exception 'Not authenticated' using errcode = '42501';
-  end if;
-
-  select player_id, user_id
-    into v_lock_player_id, v_lock_user_id
-    from public.player_link_proposals
-   where id = p_proposal_id;
-
-  if v_lock_player_id is null then
-    raise exception 'Proposal not found' using errcode = '22023';
-  end if;
-
-  v_player_lock := hashtextextended('player:' || v_lock_player_id::text, 0);
-  v_user_lock := hashtextextended('user:' || v_lock_user_id::text, 0);
-  perform pg_advisory_xact_lock(least(v_player_lock, v_user_lock));
-  if v_player_lock <> v_user_lock then
-    perform pg_advisory_xact_lock(greatest(v_player_lock, v_user_lock));
-  end if;
-
-  select *
-    into v_proposal
-    from public.player_link_proposals
-   where id = p_proposal_id
-   for update;
-
-  if v_proposal.player_id is distinct from v_lock_player_id
-     or v_proposal.user_id is distinct from v_lock_user_id then
-    raise exception 'Proposal changed while claim was starting' using errcode = '40001';
-  end if;
-
-  select *
-    into v_existing_claim
-    from public.player_identity_claims
-   where proposal_id = v_proposal.id;
-
-  if v_existing_claim.id is not null then
-    if v_proposal.reviewed_by is distinct from v_uid then
-      raise exception 'Claim reviewer mismatch' using errcode = '42501';
-    end if;
-    return v_existing_claim.result;
-  end if;
-
-  if exists (
-    select 1
-      from public.player_identity_aliases
-     where legacy_player_id = v_proposal.player_id
-  ) or exists (
-    select 1
-      from public.player_identity_claims
-     where legacy_player_id = v_proposal.player_id
-        or user_id = v_proposal.user_id
-  ) then
-    raise exception 'Player already claimed' using errcode = '23505';
-  end if;
-
-  select *
-    into v_legacy
-    from public.players
-   where id = v_proposal.player_id
-   for update;
-
-  if v_legacy.id is null then
-    raise exception 'Legacy player not found' using errcode = '22023';
-  end if;
-
-  if v_legacy.user_id is not null
-     or v_legacy.deleted_at is not null
-     or v_legacy.has_account_identity_history then
-    raise exception 'Player already claimed' using errcode = '23505';
-  end if;
-
-  if v_proposal.status <> 'pending' then
-    raise exception 'Proposal not pending' using errcode = '22023';
-  end if;
-
-  if not public.current_user_is_player_admin(v_proposal.player_id) then
-    raise exception 'Only the athlete creator or community admins can approve a link proposal'
-      using errcode = '42501';
   end if;
 
   return public.merge_player_identity_claim(p_proposal_id, v_uid);

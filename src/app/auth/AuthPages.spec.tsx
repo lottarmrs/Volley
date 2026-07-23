@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { AuthForm } from '../../components/account/AuthForm';
@@ -19,6 +19,11 @@ vi.mock('./AuthSessionProvider', () => ({
 
 import { UsernameOnboardingPage } from './AuthPages';
 
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}</div>;
+}
+
 function renderAuthPage(
   path: string,
   overrides: Partial<AuthSessionContextValue> & { state: AuthSessionState },
@@ -37,6 +42,7 @@ function renderAuthPage(
   return render(
     <MemoryRouter initialEntries={initialEntries as unknown as string[]}>
       <UsernameOnboardingPage />
+      <LocationDisplay />
     </MemoryRouter> as ReactNode,
   );
 }
@@ -100,5 +106,6 @@ describe('UsernameOnboardingPage', () => {
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ana-voleio' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     await waitFor(() => expect(completeUsername).toHaveBeenCalledWith('ana-voleio'));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
   });
 });

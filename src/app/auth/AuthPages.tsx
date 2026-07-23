@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { AuthForm } from '../../components/account/AuthForm';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useAuthSession } from './AuthSessionProvider';
@@ -23,6 +23,8 @@ export function UsernameOnboardingPage() {
   const { completeUsername } = useAuthSession();
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
   return (
     <form
       onSubmit={async (event) => {
@@ -30,6 +32,8 @@ export function UsernameOnboardingPage() {
         setError(null);
         try {
           await completeUsername(username);
+          const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+          navigate(from ?? '/', { replace: true });
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : 'Nao foi possivel salvar o username.');
         }

@@ -5,7 +5,11 @@ export type ProductErrorCode =
   | 'invalid_input'
   | 'conflict'
   | 'guest_player_cannot_be_linked'
-  | 'cloud_unavailable';
+  | 'cloud_unavailable'
+  | 'invalid_username'
+  | 'username_unavailable'
+  | 'email_not_confirmed'
+  | 'mfa_required';
 
 export interface AppIssue {
   code: ProductErrorCode;

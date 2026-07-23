@@ -1,4 +1,6 @@
 export * from './appResult';
+export * from './accountUseCases';
+export * from './authSession';
 export * from './appShellViewModel';
 export * from './adminProfilesUseCases';
 export * from './avatarUseCases';

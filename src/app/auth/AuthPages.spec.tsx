@@ -80,7 +80,13 @@ describe('AuthForm', () => {
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha-segura' } });
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
     await waitFor(() =>
-      expect(signUp).toHaveBeenCalledWith('ana@example.com', 'senha-segura', 'Ana', 'ana-voleio'),
+      expect(signUp).toHaveBeenCalledWith(
+        'ana@example.com',
+        'senha-segura',
+        'Ana',
+        'ana-voleio',
+        undefined,
+      ),
     );
   });
 

@@ -5,11 +5,17 @@ import type { AssuranceLevel } from '@app/authSession';
 export interface AuthClient {
   getSession(): Promise<Session | null>;
   onSessionChange(listener: (session: Session | null) => void): () => void;
-  signIn(email: string, password: string): Promise<void>;
-  signUp(email: string, password: string, name: string, username: string): Promise<void>;
+  signIn(email: string, password: string, captchaToken?: string): Promise<void>;
+  signUp(
+    email: string,
+    password: string,
+    name: string,
+    username: string,
+    captchaToken?: string,
+  ): Promise<void>;
   signInWithGoogle(): Promise<void>;
   linkGoogleIdentity(): Promise<void>;
-  requestPasswordRecovery(email: string): Promise<void>;
+  requestPasswordRecovery(email: string, captchaToken?: string): Promise<void>;
   updatePassword(password: string): Promise<void>;
   getAssuranceLevel(): Promise<AssuranceLevel>;
   signOut(): Promise<void>;
@@ -32,14 +38,15 @@ export function createAuthClient(
       const { data } = auth.onAuthStateChange((_event, session) => listener(session));
       return () => data.subscription.unsubscribe();
     },
-    async signIn(email, password) {
-      const { error } = await auth.signInWithPassword({ email, password }); fail(error);
+    async signIn(email, password, captchaToken) {
+      const { error } = await auth.signInWithPassword({ email, password, options: { captchaToken } });
+      fail(error);
     },
-    async signUp(email, password, name, username) {
+    async signUp(email, password, name, username, captchaToken) {
       const { error } = await auth.signUp({
         email,
         password,
-        options: { data: { name, username } },
+        options: { data: { name, username }, captchaToken },
       });
       fail(error);
     },
@@ -57,9 +64,10 @@ export function createAuthClient(
       });
       fail(error);
     },
-    async requestPasswordRecovery(email) {
+    async requestPasswordRecovery(email, captchaToken) {
       const { error } = await auth.resetPasswordForEmail(email, {
         redirectTo: `${location.origin}/recuperar-senha`,
+        captchaToken,
       });
       fail(error);
     },

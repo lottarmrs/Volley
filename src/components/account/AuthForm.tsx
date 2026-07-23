@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { Mail, Lock, User, AtSign, LogIn, UserPlus, AlertCircle, Chrome } from 'lucide-react';
+import { CaptchaField, captchaSiteKey } from '../../app/auth/CaptchaField';
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/;
 
 export interface AuthFormProps {
   mode: 'signin' | 'signup';
   loading: boolean;
-  onSignIn(email: string, password: string): Promise<void>;
-  onSignUp(email: string, password: string, name: string, username: string): Promise<void>;
+  onSignIn(email: string, password: string, captchaToken?: string): Promise<void>;
+  onSignUp(
+    email: string,
+    password: string,
+    name: string,
+    username: string,
+    captchaToken?: string,
+  ): Promise<void>;
   onGoogle(): Promise<void>;
   onForgotPassword(): void;
 }
@@ -28,6 +35,9 @@ export function AuthForm({
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
+  const captchaRequired = Boolean(captchaSiteKey());
+  const captchaPending = captchaRequired && !captchaToken;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,13 +61,13 @@ export function AuthForm({
           setError('Username invalido. Use de 3 a 30 letras minusculas, numeros, _ ou -.');
           return;
         }
-        await onSignUp(email, password, name.trim(), normalizedUsername);
+        await onSignUp(email, password, name.trim(), normalizedUsername, captchaToken);
         setSuccess('Conta criada com sucesso! Verifique seu e-mail ou tente fazer o login.');
         setName('');
         setUsername('');
         setPassword('');
       } else {
-        await onSignIn(email, password);
+        await onSignIn(email, password, captchaToken);
       }
     } catch (err: any) {
       console.error(err);
@@ -204,10 +214,12 @@ export function AuthForm({
             </div>
           )}
 
+          <CaptchaField onToken={setCaptchaToken} />
+
           <button
             type="submit"
             className="btn btn-primary btn-block uppercase tracking-wider text-xs font-bold mt-2"
-            disabled={loading}
+            disabled={loading || captchaPending}
           >
             {loading ? (
               <span className="loading loading-spinner loading-xs"></span>

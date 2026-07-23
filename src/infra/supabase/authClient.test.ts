@@ -50,6 +50,22 @@ test('TOTP verification challenges and verifies the selected factor', async () =
   ]);
 });
 
+test('password sign-in forwards the CAPTCHA token to Supabase', async () => {
+  let payload: unknown;
+  const client = createAuthClient({
+    signInWithPassword: async (value: unknown) => {
+      payload = value;
+      return { data: {}, error: null };
+    },
+  } as never, { origin: 'https://panelinha.test' });
+  await client.signIn('ana@example.com', 'senha-segura', 'captcha-token');
+  assert.deepEqual(payload, {
+    email: 'ana@example.com',
+    password: 'senha-segura',
+    options: { captchaToken: 'captcha-token' },
+  });
+});
+
 test('TOTP verification with an explicit factorId skips the verified-status lookup', async () => {
   const calls: unknown[] = [];
   const client = createAuthClient(fakeAuth({

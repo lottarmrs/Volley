@@ -5,6 +5,7 @@ import { AuthForm } from '../../components/account/AuthForm';
 import { supabaseAuthClient, type MfaEnrollment } from '@infra/supabase/authClient';
 import { useAuthSession } from './AuthSessionProvider';
 import { routeForAuthState } from './AuthGuard';
+import { CaptchaField, captchaSiteKey } from './CaptchaField';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -88,11 +89,13 @@ export function UsernameOnboardingPage() {
 export function PasswordRecoveryPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
+  const captchaPending = Boolean(captchaSiteKey()) && !captchaToken;
   return (
     <form
       onSubmit={async (event) => {
         event.preventDefault();
-        await supabaseAuthClient.requestPasswordRecovery(email);
+        await supabaseAuthClient.requestPasswordRecovery(email, captchaToken);
         setSent(true);
       }}
     >
@@ -103,7 +106,10 @@ export function PasswordRecoveryPage() {
         value={email}
         onChange={(event) => setEmail(event.target.value)}
       />
-      <button type="submit">Enviar recuperacao</button>
+      <CaptchaField onToken={setCaptchaToken} />
+      <button type="submit" disabled={captchaPending}>
+        Enviar recuperacao
+      </button>
       {sent ? <p>Confira seu e-mail.</p> : null}
     </form>
   );

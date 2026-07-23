@@ -145,3 +145,8 @@ modification_logs (Audit trail for inserts, updates, and deletes)
 - Recharts (charts)
 - Supabase (`@supabase/supabase-js`)
 - Node test runner + tsx (unit tests)
+
+## Documentation
+
+- [Auth Production Checklist](docs/operations/auth-production-checklist.md) — repeatable operator checklist for production deployment.
+- [Scalable Product Restructure Design Spec](docs/superpowers/specs/2026-07-22-scalable-product-restructure-design.md) — approved architecture and requirements.

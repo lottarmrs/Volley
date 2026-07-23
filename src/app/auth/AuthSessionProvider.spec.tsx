@@ -1,21 +1,26 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Session } from '@supabase/supabase-js';
-import { AuthSessionProvider, useAuthSession } from './AuthSessionProvider';
+import { AuthSessionProvider } from './AuthSessionProvider';
+import { useAuthSession } from './useAuthSession';
 import type { AuthClient } from '@infra/supabase/authClient';
 import type { UserProfile } from '@shared/types';
 
 function profile(id: string): UserProfile {
   return {
-    id, name: 'Ana', email: 'ana@example.com', role: 'user',
-    createdAt: '2026-07-22T00:00:00Z', updatedAt: '2026-07-22T00:00:00Z',
+    id,
+    name: 'Ana',
+    email: 'ana@example.com',
+    role: 'user',
+    createdAt: '2026-07-22T00:00:00Z',
+    updatedAt: '2026-07-22T00:00:00Z',
   };
 }
 
-function fakeAuthClient(options: { user: { id: string; email_confirmed_at?: string } | null }): AuthClient {
-  const session = options.user
-    ? ({ user: options.user } as unknown as Session)
-    : null;
+function fakeAuthClient(options: {
+  user: { id: string; email_confirmed_at?: string } | null;
+}): AuthClient {
+  const session = options.user ? ({ user: options.user } as unknown as Session) : null;
   return {
     getSession: async () => session,
     onSessionChange: () => () => {},
@@ -27,7 +32,9 @@ function fakeAuthClient(options: { user: { id: string; email_confirmed_at?: stri
     updatePassword: async () => {},
     getAssuranceLevel: async () => ({ current: null, next: null }),
     signOut: async () => {},
-    enrollTotp: async () => { throw new Error('not implemented'); },
+    enrollTotp: async () => {
+      throw new Error('not implemented');
+    },
     verifyTotp: async () => {},
   };
 }
@@ -44,7 +51,10 @@ describe('AuthSessionProvider', () => {
         authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
         accountGateway={{
           ensureReady: async () => ({
-            state: 'ready', profile: profile('u1'), playerId: 'p1', username: 'ana',
+            state: 'ready',
+            profile: profile('u1'),
+            playerId: 'p1',
+            username: 'ana',
           }),
         }}
       >
@@ -58,7 +68,11 @@ describe('AuthSessionProvider', () => {
     render(
       <AuthSessionProvider
         authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
-        accountGateway={{ ensureReady: async () => { throw new Error('network'); } }}
+        accountGateway={{
+          ensureReady: async () => {
+            throw new Error('network');
+          },
+        }}
       >
         <Probe />
       </AuthSessionProvider>,

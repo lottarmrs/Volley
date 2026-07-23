@@ -1,4 +1,4 @@
-import { useAuthSession } from '../app/auth/AuthSessionProvider';
+import { useAuthSession } from '../app/auth/useAuthSession';
 import { supabaseAuthClient } from '../infra/supabase/authClient';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 

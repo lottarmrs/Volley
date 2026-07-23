@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountSyncView } from './AccountSyncView';
 import type {
@@ -48,34 +49,36 @@ function openIssue(overrides: Partial<SyncIssueEntry> = {}): SyncIssueEntry {
 
 function renderAccount(overrides: Partial<Parameters<typeof AccountSyncView>[0]> = {}) {
   return render(
-    <AccountSyncView
-      user={{ id: 'user-1', email: 'ana@example.com' }}
-      profile={{
-        id: 'user-1',
-        name: 'Ana',
-        email: 'ana@example.com',
-        role: 'user',
-        createdAt: '2026-07-07T12:00:00.000Z',
-        updatedAt: '2026-07-07T12:00:00.000Z',
-      }}
-      loading={false}
-      isSupabaseConfigured={true}
-      onSignOut={vi.fn()}
-      onLinkGoogleIdentity={vi.fn()}
-      onSync={vi.fn()}
-      onRepairDuplicates={vi.fn()}
-      lastSyncedAt={null}
-      syncLoading={false}
-      players={[]}
-      linkProposals={[]}
-      onProposeLink={vi.fn()}
-      onCancelLink={vi.fn()}
-      recoverableSyncActions={recoverableActions()}
-      syncIssueSummary={issueSummary()}
-      onRetryPrimarySyncAction={vi.fn()}
-      onClearResolvedSyncIssues={vi.fn()}
-      {...overrides}
-    />,
+    <MemoryRouter>
+      <AccountSyncView
+        user={{ id: 'user-1', email: 'ana@example.com' }}
+        profile={{
+          id: 'user-1',
+          name: 'Ana',
+          email: 'ana@example.com',
+          role: 'user',
+          createdAt: '2026-07-07T12:00:00.000Z',
+          updatedAt: '2026-07-07T12:00:00.000Z',
+        }}
+        loading={false}
+        isSupabaseConfigured={true}
+        onSignOut={vi.fn()}
+        onLinkGoogleIdentity={vi.fn()}
+        onSync={vi.fn()}
+        onRepairDuplicates={vi.fn()}
+        lastSyncedAt={null}
+        syncLoading={false}
+        players={[]}
+        linkProposals={[]}
+        onProposeLink={vi.fn()}
+        onCancelLink={vi.fn()}
+        recoverableSyncActions={recoverableActions()}
+        syncIssueSummary={issueSummary()}
+        onRetryPrimarySyncAction={vi.fn()}
+        onClearResolvedSyncIssues={vi.fn()}
+        {...overrides}
+      />
+    </MemoryRouter>,
   );
 }
 
@@ -147,5 +150,14 @@ describe('AccountSyncView sync recovery', () => {
     expect(screen.getByText('Diagnostico da nuvem')).toBeTruthy();
     expect(screen.getByText('Requer atencao')).toBeTruthy();
     expect(screen.getByText('1 falha(s) aberta(s), 3 ocorrencia(s)')).toBeTruthy();
+  });
+
+  it('links to the MFA setup page', () => {
+    renderAccount();
+
+    const link = screen.getByRole('link', {
+      name: 'Configurar autenticacao em duas etapas',
+    }) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/configurar-mfa');
   });
 });

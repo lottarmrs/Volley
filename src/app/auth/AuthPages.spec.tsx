@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { AuthForm } from '../../components/account/AuthForm';
 import type { AuthSessionState } from '@app/authSession';
-import type { AuthSessionContextValue } from './AuthSessionProvider';
+import type { AuthSessionContextValue } from './useAuthSession';
 
 // ponytail: no @testing-library/user-event in this repo's deps — fireEvent
 // (already the convention in AccountSyncView.spec.tsx) drives the same inputs.
@@ -13,7 +13,7 @@ const { authSessionMock } = vi.hoisted(() => ({
   authSessionMock: { current: null as unknown as AuthSessionContextValue },
 }));
 
-vi.mock('./AuthSessionProvider', () => ({
+vi.mock('./useAuthSession', () => ({
   useAuthSession: () => authSessionMock.current,
 }));
 
@@ -21,6 +21,8 @@ const { authClientMock } = vi.hoisted(() => ({
   authClientMock: {
     enrollTotp: vi.fn(),
     verifyTotp: vi.fn(),
+    requestPasswordRecovery: vi.fn(),
+    updatePassword: vi.fn(),
   },
 }));
 
@@ -28,7 +30,12 @@ vi.mock('@infra/supabase/authClient', () => ({
   supabaseAuthClient: authClientMock,
 }));
 
-import { MfaChallengePage, MfaSetupPage, UsernameOnboardingPage } from './AuthPages';
+import {
+  MfaChallengePage,
+  MfaSetupPage,
+  PasswordRecoveryPage,
+  UsernameOnboardingPage,
+} from './AuthPages';
 
 function LocationDisplay() {
   const location = useLocation();
@@ -52,10 +59,12 @@ function renderAuthPage(
   };
   const initialEntries = [{ pathname: path, state: locationState }];
   return render(
-    <MemoryRouter initialEntries={initialEntries as unknown as string[]}>
-      {page}
-      <LocationDisplay />
-    </MemoryRouter> as ReactNode,
+    (
+      <MemoryRouter initialEntries={initialEntries as unknown as string[]}>
+        {page}
+        <LocationDisplay />
+      </MemoryRouter>
+    ) as ReactNode,
   );
 }
 
@@ -147,12 +156,16 @@ describe('MfaSetupPage', () => {
       { from: { pathname: '/comunidades' } },
       <MfaSetupPage />,
     );
-    await waitFor(() => expect(
-      (screen.getByAltText(/QR code/i) as HTMLImageElement).getAttribute('src'),
-    ).toBe('data:image/png;base64,qr'));
+    await waitFor(() =>
+      expect((screen.getByAltText(/QR code/i) as HTMLImageElement).getAttribute('src')).toBe(
+        'data:image/png;base64,qr',
+      ),
+    );
     fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '123456' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
-    await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenCalledWith('123456', 'factor-1'));
+    await waitFor(() =>
+      expect(authClientMock.verifyTotp).toHaveBeenCalledWith('123456', 'factor-1'),
+    );
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
   });
 
@@ -233,13 +246,69 @@ describe('MfaChallengePage', () => {
     fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '111111' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => expect(authClientMock.enrollTotp).toHaveBeenCalled());
-    await waitFor(() => expect(
-      (screen.getByAltText(/QR code/i) as HTMLImageElement).getAttribute('src'),
-    ).toBe('data:image/png;base64,qr'));
+    await waitFor(() =>
+      expect((screen.getByAltText(/QR code/i) as HTMLImageElement).getAttribute('src')).toBe(
+        'data:image/png;base64,qr',
+      ),
+    );
     fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '222222' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
-    await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenLastCalledWith('222222', 'factor-1'));
+    await waitFor(() =>
+      expect(authClientMock.verifyTotp).toHaveBeenLastCalledWith('222222', 'factor-1'),
+    );
     await waitFor(() => expect(retry).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
+  });
+});
+
+describe('PasswordRecoveryPage', () => {
+  beforeEach(() => {
+    authClientMock.requestPasswordRecovery.mockReset();
+    authClientMock.updatePassword.mockReset();
+  });
+
+  it('sends a recovery email when there is no active session', async () => {
+    authClientMock.requestPasswordRecovery.mockResolvedValue(undefined);
+    renderAuthPage(
+      '/recuperar-senha',
+      { state: { kind: 'anonymous' }, session: null },
+      undefined,
+      <PasswordRecoveryPage />,
+    );
+    fireEvent.change(screen.getByLabelText('E-mail'), {
+      target: { value: 'ana@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar recuperacao' }));
+    await waitFor(() =>
+      expect(authClientMock.requestPasswordRecovery).toHaveBeenCalledWith(
+        'ana@example.com',
+        undefined,
+      ),
+    );
+    await waitFor(() => expect(screen.getByText('Confira seu e-mail.')).toBeTruthy());
+    expect(authClientMock.updatePassword).not.toHaveBeenCalled();
+  });
+
+  it('shows the set-new-password form and calls updatePassword when a recovery session is present', async () => {
+    authClientMock.updatePassword.mockResolvedValue(undefined);
+    renderAuthPage(
+      '/recuperar-senha',
+      {
+        state: { kind: 'ready' } as unknown as AuthSessionState,
+        session: {} as unknown as AuthSessionContextValue['session'],
+      },
+      undefined,
+      <PasswordRecoveryPage />,
+    );
+    expect(screen.queryByLabelText('E-mail')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Nova senha'), {
+      target: { value: 'nova-senha-forte' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
+    await waitFor(() =>
+      expect(authClientMock.updatePassword).toHaveBeenCalledWith('nova-senha-forte'),
+    );
+    await waitFor(() => expect(screen.getByText('Senha atualizada com sucesso.')).toBeTruthy());
+    expect(authClientMock.requestPasswordRecovery).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { UserProfile, Player, PlayerLinkProposal } from '../../types';
 import {
   CloudUpload,
@@ -255,6 +256,9 @@ export function AccountSyncView({
               >
                 Vincular Google
               </button>
+              <Link to="/configurar-mfa" className="btn btn-outline btn-sm">
+                Configurar autenticacao em duas etapas
+              </Link>
               <button
                 onClick={() => handleAction('Sair da Conta', onSignOut)}
                 disabled={actionLoading}

@@ -2,13 +2,13 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
-import type { AuthSessionContextValue } from './auth/AuthSessionProvider';
+import type { AuthSessionContextValue } from './auth/useAuthSession';
 
 const { authSessionMock } = vi.hoisted(() => ({
   authSessionMock: { current: null as unknown as AuthSessionContextValue },
 }));
 
-vi.mock('./auth/AuthSessionProvider', () => ({
+vi.mock('./auth/useAuthSession', () => ({
   useAuthSession: () => authSessionMock.current,
 }));
 

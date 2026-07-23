@@ -3,9 +3,10 @@ import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { AuthForm } from '../../components/account/AuthForm';
 import { supabaseAuthClient, type MfaEnrollment } from '@infra/supabase/authClient';
-import { useAuthSession } from './AuthSessionProvider';
-import { routeForAuthState } from './AuthGuard';
-import { CaptchaField, captchaSiteKey } from './CaptchaField';
+import { useAuthSession } from './useAuthSession';
+import { routeForAuthState } from './authRoutes';
+import { CaptchaField } from './CaptchaField';
+import { captchaSiteKey } from './captchaEnv';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -87,10 +88,56 @@ export function UsernameOnboardingPage() {
 }
 
 export function PasswordRecoveryPage() {
+  const { session } = useAuthSession();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
   const captchaPending = Boolean(captchaSiteKey()) && !captchaToken;
+  const [newPassword, setNewPassword] = useState('');
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updated, setUpdated] = useState(false);
+
+  // Supabase cria uma sessao temporaria de recuperacao quando o usuario
+  // chega por aqui via link do e-mail (ver redirectTo em authClient.ts).
+  // Presenca de sessao == veio do link; sem sessao == acessou a pagina direto.
+  if (session) {
+    return (
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setUpdateError(null);
+          try {
+            await supabaseAuthClient.updatePassword(newPassword);
+            setUpdated(true);
+          } catch (cause) {
+            setUpdateError(
+              cause instanceof Error ? cause.message : 'Nao foi possivel atualizar a senha.',
+            );
+          }
+        }}
+      >
+        <label htmlFor="new-password">Nova senha</label>
+        <input
+          id="new-password"
+          type="password"
+          value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)}
+        />
+        {updateError ? <p role="alert">{updateError}</p> : null}
+        <button type="submit">Salvar nova senha</button>
+        {updated ? (
+          <>
+            <p>Senha atualizada com sucesso.</p>
+            <button type="button" onClick={() => navigate('/', { replace: true })}>
+              Continuar
+            </button>
+          </>
+        ) : null}
+      </form>
+    );
+  }
+
   return (
     <form
       onSubmit={async (event) => {
@@ -175,10 +222,13 @@ export function MfaSetupPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabaseAuthClient.enrollTotp()
+    supabaseAuthClient
+      .enrollTotp()
       .then(setEnrollment)
       .catch((cause) => {
-        setError(cause instanceof Error ? cause.message : 'Nao foi possivel iniciar a configuracao.');
+        setError(
+          cause instanceof Error ? cause.message : 'Nao foi possivel iniciar a configuracao.',
+        );
       });
   }, []);
 

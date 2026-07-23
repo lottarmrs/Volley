@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { Mail, Lock, User, AtSign, LogIn, UserPlus, AlertCircle, Chrome } from 'lucide-react';
-import { CaptchaField, captchaSiteKey } from '../../app/auth/CaptchaField';
+import { CaptchaField } from '../../app/auth/CaptchaField';
+import { captchaSiteKey } from '../../app/auth/captchaEnv';
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/;
 
@@ -116,7 +117,10 @@ export function AuthForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
             <div className="form-control">
-              <label className="label text-xs font-bold uppercase tracking-wider" htmlFor="auth-name">
+              <label
+                className="label text-xs font-bold uppercase tracking-wider"
+                htmlFor="auth-name"
+              >
                 <span className="label-text">Nome de exibicao</span>
               </label>
               <div className="relative">
@@ -159,7 +163,10 @@ export function AuthForm({
           )}
 
           <div className="form-control">
-            <label className="label text-xs font-bold uppercase tracking-wider" htmlFor="auth-email">
+            <label
+              className="label text-xs font-bold uppercase tracking-wider"
+              htmlFor="auth-email"
+            >
               <span className="label-text">E-mail</span>
             </label>
             <div className="relative">

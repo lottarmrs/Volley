@@ -32,6 +32,7 @@ import { useCommunityPresence } from './hooks/useCommunityPresence';
 import { useCommunityRules } from './hooks/useCommunityRules';
 import { useWhatsAppListTemplates } from './hooks/useWhatsAppListTemplates';
 import { useAuth } from './hooks/useAuth';
+import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useCloudSync } from './hooks/useCloudSync';
 import { useToasts } from './hooks/useToasts';
 import { useCommunityPermissions } from './hooks/useCommunityPermissions';
@@ -877,9 +878,8 @@ export default function App() {
             profile={auth.profile}
             loading={auth.loading}
             isSupabaseConfigured={auth.isSupabaseConfigured}
-            onSignIn={auth.signIn}
-            onSignUp={auth.signUp}
             onSignOut={auth.signOut}
+            onLinkGoogleIdentity={supabaseAuthClient.linkGoogleIdentity}
             onSync={cloudSync.sync}
             onRepairDuplicates={cloudSync.repairDuplicateCloudData}
             lastSyncedAt={cloudSync.lastSyncedAt}

@@ -60,9 +60,8 @@ function renderAccount(overrides: Partial<Parameters<typeof AccountSyncView>[0]>
       }}
       loading={false}
       isSupabaseConfigured={true}
-      onSignIn={vi.fn()}
-      onSignUp={vi.fn()}
       onSignOut={vi.fn()}
+      onLinkGoogleIdentity={vi.fn()}
       onSync={vi.fn()}
       onRepairDuplicates={vi.fn()}
       lastSyncedAt={null}

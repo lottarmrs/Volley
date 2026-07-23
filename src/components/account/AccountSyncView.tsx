@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { UserProfile, Player, PlayerLinkProposal } from '../../types';
 import {
-  Cloud,
   CloudUpload,
   CloudDownload,
   RefreshCw,
@@ -17,7 +16,6 @@ import {
   Wrench,
   History,
 } from 'lucide-react';
-import { AuthForm } from './AuthForm';
 import { buildCloudHealthViewModel } from '../../application/cloudHealthViewModel';
 import { fetchAccountPlayerLinkQuery } from '../../application/playerLinkUseCases';
 import { buildAccountPlayerLinkViewModel } from '../../application/playerLinkViewModel';
@@ -28,9 +26,8 @@ interface AccountSyncViewProps {
   profile: UserProfile | null;
   loading: boolean;
   isSupabaseConfigured: boolean;
-  onSignIn: (email: string, password: string) => Promise<any>;
-  onSignUp: (email: string, password: string, name?: string) => Promise<any>;
   onSignOut: () => Promise<void>;
+  onLinkGoogleIdentity: () => Promise<void>;
 
   // Sync actions
   onSync: () => Promise<void>;
@@ -53,9 +50,8 @@ export function AccountSyncView({
   profile,
   loading,
   isSupabaseConfigured,
-  onSignIn,
-  onSignUp,
   onSignOut,
+  onLinkGoogleIdentity,
   onSync,
   onRepairDuplicates,
   lastSyncedAt,
@@ -221,22 +217,6 @@ export function AccountSyncView({
     );
   }
 
-  if (!user) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center max-w-md mx-auto">
-          <Cloud className="w-12 h-12 text-primary mx-auto opacity-70 mb-2" />
-          <h2 className="text-2xl font-black uppercase tracking-tight">Sincronização em Nuvem</h2>
-          <p className="text-xs text-base-content/60 mt-1">
-            Faça backup dos seus atletas, comunidades e regras diretamente na nuvem para nunca
-            perder o progresso.
-          </p>
-        </div>
-        <AuthForm onSignIn={onSignIn} onSignUp={onSignUp} loading={loading} />
-      </div>
-    );
-  }
-
   const roleLabel =
     profile?.role === 'master'
       ? 'Master (Dono do App)'
@@ -267,6 +247,14 @@ export function AccountSyncView({
                 <Shield className="w-3.5 h-3.5" />
                 {roleLabel}
               </span>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => handleAction('Vincular Google', onLinkGoogleIdentity)}
+                disabled={actionLoading}
+              >
+                Vincular Google
+              </button>
               <button
                 onClick={() => handleAction('Sair da Conta', onSignOut)}
                 disabled={actionLoading}

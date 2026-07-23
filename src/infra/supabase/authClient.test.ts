@@ -49,3 +49,17 @@ test('TOTP verification challenges and verifies the selected factor', async () =
     ['verify', { factorId: 'factor-1', challengeId: 'challenge-1', code: '123456' }],
   ]);
 });
+
+test('TOTP verification with an explicit factorId skips the verified-status lookup', async () => {
+  const calls: unknown[] = [];
+  const client = createAuthClient(fakeAuth({
+    listFactors: async () => { calls.push(['listFactors']); return { data: { totp: [] }, error: null }; },
+    challenge: async (value) => { calls.push(['challenge', value]); return { data: { id: 'challenge-1' }, error: null }; },
+    verify: async (value) => { calls.push(['verify', value]); return { data: {}, error: null }; },
+  }), { origin: 'https://panelinha.test' });
+  await client.verifyTotp('123456', 'factor-1');
+  assert.deepEqual(calls, [
+    ['challenge', { factorId: 'factor-1' }],
+    ['verify', { factorId: 'factor-1', challengeId: 'challenge-1', code: '123456' }],
+  ]);
+});

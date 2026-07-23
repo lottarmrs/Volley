@@ -146,7 +146,7 @@ describe('MfaSetupPage', () => {
     ).toBe('data:image/png;base64,qr'));
     fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '123456' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
-    await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenCalledWith('123456'));
+    await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenCalledWith('123456', 'factor-1'));
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
   });
 
@@ -232,7 +232,7 @@ describe('MfaChallengePage', () => {
     ).toBe('data:image/png;base64,qr'));
     fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '222222' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
-    await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenLastCalledWith('222222'));
+    await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenLastCalledWith('222222', 'factor-1'));
     await waitFor(() => expect(retry).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
   });

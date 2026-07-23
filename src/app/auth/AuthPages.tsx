@@ -180,7 +180,7 @@ export function MfaSetupPage() {
     event.preventDefault();
     setError(null);
     try {
-      await supabaseAuthClient.verifyTotp(code);
+      await supabaseAuthClient.verifyTotp(code, enrollment?.factorId);
       navigate(destinationFromLocationState(location.state), { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Codigo invalido.');
@@ -218,8 +218,12 @@ export function MfaChallengePage() {
   const [error, setError] = useState<string | null>(null);
   const [enrollment, setEnrollment] = useState<MfaEnrollment | null>(null);
 
-  const proceed = async () => {
-    await supabaseAuthClient.verifyTotp(code);
+  const proceed = async (factorId?: string) => {
+    if (factorId) {
+      await supabaseAuthClient.verifyTotp(code, factorId);
+    } else {
+      await supabaseAuthClient.verifyTotp(code);
+    }
     await retry();
     navigate(destinationFromLocationState(location.state), { replace: true });
   };
@@ -251,7 +255,7 @@ export function MfaChallengePage() {
     event.preventDefault();
     setError(null);
     try {
-      await proceed();
+      await proceed(enrollment?.factorId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Codigo invalido.');
     }

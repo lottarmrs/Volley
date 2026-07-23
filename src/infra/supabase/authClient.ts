@@ -14,7 +14,7 @@ export interface AuthClient {
   getAssuranceLevel(): Promise<AssuranceLevel>;
   signOut(): Promise<void>;
   enrollTotp(): Promise<MfaEnrollment>;
-  verifyTotp(code: string): Promise<void>;
+  verifyTotp(code: string, factorId?: string): Promise<void>;
 }
 
 export interface MfaEnrollment { factorId: string; qrCode: string; secret: string }
@@ -78,13 +78,17 @@ export function createAuthClient(
       fail(error);
       return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
     },
-    async verifyTotp(code) {
-      const factors = await auth.mfa.listFactors(); fail(factors.error);
-      const factor = factors.data.totp.find((item) => item.status === 'verified');
-      if (!factor) throw new Error('Nenhum fator TOTP verificado.');
-      const challenge = await auth.mfa.challenge({ factorId: factor.id }); fail(challenge.error);
+    async verifyTotp(code, factorId) {
+      let targetFactorId = factorId;
+      if (!targetFactorId) {
+        const factors = await auth.mfa.listFactors(); fail(factors.error);
+        const factor = factors.data.totp.find((item) => item.status === 'verified');
+        if (!factor) throw new Error('Nenhum fator TOTP verificado.');
+        targetFactorId = factor.id;
+      }
+      const challenge = await auth.mfa.challenge({ factorId: targetFactorId }); fail(challenge.error);
       const verified = await auth.mfa.verify({
-        factorId: factor.id, challengeId: challenge.data.id, code,
+        factorId: targetFactorId, challengeId: challenge.data.id, code,
       });
       fail(verified.error);
     },
@@ -104,7 +108,7 @@ const unavailableAuthClient: AuthClient = {
   getAssuranceLevel: async () => ({ current: null, next: null }),
   signOut: async () => {},
   enrollTotp: async () => { throw unavailable; },
-  verifyTotp: async () => { throw unavailable; },
+  verifyTotp: async (_code: string, _factorId?: string) => { throw unavailable; },
 };
 
 export const supabaseAuthClient = isSupabaseConfigured

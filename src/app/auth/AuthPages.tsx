@@ -1,9 +1,47 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { AuthForm } from '../../components/account/AuthForm';
-import { supabaseAuthClient } from '@infra/supabase/authClient';
+import { supabaseAuthClient, type MfaEnrollment } from '@infra/supabase/authClient';
 import { useAuthSession } from './AuthSessionProvider';
 import { routeForAuthState } from './AuthGuard';
+
+function destinationFromLocationState(state: unknown): string {
+  const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  return from ?? '/';
+}
+
+function TotpEnrollmentForm({
+  enrollment,
+  code,
+  onCodeChange,
+  onSubmit,
+  error,
+}: {
+  enrollment: MfaEnrollment;
+  code: string;
+  onCodeChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+  error: string | null;
+}) {
+  return (
+    <form onSubmit={onSubmit}>
+      <p>Escaneie o QR code no seu aplicativo autenticador.</p>
+      <img src={enrollment.qrCode} alt="QR code para configurar autenticacao em duas etapas" />
+      <p>Ou insira o codigo manualmente: {enrollment.secret}</p>
+      <label htmlFor="totp-code">Codigo de 6 digitos</label>
+      <input
+        id="totp-code"
+        inputMode="numeric"
+        maxLength={6}
+        value={code}
+        onChange={(event) => onCodeChange(event.target.value)}
+      />
+      {error ? <p role="alert">{error}</p> : null}
+      <button type="submit">Ativar</button>
+    </form>
+  );
+}
 
 export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
   const navigate = useNavigate();
@@ -123,12 +161,134 @@ export function RecoverableSessionPage() {
   );
 }
 
-// Para manter a arvore compilavel antes da Task 7 (que implementa o fluxo
-// TOTP real), MFA setup/challenge apenas reaproveitam a tela de espera.
 export function MfaSetupPage() {
-  return <AuthLoadingPage />;
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [enrollment, setEnrollment] = useState<MfaEnrollment | null>(null);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabaseAuthClient.enrollTotp()
+      .then(setEnrollment)
+      .catch((cause) => {
+        setError(cause instanceof Error ? cause.message : 'Nao foi possivel iniciar a configuracao.');
+      });
+  }, []);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      await supabaseAuthClient.verifyTotp(code);
+      navigate(destinationFromLocationState(location.state), { replace: true });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Codigo invalido.');
+    }
+  };
+
+  if (!enrollment) return <AuthLoadingPage />;
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
+      <h2 className="text-xl font-black uppercase tracking-wider">
+        Configurar autenticacao em duas etapas
+      </h2>
+      <TotpEnrollmentForm
+        enrollment={enrollment}
+        code={code}
+        onCodeChange={setCode}
+        onSubmit={(event) => void handleSubmit(event)}
+        error={error}
+      />
+    </div>
+  );
 }
 
+// Se a sessao exige AAL2 e nao houver fator TOTP verificado ainda,
+// verifyTotp() rejeita com essa mensagem (ver authClient.ts) e a pagina
+// alterna para o fluxo de enrollment em vez de mostrar um erro sem saida.
+const NO_VERIFIED_FACTOR_MESSAGE = 'Nenhum fator TOTP verificado.';
+
 export function MfaChallengePage() {
-  return <AuthLoadingPage />;
+  const { retry } = useAuthSession();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [enrollment, setEnrollment] = useState<MfaEnrollment | null>(null);
+
+  const proceed = async () => {
+    await supabaseAuthClient.verifyTotp(code);
+    await retry();
+    navigate(destinationFromLocationState(location.state), { replace: true });
+  };
+
+  const handleChallengeSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      await proceed();
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === NO_VERIFIED_FACTOR_MESSAGE) {
+        setCode('');
+        try {
+          setEnrollment(await supabaseAuthClient.enrollTotp());
+        } catch (enrollCause) {
+          setError(
+            enrollCause instanceof Error
+              ? enrollCause.message
+              : 'Nao foi possivel iniciar a configuracao.',
+          );
+        }
+        return;
+      }
+      setError(cause instanceof Error ? cause.message : 'Codigo invalido.');
+    }
+  };
+
+  const handleEnrollSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      await proceed();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Codigo invalido.');
+    }
+  };
+
+  if (enrollment) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
+        <h2 className="text-xl font-black uppercase tracking-wider">
+          Configurar autenticacao em duas etapas
+        </h2>
+        <TotpEnrollmentForm
+          enrollment={enrollment}
+          code={code}
+          onCodeChange={setCode}
+          onSubmit={(event) => void handleEnrollSubmit(event)}
+          error={error}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
+      <h2 className="text-xl font-black uppercase tracking-wider">Confirme sua identidade</h2>
+      <form onSubmit={(event) => void handleChallengeSubmit(event)}>
+        <label htmlFor="challenge-code">Codigo de 6 digitos</label>
+        <input
+          id="challenge-code"
+          inputMode="numeric"
+          maxLength={6}
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+        />
+        {error ? <p role="alert">{error}</p> : null}
+        <button type="submit">Confirmar</button>
+      </form>
+    </div>
+  );
 }

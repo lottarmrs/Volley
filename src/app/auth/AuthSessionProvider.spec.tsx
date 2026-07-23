@@ -27,6 +27,8 @@ function fakeAuthClient(options: { user: { id: string; email_confirmed_at?: stri
     updatePassword: async () => {},
     getAssuranceLevel: async () => ({ current: null, next: null }),
     signOut: async () => {},
+    enrollTotp: async () => { throw new Error('not implemented'); },
+    verifyTotp: async () => {},
   };
 }
 

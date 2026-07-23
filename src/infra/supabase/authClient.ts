@@ -13,7 +13,11 @@ export interface AuthClient {
   updatePassword(password: string): Promise<void>;
   getAssuranceLevel(): Promise<AssuranceLevel>;
   signOut(): Promise<void>;
+  enrollTotp(): Promise<MfaEnrollment>;
+  verifyTotp(code: string): Promise<void>;
 }
+
+export interface MfaEnrollment { factorId: string; qrCode: string; secret: string }
 
 export function createAuthClient(
   auth: typeof supabase.auth,
@@ -69,6 +73,21 @@ export function createAuthClient(
     async signOut() {
       const { error } = await auth.signOut(); fail(error);
     },
+    async enrollTotp() {
+      const { data, error } = await auth.mfa.enroll({ factorType: 'totp' });
+      fail(error);
+      return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
+    },
+    async verifyTotp(code) {
+      const factors = await auth.mfa.listFactors(); fail(factors.error);
+      const factor = factors.data.totp.find((item) => item.status === 'verified');
+      if (!factor) throw new Error('Nenhum fator TOTP verificado.');
+      const challenge = await auth.mfa.challenge({ factorId: factor.id }); fail(challenge.error);
+      const verified = await auth.mfa.verify({
+        factorId: factor.id, challengeId: challenge.data.id, code,
+      });
+      fail(verified.error);
+    },
   };
 }
 
@@ -84,6 +103,8 @@ const unavailableAuthClient: AuthClient = {
   updatePassword: async () => { throw unavailable; },
   getAssuranceLevel: async () => ({ current: null, next: null }),
   signOut: async () => {},
+  enrollTotp: async () => { throw unavailable; },
+  verifyTotp: async () => { throw unavailable; },
 };
 
 export const supabaseAuthClient = isSupabaseConfigured

@@ -276,6 +276,7 @@ export default function App() {
   // sobrescrever trabalho offline). Uma vez por usuário.
   useEffect(() => {
     const plan = planStartupCloudDownload({
+      authState: auth.state.kind,
       isSupabaseConfigured: auth.isSupabaseConfigured,
       userId: auth.user?.id ?? null,
       autoSyncedForUserId: autoSyncedForUser.current,
@@ -285,7 +286,7 @@ export default function App() {
     autoSyncedForUser.current = plan.nextAutoSyncedForUserId;
     if (plan.shouldDownload) cloudSync.downloadFromCloud().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.isSupabaseConfigured, auth.user?.id, pendingChanges]);
+  }, [auth.state.kind, auth.isSupabaseConfigured, auth.user?.id, pendingChanges]);
 
   // ── Backup actions ────────────────────────────────────────────────────────
 

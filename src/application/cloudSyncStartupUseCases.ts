@@ -1,4 +1,12 @@
 export interface StartupCloudDownloadInput {
+  authState:
+    | 'initializing'
+    | 'anonymous'
+    | 'email_verification'
+    | 'onboarding'
+    | 'mfa_required'
+    | 'ready'
+    | 'recoverable_error';
   isSupabaseConfigured: boolean;
   userId: string | null;
   autoSyncedForUserId: string | null;
@@ -14,6 +22,10 @@ export interface StartupCloudDownloadPlan {
 export function planStartupCloudDownload(
   input: StartupCloudDownloadInput,
 ): StartupCloudDownloadPlan {
+  if (input.authState !== 'ready') {
+    return { shouldDownload: false, nextAutoSyncedForUserId: null };
+  }
+
   if (!input.isSupabaseConfigured) {
     return {
       shouldDownload: false,

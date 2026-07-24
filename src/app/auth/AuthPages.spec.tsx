@@ -95,6 +95,41 @@ describe('AuthForm', () => {
         'Ana',
         'ana-voleio',
         undefined,
+        undefined,
+      ),
+    );
+  });
+
+  it('forwards an entered claim code on signup', async () => {
+    const signUp = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <AuthForm
+          mode="signup"
+          loading={false}
+          onSignIn={vi.fn()}
+          onSignUp={signUp}
+          onGoogle={vi.fn()}
+          onForgotPassword={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText('Nome de exibicao'), { target: { value: 'Ana' } });
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ana-voleio' } });
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha-segura' } });
+    fireEvent.change(screen.getByLabelText('Código do atleta'), {
+      target: { value: 'abcd1234' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
+    await waitFor(() =>
+      expect(signUp).toHaveBeenCalledWith(
+        'ana@example.com',
+        'senha-segura',
+        'Ana',
+        'ana-voleio',
+        'ABCD1234',
+        undefined,
       ),
     );
   });

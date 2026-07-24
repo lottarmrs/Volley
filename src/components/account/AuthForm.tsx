@@ -15,6 +15,7 @@ export interface AuthFormProps {
     password: string,
     name: string,
     username: string,
+    claimCode?: string,
     captchaToken?: string,
   ): Promise<void>;
   onGoogle(): Promise<void>;
@@ -34,6 +35,7 @@ export function AuthForm({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
+  const [claimCode, setClaimCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | undefined>(undefined);
@@ -62,11 +64,20 @@ export function AuthForm({
           setError('Username invalido. Use de 3 a 30 letras minusculas, numeros, _ ou -.');
           return;
         }
-        await onSignUp(email, password, name.trim(), normalizedUsername, captchaToken);
+        const normalizedClaimCode = claimCode.trim().toUpperCase();
+        await onSignUp(
+          email,
+          password,
+          name.trim(),
+          normalizedUsername,
+          normalizedClaimCode || undefined,
+          captchaToken,
+        );
         setSuccess('Conta criada com sucesso! Verifique seu e-mail ou tente fazer o login.');
         setName('');
         setUsername('');
         setPassword('');
+        setClaimCode('');
       } else {
         await onSignIn(email, password, captchaToken);
       }
@@ -157,6 +168,28 @@ export function AuthForm({
                   className="input input-bordered pl-10 w-full"
                   disabled={loading}
                   required
+                />
+              </div>
+            </div>
+          )}
+
+          {isSignUp && (
+            <div className="form-control">
+              <label
+                className="label text-xs font-bold uppercase tracking-wider"
+                htmlFor="auth-claim-code"
+              >
+                <span className="label-text">Código do atleta</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="auth-claim-code"
+                  type="text"
+                  placeholder="Opcional"
+                  value={claimCode}
+                  onChange={(e) => setClaimCode(e.target.value)}
+                  className="input input-bordered w-full"
+                  disabled={loading}
                 />
               </div>
             </div>

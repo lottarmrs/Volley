@@ -25,6 +25,7 @@ import {
 import { mapDbToCommunityMember } from './membershipCloudService';
 import {
   deduplicatePlayerEvaluationRecords,
+  mapDbToPlayerEvaluation,
   mapPlayerEvaluationToDb,
 } from './playerEvaluationCloudService';
 import {
@@ -546,6 +547,28 @@ test('player evaluation mapper omits the id key so the DB default applies', () =
   assert.equal(db.owner_id, 'owner-id');
   assert.equal(db.player_id, 'player-cloud-uuid');
   assert.equal(db.local_id, 'player-local');
+});
+
+test('player evaluation mapper forwards evaluationCommunityId as community_id', () => {
+  const playerWithCommunity: Player = { ...player, evaluationCommunityId: 'community-cloud' };
+  const db = mapPlayerEvaluationToDb(playerWithCommunity, 'owner-id', 'player-cloud-uuid');
+
+  assert.equal(db.community_id, 'community-cloud');
+});
+
+test('player evaluation mapper reads community_id from the DB row', () => {
+  const mapped = mapDbToPlayerEvaluation({
+    id: 'evaluation-cloud',
+    owner_id: 'owner-id',
+    player_id: 'player-cloud-uuid',
+    community_id: 'community-cloud',
+    attributes: player.atributos,
+    local_id: 'player-local',
+    created_at: now,
+    updated_at: now,
+  });
+
+  assert.equal(mapped.communityId, 'community-cloud');
 });
 
 test('player evaluation bulk records are deduplicated by owner and cloud player id', () => {

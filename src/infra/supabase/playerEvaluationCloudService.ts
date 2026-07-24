@@ -37,6 +37,7 @@ export function mapPlayerEvaluationToDb(player: Player, ownerId: string, playerC
   return {
     owner_id: ownerId,
     player_id: playerCloudId,
+    community_id: player.evaluationCommunityId,
     attributes: player.personalAttributes || player.atributos,
     profile: player.perfil || {},
     status: player.status || {},
@@ -52,6 +53,7 @@ export function mapDbToPlayerEvaluation(db: DbRecord): PlayerEvaluation {
     playerId: db.player_id,
     playerCloudId: db.player_id,
     ownerId: db.owner_id,
+    communityId: db.community_id,
     attributes: db.attributes || {},
     profile: db.profile || undefined,
     status: db.status || undefined,
@@ -70,7 +72,7 @@ export const playerEvaluationCloudService = {
     const { data, error } = await supabase
       .from('player_evaluations')
       .select(
-        'id, owner_id, player_id, attributes, profile, status, notes, local_id, deleted_at, created_at, updated_at',
+        'id, owner_id, player_id, community_id, attributes, profile, status, notes, local_id, deleted_at, created_at, updated_at',
       );
 
     if (error) throw error;

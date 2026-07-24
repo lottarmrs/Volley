@@ -22,6 +22,7 @@ function evaluation(id: string, ataque: number): PlayerEvaluation {
     id,
     playerId: 'player-y',
     ownerId: `admin-${id}`,
+    communityId: 'community-x',
     attributes: { ...baseAttributes, ataque },
     createdAt: '2026-06-23T10:00:00.000Z',
     updatedAt: '2026-06-23T10:00:00.000Z',

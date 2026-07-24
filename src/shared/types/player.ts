@@ -88,6 +88,11 @@ export interface Player {
     outlierValueCount: number;
     updatedAt?: string;
   };
+  evaluationCommunityId?: string;
+  selfEvaluation?: {
+    attributes: Attributes;
+    updatedAt: string;
+  };
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
@@ -102,6 +107,7 @@ export interface PlayerEvaluation {
   playerCloudId?: string;
   ownerId?: string;
   attributes: Attributes;
+  communityId: string;
   profile?: Player['perfil'];
   status?: Player['status'];
   notes?: string;

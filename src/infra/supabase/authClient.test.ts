@@ -79,3 +79,22 @@ test('TOTP verification with an explicit factorId skips the verified-status look
     ['verify', { factorId: 'factor-1', challengeId: 'challenge-1', code: '123456' }],
   ]);
 });
+
+test('sign-up forwards the claim code as auth metadata', async () => {
+  let payload: unknown;
+  const client = createAuthClient({
+    signUp: async (value: unknown) => {
+      payload = value;
+      return { data: {}, error: null };
+    },
+  } as never, { origin: 'https://panelinha.test' });
+  await client.signUp('ana@example.com', 'senha-segura', 'Ana', 'ana-voleio', 'ABCD1234');
+  assert.deepEqual(payload, {
+    email: 'ana@example.com',
+    password: 'senha-segura',
+    options: {
+      data: { name: 'Ana', username: 'ana-voleio', claim_code: 'ABCD1234' },
+      captchaToken: undefined,
+    },
+  });
+});

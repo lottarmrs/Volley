@@ -11,6 +11,7 @@ export interface AuthClient {
     password: string,
     name: string,
     username: string,
+    claimCode?: string,
     captchaToken?: string,
   ): Promise<void>;
   signInWithGoogle(): Promise<void>;
@@ -42,11 +43,11 @@ export function createAuthClient(
       const { error } = await auth.signInWithPassword({ email, password, options: { captchaToken } });
       fail(error);
     },
-    async signUp(email, password, name, username, captchaToken) {
+    async signUp(email, password, name, username, claimCode, captchaToken) {
       const { error } = await auth.signUp({
         email,
         password,
-        options: { data: { name, username }, captchaToken },
+        options: { data: { name, username, claim_code: claimCode }, captchaToken },
       });
       fail(error);
     },

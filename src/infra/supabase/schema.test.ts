@@ -87,6 +87,13 @@ const accountIdentityMigration = readFixture(
   ),
 );
 
+const playerClaimCodesMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260723230000_player_claim_codes.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1144,4 +1151,80 @@ test('consolidated schema mirrors hardened account identity invariants', () => {
 
 test('consolidated schema composes a narrow guard with soft-delete unlink', () => {
   assertPlayerSoftDeleteUserUnlinkContract(baseSchema, 'consolidated schema');
+});
+
+test('player claim codes table exists with owner/staff-only read access', () => {
+  assert.match(
+    playerClaimCodesMigration,
+    /create table if not exists public\.player_claim_codes/i,
+  );
+  assert.match(playerClaimCodesMigration, /player_id uuid primary key/i);
+  assert.match(playerClaimCodesMigration, /code text not null unique/i);
+  assert.match(
+    playerClaimCodesMigration,
+    /alter table public\.player_claim_codes enable row level security/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /p\.owner_id = \(select auth\.uid\(\)\)[\s\S]*or public\.is_app_staff\(\)/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /revoke all on table public\.player_claim_codes from public, anon, authenticated/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /grant select on public\.player_claim_codes to authenticated/i,
+  );
+});
+
+test('claim code generation trigger only fires for accountless players', () => {
+  assert.match(
+    playerClaimCodesMigration,
+    /create or replace function public\.generate_player_claim_code/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /if new\.user_id is not null then\s*return new;\s*end if;/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /create trigger trg_generate_player_claim_code\s*after insert on public\.players/i,
+  );
+});
+
+test('handle_new_user claims a matching code before creating a fresh player', () => {
+  assert.match(
+    playerClaimCodesMigration,
+    /create or replace function public\.handle_new_user/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /v_claim_code text := upper\(trim\(new\.raw_user_meta_data->>'claim_code'\)\)/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /select player_id into v_claimed_player_id\s*from public\.player_claim_codes/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /perform set_config\('app\.allow_user_link_promotion', 'on', true\)/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /delete from public\.player_claim_codes where player_id = v_claimed_player_id/i,
+  );
+  assert.match(
+    playerClaimCodesMigration,
+    /if v_claimed_player_id is null then\s*insert into public\.players/i,
+  );
+});
+
+test('consolidated schema mirrors the claim code table and updated handle_new_user', () => {
+  assert.match(baseSchema, /create table if not exists public\.player_claim_codes/i);
+  assert.match(baseSchema, /create or replace function public\.generate_player_claim_code/i);
+  assert.match(
+    baseSchema,
+    /v_claim_code text := upper\(trim\(new\.raw_user_meta_data->>'claim_code'\)\)/i,
+  );
 });

@@ -101,6 +101,13 @@ const removePlayerLinkProposalSystemMigration = readFixture(
   ),
 );
 
+const evaluationCommunityAuthorizationMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260724150000_evaluation_community_authorization.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1327,5 +1334,184 @@ test('remove player link proposal system migration drops the obsolete objects', 
   assert.match(
     removePlayerLinkProposalSystemMigration,
     /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated;/i,
+  );
+});
+
+test('evaluation community authorization migration scopes player evaluation writes to community owner/admin', () => {
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /alter table public\.player_evaluations\s+add column community_id uuid references public\.communities\(id\) on delete cascade;/i,
+  );
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /alter table public\.player_evaluations\s+alter column community_id set not null;/i,
+  );
+
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /drop policy if exists "Organizers can insert own player evaluations" on public\.player_evaluations;/i,
+  );
+  const insertPolicy = evaluationCommunityAuthorizationMigration.match(
+    /create policy "Community owner or admin can insert player evaluations"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(insertPolicy, 'missing rewritten insert policy');
+  assert.match(insertPolicy, /for insert to authenticated/i);
+  assert.match(insertPolicy, /owner_id = \(select auth\.uid\(\)\)/i);
+  assert.match(
+    insertPolicy,
+    /current_user_has_community_role\(community_id, array\['owner', 'admin'\]\)/i,
+  );
+
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /drop policy if exists "Organizers can update own player evaluations" on public\.player_evaluations;/i,
+  );
+  const updatePolicy = evaluationCommunityAuthorizationMigration.match(
+    /create policy "Community owner or admin can update player evaluations"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(updatePolicy, 'missing rewritten update policy');
+  assert.match(updatePolicy, /for update to authenticated/i);
+  assert.match(updatePolicy, /using \(owner_id = \(select auth\.uid\(\)\)\)/i);
+  assert.match(
+    updatePolicy,
+    /current_user_has_community_role\(community_id, array\['owner', 'admin'\]\)/i,
+  );
+
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /drop policy if exists "Organizers can delete own player evaluations" on public\.player_evaluations;/i,
+  );
+  const deletePolicy = evaluationCommunityAuthorizationMigration.match(
+    /create policy "Community owner or admin can delete player evaluations"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(deletePolicy, 'missing rewritten delete policy');
+  assert.match(deletePolicy, /for delete to authenticated/i);
+  assert.match(deletePolicy, /using \(owner_id = \(select auth\.uid\(\)\)\)/i);
+  assert.doesNotMatch(deletePolicy, /current_user_has_community_role/i);
+
+  assert.doesNotMatch(
+    evaluationCommunityAuthorizationMigration,
+    /drop policy if exists "Community members can read player evaluations"/i,
+    'read policy must be left unchanged',
+  );
+});
+
+test('evaluation community authorization migration creates a player-scoped self_evaluations table', () => {
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /create table public\.self_evaluations \(\s*player_id uuid primary key references public\.players\(id\) on delete cascade,\s*attributes jsonb not null default '\{\}'::jsonb,\s*updated_at timestamptz not null default now\(\)\s*\);/i,
+  );
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /alter table public\.self_evaluations enable row level security;/i,
+  );
+
+  for (const policy of [
+    'Players can read their own self-evaluation',
+    'Players can upsert their own self-evaluation',
+    'Players can update their own self-evaluation',
+  ]) {
+    const policyBlock = evaluationCommunityAuthorizationMigration.match(
+      new RegExp(`create policy "${policy}"[\\s\\S]*?;`, 'i'),
+    )?.[0];
+    assert.ok(policyBlock, `missing policy: ${policy}`);
+    assert.match(policyBlock, /on public\.self_evaluations/i);
+    assert.match(
+      policyBlock,
+      /from public\.players p\s*where p\.id = self_evaluations\.player_id\s*and p\.user_id = \(select auth\.uid\(\)\)/i,
+    );
+  }
+
+  assert.doesNotMatch(
+    evaluationCommunityAuthorizationMigration,
+    /Players can delete their own self-evaluation/i,
+    'self_evaluations is an upsert-only record, matching profiles (no delete policy)',
+  );
+
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /revoke all on table public\.self_evaluations from public, anon;/i,
+  );
+  assert.match(
+    evaluationCommunityAuthorizationMigration,
+    /grant select, insert, update on public\.self_evaluations to authenticated;/i,
+  );
+  assert.doesNotMatch(
+    evaluationCommunityAuthorizationMigration,
+    /grant select, insert, update, delete on public\.self_evaluations/i,
+  );
+});
+
+test('consolidated schema mirrors community-authorized evaluation writes and self_evaluations', () => {
+  assert.match(
+    baseSchema,
+    /create table public\.player_evaluations \(\s*id uuid primary key default gen_random_uuid\(\),\s*owner_id uuid not null references auth\.users\(id\) on delete cascade,\s*player_id uuid not null references public\.players\(id\) on delete cascade,\s*community_id uuid not null references public\.communities\(id\) on delete cascade,/i,
+  );
+
+  assert.doesNotMatch(
+    baseSchema,
+    /create policy "Organizers can insert own player evaluations"/i,
+    'consolidated schema must no longer define the pre-authorization insert policy',
+  );
+  assert.doesNotMatch(baseSchema, /create policy "Organizers can update own player evaluations"/i);
+  assert.doesNotMatch(baseSchema, /create policy "Organizers can delete own player evaluations"/i);
+
+  const insertPolicy = baseSchema.match(
+    /create policy "Community owner or admin can insert player evaluations"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(insertPolicy, 'missing consolidated insert policy');
+  assert.match(
+    insertPolicy,
+    /current_user_has_community_role\(community_id, array\['owner', 'admin'\]\)/i,
+  );
+
+  const updatePolicy = baseSchema.match(
+    /create policy "Community owner or admin can update player evaluations"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(updatePolicy, 'missing consolidated update policy');
+  assert.match(
+    updatePolicy,
+    /current_user_has_community_role\(community_id, array\['owner', 'admin'\]\)/i,
+  );
+
+  const deletePolicy = baseSchema.match(
+    /create policy "Community owner or admin can delete player evaluations"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(deletePolicy, 'missing consolidated delete policy');
+  assert.match(deletePolicy, /using \(owner_id = \(select auth\.uid\(\)\)\)/i);
+
+  assert.match(
+    baseSchema,
+    /create policy "Community members can read player evaluations" on public\.player_evaluations/i,
+  );
+
+  assert.match(
+    baseSchema,
+    /create or replace function public\.current_user_has_community_role/i,
+  );
+  assert.match(
+    baseSchema,
+    /grant execute on function public\.current_user_has_community_role\(uuid, text\[\]\) to authenticated;/i,
+  );
+
+  assert.match(baseSchema, /create table public\.self_evaluations \(/i);
+  assert.match(
+    baseSchema,
+    /alter table public\.self_evaluations enable row level security;/i,
+  );
+  for (const policy of [
+    'Players can read their own self-evaluation',
+    'Players can upsert their own self-evaluation',
+    'Players can update their own self-evaluation',
+  ]) {
+    assert.match(baseSchema, new RegExp(`create policy "${policy}"`, 'i'));
+  }
+  assert.match(
+    baseSchema,
+    /revoke all on table public\.self_evaluations from public, anon;/i,
+  );
+  assert.match(
+    baseSchema,
+    /grant select, insert, update on public\.self_evaluations to authenticated;/i,
   );
 });

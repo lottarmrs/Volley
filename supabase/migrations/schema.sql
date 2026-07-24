@@ -195,14 +195,36 @@ as $$
   );
 $$;
 
+create or replace function public.current_user_has_community_role(
+  target_community_id uuid,
+  allowed_roles text[] default array['owner', 'admin', 'moderator']
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.is_superadmin() or exists (
+    select 1
+    from public.community_members cm
+    where cm.community_id = target_community_id
+      and cm.user_id = (select auth.uid())
+      and cm.status = 'active'
+      and cm.role = any(allowed_roles)
+  );
+$$;
+
 revoke execute on function public.is_superadmin() from public, anon;
 revoke execute on function public.is_app_staff() from public, anon;
 revoke execute on function public.current_user_can_access_player(uuid) from public, anon;
 revoke execute on function public.current_user_is_player_admin(uuid) from public, anon;
+revoke execute on function public.current_user_has_community_role(uuid, text[]) from public, anon;
 grant execute on function public.is_superadmin() to authenticated;
 grant execute on function public.is_app_staff() to authenticated;
 grant execute on function public.current_user_can_access_player(uuid) to authenticated;
 grant execute on function public.current_user_is_player_admin(uuid) to authenticated;
+grant execute on function public.current_user_has_community_role(uuid, text[]) to authenticated;
 
 drop policy if exists "App staff can read all profiles" on public.profiles;
 create policy "App staff can read all profiles" on public.profiles
@@ -301,6 +323,7 @@ create table public.player_evaluations (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
   player_id uuid not null references public.players(id) on delete cascade,
+  community_id uuid not null references public.communities(id) on delete cascade,
   attributes jsonb default '{}'::jsonb not null,
   profile jsonb default '{}'::jsonb not null,
   status jsonb default '{}'::jsonb not null,
@@ -337,6 +360,12 @@ create index if not exists player_avatar_proposals_player_status_idx
   on public.player_avatar_proposals (player_id, status);
 create index if not exists player_avatar_proposals_pending_idx
   on public.player_avatar_proposals (player_id) where status = 'pending';
+
+create table public.self_evaluations (
+  player_id uuid primary key references public.players(id) on delete cascade,
+  attributes jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
 
 -- 5. Create Community Rules Table
 create table public.community_rules (
@@ -410,6 +439,7 @@ alter table public.community_players enable row level security;
 alter table public.community_members enable row level security;
 alter table public.player_evaluations enable row level security;
 alter table public.player_avatar_proposals enable row level security;
+alter table public.self_evaluations enable row level security;
 alter table public.community_rules enable row level security;
 alter table public.whatsapp_list_templates enable row level security;
 alter table public.modification_logs enable row level security;
@@ -469,25 +499,72 @@ create policy "Community members can read player evaluations" on public.player_e
     owner_id = (select auth.uid())
     or public.current_user_can_access_player(player_id)
   );
-create policy "Organizers can insert own player evaluations" on public.player_evaluations
-  for insert to authenticated with check (
+create policy "Community owner or admin can insert player evaluations"
+  on public.player_evaluations
+  for insert to authenticated
+  with check (
     owner_id = (select auth.uid())
-    and public.current_user_can_access_player(player_id)
+    and public.current_user_has_community_role(community_id, array['owner', 'admin'])
   );
-create policy "Organizers can update own player evaluations" on public.player_evaluations
-  for update to authenticated using (owner_id = (select auth.uid())) with check (
+create policy "Community owner or admin can update player evaluations"
+  on public.player_evaluations
+  for update to authenticated
+  using (owner_id = (select auth.uid()))
+  with check (
     owner_id = (select auth.uid())
-    and public.current_user_can_access_player(player_id)
+    and public.current_user_has_community_role(community_id, array['owner', 'admin'])
   );
-create policy "Organizers can delete own player evaluations" on public.player_evaluations
-  for delete to authenticated using (owner_id = (select auth.uid()));
+create policy "Community owner or admin can delete player evaluations"
+  on public.player_evaluations
+  for delete to authenticated
+  using (owner_id = (select auth.uid()));
 
 create policy "Admins can read avatar proposals" on public.player_avatar_proposals
   for select to authenticated using (public.current_user_is_player_admin(player_id));
 
+create policy "Players can read their own self-evaluation"
+  on public.self_evaluations
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.players p
+      where p.id = self_evaluations.player_id
+        and p.user_id = (select auth.uid())
+    )
+  );
+create policy "Players can upsert their own self-evaluation"
+  on public.self_evaluations
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from public.players p
+      where p.id = self_evaluations.player_id
+        and p.user_id = (select auth.uid())
+    )
+  );
+create policy "Players can update their own self-evaluation"
+  on public.self_evaluations
+  for update to authenticated
+  using (
+    exists (
+      select 1 from public.players p
+      where p.id = self_evaluations.player_id
+        and p.user_id = (select auth.uid())
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.players p
+      where p.id = self_evaluations.player_id
+        and p.user_id = (select auth.uid())
+    )
+  );
+
 grant select, insert, update, delete on public.community_members to authenticated;
 grant select, insert, update, delete on public.player_evaluations to authenticated;
 grant select on public.player_avatar_proposals to authenticated;
+revoke all on table public.self_evaluations from public, anon;
+grant select, insert, update on public.self_evaluations to authenticated;
 
 -- Create Policies for Community Rules
 create policy "Users can read own community rules" on public.community_rules

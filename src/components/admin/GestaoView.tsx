@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ShieldCheck, UserCog, Inbox, Loader2, Check, X, RefreshCw } from 'lucide-react';
-import { AuthRole, Player, PlayerLinkProposal, UserProfile } from '../../types';
+import { useCallback, useMemo } from 'react';
+import { ShieldCheck, UserCog, Loader2 } from 'lucide-react';
+import { AuthRole, Player, UserProfile } from '../../types';
 import { useProfilesAdmin } from '../../hooks/useProfilesAdmin';
 
 interface GestaoViewProps {
@@ -9,9 +9,6 @@ interface GestaoViewProps {
   isMaster: boolean;
   /** Elenco local, para resolver nomes de atletas a partir do cloudId. */
   players: Player[];
-  linkProposals: PlayerLinkProposal[];
-  onReviewLink: (proposalId: string, action: 'approve' | 'reject') => Promise<void>;
-  onRefreshLinkProposals?: () => Promise<void>;
   onToast?: (message: string, variant: 'success' | 'error') => void;
 }
 
@@ -27,21 +24,7 @@ const ROLE_BADGE: Record<AuthRole, string> = {
   user: 'badge-ghost',
 };
 
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return fallback;
-}
-
-export const GestaoView = ({
-  currentUserId,
-  isMaster,
-  players,
-  linkProposals,
-  onReviewLink,
-  onRefreshLinkProposals,
-  onToast,
-}: GestaoViewProps) => {
+export const GestaoView = ({ currentUserId, isMaster, onToast }: GestaoViewProps) => {
   const { profiles, loading, error, savingId, changeRole } = useProfilesAdmin(true);
 
   const profileById = useMemo(() => {
@@ -49,59 +32,6 @@ export const GestaoView = ({
     for (const p of profiles) map.set(p.id, p);
     return map;
   }, [profiles]);
-
-  const playerNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const player of players) {
-      map.set(player.id, player.nome);
-      if (player.cloudId) map.set(player.cloudId, player.nome);
-    }
-    return map;
-  }, [players]);
-
-  // ── Aprovações pendentes de vínculo ───────────────────────────────────────
-  const pending = useMemo(
-    () => linkProposals.filter((proposal) => proposal.status === 'pending'),
-    [linkProposals],
-  );
-  const [loadingPending, setLoadingPending] = useState(false);
-  const [pendingError, setPendingError] = useState<string | null>(null);
-  const [actingReview, setActingReview] = useState<{
-    id: string;
-    action: 'approve' | 'reject';
-  } | null>(null);
-
-  const loadPending = useCallback(async () => {
-    if (!onRefreshLinkProposals) return;
-    setLoadingPending(true);
-    setPendingError(null);
-    try {
-      await onRefreshLinkProposals();
-    } catch (e) {
-      setPendingError(messageOf(e, 'Não foi possível carregar as solicitações.'));
-    } finally {
-      setLoadingPending(false);
-    }
-  }, [onRefreshLinkProposals]);
-
-  useEffect(() => {
-    loadPending();
-  }, [loadPending]);
-
-  const handleReview = useCallback(
-    async (proposalId: string, action: 'approve' | 'reject') => {
-      setActingReview({ id: proposalId, action });
-      try {
-        await onReviewLink(proposalId, action);
-        onToast?.(action === 'approve' ? 'Vínculo aprovado.' : 'Solicitação rejeitada.', 'success');
-      } catch (e) {
-        onToast?.(messageOf(e, 'Falha ao processar a solicitação.'), 'error');
-      } finally {
-        setActingReview(null);
-      }
-    },
-    [onReviewLink, onToast],
-  );
 
   const handleChangeRole = useCallback(
     async (userId: string, role: AuthRole) => {
@@ -123,87 +53,6 @@ export const GestaoView = ({
         <p className="text-xs text-text-muted mt-1">
           Administração global do aplicativo. Visível apenas para a equipe (master e programador).
         </p>
-      </div>
-
-      {/* ── Aprovações pendentes ─────────────────────────────────────────── */}
-      <div className="card card-border border-border bg-surface-strong/40 p-6 rounded-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold uppercase tracking-wider flex items-center gap-2">
-            <Inbox className="w-5 h-5 text-accent" /> Solicitações de vínculo
-            {pending.length > 0 && <span className="badge badge-accent">{pending.length}</span>}
-          </h3>
-          <button
-            onClick={loadPending}
-            disabled={loadingPending}
-            className="btn btn-ghost btn-sm rounded-full"
-            title="Atualizar"
-          >
-            {loadingPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-
-        {pendingError && <div className="alert alert-error text-xs mb-3">{pendingError}</div>}
-
-        {!loadingPending && pending.length === 0 && !pendingError && (
-          <p className="text-xs text-text-muted">Nenhuma solicitação pendente.</p>
-        )}
-
-        <div className="space-y-2">
-          {pending.map((proposal) => {
-            const athlete =
-              playerNameById.get(proposal.playerId) ||
-              (proposal.playerCloudId ? playerNameById.get(proposal.playerCloudId) : undefined) ||
-              'Atleta';
-            const requester = profileById.get(proposal.userId);
-            const requesterLabel = requester?.email || requester?.name || proposal.userId;
-            const approving = actingReview?.id === proposal.id && actingReview.action === 'approve';
-            const rejecting = actingReview?.id === proposal.id && actingReview.action === 'reject';
-            const reviewLocked = actingReview !== null;
-            return (
-              <div
-                key={proposal.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-xl bg-base-200 border border-base-300"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">{athlete}</p>
-                  <p className="text-xs text-text-muted truncate">
-                    Solicitado por <strong>{requesterLabel}</strong>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleReview(proposal.id, 'approve')}
-                    disabled={reviewLocked}
-                    className="btn btn-success btn-sm rounded-full"
-                  >
-                    {approving ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Check className="w-4 h-4" />
-                    )}
-                    Aprovar
-                  </button>
-                  <button
-                    onClick={() => handleReview(proposal.id, 'reject')}
-                    disabled={reviewLocked}
-                    className="btn btn-ghost btn-sm rounded-full text-error"
-                  >
-                    {rejecting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <X className="w-4 h-4" />
-                    )}
-                    Rejeitar
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* ── Usuários & papéis ────────────────────────────────────────────── */}

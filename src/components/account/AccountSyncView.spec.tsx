@@ -69,9 +69,6 @@ function renderAccount(overrides: Partial<Parameters<typeof AccountSyncView>[0]>
         lastSyncedAt={null}
         syncLoading={false}
         players={[]}
-        linkProposals={[]}
-        onProposeLink={vi.fn()}
-        onCancelLink={vi.fn()}
         recoverableSyncActions={recoverableActions()}
         syncIssueSummary={issueSummary()}
         onRetryPrimarySyncAction={vi.fn()}

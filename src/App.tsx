@@ -36,7 +36,6 @@ import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useCloudSync } from './hooks/useCloudSync';
 import { useToasts } from './hooks/useToasts';
 import { useCommunityPermissions } from './hooks/useCommunityPermissions';
-import { usePlayerLinkProposals } from './hooks/usePlayerLinkProposals';
 
 import { ToastViewport } from '@ui/common/ToastViewport';
 
@@ -172,7 +171,6 @@ export default function App() {
   const communityPresence = useCommunityPresence();
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
-  const proposals = usePlayerLinkProposals(play.rawPlayers, play.setPlayers, auth.user?.id ?? null);
 
   const editingPlayerCommunity = useMemo(() => {
     if (
@@ -226,8 +224,10 @@ export default function App() {
     setSessionReports: sess.setSessionReports,
     presenceRecords: communityPresence.presenceRecords,
     setPresenceRecords: communityPresence.setPresenceRecords,
-    linkProposals: proposals.linkProposals,
-    setLinkProposals: proposals.setLinkProposals,
+    // ponytail: usePlayerLinkProposals is gone (feature removed); useCloudSync still
+    // requires these fields until Task 3 drops them from CloudSyncDeps.
+    linkProposals: [],
+    setLinkProposals: () => {},
     onToast: toasts.push,
   });
 
@@ -248,7 +248,6 @@ export default function App() {
       sess.gameReports,
       sess.sessionReports,
       communityPresence.presenceRecords,
-      proposals.linkProposals,
     ]);
   }, [
     auth.user,
@@ -264,7 +263,6 @@ export default function App() {
     sess.gameReports,
     sess.sessionReports,
     communityPresence.presenceRecords,
-    proposals.linkProposals,
   ]);
 
   // ── Auto-sync on login (download-first) ───────────────────────────────────
@@ -721,11 +719,6 @@ export default function App() {
               setShowDeleteConfirm={play.setShowDeleteConfirm}
               permissions={playerPermissions}
               currentUserId={auth.user?.id ?? null}
-              linkProposals={proposals.linkProposals}
-              onProposeLink={proposals.handleProposePlayerLink}
-              onReviewLink={proposals.handleReviewPlayerLink}
-              onCancelLink={proposals.handleCancelPlayerLink}
-              onUnlinkPlayer={proposals.handleUnlinkPlayer}
             />
           );
         }
@@ -865,9 +858,6 @@ export default function App() {
             currentUserId={auth.user?.id ?? null}
             isMaster={auth.isMaster}
             players={play.players}
-            linkProposals={proposals.linkProposals}
-            onReviewLink={proposals.handleReviewPlayerLink}
-            onRefreshLinkProposals={proposals.handleRefreshPlayerLinkProposals}
             onToast={toasts.push}
           />
         ) : null;
@@ -886,9 +876,6 @@ export default function App() {
             lastSyncedAt={cloudSync.lastSyncedAt}
             syncLoading={cloudSync.syncLoading}
             players={play.players}
-            linkProposals={proposals.linkProposals}
-            onProposeLink={proposals.handleProposePlayerLink}
-            onCancelLink={proposals.handleCancelPlayerLink}
             recoverableSyncActions={cloudSync.recoverableSyncActions}
             syncIssueSummary={cloudSync.syncIssueSummary}
             onRetryPrimarySyncAction={cloudSync.retryPrimarySyncAction}

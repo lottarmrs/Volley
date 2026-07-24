@@ -12,8 +12,6 @@ import {
   Minus,
   ShieldAlert,
   UserCheck,
-  UserX,
-  Loader2,
   Lock,
 } from 'lucide-react';
 import {
@@ -29,17 +27,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts';
-import {
-  Player,
-  Attributes,
-  Position,
-  Game,
-  PointEvent,
-  Team,
-  Community,
-  Session,
-  PlayerLinkProposal,
-} from '../../types';
+import { Player, Attributes, Position, Game, PointEvent, Team, Community, Session } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
   getBalancingRole,
@@ -76,11 +64,6 @@ interface PlayerEditViewProps {
     canEvaluatePlayer: boolean;
   };
   currentUserId?: string | null;
-  linkProposals?: PlayerLinkProposal[];
-  onProposeLink?: (playerId: string) => Promise<void> | void;
-  onReviewLink?: (proposalId: string, action: 'approve' | 'reject') => Promise<void> | void;
-  onCancelLink?: (proposalId: string) => Promise<void> | void;
-  onUnlinkPlayer?: (playerId: string) => Promise<void> | void;
 }
 
 export const PlayerEditView = ({
@@ -103,11 +86,6 @@ export const PlayerEditView = ({
     canEvaluatePlayer: true,
   },
   currentUserId = null,
-  linkProposals = [],
-  onProposeLink,
-  onReviewLink,
-  onCancelLink,
-  onUnlinkPlayer,
 }: PlayerEditViewProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showVutCard, setShowVutCard] = useState(false);
@@ -129,22 +107,6 @@ export const PlayerEditView = ({
     if (!editingPlayer.userId || !members) return null;
     return members.find((m) => m.userId === editingPlayer.userId) || null;
   }, [editingPlayer.userId, members]);
-
-  const activeProposals = useMemo(() => {
-    return linkProposals.filter(
-      (p) =>
-        (p.playerId === editingPlayer.id ||
-          (p.playerCloudId &&
-            editingPlayer.cloudId &&
-            p.playerCloudId === editingPlayer.cloudId)) &&
-        p.status === 'pending',
-    );
-  }, [linkProposals, editingPlayer.id, editingPlayer.cloudId]);
-
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [claiming, setClaiming] = useState(false);
-  const [unlinking, setUnlinking] = useState(false);
-  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
 
   // Track original player to allow "Revert" action
   const originalPlayer = useMemo(() => {
@@ -737,203 +699,13 @@ export const PlayerEditView = ({
                         {linkedMember?.email || `ID: ${editingPlayer.userId}`}
                       </p>
                     </div>
-                    {/* Botão de desvincular */}
-                    {(editingPlayer.cloudOwnerId === currentUserId ||
-                      permissions.canEditPlayerProfile) && (
-                      <div>
-                        {!showUnlinkConfirm ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowUnlinkConfirm(true)}
-                            className="btn btn-ghost hover:bg-error/15 hover:text-error btn-xs font-bold uppercase"
-                          >
-                            Desvincular
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[8px] text-error font-bold uppercase mr-1">
-                              Confirmar?
-                            </span>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                setUnlinking(true);
-                                try {
-                                  if (onUnlinkPlayer) await onUnlinkPlayer(editingPlayer.id);
-                                  setEditingPlayer((prev) =>
-                                    prev ? { ...prev, userId: undefined } : null,
-                                  );
-                                } catch (e) {
-                                  console.error(e);
-                                } finally {
-                                  setUnlinking(false);
-                                  setShowUnlinkConfirm(false);
-                                }
-                              }}
-                              disabled={unlinking}
-                              className="btn btn-error btn-xs font-bold uppercase px-2 py-0"
-                            >
-                              {unlinking ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Sim'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setShowUnlinkConfirm(false)}
-                              className="btn btn-neutral btn-xs font-bold uppercase px-2 py-0"
-                            >
-                              Não
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {/* Se houver solicitações pendentes */}
-                  {activeProposals.length > 0 ? (
-                    <div className="space-y-2">
-                      <span className="text-[8px] font-bold text-warning uppercase block">
-                        Solicitações Pendentes ({activeProposals.length})
-                      </span>
-                      {activeProposals.map((proposal) => {
-                        const proposer = members.find((m) => m.userId === proposal.userId);
-                        const isMyProposal = proposal.userId === currentUserId;
-                        const isReviewer = permissions.canEditPlayerProfile;
-
-                        return (
-                          <div
-                            key={proposal.id}
-                            className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center gap-2"
-                          >
-                            <div>
-                              <p className="text-xs font-bold text-base-content">
-                                {proposer?.name || (isMyProposal ? 'Você' : 'Outro Usuário')}
-                              </p>
-                              <p className="text-[9px] font-mono text-base-content/50">
-                                {proposer?.email || proposal.userId}
-                              </p>
-                            </div>
-
-                            <div className="flex gap-1.5 shrink-0">
-                              {isReviewer ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      setReviewingId(proposal.id);
-                                      try {
-                                        if (onReviewLink)
-                                          await onReviewLink(proposal.id, 'approve');
-                                        setEditingPlayer((prev) =>
-                                          prev ? { ...prev, userId: proposal.userId } : null,
-                                        );
-                                      } catch (e) {
-                                        console.error(e);
-                                      } finally {
-                                        setReviewingId(null);
-                                      }
-                                    }}
-                                    disabled={reviewingId !== null}
-                                    className="btn btn-success btn-xs font-bold uppercase gap-1"
-                                  >
-                                    {reviewingId === proposal.id ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <UserCheck className="w-3.5 h-3.5" />
-                                    )}
-                                    Aprovar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      setReviewingId(proposal.id);
-                                      try {
-                                        if (onReviewLink) await onReviewLink(proposal.id, 'reject');
-                                      } catch (e) {
-                                        console.error(e);
-                                      } finally {
-                                        setReviewingId(null);
-                                      }
-                                    }}
-                                    disabled={reviewingId !== null}
-                                    className="btn btn-error btn-xs font-bold uppercase gap-1"
-                                  >
-                                    <UserX className="w-3.5 h-3.5" />
-                                    Rejeitar
-                                  </button>
-                                </>
-                              ) : isMyProposal ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[8px] text-warning font-bold uppercase">
-                                    Aguardando aprovação
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      setReviewingId(proposal.id);
-                                      try {
-                                        if (onCancelLink) await onCancelLink(proposal.id);
-                                      } catch (e) {
-                                        console.error(e);
-                                      } finally {
-                                        setReviewingId(null);
-                                      }
-                                    }}
-                                    disabled={reviewingId !== null}
-                                    className="btn btn-ghost hover:bg-error/15 hover:text-error btn-xs font-bold uppercase"
-                                  >
-                                    Cancelar
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-[8px] text-base-content/40 font-bold uppercase">
-                                  Aguardando Admin
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center">
-                      <span className="text-[10px] text-base-content/50">
-                        Nenhuma conta vinculada a este atleta.
-                      </span>
-                      {currentUserId && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setClaiming(true);
-                            try {
-                              if (onProposeLink) await onProposeLink(editingPlayer.id);
-                              const isOwner =
-                                editingPlayer.cloudOwnerId === currentUserId ||
-                                (!editingPlayer.cloudId && !editingPlayer.userId);
-                              if (isOwner) {
-                                setEditingPlayer((prev) =>
-                                  prev ? { ...prev, userId: currentUserId } : null,
-                                );
-                              }
-                            } catch (e) {
-                              console.error(e);
-                            } finally {
-                              setClaiming(false);
-                            }
-                          }}
-                          disabled={claiming}
-                          className="btn btn-primary btn-xs font-bold uppercase"
-                        >
-                          {claiming ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            'Vincular Minha Conta'
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  )}
+                <div className="bg-base-300 p-3 rounded-lg border border-base-300 flex justify-between items-center">
+                  <span className="text-[10px] text-base-content/50">
+                    Nenhuma conta vinculada a este atleta.
+                  </span>
                 </div>
               )}
             </div>

@@ -51,9 +51,20 @@ Drop, in dependency order:
   `player_identity_aliases`
 - Functions: `propose_player_link`, `approve_player_link`,
   `reject_player_link`, `cancel_my_link_proposal`,
-  `merge_player_identity_claim`, `guard_active_player_reference`,
-  `guard_aliased_player_reactivation`
+  `merge_player_identity_claim`, `guard_aliased_player_reactivation`
 - Their triggers
+
+**Correction found during implementation planning:** `guard_active_player_reference`
+is **not** dropped, despite the removal list above's first draft saying so.
+It is installed as a trigger on four tables: `community_players`,
+`player_evaluations`, `player_avatar_proposals` (all staying), and
+`player_link_proposals` (being dropped). Its job — reject a reference to a
+soft-deleted or aliased player — is still needed by the three surviving
+tables. It is **rewritten** instead: the alias-check half of its body and
+the `player_link_proposals`-specific status-transition exemption branch are
+removed (both only made sense while that table/the alias table existed);
+the soft-delete check and its triggers on the three surviving tables stay
+untouched.
 
 `guard_player_user_id`, `guard_player_account_identity_history`,
 `guard_player_account_identity_delete`,

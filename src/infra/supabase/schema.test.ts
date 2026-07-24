@@ -94,6 +94,13 @@ const playerClaimCodesMigration = readFixture(
   ),
 );
 
+const removePlayerLinkProposalSystemMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260724000000_remove_player_link_proposal_system.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -384,17 +391,18 @@ test('membership cloud service uses RPCs for sensitive member role mutations', (
 });
 
 test('account claim keeps canonical identity and records an immutable alias', () => {
-  for (const dependency of [
-    'player_link_proposals',
-    'player_evaluations',
-    'player_avatar_proposals',
-  ]) {
+  for (const dependency of ['player_evaluations', 'player_avatar_proposals']) {
     assert.match(
       baseSchema,
       new RegExp(`create table(?: if not exists)? public\\.${dependency}`, 'i'),
       `consolidated schema is missing ${dependency}`,
     );
   }
+  assert.doesNotMatch(
+    baseSchema,
+    /create table public\.player_link_proposals/i,
+    'consolidated schema must no longer define player_link_proposals',
+  );
 
   assert.match(
     accountIdentityMigration,
@@ -602,8 +610,9 @@ test('aliased players cannot be reactivated by stale direct uploads', () => {
     /create trigger trg_guard_aliased_player_reactivation\s+before update on public\.players\s+for each row execute function public\.guard_aliased_player_reactivation\(\);/i,
   );
   assert.equal(
-    normalizeSql(guard),
-    normalizeSql(extractSqlFunction(baseSchema, 'guard_aliased_player_reactivation')),
+    extractSqlFunction(baseSchema, 'guard_aliased_player_reactivation'),
+    '',
+    'guard_aliased_player_reactivation must be dropped from the consolidated schema',
   );
 });
 
@@ -773,9 +782,9 @@ test('reject and cancel serialize with claim and only transition pending proposa
     assert.ok(conditionalUpdatePosition > pendingCheckPosition);
     assert.match(sql, /if not found then[\s\S]*Proposal no longer pending/i);
     assert.equal(
-      normalizeSql(sql),
-      normalizeSql(extractSqlFunction(baseSchema, functionName)),
-      `${functionName} differs in schema.sql`,
+      extractSqlFunction(baseSchema, functionName),
+      '',
+      `${functionName} must be dropped from the consolidated schema`,
     );
     assert.match(
       accountIdentityMigration,
@@ -788,44 +797,42 @@ test('reject and cancel serialize with claim and only transition pending proposa
 });
 
 test('all claim reference writers reject archived or aliased players', () => {
-  for (const artifact of [accountIdentityMigration, baseSchema]) {
-    const guard = extractSqlFunction(artifact, 'guard_active_player_reference');
-    assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
-    assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
-    assert.match(
-      guard,
-      /from public\.player_identity_aliases[\s\S]*legacy_player_id = new\.player_id/i,
-    );
-    assert.match(guard, /v_deleted_at is not null or v_has_alias/i);
-    assert.match(
-      guard,
-      /raise exception 'Player reference must target an active canonical player'\s+using errcode = '23503'/i,
-    );
-    assert.doesNotMatch(guard, /avatar_url|allow_avatar/i);
-    assert.match(
-      artifact,
-      /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated/i,
-    );
-    assert.doesNotMatch(
-      artifact,
-      /grant execute on function public\.guard_active_player_reference\(\)/i,
-    );
+  const guard = extractSqlFunction(accountIdentityMigration, 'guard_active_player_reference');
+  assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
+  assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
+  assert.match(
+    guard,
+    /from public\.player_identity_aliases[\s\S]*legacy_player_id = new\.player_id/i,
+  );
+  assert.match(guard, /v_deleted_at is not null or v_has_alias/i);
+  assert.match(
+    guard,
+    /raise exception 'Player reference must target an active canonical player'\s+using errcode = '23503'/i,
+  );
+  assert.doesNotMatch(guard, /avatar_url|allow_avatar/i);
+  assert.match(
+    accountIdentityMigration,
+    /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated/i,
+  );
+  assert.doesNotMatch(
+    accountIdentityMigration,
+    /grant execute on function public\.guard_active_player_reference\(\)/i,
+  );
 
-    for (const relation of [
-      'community_players',
-      'player_evaluations',
-      'player_avatar_proposals',
-      'player_link_proposals',
-    ]) {
-      assert.match(
-        artifact,
-        new RegExp(
-          `create trigger trg_guard_active_player_reference[\\s\\S]*before insert or update on public\\.${relation}[\\s\\S]*guard_active_player_reference\\(\\);`,
-          'i',
-        ),
-        relation,
-      );
-    }
+  for (const relation of [
+    'community_players',
+    'player_evaluations',
+    'player_avatar_proposals',
+    'player_link_proposals',
+  ]) {
+    assert.match(
+      accountIdentityMigration,
+      new RegExp(
+        `create trigger trg_guard_active_player_reference[\\s\\S]*before insert or update on public\\.${relation}[\\s\\S]*guard_active_player_reference\\(\\);`,
+        'i',
+      ),
+      relation,
+    );
   }
 
   const mergeFunction = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
@@ -843,66 +850,96 @@ test('all claim reference writers reject archived or aliased players', () => {
   assert.ok(aliasPosition >= 0 && aliasPosition < archivePosition);
 });
 
-test('link proposal guard narrowly permits workflow updates after deterministic cleanup', () => {
-  for (const artifact of [accountIdentityMigration, baseSchema]) {
-    const guard = extractSqlFunction(artifact, 'guard_active_player_reference');
-    const workflowBypass = guard.match(
-      /if tg_table_name = 'player_link_proposals'[\s\S]*?return new;[\s\S]*?end if;/i,
-    )?.[0];
-    assert.ok(workflowBypass, 'missing link proposal workflow bypass');
-    assert.match(workflowBypass, /tg_op = 'UPDATE'/i);
-    assert.match(workflowBypass, /new\.player_id is not distinct from old\.player_id/i);
-    assert.match(workflowBypass, /old\.status = 'pending'/i);
-    assert.match(workflowBypass, /new\.status in \('approved', 'rejected', 'superseded'\)/i);
-    assert.match(
-      workflowBypass,
-      /to_jsonb\(new\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
-    );
-    assert.match(
-      workflowBypass,
-      /to_jsonb\(old\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
-    );
-    assert.doesNotMatch(workflowBypass, /user_id|created_at|\bid\b/i);
+test('consolidated schema guard_active_player_reference drops the alias check and link proposal exemption', () => {
+  const guard = extractSqlFunction(baseSchema, 'guard_active_player_reference');
+  assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
+  assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
+  assert.match(
+    guard,
+    /raise exception 'Player reference must target an active canonical player'\s+using errcode = '23503'/i,
+  );
+  assert.doesNotMatch(guard, /player_identity_aliases|v_has_alias/i);
+  assert.doesNotMatch(guard, /tg_table_name = 'player_link_proposals'/i);
+  assert.match(
+    baseSchema,
+    /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated/i,
+  );
 
-    const requiredOldStatus = workflowBypass.match(/old\.status = '([^']+)'/i)?.[1];
-    const allowedNewStatuses = workflowBypass
-      .match(/new\.status in \(([^)]+)\)/i)?.[1]
-      .split(',')
-      .map((status) => status.trim().replaceAll("'", ''));
-    assert.ok(requiredOldStatus && allowedNewStatuses);
-    const bypassesTransition = (oldStatus: string, newStatus: string) =>
-      oldStatus === requiredOldStatus && allowedNewStatuses.includes(newStatus);
-    assert.equal(bypassesTransition('pending', 'approved'), true);
-    assert.equal(bypassesTransition('pending', 'rejected'), true);
-    assert.equal(bypassesTransition('pending', 'superseded'), true);
-    assert.equal(bypassesTransition('pending', 'pending'), false);
-    assert.equal(bypassesTransition('approved', 'pending'), false);
-    assert.equal(bypassesTransition('approved', 'rejected'), false);
-    assert.equal(bypassesTransition('rejected', 'superseded'), false);
-
-    const cleanup = artifact.match(
-      /update public\.player_link_proposals as proposal\s+set status = 'superseded'[\s\S]*?;/i,
-    )?.[0];
-    assert.ok(cleanup, 'missing invalid pending proposal cleanup');
-    assert.match(cleanup, /proposal\.status = 'pending'/i);
-    assert.match(cleanup, /player\.deleted_at is not null/i);
+  for (const relation of ['community_players', 'player_evaluations', 'player_avatar_proposals']) {
     assert.match(
-      cleanup,
-      /public\.player_identity_aliases[\s\S]*legacy_player_id = proposal\.player_id/i,
+      baseSchema,
+      new RegExp(
+        `create trigger trg_guard_active_player_reference[\\s\\S]*before insert or update on public\\.${relation}[\\s\\S]*guard_active_player_reference\\(\\);`,
+        'i',
+      ),
+      relation,
     );
-    assert.match(cleanup, /set status = 'superseded'\s+where/i);
-
-    const cleanupPosition = artifact.indexOf(cleanup);
-    const guardPosition = artifact.indexOf(
-      'create or replace function public.guard_active_player_reference()',
-    );
-    const proposalTriggerPosition = artifact.indexOf(
-      'create trigger trg_guard_active_player_reference',
-      guardPosition,
-    );
-    assert.ok(cleanupPosition >= 0 && cleanupPosition < guardPosition);
-    assert.ok(guardPosition >= 0 && guardPosition < proposalTriggerPosition);
   }
+  assert.doesNotMatch(
+    baseSchema,
+    /before insert or update on public\.player_link_proposals/i,
+    'consolidated schema must no longer trigger guard_active_player_reference on player_link_proposals',
+  );
+});
+
+test('link proposal guard narrowly permits workflow updates after deterministic cleanup', () => {
+  const guard = extractSqlFunction(accountIdentityMigration, 'guard_active_player_reference');
+  const workflowBypass = guard.match(
+    /if tg_table_name = 'player_link_proposals'[\s\S]*?return new;[\s\S]*?end if;/i,
+  )?.[0];
+  assert.ok(workflowBypass, 'missing link proposal workflow bypass');
+  assert.match(workflowBypass, /tg_op = 'UPDATE'/i);
+  assert.match(workflowBypass, /new\.player_id is not distinct from old\.player_id/i);
+  assert.match(workflowBypass, /old\.status = 'pending'/i);
+  assert.match(workflowBypass, /new\.status in \('approved', 'rejected', 'superseded'\)/i);
+  assert.match(
+    workflowBypass,
+    /to_jsonb\(new\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
+  );
+  assert.match(
+    workflowBypass,
+    /to_jsonb\(old\) - array\['status', 'reviewed_by', 'reviewed_at', 'updated_at'\]/i,
+  );
+  assert.doesNotMatch(workflowBypass, /user_id|created_at|\bid\b/i);
+
+  const requiredOldStatus = workflowBypass.match(/old\.status = '([^']+)'/i)?.[1];
+  const allowedNewStatuses = workflowBypass
+    .match(/new\.status in \(([^)]+)\)/i)?.[1]
+    .split(',')
+    .map((status) => status.trim().replaceAll("'", ''));
+  assert.ok(requiredOldStatus && allowedNewStatuses);
+  const bypassesTransition = (oldStatus: string, newStatus: string) =>
+    oldStatus === requiredOldStatus && allowedNewStatuses.includes(newStatus);
+  assert.equal(bypassesTransition('pending', 'approved'), true);
+  assert.equal(bypassesTransition('pending', 'rejected'), true);
+  assert.equal(bypassesTransition('pending', 'superseded'), true);
+  assert.equal(bypassesTransition('pending', 'pending'), false);
+  assert.equal(bypassesTransition('approved', 'pending'), false);
+  assert.equal(bypassesTransition('approved', 'rejected'), false);
+  assert.equal(bypassesTransition('rejected', 'superseded'), false);
+
+  const cleanup = accountIdentityMigration.match(
+    /update public\.player_link_proposals as proposal\s+set status = 'superseded'[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(cleanup, 'missing invalid pending proposal cleanup');
+  assert.match(cleanup, /proposal\.status = 'pending'/i);
+  assert.match(cleanup, /player\.deleted_at is not null/i);
+  assert.match(
+    cleanup,
+    /public\.player_identity_aliases[\s\S]*legacy_player_id = proposal\.player_id/i,
+  );
+  assert.match(cleanup, /set status = 'superseded'\s+where/i);
+
+  const cleanupPosition = accountIdentityMigration.indexOf(cleanup);
+  const guardPosition = accountIdentityMigration.indexOf(
+    'create or replace function public.guard_active_player_reference()',
+  );
+  const proposalTriggerPosition = accountIdentityMigration.indexOf(
+    'create trigger trg_guard_active_player_reference',
+    guardPosition,
+  );
+  assert.ok(cleanupPosition >= 0 && cleanupPosition < guardPosition);
+  assert.ok(guardPosition >= 0 && guardPosition < proposalTriggerPosition);
 
   const merge = extractSqlFunction(accountIdentityMigration, 'merge_player_identity_claim');
   const approve = extractSqlFunction(accountIdentityMigration, 'approve_player_link');
@@ -915,6 +952,15 @@ test('link proposal guard narrowly permits workflow updates after deterministic 
       /set status = 'rejected',[\s\S]*reviewed_by[\s\S]*reviewed_at/i,
     );
   }
+});
+
+test('consolidated schema drops the link proposal workflow bypass and cleanup', () => {
+  const guard = extractSqlFunction(baseSchema, 'guard_active_player_reference');
+  assert.doesNotMatch(guard, /tg_table_name = 'player_link_proposals'/i);
+  assert.doesNotMatch(
+    baseSchema,
+    /update public\.player_link_proposals as proposal\s+set status = 'superseded'/i,
+  );
 });
 
 test('canonical account players cannot be deleted while pure legacy players can', () => {
@@ -950,30 +996,15 @@ test('canonical account players cannot be deleted while pure legacy players can'
   }
 });
 
-test('consolidated schema preserves app staff link proposal read policy', () => {
+test('account identity migration preserves app staff link proposal read policy', () => {
   assert.match(
     rbacHardeningMigration,
     /create policy "App staff can read link proposals"\s+on public\.player_link_proposals[\s\S]*for select to authenticated using \(public\.is_app_staff\(\)\)/i,
   );
-  const policy = baseSchema.match(
-    /create policy "App staff can read link proposals"\s+on public\.player_link_proposals[\s\S]*?;/i,
-  )?.[0];
-  assert.ok(policy, 'missing consolidated app staff link proposal policy');
-  assert.equal(
-    normalizeSql(policy),
-    normalizeSql(
-      'create policy "App staff can read link proposals" on public.player_link_proposals for select to authenticated using (public.is_app_staff());',
-    ),
-  );
 });
 
-test('consolidated schema defines claim objects and guards exactly once', () => {
+test('consolidated schema defines surviving guards exactly once', () => {
   const definitions = [
-    /create table if not exists public\.player_identity_claims/gi,
-    /create table if not exists public\.player_identity_aliases/gi,
-    /create or replace function public\.merge_player_identity_claim\(/gi,
-    /create or replace function public\.propose_player_link\(/gi,
-    /create or replace function public\.approve_player_link\(/gi,
     /create or replace function public\.guard_profile_role\(\)/gi,
     /create or replace function public\.guard_avatar_url\(\)/gi,
   ];
@@ -981,6 +1012,38 @@ test('consolidated schema defines claim objects and guards exactly once', () => 
   for (const definition of definitions) {
     assert.equal(baseSchema.match(definition)?.length, 1, definition.source);
   }
+});
+
+test('consolidated schema removes the player link proposal system', () => {
+  for (const table of [
+    'player_link_proposals',
+    'player_identity_claims',
+    'player_identity_aliases',
+  ]) {
+    assert.doesNotMatch(
+      baseSchema,
+      new RegExp(`create table(?: if not exists)? public\\.${table}\\b`, 'i'),
+      table,
+    );
+  }
+  for (const functionName of [
+    'propose_player_link',
+    'approve_player_link',
+    'reject_player_link',
+    'cancel_my_link_proposal',
+    'merge_player_identity_claim',
+    'guard_aliased_player_reactivation',
+  ]) {
+    assert.doesNotMatch(
+      baseSchema,
+      new RegExp(`create or replace function public\\.${functionName}\\(`, 'i'),
+      functionName,
+    );
+  }
+  assert.doesNotMatch(
+    baseSchema,
+    /create policy "App staff can read link proposals"/i,
+  );
 });
 
 test('account identity migration creates one canonical player per account', () => {
@@ -1226,5 +1289,43 @@ test('consolidated schema mirrors the claim code table and updated handle_new_us
   assert.match(
     baseSchema,
     /v_claim_code text := upper\(trim\(new\.raw_user_meta_data->>'claim_code'\)\)/i,
+  );
+});
+
+test('remove player link proposal system migration drops the obsolete objects', () => {
+  for (const statement of [
+    'drop function if exists public.cancel_my_link_proposal(uuid);',
+    'drop function if exists public.reject_player_link(uuid);',
+    'drop function if exists public.approve_player_link(uuid);',
+    'drop function if exists public.propose_player_link(uuid);',
+    'drop function if exists public.merge_player_identity_claim(uuid, uuid);',
+    'drop trigger if exists trg_guard_aliased_player_reactivation on public.players;',
+    'drop function if exists public.guard_aliased_player_reactivation();',
+    'drop table if exists public.player_link_proposals cascade;',
+    'drop table if exists public.player_identity_aliases cascade;',
+    'drop table if exists public.player_identity_claims cascade;',
+  ]) {
+    assert.ok(
+      removePlayerLinkProposalSystemMigration.includes(statement),
+      `missing statement: ${statement}`,
+    );
+  }
+
+  const guard = extractSqlFunction(
+    removePlayerLinkProposalSystemMigration,
+    'guard_active_player_reference',
+  );
+  assert.ok(guard, 'missing rewritten guard_active_player_reference');
+  assert.match(guard, /language plpgsql\s+security definer\s+set search_path = public/i);
+  assert.match(guard, /from public\.players[\s\S]*where id = new\.player_id[\s\S]*for update/i);
+  assert.match(
+    guard,
+    /raise exception 'Player reference must target an active canonical player'\s+using errcode = '23503'/i,
+  );
+  assert.doesNotMatch(guard, /player_identity_aliases|v_has_alias/i);
+  assert.doesNotMatch(guard, /tg_table_name = 'player_link_proposals'/i);
+  assert.match(
+    removePlayerLinkProposalSystemMigration,
+    /revoke execute on function public\.guard_active_player_reference\(\)\s+from public, anon, authenticated;/i,
   );
 });

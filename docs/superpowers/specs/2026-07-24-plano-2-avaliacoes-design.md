@@ -9,142 +9,142 @@ em `main`. O Plano 2 original ("Player Claim, Communities & Evaluations") cobria
 frentes:
 
 1. **Claim de jogador histórico** — entregue nesta sessão (Plan A: código de claim no
-   cadastro; Plan B: remoção completa do antigo sistema de proposta/aprovação), mas de
-   forma mais simples do que a seção 7.3 do spec base descrevia (sem aprovação da
-   comunidade — o código é a prova de autorização).
-2. **Comunidades** (descoberta, pedidos, convites, RBAC) — já existia antes desta sessão
-   inteira. `search_public_communities`, `request_to_join_public`/`request_to_join_community`,
-   `approve_join_request`/`reject_join_request`, `set_community_member_role`,
-   `remove_community_member`, `generate_join_code`/`disable_join_code`,
-   `find_community_by_code` já estão migrados e em produção.
-3. **Avaliações** (autoavaliação global separada de avaliação oficial por comunidade) —
-   **não entregue**. `public.player_evaluations` hoje é uma tabela única com
-   `unique(owner_id, player_id)`, sem `community_id`, sem distinção entre autoavaliação e
-   avaliação oficial.
+   cadastro; Plan B: remoção completa do antigo sistema de proposta/aprovação).
+2. **Comunidades** (descoberta, pedidos, convites, RBAC) — já existia antes desta sessão.
+3. **Avaliações** — parcialmente entregue, mais avançado do que o brainstorm inicial
+   assumiu (ver correção abaixo).
 
-Este documento escopa apenas o item 3 — a única frente do Plano 2 original ainda não
-entregue. Itens 1 e 2 são tratados como já concluídos e não são reabertos aqui.
+Este documento escopa apenas o item 3.
 
-**Decisão do usuário (revisada nesta sessão):** seguir a versão simples do spec base
-(seção 8), não o design de agregação ponderada de uma memória de 2026-06-10
-(`multi-evaluation-attributes-design`). Esse design mais complexo — pesos por papel,
-rejeição de outliers, âncora objetiva via `point_events`, agregação global — foi
-avaliado e descartado *para este plano* por contrariar o próprio princípio de
-consolidação do programa Produto Escalável (YAGNI, evitar complexidade nova antes de
-fechar identidade/domínio/offline/cutover). Fica registrado como refinamento futuro
-possível, não como escopo deste plano — ver seção "Refinamento futuro" abaixo.
+**Correção de premissa (descoberta ao mapear arquivos para o plano):** o brainstorm
+inicial assumiu que avaliações eram inexistentes no código. Na verdade já existe um
+sistema funcionando em produção: `src/logic/playerEvaluations.ts`,
+`src/infra/supabase/playerEvaluationCloudService.ts`, tabela `public.player_evaluations`
+com RLS ativa. O que existe hoje:
+
+- `aggregatePlayerEvaluations`: agrega múltiplos avaliadores por jogador com rejeição de
+  outliers já implementada (mediana ± MAD, sem peso por papel).
+- `player.atributos`: já é um valor **derivado** (consenso), não autorado diretamente.
+- `player.personalAttributes`: "minha avaliação como avaliador deste jogador" — mas
+  **qualquer membro da comunidade** pode ser esse avaliador, inclusive, sem nenhuma regra
+  especial, o próprio jogador avaliando a si mesmo.
+- RLS atual (`schema.sql:467-483`): INSERT/UPDATE/DELETE restrito a
+  `owner_id = auth.uid() AND current_user_can_access_player(player_id)` — **qualquer**
+  membro com acesso ao jogador pode avaliar, não só owner/admin.
+- `current_user_can_access_player` (`schema.sql:147+`) é um OR entre staff, dono do
+  player, e membership em **qualquer** comunidade compartilhada — não sabe "para qual
+  comunidade" a avaliação é, porque essa dimensão não existe na tabela hoje.
+- Um jogador em múltiplas comunidades tem hoje uma única agregação **global**, misturando
+  avaliadores de todas elas.
+
+Isso quebra duas premissas do spec base (seção 8.2): "só owner/admin avalia" e
+"autoavaliação separada, nunca entra na nota oficial". Nenhuma das duas é verdade hoje.
+
+**Decisão do usuário:** evoluir o sistema existente em vez de criar um paralelo do zero —
+adicionar `community_id`, restringir escrita a owner/admin daquela comunidade, e criar
+uma autoavaliação de verdade (tabela nova, separada, nunca entra no pool de agregação).
+Reaproveitar a lógica de rejeição de outliers já testada (`aggregatePlayerEvaluations`)
+para a agregação por comunidade — isso não é o design ponderado/com âncora objetiva que
+foi adiado (ver `multi-evaluation-attributes-design`), é só reuso de código já testado em
+vez de escrever uma média simples do zero. Continua **sem** peso por papel, **sem**
+âncora objetiva via `point_events`, **sem** agregação global cross-comunidade — essas três
+seguem adiadas como refinamento futuro, decisão já tomada e registrada.
 
 ## Objetivos
 
-- Separar autoavaliação (informativa, editável só pelo próprio jogador) de avaliação
-  oficial (por comunidade, só owner/admin, conforme spec base seção 8.2).
-- Cada avaliação oficial é contextual a uma comunidade: no máximo uma por
-  `(community_id, player_id, evaluator_user_id)`.
-- Média oficial calculada por comunidade, sem misturar com autoavaliação.
-- Reutilizar `current_user_has_community_role` (já existe) para RLS/RPC de avaliação
-  oficial.
-- Adaptar a UI de avaliação existente (não redesenhar) ao novo modelo.
+- `player_evaluations` ganha `community_id` (not null). Uma avaliação pertence a uma
+  comunidade específica.
+- RLS de INSERT/UPDATE/DELETE em `player_evaluations` passa a exigir
+  `current_user_has_community_role(community_id, array['owner','admin'])` (função já
+  existe, reutilizada sem alteração) — não mais "qualquer membro com acesso ao jogador".
+- Agregação (`aggregatePlayerEvaluations`, já testada) roda por comunidade — cada
+  comunidade tem sua própria média com rejeição de outliers, sem misturar com outras
+  comunidades nem com autoavaliação.
+- Nova tabela `self_evaluations`: autoavaliação de verdade, só o próprio jogador
+  (`players.user_id = auth.uid()`) lê/escreve, nunca entra em `aggregatePlayerEvaluations`.
+- Adaptar a UI de avaliação existente (não redesenhar) ao novo modelo — precisa agora
+  saber em qual comunidade o avaliador está atuando (contexto que hoje não existe na
+  chamada).
 
 ## Não objetivos
 
-- Agregação ponderada por papel, rejeição de outliers, âncora objetiva via
-  `point_events`, ou qualquer média oficial **global** cross-comunidade — explicitamente
-  fora do spec base (seção 3 e 8.2) e fora deste plano. Ver "Refinamento futuro".
-- Redesenhar telas ou criar novas telas de avaliação — UI congelada até os gates do
-  Plano 5, por decisão explícita do usuário nesta sessão. Qualquer ajuste de UI é o
-  mínimo necessário para expor a separação self/oficial na tela já existente.
-- Decaimento por recência.
-- Pesos configuráveis por comunidade.
+- Peso por papel, rejeição de outliers com constantes novas, âncora objetiva via
+  `point_events`, ou qualquer agregação global cross-comunidade — decisão já tomada,
+  registrada em `multi-evaluation-attributes-design` (memória) como refinamento futuro.
+- Redesenhar telas ou criar navegação nova — UI congelada até os gates do Plano 5, ajuste
+  mínimo apenas para adicionar contexto de comunidade e a superfície de autoavaliação.
+- Migrar dados existentes de `player_evaluations` — produção foi resetada (Plan A/B),
+  zero avaliações reais existem hoje. É alteração de schema limpa, não migração de dados.
+- Mudar `current_user_can_access_player` ou qualquer outra função de acesso não
+  relacionada a avaliações.
 - Reabrir claim ou comunidades (itens 1 e 2 do Plano 2 original, já entregues).
 
 ## Modelo de dados
 
-Produção foi resetada (Plan A/B, sessão anterior) — zero avaliações reais existem hoje.
-O redesenho abaixo não precisa de migração de dados, só de schema novo.
-
 ```sql
+-- Alteração em player_evaluations existente (schema limpo, sem dados a preservar):
+alter table public.player_evaluations
+  add column community_id uuid references public.communities(id) on delete cascade;
+-- (vira not null depois de preenchida; ver plano de implementação para ordem exata dos
+-- passos de alter table + backfill/constraint, já que a tabela pode não estar
+-- literalmente vazia no momento exato da migração real — confirmar contagem antes de
+-- aplicar not null diretamente.)
+
+-- unique(owner_id, player_id) vira unique(owner_id, player_id, community_id).
+
 create table public.self_evaluations (
   player_id uuid primary key references public.players(id) on delete cascade,
   attributes jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
--- RLS: só o dono do player (players.user_id = auth.uid()) lê/escreve o próprio registro.
--- Puramente informativo — não alimenta nenhuma média oficial nem players.atributos.
-
-create table public.player_evaluations (
-  id uuid primary key default gen_random_uuid(),
-  player_id uuid not null references public.players(id) on delete cascade,
-  community_id uuid not null references public.communities(id) on delete cascade,
-  evaluator_id uuid not null references auth.users(id) on delete cascade,
-  attributes jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (player_id, community_id, evaluator_id)
-);
--- RLS: escrita restrita a current_user_has_community_role(community_id, array['owner','admin']),
--- conforme spec base 8.2 ("Somente owner/admin autorizado avalia").
+-- RLS: só players.user_id = auth.uid() lê/escreve o próprio registro.
 ```
 
-Sem tabela/coluna de cache global. A média oficial por comunidade é calculada sob
-demanda (view ou query simples — `avg` não ponderado dos registros de
-`player_evaluations` daquela comunidade), exibida apenas no contexto daquela comunidade.
-`players.atributos` **não é tocado por este plano** — continua como está hoje (campo
-autorado diretamente, fora do escopo desta separação self/oficial). Isso evita o
-problema de "qual é o valor canônico global" inteiramente, consistente com o não-objetivo
-do spec base.
+`aggregatePlayerEvaluations` (função pura já existente, sem mudança de assinatura)
+passa a ser chamada por comunidade — o call site em `applyEvaluationAggregate` (ou seu
+substituto na camada de aplicação) filtra `evaluations` por `community_id` antes de
+agregar, uma vez por comunidade em que o jogador está.
 
 ## Segurança
 
+- `player_evaluations`: RLS de escrita trocada de "qualquer membro com acesso ao
+  jogador" para `current_user_has_community_role(community_id, array['owner','admin'])`
+  (reuso direto, sem nova função). Leitura mantém o padrão atual (dono da avaliação ou
+  quem acessa o jogador).
 - `self_evaluations`: RLS via `players.user_id = auth.uid()`, mesmo padrão de outras
   tabelas "dono edita o próprio registro".
-- `player_evaluations`: RLS de escrita via `current_user_has_community_role` (já existe,
-  reutilizado sem alteração), restrita a `owner`/`admin`. Leitura segue o padrão já usado
-  por outras tabelas de comunidade (membros leem, `is_app_staff()` sempre lê).
-- Nenhuma função `SECURITY DEFINER` nova além do que já existe — sem RPC de agregação
-  complexa, a média por comunidade é uma query direta sob RLS.
+- Nenhuma função `SECURITY DEFINER` nova.
 
 ## UI
 
-Não-objetivo. Adaptar a tela de avaliação já existente (implementada 2026-06-18,
-mencionada na memória `facilitator-gamification-design`) para:
-- gravar em `player_evaluations` (com `community_id`) em vez da tabela antiga de
-  avaliação única;
-- expor um campo/seção separado, mínimo, para autoavaliação (`self_evaluations`).
-
-Nenhuma tela nova. Nenhuma mudança de navegação.
+Não-objetivo além do mínimo. A tela de avaliação existente precisa passar a saber "em
+qual comunidade" o avaliador está agindo (hoje essa informação não existe no fluxo) —
+provavelmente já disponível via contexto de comunidade ativa na navegação atual, a
+confirmar ao mapear o componente exato no plano de implementação. Adicionar uma
+superfície mínima para autoavaliação (`self_evaluations`), sem tela nova nem mudança de
+navegação.
 
 ## Refinamento futuro (explicitamente fora deste plano)
 
-A memória `multi-evaluation-attributes-design` (2026-06-10) descreve um pipeline de
-agregação ponderada mais robusto — pesos por papel, rejeição de outliers (MAD),
-âncora objetiva via `point_events`, agregação global normalizada por comunidade,
-produzindo um `players.atributos` derivado. Esse design resolve um problema real
-(moderadores de comunidades diferentes avaliam com rigor distinto) que a versão simples
-deste plano não resolve — cada comunidade fica isolada, sem nota canônica cross-comunidade.
-
-Fica deliberadamente para depois: só faz sentido revisitar depois que os Planos 3-5 do
-programa Produto Escalável fecharem (VUT/conquistas, offline cloud-first, contratos de
-tela/cutover), como uma extensão sobre o modelo de dados aqui definido
-(`player_evaluations` com `community_id` já dá a base necessária — o refinamento futuro
-adicionaria agregação, não mudaria o schema base). Não recriar este documento quando
-chegar a hora — atualizar a memória `multi-evaluation-attributes-design` com a decisão de
-adiamento e o motivo.
+Peso por papel, âncora objetiva via `point_events`, agregação global cross-comunidade —
+ver memória `multi-evaluation-attributes-design`, já marcada como adiada até os Planos
+3-5 do programa fecharem.
 
 ## Testes
 
-- **Banco/RLS**: matriz para anonymous/member/admin/owner/staff em `self_evaluations` e
-  `player_evaluations` — caminho permitido e negado para cada papel. Confirmar que
-  `moderator` NÃO pode escrever avaliação oficial (só owner/admin, por spec base 8.2).
-- **Domínio**: cálculo da média por comunidade (unweighted), unicidade
-  `(community_id, player_id, evaluator_id)`.
-- **Integração**: autoavaliação nunca aparece em queries/telas de avaliação oficial e
-  vice-versa.
+- **Banco/RLS**: matriz para anonymous/member/moderator/admin/owner/staff em
+  `player_evaluations` (escrita agora exige owner/admin da comunidade específica) e
+  `self_evaluations`. Confirmar que `moderator` NÃO pode escrever avaliação oficial.
+- **Domínio**: `aggregatePlayerEvaluations` chamada por comunidade produz agregados
+  independentes (sem regressão nos testes existentes de outlier rejection).
+- **Integração**: autoavaliação nunca aparece em `aggregatePlayerEvaluations`;
+  avaliação de uma comunidade não vaza para a agregação de outra.
 
 ## Referências
 
 - `docs/superpowers/specs/2026-07-22-scalable-product-restructure-design.md` (spec base,
   seção 8 e "Não objetivos")
 - `docs/superpowers/plans/2026-07-22-scalable-product-program.md` (programa de 5 planos)
-- Memória `multi-evaluation-attributes-design` (design de agregação de 2026-06-10 —
-  refinamento futuro, não escopo deste plano)
-- Memória `facilitator-gamification-design` (UI de avaliação existente, 2026-06-18)
+- Memória `multi-evaluation-attributes-design` (design de agregação ponderada — adiado)
+- `src/logic/playerEvaluations.ts`, `src/infra/supabase/playerEvaluationCloudService.ts`
+  (sistema existente sendo evoluído por este plano)

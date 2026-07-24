@@ -224,10 +224,6 @@ export default function App() {
     setSessionReports: sess.setSessionReports,
     presenceRecords: communityPresence.presenceRecords,
     setPresenceRecords: communityPresence.setPresenceRecords,
-    // ponytail: usePlayerLinkProposals is gone (feature removed); useCloudSync still
-    // requires these fields until Task 3 drops them from CloudSyncDeps.
-    linkProposals: [],
-    setLinkProposals: () => {},
     onToast: toasts.push,
   });
 

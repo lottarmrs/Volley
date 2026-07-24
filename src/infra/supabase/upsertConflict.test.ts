@@ -74,15 +74,3 @@ test('player cloud service can fetch the player linked to the current user', () 
   assert.match(source, /\.is\('deleted_at', null\)/);
   assert.match(source, /\.maybeSingle\(\)/);
 });
-
-test('player link proposal service can fetch the current pending proposal', () => {
-  const source = readFileSync(
-    new URL('./playerLinkProposalCloudService.ts', import.meta.url),
-    'utf8',
-  );
-
-  assert.match(source, /fetchPendingForUser\(userId: string\)/);
-  assert.match(source, /\.eq\('user_id', userId\)/);
-  assert.match(source, /\.eq\('status', 'pending'\)/);
-  assert.match(source, /\.maybeSingle\(\)/);
-});

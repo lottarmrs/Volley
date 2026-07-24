@@ -24,11 +24,6 @@ import {
 } from './operationalCloudService';
 import { mapDbToCommunityMember } from './membershipCloudService';
 import {
-  mapDbToPlayerClaimResult,
-  mapProposalToDb,
-  mapDbToProposal,
-} from './playerLinkProposalCloudService';
-import {
   deduplicatePlayerEvaluationRecords,
   mapPlayerEvaluationToDb,
 } from './playerEvaluationCloudService';
@@ -45,7 +40,6 @@ import {
   Team,
   WhatsAppListDraft,
   WhatsAppListTemplate,
-  PlayerLinkProposal,
 } from '../../types';
 
 const now = '2026-06-09T12:00:00.000Z';
@@ -540,45 +534,6 @@ test('community member mapper accepts profile data fetched separately', () => {
   assert.equal(mapped.role, 'owner');
   assert.equal(mapped.name, 'Lottar');
   assert.equal(mapped.email, 'lottar@example.com');
-});
-
-test('player link proposal mapper round-trips fields and maps local-to-cloud player IDs', () => {
-  const proposal: PlayerLinkProposal = {
-    id: 'proposal-local-uuid',
-    playerId: 'player-cloud-uuid',
-    userId: 'user-auth-uuid',
-    status: 'pending',
-    createdAt: now,
-  };
-
-  const db = mapProposalToDb(proposal);
-  assert.equal(db.id, 'proposal-local-uuid');
-  assert.equal(db.player_id, 'player-cloud-uuid');
-  assert.equal(db.user_id, 'user-auth-uuid');
-  assert.equal(db.status, 'pending');
-
-  const mapped = mapDbToProposal(db);
-  assert.equal(mapped.id, 'proposal-local-uuid');
-  assert.equal(mapped.playerId, 'player-cloud-uuid'); // wait! Since local and cloud IDs are identical, mapDbToProposal doesn't translate player ID using maps anymore, so mapped.playerId will be db.player_id which is 'player-cloud-uuid'!
-  assert.equal(mapped.userId, 'user-auth-uuid');
-  assert.equal(mapped.status, 'pending');
-  assert.equal(mapped.syncStatus, 'synced');
-});
-
-test('player claim result mapper converts RPC snake_case fields', () => {
-  const result = mapDbToPlayerClaimResult({
-    claim_id: 'claim-cloud',
-    canonical_player_id: 'canonical-cloud',
-    legacy_player_id: 'legacy-cloud',
-    legacy_local_id: 'legacy-local',
-  });
-
-  assert.deepEqual(result, {
-    claimId: 'claim-cloud',
-    canonicalPlayerId: 'canonical-cloud',
-    legacyPlayerId: 'legacy-cloud',
-    legacyLocalId: 'legacy-local',
-  });
 });
 
 test('player evaluation mapper omits the id key so the DB default applies', () => {

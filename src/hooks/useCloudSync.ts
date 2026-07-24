@@ -31,7 +31,6 @@ import {
   Game,
   GameReport,
   Player,
-  PlayerLinkProposal,
   PointEvent,
   Session,
   SessionReport,
@@ -72,8 +71,6 @@ export interface CloudSyncDeps {
   setSessionReports: (value: SessionReport[]) => void;
   presenceRecords: CommunityPresence[];
   setPresenceRecords: (value: CommunityPresence[]) => void;
-  linkProposals: PlayerLinkProposal[];
-  setLinkProposals: (value: PlayerLinkProposal[]) => void;
   /** Optional sink for user-facing feedback (e.g. toasts). */
   onToast?: (message: string, variant: 'success' | 'error') => void;
 }
@@ -114,9 +111,6 @@ export function useCloudSync(deps: CloudSyncDeps) {
     deps.setSessionReports(normalized.sessionReports);
     deps.setPresenceRecords(normalized.presenceRecords);
     deps.setDrafts(normalized.drafts);
-    if (normalized.linkProposals) {
-      deps.setLinkProposals(normalized.linkProposals);
-    }
 
     const nowStr = new Date().toISOString();
     setLastSyncedAt(nowStr);

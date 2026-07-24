@@ -19,7 +19,6 @@ function emptyPayload(): LocalSyncPayload {
     sessionReports: [],
     presenceRecords: [],
     drafts: [],
-    linkProposals: [],
   };
 }
 
@@ -50,8 +49,6 @@ function deps(overrides: Partial<CloudSyncDeps> = {}): CloudSyncDeps {
     setSessionReports: vi.fn(),
     presenceRecords: [],
     setPresenceRecords: vi.fn(),
-    linkProposals: [],
-    setLinkProposals: vi.fn(),
     ...overrides,
   };
 }

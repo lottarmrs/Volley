@@ -21,7 +21,6 @@ const collections = (
   gameReports: [],
   sessionReports: [],
   presenceRecords: [],
-  linkProposals: [],
   ...overrides,
 });
 
@@ -30,7 +29,6 @@ test('buildLocalSyncPayload preserves all sync collections for cloud commands', 
     collections({
       communities: [{ id: 'community-1', name: 'Panelinha' } as never],
       players: [{ id: 'player-1', nome: 'Ana' } as never],
-      linkProposals: [{ id: 'proposal-1', playerId: 'player-1' } as never],
     }),
   );
 
@@ -38,12 +36,10 @@ test('buildLocalSyncPayload preserves all sync collections for cloud commands', 
     {
       communities: payload.communities.map((item) => item.id),
       players: payload.players.map((item) => item.id),
-      linkProposals: payload.linkProposals.map((item) => item.id),
     },
     {
       communities: ['community-1'],
       players: ['player-1'],
-      linkProposals: ['proposal-1'],
     },
   );
 });

@@ -6,7 +6,6 @@ import type {
   Game,
   GameReport,
   Player,
-  PlayerLinkProposal,
   PointEvent,
   Session,
   SessionReport,
@@ -29,7 +28,6 @@ export interface CloudSyncPayloadCollections {
   gameReports: GameReport[];
   sessionReports: SessionReport[];
   presenceRecords: CommunityPresence[];
-  linkProposals: PlayerLinkProposal[];
 }
 
 export function buildLocalSyncPayload(collections: CloudSyncPayloadCollections): LocalSyncPayload {
@@ -46,7 +44,6 @@ export function buildLocalSyncPayload(collections: CloudSyncPayloadCollections):
     sessionReports: collections.sessionReports,
     presenceRecords: collections.presenceRecords,
     drafts: collections.drafts,
-    linkProposals: collections.linkProposals,
   };
 }
 

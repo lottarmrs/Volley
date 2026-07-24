@@ -27,7 +27,6 @@ export type {
   Player,
   PlayerAvatarProposal,
   PlayerEvaluation,
-  PlayerLinkProposal,
   Position,
   RoleComposition,
   RotationType,

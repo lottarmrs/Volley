@@ -96,20 +96,6 @@ export interface Player {
   pendingUserLinkAction?: 'unlink';
 }
 
-export interface PlayerLinkProposal {
-  id: string;
-  playerCloudId?: string;
-  playerId: string;
-  userId: string;
-  status: 'pending' | 'approved' | 'rejected' | 'superseded';
-  reviewedBy?: string;
-  reviewedAt?: string;
-  createdAt: string;
-  syncStatus?: CloudSyncStatus;
-  lastSyncedAt?: string;
-  deletedAt?: string;
-}
-
 export interface PlayerEvaluation {
   id: string;
   playerId: string;

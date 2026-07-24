@@ -700,7 +700,6 @@ export function migrateLocalDbToUuids() {
   const communityPresences = loadFromStorage<any[]>(STORAGE_KEYS.communityPresence, []);
   const whatsAppTemplates = loadFromStorage<any[]>(STORAGE_KEYS.whatsAppListTemplates, []);
   const whatsAppDrafts = loadFromStorage<any[]>(STORAGE_KEYS.whatsAppListDrafts, []);
-  const playerLinkProposals = loadFromStorage<any[]>(STORAGE_KEYS.playerLinkProposals, []);
   const lastSelectedPlayerIds = loadFromStorage<string[]>(STORAGE_KEYS.lastSelectedPlayerIds, []);
   const bestDivisions = loadFromStorage<any[]>(STORAGE_KEYS.bestDivisions, []);
   const communityRules = loadFromStorage<any[]>(STORAGE_KEYS.communityRules, []);
@@ -719,7 +718,6 @@ export function migrateLocalDbToUuids() {
   sessionReports.forEach((sr) => register(sr.id, sr.cloudId));
   whatsAppTemplates.forEach((t) => register(t.id, undefined));
   whatsAppDrafts.forEach((d) => register(d.id, undefined));
-  playerLinkProposals.forEach((p) => register(p.id, undefined));
 
   // Helper map functions
   function getMapped(oldId: string | undefined | null): string {
@@ -965,13 +963,6 @@ export function migrateLocalDbToUuids() {
     reserves: Array.isArray(d.reserves) ? d.reserves.map(getMapped) : d.reserves,
   }));
 
-  // Player link proposals
-  const migratedPlayerLinkProposals = playerLinkProposals.map((p) => ({
-    ...p,
-    id: getMapped(p.id),
-    playerId: getMapped(p.playerId),
-  }));
-
   // Last Selected Player IDs
   const migratedLastSelectedPlayerIds = lastSelectedPlayerIds.map(getMapped);
 
@@ -999,7 +990,6 @@ export function migrateLocalDbToUuids() {
   saveToStorage(STORAGE_KEYS.communityPresence, migratedCommunityPresences);
   saveToStorage(STORAGE_KEYS.whatsAppListTemplates, migratedWhatsAppTemplates);
   saveToStorage(STORAGE_KEYS.whatsAppListDrafts, migratedWhatsAppDrafts);
-  saveToStorage(STORAGE_KEYS.playerLinkProposals, migratedPlayerLinkProposals);
   saveToStorage(STORAGE_KEYS.lastSelectedPlayerIds, migratedLastSelectedPlayerIds);
   saveToStorage(STORAGE_KEYS.bestDivisions, migratedBestDivisions);
   saveToStorage(STORAGE_KEYS.communityRules, migratedCommunityRules);

@@ -5,6 +5,7 @@ import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
+import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
@@ -1018,7 +1019,17 @@ export const syncService = {
     const playerCloudIds = makeCloudIdLookup(updatedPlayers);
 
     try {
-      await playerEvaluationCloudService.bulkUpsertForPlayers(updatedPlayers, ownerId);
+      // Só atletas com um `evaluationCommunityId` conhecido tiveram uma avaliação
+      // pessoal salva sob um contexto de comunidade — os demais nunca passaram por
+      // esse fluxo e não devem gerar uma linha em player_evaluations (a coluna
+      // community_id é NOT NULL).
+      const playersWithPendingEvaluation = updatedPlayers.filter(
+        (player) => !!player.evaluationCommunityId,
+      );
+      await playerEvaluationCloudService.bulkUpsertForPlayers(
+        playersWithPendingEvaluation,
+        ownerId,
+      );
     } catch (error) {
       onIssue('avaliações de atletas', error);
     }
@@ -1364,11 +1375,19 @@ export const syncService = {
       }
     }
 
+    // A player's own self-evaluation is only readable by that player's linked
+    // account (RLS on self_evaluations restricts rows to their own player_id),
+    // so at most one cloud player can match the current user.
+    const ownPlayer = ownerId ? cloudPlayers.find((player) => player.userId === ownerId) : undefined;
+    const selfEvaluation = ownPlayer?.cloudId
+      ? await selfEvaluationCloudService.fetch(ownPlayer.cloudId)
+      : null;
+
     const mappedPlayers = cloudPlayers.map((player) => {
       const playerEvaluations = cloudEvaluations.filter(
         (evaluation) => evaluation.playerId?.toLowerCase() === player.id.toLowerCase(),
       );
-      return applyEvaluationAggregate(
+      const aggregated = applyEvaluationAggregate(
         {
           ...player,
           communityIds: playerMemberships[player.id.toLowerCase()] || [],
@@ -1376,6 +1395,9 @@ export const syncService = {
         playerEvaluations,
         ownerId,
       );
+      return player === ownPlayer && selfEvaluation
+        ? { ...aggregated, selfEvaluation }
+        : aggregated;
     });
 
     return {

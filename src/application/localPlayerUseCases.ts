@@ -120,6 +120,7 @@ export function validateLocalPlayerSave(input: {
 export function applyLocalPlayerSave(input: {
   players: Player[];
   editingPlayer: Player;
+  communityId: string;
   now: string;
 }): { players: Player[]; savedPlayer: Player } {
   const username = resolveUsername(
@@ -139,6 +140,7 @@ export function applyLocalPlayerSave(input: {
     atributos: simulated.atributos,
     evaluationAggregate: simulated.evaluationAggregate,
     hasOwnEvaluation: simulated.hasOwnEvaluation,
+    evaluationCommunityId: input.communityId,
     syncStatus: 'pending',
     updatedAt: input.now,
   };

@@ -13,15 +13,18 @@ import {
 import { operationalCloudService } from './operationalCloudService';
 import { playerCloudService } from './playerCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
+import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { communityCloudService } from './communityCloudService';
 import { communityPlayerCloudService } from './communityPlayerCloudService';
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
+import { aggregatePlayerEvaluations } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
   Community,
   CommunityPresence,
   Player,
+  PlayerEvaluation,
   PointEvent,
   Session,
   Team,
@@ -1038,5 +1041,185 @@ test('isUuid distinguishes native uuids from temporary/local ids (I2)', () => {
   assert.equal(isUuid('community-123'), false);
   assert.equal(isUuid(''), false);
   assert.equal(isUuid(undefined), false);
+});
+
+const baseAttributes = {
+  saque: 5,
+  recepcao: 5,
+  levantamento: 5,
+  ataque: 5,
+  bloqueio: 5,
+  defesa: 5,
+  velocidade: 5,
+  resistencia: 5,
+  leituraDeJogo: 5,
+  regularidade: 5,
+  controleEmocional: 5,
+};
+
+function emptyOperationalPayload() {
+  return {
+    sessions: [],
+    teams: [],
+    games: [],
+    pointEvents: [],
+    gameReports: [],
+    sessionReports: [],
+    presenceRecords: [],
+    drafts: [],
+  };
+}
+
+test('downloadCloudDataToLocal fetches and merges the current user own self-evaluation only', async () => {
+  const originalCommunities = communityCloudService.fetchAll;
+  const originalPlayers = playerCloudService.fetchAll;
+  const originalRules = communityRulesCloudService.fetchAll;
+  const originalTemplates = whatsappTemplateCloudService.fetchAll;
+  const originalRelations = communityPlayerCloudService.fetchAll;
+  const originalEvaluations = playerEvaluationCloudService.fetchAll;
+  const originalOperational = operationalCloudService.fetchAll;
+  const originalSelfEvaluationFetch = selfEvaluationCloudService.fetch;
+  const fetchedPlayerIds: string[] = [];
+
+  try {
+    communityCloudService.fetchAll = async () => [];
+    playerCloudService.fetchAll = async () =>
+      [
+        makeSyncPlayer({ id: 'player-me', cloudId: 'cloud-me', userId: 'owner-1' }),
+        makeSyncPlayer({ id: 'player-other', cloudId: 'cloud-other', userId: 'owner-2' }),
+      ];
+    communityRulesCloudService.fetchAll = async () => [];
+    whatsappTemplateCloudService.fetchAll = async () => [];
+    communityPlayerCloudService.fetchAll = async () => [];
+    playerEvaluationCloudService.fetchAll = async () => [];
+    operationalCloudService.fetchAll = async () => emptyOperationalPayload();
+    selfEvaluationCloudService.fetch = async (playerId: string) => {
+      fetchedPlayerIds.push(playerId);
+      return { attributes: { ...baseAttributes, saque: 9 }, updatedAt: '2026-07-24T00:00:00.000Z' };
+    };
+
+    const result = await syncService.downloadCloudDataToLocal('owner-1');
+
+    const me = result.players.find((player) => player.id === 'player-me');
+    const other = result.players.find((player) => player.id === 'player-other');
+
+    assert.deepEqual(fetchedPlayerIds, ['cloud-me']);
+    assert.equal(me?.selfEvaluation?.attributes.saque, 9);
+    assert.equal(other?.selfEvaluation, undefined);
+  } finally {
+    communityCloudService.fetchAll = originalCommunities;
+    playerCloudService.fetchAll = originalPlayers;
+    communityRulesCloudService.fetchAll = originalRules;
+    whatsappTemplateCloudService.fetchAll = originalTemplates;
+    communityPlayerCloudService.fetchAll = originalRelations;
+    playerEvaluationCloudService.fetchAll = originalEvaluations;
+    operationalCloudService.fetchAll = originalOperational;
+    selfEvaluationCloudService.fetch = originalSelfEvaluationFetch;
+  }
+});
+
+test('downloadCloudDataToLocal never fetches a self-evaluation when no owner is authenticated', async () => {
+  const originalCommunities = communityCloudService.fetchAll;
+  const originalPlayers = playerCloudService.fetchAll;
+  const originalRules = communityRulesCloudService.fetchAll;
+  const originalTemplates = whatsappTemplateCloudService.fetchAll;
+  const originalRelations = communityPlayerCloudService.fetchAll;
+  const originalEvaluations = playerEvaluationCloudService.fetchAll;
+  const originalOperational = operationalCloudService.fetchAll;
+  const originalSelfEvaluationFetch = selfEvaluationCloudService.fetch;
+
+  try {
+    communityCloudService.fetchAll = async () => [];
+    playerCloudService.fetchAll = async () => [
+      makeSyncPlayer({ id: 'player-me', cloudId: 'cloud-me', userId: 'owner-1' }),
+    ];
+    communityRulesCloudService.fetchAll = async () => [];
+    whatsappTemplateCloudService.fetchAll = async () => [];
+    communityPlayerCloudService.fetchAll = async () => [];
+    playerEvaluationCloudService.fetchAll = async () => [];
+    operationalCloudService.fetchAll = async () => emptyOperationalPayload();
+    selfEvaluationCloudService.fetch = async () => assert.fail('should not fetch without an owner');
+
+    const result = await syncService.downloadCloudDataToLocal(undefined);
+
+    assert.equal(result.players[0].selfEvaluation, undefined);
+  } finally {
+    communityCloudService.fetchAll = originalCommunities;
+    playerCloudService.fetchAll = originalPlayers;
+    communityRulesCloudService.fetchAll = originalRules;
+    whatsappTemplateCloudService.fetchAll = originalTemplates;
+    communityPlayerCloudService.fetchAll = originalRelations;
+    playerEvaluationCloudService.fetchAll = originalEvaluations;
+    operationalCloudService.fetchAll = originalOperational;
+    selfEvaluationCloudService.fetch = originalSelfEvaluationFetch;
+  }
+});
+
+test('uploadLocalDataToCloud only forwards players with a known evaluationCommunityId to bulkUpsertForPlayers', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  let receivedPlayers: Player[] = [];
+
+  try {
+    playerCloudService.upsert = async (local) => ({
+      ...local,
+      cloudId: local.cloudId || 'cloud-new',
+    });
+    playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => {
+      receivedPlayers = players;
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            id: 'evaluated',
+            nome: 'Beatriz Lima',
+            cloudId: 'cloud-evaluated',
+            evaluationCommunityId: 'community-1',
+          }),
+          makeSyncPlayer({
+            id: 'never-evaluated',
+            nome: 'Carla Nunes',
+            cloudId: 'cloud-never-evaluated',
+            evaluationCommunityId: undefined,
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(
+      receivedPlayers.map((player) => player.id),
+      ['evaluated'],
+    );
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('aggregatePlayerEvaluations output is unaffected by communityId on input evaluations (regression guard)', () => {
+  const baseEvaluation: PlayerEvaluation = {
+    id: 'eval-1',
+    playerId: 'player-1',
+    attributes: { ...baseAttributes, saque: 8, ataque: 2 },
+    communityId: 'community-1',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    updatedAt: '2026-07-01T00:00:00.000Z',
+  };
+
+  const evaluationWithoutCommunityId: PlayerEvaluation = {
+    ...baseEvaluation,
+    communityId: undefined as unknown as string,
+  };
+
+  const withCommunityId = aggregatePlayerEvaluations([baseEvaluation], baseAttributes);
+  const withoutCommunityId = aggregatePlayerEvaluations(
+    [evaluationWithoutCommunityId],
+    baseAttributes,
+  );
+
+  assert.deepEqual(withCommunityId, withoutCommunityId);
 });
 

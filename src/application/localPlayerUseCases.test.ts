@@ -72,6 +72,7 @@ test('applyLocalPlayerSave updates an existing player as pending with personal e
   const result = applyLocalPlayerSave({
     players: [existing],
     editingPlayer: draft,
+    communityId: 'community-1',
     now,
   });
 
@@ -80,6 +81,7 @@ test('applyLocalPlayerSave updates an existing player as pending with personal e
   assert.equal(result.savedPlayer.syncStatus, 'pending');
   assert.equal(result.savedPlayer.updatedAt, now);
   assert.equal(result.savedPlayer.personalAttributes?.ataque, 9);
+  assert.equal(result.savedPlayer.evaluationCommunityId, 'community-1');
   assert.equal(result.players[0].metadata.atualizadoEm, now);
 });
 
@@ -90,6 +92,7 @@ test('applyLocalPlayerSave appends new players and preserves the resolved userna
   const result = applyLocalPlayerSave({
     players: [existing],
     editingPlayer: draft,
+    communityId: 'community-1',
     now,
   });
 

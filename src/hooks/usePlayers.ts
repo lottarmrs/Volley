@@ -153,9 +153,13 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         return false;
       }
 
+      // ponytail: this generic save flow has no "active community" context wired
+      // yet (that lands with the dedicated evaluation UI); fall back to the
+      // player's own first community so the upload is never mis-tagged.
       const { players: updated } = applyLocalPlayerSave({
         players,
         editingPlayer,
+        communityId: editingPlayer.communityIds?.[0] ?? '',
         now: new Date().toISOString(),
       });
 

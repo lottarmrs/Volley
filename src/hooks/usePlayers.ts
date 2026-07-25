@@ -104,7 +104,10 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
   );
 
   const handleSavePlayer = useCallback(
-    (permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean }) => {
+    (
+      permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean },
+      communityId?: string,
+    ) => {
       if (!editingPlayer) return false;
 
       const original = players.find((p) => p.id === editingPlayer.id);
@@ -153,13 +156,15 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         return false;
       }
 
-      // ponytail: this generic save flow has no "active community" context wired
-      // yet (that lands with the dedicated evaluation UI); fall back to the
-      // player's own first community so the upload is never mis-tagged.
+      // The caller (App.tsx) supplies the community context the player is
+      // actually being edited/evaluated under (its `editingPlayerCommunity`
+      // derivation). Falls back to '' when the player has no community, which
+      // simply means the save carries no evaluation to sync (safe — see
+      // `bulkUpsertForPlayers`'s `evaluationCommunityId` filter).
       const { players: updated } = applyLocalPlayerSave({
         players,
         editingPlayer,
-        communityId: editingPlayer.communityIds?.[0] ?? '',
+        communityId: communityId ?? '',
         now: new Date().toISOString(),
       });
 

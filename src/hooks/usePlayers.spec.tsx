@@ -44,3 +44,46 @@ describe('usePlayers duplicate guard', () => {
     expect(result.current.validationErrors.nome).toMatch(/j[aá] existe/i);
   });
 });
+
+describe('usePlayers handleSavePlayer communityId', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('threads the caller-supplied communityId through to the saved player instead of guessing', () => {
+    const { result } = renderHook(() => usePlayers([], [], []));
+
+    act(() => {
+      result.current.setEditingPlayer(
+        makePlayer('player-new', {
+          nome: 'Bia',
+          communityIds: ['community-a', 'community-b'],
+        }),
+      );
+    });
+
+    act(() => {
+      result.current.handleSavePlayer(undefined, 'community-b');
+    });
+
+    const saved = result.current.players.find((p) => p.id === 'player-new');
+    expect(saved?.evaluationCommunityId).toBe('community-b');
+  });
+
+  it('falls back to an empty communityId (no evaluation to sync) when none is supplied', () => {
+    const { result } = renderHook(() => usePlayers([], [], []));
+
+    act(() => {
+      result.current.setEditingPlayer(
+        makePlayer('player-new', { nome: 'Caio', communityIds: ['community-a'] }),
+      );
+    });
+
+    act(() => {
+      result.current.handleSavePlayer();
+    });
+
+    const saved = result.current.players.find((p) => p.id === 'player-new');
+    expect(saved?.evaluationCommunityId).toBe('');
+  });
+});

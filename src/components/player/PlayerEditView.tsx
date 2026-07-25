@@ -39,10 +39,12 @@ import {
 } from '../../logic/calculations';
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
 import { AvatarUpload } from './AvatarUpload';
+import { AttributeEditor } from './PlayerComponents';
 import { calculatePlayerStats } from '../../logic/statistics';
 import { autoFormFromHistory } from '../../logic/rating';
 import { calculateSessionRecognition, calculatePlayerScoringRanking } from '../../logic/match';
 import { FutCardModal } from './FutCardModal';
+import { submitSelfEvaluation } from '../../application/selfEvaluationUseCases';
 
 interface PlayerEditViewProps {
   editingPlayer: Player;
@@ -107,6 +109,49 @@ export const PlayerEditView = ({
     if (!editingPlayer.userId || !members) return null;
     return members.find((m) => m.userId === editingPlayer.userId) || null;
   }, [editingPlayer.userId, members]);
+
+  // Evaluation (attribute) editing requires a real community context — Task 1
+  // made player_evaluations.community_id NOT NULL, so a player with no
+  // community has nowhere valid to receive an official evaluation.
+  const canEvaluate = permissions.canEvaluatePlayer && !!editingPlayerCommunity;
+
+  // ── Self-evaluation: a genuinely separate surface from the official
+  // attribute editor above — a player rating themselves, never mixed into
+  // editingPlayer.atributos or the community-scoped evaluation flow.
+  const isOwnPlayer = !!editingPlayer.userId && editingPlayer.userId === currentUserId;
+
+  const [selfEvalAttributes, setSelfEvalAttributes] = useState<Attributes>(
+    editingPlayer.selfEvaluation?.attributes ?? editingPlayer.atributos,
+  );
+  const [selfEvalSaving, setSelfEvalSaving] = useState(false);
+  const [selfEvalFeedback, setSelfEvalFeedback] = useState<{
+    kind: 'error' | 'applied';
+    message: string;
+  } | null>(null);
+
+  // Re-seed the self-evaluation draft whenever the selected player changes
+  // (switching players in the left list reuses this same component instance).
+  // Adjusted during render (React's recommended pattern for resetting state
+  // when a prop changes) rather than in a useEffect, to avoid the extra
+  // render pass a post-commit effect would cause.
+  const [selfEvalPlayerId, setSelfEvalPlayerId] = useState(editingPlayer.id);
+  if (selfEvalPlayerId !== editingPlayer.id) {
+    setSelfEvalPlayerId(editingPlayer.id);
+    setSelfEvalAttributes(editingPlayer.selfEvaluation?.attributes ?? editingPlayer.atributos);
+    setSelfEvalFeedback(null);
+  }
+
+  const handleSaveSelfEvaluation = async () => {
+    setSelfEvalSaving(true);
+    setSelfEvalFeedback(null);
+    const result = await submitSelfEvaluation(editingPlayer.cloudId ?? '', selfEvalAttributes);
+    setSelfEvalSaving(false);
+    if (result.ok === false) {
+      setSelfEvalFeedback({ kind: 'error', message: result.error.message });
+    } else {
+      setSelfEvalFeedback({ kind: 'applied', message: 'Autoavaliação salva.' });
+    }
+  };
 
   // Track original player to allow "Revert" action
   const originalPlayer = useMemo(() => {
@@ -345,6 +390,14 @@ export const PlayerEditView = ({
                 <ShieldAlert className="w-4 h-4" />
                 <span className="text-sm">
                   Modo de Leitura: Você não tem permissão para editar ou avaliar este atleta.
+                </span>
+              </div>
+            )}
+            {permissions.canEvaluatePlayer && !editingPlayerCommunity && (
+              <div role="alert" className="alert alert-warning alert-soft">
+                <ShieldAlert className="w-4 h-4" />
+                <span className="text-sm">
+                  Avaliação indisponível: este atleta não pertence a nenhuma comunidade.
                 </span>
               </div>
             )}
@@ -710,6 +763,59 @@ export const PlayerEditView = ({
               )}
             </div>
 
+            {/* Autoavaliação — surface separada, só visível para o próprio atleta */}
+            {isOwnPlayer && (
+              <div className="bg-base-300/40 p-4 rounded-xl border border-base-300 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] font-bold text-base-content/40 uppercase block">
+                    Minha Autoavaliação
+                  </span>
+                  {editingPlayer.selfEvaluation?.updatedAt && (
+                    <span className="text-[8px] font-mono text-base-content/40 uppercase">
+                      Atualizada em{' '}
+                      {new Date(editingPlayer.selfEvaluation.updatedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-base-content/60 leading-relaxed">
+                  Essa é a sua própria percepção sobre seu nível — não é a avaliação oficial usada
+                  no cálculo do seu overall.
+                </p>
+
+                <AttributeEditor
+                  attributes={selfEvalAttributes}
+                  onChange={(key, value) =>
+                    setSelfEvalAttributes({ ...selfEvalAttributes, [key]: value })
+                  }
+                />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveSelfEvaluation}
+                    disabled={selfEvalSaving || !editingPlayer.cloudId}
+                    title={
+                      !editingPlayer.cloudId
+                        ? 'Sincronize o atleta com a nuvem antes de avaliar'
+                        : undefined
+                    }
+                    className="btn btn-info btn-xs uppercase font-bold"
+                  >
+                    {selfEvalSaving ? 'Salvando...' : 'Salvar Minha Autoavaliação'}
+                  </button>
+                  {selfEvalFeedback && (
+                    <span
+                      className={`text-[9px] font-bold uppercase ${
+                        selfEvalFeedback.kind === 'error' ? 'text-error' : 'text-success'
+                      }`}
+                    >
+                      {selfEvalFeedback.message}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Perfil do Atleta (Auto-calculado) */}
             <div className="bg-base-300/40 p-4 rounded-xl border border-base-300 space-y-3">
               <span className="text-[9px] font-bold text-base-content/40 uppercase block">
@@ -968,7 +1074,7 @@ export const PlayerEditView = ({
                       max="10"
                       step="0.5"
                       value={editingPlayer.atributos[attr.key]}
-                      disabled={!permissions.canEvaluatePlayer}
+                      disabled={!canEvaluate}
                       onChange={(e) =>
                         setEditingPlayer({
                           ...editingPlayer,
@@ -1053,7 +1159,7 @@ export const PlayerEditView = ({
                         max="10"
                         step="0.5"
                         value={editingPlayer.atributos[attr.key]}
-                        disabled={!permissions.canEvaluatePlayer}
+                        disabled={!canEvaluate}
                         onChange={(e) =>
                           setEditingPlayer({
                             ...editingPlayer,

@@ -584,7 +584,8 @@ export default function App() {
               onBack={() => setPage('session-wizard')}
               onSave={() => {
                 try {
-                  if (play.handleSavePlayer(playerPermissions)) setPage('session-wizard');
+                  if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+                    setPage('session-wizard');
                 } catch (err) {
                   handlePlayerEditActionError(err);
                 }
@@ -601,6 +602,7 @@ export default function App() {
               showDeleteConfirm={play.showDeleteConfirm}
               setShowDeleteConfirm={play.setShowDeleteConfirm}
               permissions={playerPermissions}
+              currentUserId={auth.user?.id ?? null}
             />
           );
         }
@@ -697,7 +699,8 @@ export default function App() {
               onBack={() => setPage('players')}
               onSave={() => {
                 try {
-                  if (play.handleSavePlayer(playerPermissions)) setPage('players');
+                  if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+                    setPage('players');
                 } catch (err) {
                   handlePlayerEditActionError(err);
                 }

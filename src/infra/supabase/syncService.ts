@@ -1022,12 +1022,28 @@ export const syncService = {
       // Só atletas com um `evaluationCommunityId` conhecido tiveram uma avaliação
       // pessoal salva sob um contexto de comunidade — os demais nunca passaram por
       // esse fluxo e não devem gerar uma linha em player_evaluations (a coluna
-      // community_id é NOT NULL).
-      const playersWithPendingEvaluation = updatedPlayers.filter(
-        (player) => !!player.evaluationCommunityId,
-      );
+      // community_id é NOT NULL). O valor salvo é o id LOCAL da comunidade, então
+      // precisa virar o id de nuvem antes do upload (mesma resolução local→nuvem já
+      // feita para regras/modelos/sessões/presenças/rascunhos acima). Se a
+      // comunidade ainda não sincronizou, não há id de nuvem para resolver — o
+      // atleta fica de fora deste lote e será retentado num próximo sync.
+      const playersWithResolvedEvaluationCommunity: Player[] = [];
+      for (const player of updatedPlayers) {
+        if (!player.evaluationCommunityId) continue;
+        const evaluationCommunityCloudId = resolveCloudId(
+          player.evaluationCommunityId,
+          communityCloudIds,
+        );
+        if (!evaluationCommunityCloudId || evaluationCommunityCloudId === player.evaluationCommunityId) {
+          continue;
+        }
+        playersWithResolvedEvaluationCommunity.push({
+          ...player,
+          evaluationCommunityId: evaluationCommunityCloudId,
+        });
+      }
       await playerEvaluationCloudService.bulkUpsertForPlayers(
-        playersWithPendingEvaluation,
+        playersWithResolvedEvaluationCommunity,
         ownerId,
       );
     } catch (error) {

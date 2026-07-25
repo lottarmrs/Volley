@@ -1171,6 +1171,9 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
 
     await syncService.uploadLocalDataToCloud(
       emptyPayload({
+        communities: [
+          makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' }),
+        ],
         players: [
           makeSyncPlayer({
             id: 'evaluated',
@@ -1193,6 +1196,83 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
       receivedPlayers.map((player) => player.id),
       ['evaluated'],
     );
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('uploadLocalDataToCloud resolves evaluationCommunityId to the community cloud id before uploading', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  let receivedPlayers: Player[] = [];
+
+  try {
+    playerCloudService.upsert = async (local) => ({
+      ...local,
+      cloudId: local.cloudId || 'cloud-new',
+    });
+    playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => {
+      receivedPlayers = players;
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [
+          makeSharedCommunity({ id: 'community-local-1', cloudId: 'community-cloud-1' }),
+        ],
+        players: [
+          makeSyncPlayer({
+            id: 'evaluated',
+            nome: 'Beatriz Lima',
+            cloudId: 'cloud-evaluated',
+            evaluationCommunityId: 'community-local-1',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(receivedPlayers.length, 1);
+    assert.equal(receivedPlayers[0].evaluationCommunityId, 'community-cloud-1');
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('uploadLocalDataToCloud excludes players whose evaluation community has not synced yet', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  let receivedPlayers: Player[] = [];
+
+  try {
+    playerCloudService.upsert = async (local) => ({
+      ...local,
+      cloudId: local.cloudId || 'cloud-new',
+    });
+    playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => {
+      receivedPlayers = players;
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        // Nenhuma comunidade correspondente em `communities`: simula uma
+        // comunidade que ainda não sincronizou (sem cloudId conhecido).
+        communities: [],
+        players: [
+          makeSyncPlayer({
+            id: 'pending-community',
+            nome: 'Carla Nunes',
+            cloudId: 'cloud-pending-community',
+            evaluationCommunityId: 'community-not-synced',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(receivedPlayers, []);
   } finally {
     playerCloudService.upsert = originalUpsert;
     playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;

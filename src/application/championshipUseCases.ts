@@ -125,6 +125,23 @@ export interface MaterializedRound {
   game: Game;
 }
 
+export function detachChampionshipTeamBridges(
+  teams: Team[],
+  championshipTeamIds: ReadonlySet<string>,
+  now: string,
+): Team[] {
+  return teams.map((team) =>
+    team.championshipTeamId && championshipTeamIds.has(team.championshipTeamId)
+      ? {
+          ...team,
+          championshipTeamId: undefined,
+          syncStatus: 'pending',
+          updatedAt: now,
+        }
+      : team,
+  );
+}
+
 /**
  * Builds the local (not-yet-persisted) Session/Team/Game for a championship round,
  * per the design doc's "Materialização de rodada → sessão" section. Generates real

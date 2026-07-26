@@ -399,6 +399,7 @@ function pruneSlotPlayerId(slot: any, allowedPlayerIds: Set<string>) {
 function pruneOrphanActiveReferences(data: any): any {
   const hasCommunities = Array.isArray(data.communities);
   const hasPlayers = Array.isArray(data.players);
+  const hasSessions = Array.isArray(data.sessions);
   const activeCommunityIds = new Set<string>(
     (data.communities || [])
       .filter((community: any) => community?.id && !community.deletedAt)
@@ -419,13 +420,18 @@ function pruneOrphanActiveReferences(data: any): any {
       )
       .map((championship: any) => championship.id),
   );
-  const activeChampionshipTeamIds = new Set<string>(
+  const championshipIdByTeamId = new Map<string, string>(
     (data.championshipTeams || [])
       .filter(
         (team: any) =>
           team?.id && !team.deletedAt && activeChampionshipIds.has(team.championshipId),
       )
-      .map((team: any) => team.id),
+      .map((team: any) => [team.id, team.championshipId]),
+  );
+  const activeSessionIds = new Set<string>(
+    (data.sessions || [])
+      .filter((session: any) => session?.id && !session.deletedAt)
+      .map((session: any) => session.id),
   );
 
   return {
@@ -489,8 +495,10 @@ function pruneOrphanActiveReferences(data: any): any {
     championshipRounds: (data.championshipRounds || []).filter(
       (round: any) =>
         activeChampionshipIds.has(round.championshipId) &&
-        activeChampionshipTeamIds.has(round.teamAId) &&
-        activeChampionshipTeamIds.has(round.teamBId),
+        round.teamAId !== round.teamBId &&
+        championshipIdByTeamId.get(round.teamAId) === round.championshipId &&
+        championshipIdByTeamId.get(round.teamBId) === round.championshipId &&
+        (!hasSessions || !round.sessionId || activeSessionIds.has(round.sessionId)),
     ),
     communityPresence: (data.communityPresence || [])
       .filter((presence: any) => !hasCommunities || activeCommunityIds.has(presence.communityId))

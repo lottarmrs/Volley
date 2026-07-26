@@ -1257,13 +1257,20 @@ export const syncService = {
       local.teams,
       sessionsById,
       'teams',
-      (items) =>
-        operationalCloudService.bulkUpsertTeams(
-          items,
+      (items) => {
+        const itemsWithResolvedChampionshipTeam = items.filter(
+          (item) =>
+            !item.championshipTeamId ||
+            championshipTeamCloudIds.has(item.championshipTeamId.toLowerCase()),
+        );
+        if (itemsWithResolvedChampionshipTeam.length === 0) return Promise.resolve([]);
+        return operationalCloudService.bulkUpsertTeams(
+          itemsWithResolvedChampionshipTeam,
           ownerId,
           sessionsById,
           championshipTeamCloudIds,
-        ),
+        );
+      },
       options,
     );
 

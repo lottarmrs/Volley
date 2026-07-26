@@ -103,7 +103,10 @@ import { buildTournamentListViewModel } from './application/tournamentViewModel'
 import { buildVutRevealItems } from './application/vutRevealUseCases';
 import { getPlayerEditActionErrorMessage } from './application/playerEditActionUseCases';
 import { planStartupCloudDownload } from './application/cloudSyncStartupUseCases';
-import { materializeRound } from './application/championshipUseCases';
+import {
+  detachChampionshipTeamBridges,
+  materializeRound,
+} from './application/championshipUseCases';
 import { appOk, productError } from './application/appResult';
 
 const Dashboard = lazy(() =>
@@ -485,6 +488,32 @@ export default function App() {
     return appOk({ sessionId: session.id });
   };
 
+  const clearChampionshipTeamBridges = (championshipIds: Set<string>) => {
+    const teamIds = new Set<string>(
+      championships.championshipTeams
+        .filter((team) => championshipIds.has(team.championshipId))
+        .map((team) => team.id),
+    );
+    if (teamIds.size === 0) return;
+    const now = new Date().toISOString();
+    sess.setTeams((current) => detachChampionshipTeamBridges(current, teamIds, now));
+  };
+
+  const deleteChampionshipAggregate = (championshipId: string) => {
+    clearChampionshipTeamBridges(new Set<string>([championshipId]));
+    championships.deleteChampionship(championshipId);
+  };
+
+  const deleteChampionshipsForCommunity = (communityId: string) => {
+    const championshipIds = new Set<string>(
+      championships.championships
+        .filter((championship) => championship.communityId === communityId)
+        .map((championship) => championship.id),
+    );
+    clearChampionshipTeamBridges(championshipIds);
+    championships.deleteForCommunity(communityId);
+  };
+
   // Sync draft state
   useEffect(() => {
     setSessionDraft(loadSessionDraft());
@@ -818,7 +847,7 @@ export default function App() {
                 communityPresence.setPresenceRecords(next.presenceRecords);
                 whatsAppLists.setTemplates(next.templates);
                 whatsAppLists.setDrafts(next.drafts);
-                championships.deleteForCommunity(communityId);
+                deleteChampionshipsForCommunity(communityId);
               }}
               onDuplicateCommunity={(communityId, includeAthletes) => {
                 const result = comm.duplicateCommunity(communityId, includeAthletes);
@@ -846,7 +875,7 @@ export default function App() {
               }}
               onCreateChampionship={championships.create}
               onMaterializeRound={materializeChampionshipRound}
-              onDeleteChampionship={championships.deleteChampionship}
+              onDeleteChampionship={deleteChampionshipAggregate}
               onRescheduleRound={championships.rescheduleRound}
               onSetRoundSkipped={championships.setRoundSkipped}
               onUpdateChampionshipRecurrence={championships.updateRecurrence}

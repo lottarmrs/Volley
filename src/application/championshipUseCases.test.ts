@@ -5,9 +5,10 @@ import {
   getSeasonStandings,
   materializeRound,
   getSeasonAwards,
+  detachChampionshipTeamBridges,
 } from './championshipUseCases';
 import type { ChampionshipRound, ChampionshipTeam, Game, PointEvent } from '../types';
-import { makePlayer, makeGame } from '../test/fixtures';
+import { makePlayer, makeGame, makeTeam } from '../test/fixtures';
 
 test('createChampionship generates one round per abstract match from generateTournamentSchedule, each with a real date', () => {
   const result = createChampionship({
@@ -72,6 +73,32 @@ test('createChampionship rejects a recurrence window that cannot schedule every 
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.match(result.error.message, /recorrência/i);
+});
+
+test('detachChampionshipTeamBridges preserves history while removing deleted season references', () => {
+  const now = '2026-07-26T12:00:00.000Z';
+  const affected = makeTeam('session-team-a', 'session-1', [], {
+    championshipTeamId: 'champ-team-a',
+    syncStatus: 'synced',
+  });
+  const unaffected = makeTeam('session-team-b', 'session-1', [], {
+    championshipTeamId: 'champ-team-b',
+    syncStatus: 'synced',
+  });
+
+  const result = detachChampionshipTeamBridges(
+    [affected, unaffected],
+    new Set(['champ-team-a']),
+    now,
+  );
+
+  assert.deepEqual(result[0], {
+    ...affected,
+    championshipTeamId: undefined,
+    syncStatus: 'pending',
+    updatedAt: now,
+  });
+  assert.deepEqual(result[1], unaffected);
 });
 
 test('getSeasonStandings aggregates games across multiple sessions using the championshipTeamId remap', () => {

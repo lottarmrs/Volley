@@ -609,8 +609,16 @@ export const operationalCloudService = {
     return mapDbToSession(data);
   },
 
-  async upsertTeam(local: Team, ownerId: string, communityId?: string | null): Promise<Team> {
-    const data = await upsertRow('teams', mapTeamToDb(local, ownerId, communityId));
+  async upsertTeam(
+    local: Team,
+    ownerId: string,
+    communityId?: string | null,
+    championshipTeamCloudId?: string | null,
+  ): Promise<Team> {
+    const data = await upsertRow(
+      'teams',
+      mapTeamToDb(local, ownerId, communityId, championshipTeamCloudId),
+    );
     return mapDbToTeam(data);
   },
 

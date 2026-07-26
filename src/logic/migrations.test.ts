@@ -229,6 +229,7 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
     ],
     championshipTeams: [
       { id: 'champ-team-a', championshipId: 'champ-1', playerIds: ['player-1'] },
+      { id: 'champ-team-b', championshipId: 'champ-1', playerIds: ['player-1'] },
       { id: 'champ-team-orphan', championshipId: 'champ-orphan', playerIds: ['player-1'] },
     ],
     championshipRounds: [
@@ -236,7 +237,7 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
         id: 'round-1',
         championshipId: 'champ-1',
         teamAId: 'champ-team-a',
-        teamBId: 'champ-team-a',
+        teamBId: 'champ-team-b',
       },
       {
         id: 'round-orphan',
@@ -279,7 +280,10 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
   assert.deepEqual(imported.sessions[0].config.balanceConstraints.pairsTogether, []);
   assert.deepEqual(imported.teams[0].playerIds, ['player-1']);
   assert.deepEqual(imported.championships.map((item: any) => item.id), ['champ-1']);
-  assert.deepEqual(imported.championshipTeams.map((item: any) => item.id), ['champ-team-a']);
+  assert.deepEqual(imported.championshipTeams.map((item: any) => item.id), [
+    'champ-team-a',
+    'champ-team-b',
+  ]);
   assert.deepEqual(imported.championshipRounds.map((item: any) => item.id), ['round-1']);
   assert.deepEqual(imported.communityPresence, [
     {
@@ -307,4 +311,52 @@ test('sanitizeAndConsolidateImportedBackup remaps championships to a canonical c
 
   assert.equal(imported.communities.length, 1);
   assert.equal(imported.championships[0].communityId, imported.communities[0].id);
+});
+
+test('sanitizeAndConsolidateImportedBackup rejects cross-championship and dangling-session rounds', () => {
+  const imported = sanitizeAndConsolidateImportedBackup({
+    communities: [{ id: 'community-1', name: 'Liga Central' }],
+    sessions: [{ id: 'session-1', communityId: 'community-1' }],
+    championships: [
+      { id: 'champ-1', communityId: 'community-1' },
+      { id: 'champ-2', communityId: 'community-1' },
+    ],
+    championshipTeams: [
+      { id: 'team-a', championshipId: 'champ-1', playerIds: [] },
+      { id: 'team-b', championshipId: 'champ-1', playerIds: [] },
+      { id: 'team-c', championshipId: 'champ-2', playerIds: [] },
+    ],
+    championshipRounds: [
+      {
+        id: 'round-valid',
+        championshipId: 'champ-1',
+        teamAId: 'team-a',
+        teamBId: 'team-b',
+        sessionId: 'session-1',
+      },
+      {
+        id: 'round-cross-scope',
+        championshipId: 'champ-1',
+        teamAId: 'team-a',
+        teamBId: 'team-c',
+      },
+      {
+        id: 'round-same-team',
+        championshipId: 'champ-1',
+        teamAId: 'team-a',
+        teamBId: 'team-a',
+      },
+      {
+        id: 'round-missing-session',
+        championshipId: 'champ-1',
+        teamAId: 'team-a',
+        teamBId: 'team-b',
+        sessionId: 'session-missing',
+      },
+    ],
+  });
+
+  assert.deepEqual(imported.championshipRounds.map((round: any) => round.id), [
+    'round-valid',
+  ]);
 });

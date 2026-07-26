@@ -265,6 +265,77 @@ test('uploadLocalDataToCloud excludes a championship round whose session has not
   }
 });
 
+test('uploadLocalDataToCloud defers a session team while its championship team is unresolved', async () => {
+  const originalUpsertChampionship = championshipCloudService.upsertChampionship;
+  const originalUpsertChampionshipTeam = championshipCloudService.upsertTeam;
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalBulkUpsertTeams = operationalCloudService.bulkUpsertTeams;
+  let sessionTeamUploadCalled = false;
+
+  const championship: Championship = {
+    id: 'champ-local',
+    communityId: 'community-local',
+    name: 'Liga',
+    format: 'round_robin',
+    classificationPoints: { win: 3, loss: 0 },
+    recurrenceRule: { daysOfWeek: [2], time: '20:00', startDate: '2026-08-01' },
+    createdAt: '2026-07-26T00:00:00.000Z',
+    updatedAt: '2026-07-26T00:00:00.000Z',
+    syncStatus: 'pending',
+  };
+  const championshipTeam: ChampionshipTeam = {
+    id: 'champ-team-local',
+    championshipId: championship.id,
+    name: 'Time A',
+    playerIds: [],
+    syncStatus: 'pending',
+  };
+  const sessionTeam = makeTeam({
+    id: 'session-team-local',
+    championshipTeamId: championshipTeam.id,
+  });
+
+  try {
+    championshipCloudService.upsertChampionship = async (item) => ({
+      ...item,
+      cloudId: 'champ-cloud',
+    });
+    championshipCloudService.upsertTeam = async () => {
+      throw new Error('championship roster dependency not ready');
+    };
+    operationalCloudService.upsertSession = async (item) => ({
+      ...item,
+      cloudId: 'session-cloud',
+    });
+    operationalCloudService.bulkUpsertTeams = async (items) => {
+      sessionTeamUploadCalled = true;
+      return items.map((item) => ({ ...item, cloudId: `${item.id}-cloud` }));
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity()],
+        sessions: [makeSession()],
+        teams: [sessionTeam],
+        championships: [championship],
+        championshipTeams: [championshipTeam],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(sessionTeamUploadCalled, false);
+    assert.equal(result.teams[0].id, sessionTeam.id);
+    assert.equal(result.teams[0].cloudId, undefined);
+    assert.equal(result.teams[0].syncStatus, 'pending');
+    assert.equal(result.teams[0].championshipTeamId, championshipTeam.id);
+  } finally {
+    championshipCloudService.upsertChampionship = originalUpsertChampionship;
+    championshipCloudService.upsertTeam = originalUpsertChampionshipTeam;
+    operationalCloudService.upsertSession = originalUpsertSession;
+    operationalCloudService.bulkUpsertTeams = originalBulkUpsertTeams;
+  }
+});
+
 test('downloadCloudDataToLocal restores championship references to local ids', async () => {
   const originalCommunities = communityCloudService.fetchAll;
   const originalPlayers = playerCloudService.fetchAll;

@@ -1299,10 +1299,15 @@ git commit -m "feat(ui): add minimal championship management section to Communit
       identidade de upsert, sem sobrescrever confrontos paralelos.
 - [x] `teams.championship_team_id` persiste o vínculo da sessão com o time da
       temporada e o download remapeia o ID de nuvem de volta ao ID local.
+- [x] Times materializados aguardam o `ChampionshipTeam` obter ID de nuvem; a
+      exclusão da liga limpa o bridge nas sessões históricas antes de tombstonar o
+      agregado.
 - [x] FKs compostas e trigger validam times do mesmo campeonato e sessão da mesma
       comunidade.
 - [x] Importação remapeia `Championship.communityId` e
       `ChampionshipTeam.playerIds`, além de podar agregados órfãos.
+- [x] Importação rejeita partidas com times de outro campeonato, times repetidos ou
+      `sessionId` inexistente.
 - [x] Migration `championship_integrity` aplicada no projeto real e verificada no
       catálogo: bridge, identidade, FK de escopo e trigger presentes.
 - [x] Gate final: 474 testes unitários + 86 testes de UI, TypeScript/lint e build de

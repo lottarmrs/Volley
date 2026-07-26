@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 function readFixture(path: URL): string {
   try {
-    return readFileSync(path, 'utf8');
+    return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
   } catch {
     return '';
   }

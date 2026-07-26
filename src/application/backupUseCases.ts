@@ -10,6 +10,9 @@ import type {
   Community,
   CommunityPresence,
   CommunityRules,
+  Championship,
+  ChampionshipRound,
+  ChampionshipTeam,
   Game,
   GameReport,
   Player,
@@ -38,6 +41,9 @@ export function buildBackupPayload(input: {
   whatsAppListTemplates: WhatsAppListTemplate[];
   whatsAppListDrafts: WhatsAppListDraft[];
   communityRules: CommunityRules[];
+  championships: Championship[];
+  championshipTeams: ChampionshipTeam[];
+  championshipRounds: ChampionshipRound[];
   activeSession: Session | null;
   sessionDraft: SessionDraft | null;
   lastSelectedPlayerIds: string[] | null;
@@ -56,6 +62,9 @@ export function buildBackupPayload(input: {
     whatsAppListTemplates: input.whatsAppListTemplates,
     whatsAppListDrafts: input.whatsAppListDrafts,
     communityRules: input.communityRules,
+    championships: input.championships,
+    championshipTeams: input.championshipTeams,
+    championshipRounds: input.championshipRounds,
     activeSession: input.activeSession,
     sessionDraft: input.sessionDraft,
     lastSelectedPlayerIds: input.lastSelectedPlayerIds,

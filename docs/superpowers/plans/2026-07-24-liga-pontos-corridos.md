@@ -1201,7 +1201,7 @@ git commit -m "feat(sync): thread championships/teams/rounds through cloud sync"
   pattern App.tsx/CommunitiesView already uses to reach cloud services — check first).
 - Produces: nothing further downstream — this is the last task.
 
-- [ ] **Step 1: Read the current component's structure**
+- [x] **Step 1: Read the current component's structure**
 
 Read `CommunitiesView.tsx` in full — it already imports `Trophy` (icon) and several
 `logic/community.ts` helpers, suggesting a natural home for a "Ligas" section already
@@ -1211,7 +1211,7 @@ sessions are listed/managed here) to match its visual and state-management patte
 exactly — this plan's Global Constraints forbid new screens/routes; this must be an
 addition within the existing view, not a new route.
 
-- [ ] **Step 2: Add a minimal "Ligas" section**
+- [x] **Step 2: Add a minimal "Ligas" section**
 
 Add a new section (following the exact card/list visual pattern identified in Step 1)
 that:
@@ -1228,13 +1228,13 @@ Do not add navigation, routes, or a dedicated page — this is a section within 
 existing view, gated behind the same permission check already used for other
 admin-only actions in this file (`useCommunityPermissions` is already imported).
 
-- [ ] **Step 3: Tests**
+- [x] **Step 3: Tests**
 
 Add component tests for the new section: renders the championship list, renders
 standings for a selected championship, creation form calls `createChampionship` with
 the expected input shape. Follow this file's existing test file's mocking conventions.
 
-- [ ] **Step 4: Run the full suite, typecheck, lint**
+- [x] **Step 4: Run the full suite, typecheck, lint**
 
 ```bash
 npm test
@@ -1242,7 +1242,7 @@ npx tsc --noEmit
 npm run lint:eslint
 ```
 
-- [ ] **Step 5: Manual verification**
+- [x] **Step 5: Manual verification**
 
 Per this project's UI verification convention: start the dev server, navigate to a
 community's management view, create a test championship, confirm it appears in the
@@ -1252,7 +1252,13 @@ your environment, say so explicitly rather than claiming visual verification tha
 didn't happen — this exact limitation was hit and disclosed honestly during this
 session's `SessionWizard.tsx` cleanup task.
 
-- [ ] **Step 6: Commit**
+**Resultado:** o Vite carregou conteúdo sem overlay nem erros de console. A conta de
+teste autenticou no Supabase, mas o guard permaneceu em `/auth/loading` após
+`ensure_account_ready`, impedindo a inspeção autenticada de Comunidades. A criação,
+classificação e materialização da aba foram verificadas pelos testes de componente;
+esta limitação foi registrada sem alegar verificação visual da aba.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/community/CommunitiesView.tsx src/components/community/CommunitiesView.spec.tsx
@@ -1263,20 +1269,20 @@ git commit -m "feat(ui): add minimal championship management section to Communit
 
 ## Completion Gate
 
-- [ ] `generateTournamentSchedule`, `generateRoundRobinSchedule`,
+- [x] `generateTournamentSchedule`, `generateRoundRobinSchedule`,
       `calculateTournamentStandings`, `calculateTournamentAwards`,
       `calculateTournamentMVP`, `calculateTopScorers` are byte-identical to their state
       before this plan (no diff in `src/logic/tournament.ts`).
-- [ ] A championship created with N teams produces exactly the round count
+- [x] A championship created with N teams produces exactly the round count
       `generateTournamentSchedule` itself would produce, each with a real calendar
       date respecting the recurrence rule.
-- [ ] A materialized round's `Session`/`Team`/`Game` work with the existing
+- [x] A materialized round's `Session`/`Team`/`Game` work with the existing
       scoreboard/game UI with zero changes to that UI.
-- [ ] Season standings/awards correctly aggregate across multiple materialized rounds'
+- [x] Season standings/awards correctly aggregate across multiple materialized rounds'
       sessions via the `championshipTeamId` remap — verified by a test with games from
       at least 2 different sessions.
-- [ ] No new screens, routes, or player-facing UI exist anywhere in the diff.
-- [ ] Full suite green (`npm test`), typecheck clean (`npx tsc --noEmit`), lint clean
+- [x] No new screens, routes, or player-facing UI exist anywhere in the diff.
+- [x] Full suite green (`npm test`), typecheck clean (`npx tsc --noEmit`), lint clean
       (`npm run lint:eslint`).
-- [ ] The new migration has been applied to and verified against the real Supabase
+- [x] The new migration has been applied to and verified against the real Supabase
       project (`csoslatxjjazrtrtylke`).

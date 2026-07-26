@@ -31,6 +31,7 @@ import { useCommunities } from './hooks/useCommunities';
 import { useCommunityPresence } from './hooks/useCommunityPresence';
 import { useCommunityRules } from './hooks/useCommunityRules';
 import { useWhatsAppListTemplates } from './hooks/useWhatsAppListTemplates';
+import { useChampionships } from './hooks/useChampionships';
 import { useAuth } from './hooks/useAuth';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useCloudSync } from './hooks/useCloudSync';
@@ -102,6 +103,8 @@ import { buildTournamentListViewModel } from './application/tournamentViewModel'
 import { buildVutRevealItems } from './application/vutRevealUseCases';
 import { getPlayerEditActionErrorMessage } from './application/playerEditActionUseCases';
 import { planStartupCloudDownload } from './application/cloudSyncStartupUseCases';
+import { materializeRound } from './application/championshipUseCases';
+import { appOk, productError } from './application/appResult';
 
 const Dashboard = lazy(() =>
   import('./components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
@@ -171,6 +174,7 @@ export default function App() {
   const communityPresence = useCommunityPresence();
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
+  const championships = useChampionships();
 
   const editingPlayerCommunity = useMemo(() => {
     if (
@@ -224,6 +228,12 @@ export default function App() {
     setSessionReports: sess.setSessionReports,
     presenceRecords: communityPresence.presenceRecords,
     setPresenceRecords: communityPresence.setPresenceRecords,
+    championships: championships.rawChampionships,
+    setChampionships: championships.setChampionships,
+    championshipTeams: championships.rawChampionshipTeams,
+    setChampionshipTeams: championships.setChampionshipTeams,
+    championshipRounds: championships.rawChampionshipRounds,
+    setChampionshipRounds: championships.setChampionshipRounds,
     onToast: toasts.push,
   });
 
@@ -244,6 +254,9 @@ export default function App() {
       sess.gameReports,
       sess.sessionReports,
       communityPresence.presenceRecords,
+      championships.rawChampionships,
+      championships.rawChampionshipTeams,
+      championships.rawChampionshipRounds,
     ]);
   }, [
     auth.user,
@@ -259,6 +272,9 @@ export default function App() {
     sess.gameReports,
     sess.sessionReports,
     communityPresence.presenceRecords,
+    championships.rawChampionships,
+    championships.rawChampionshipTeams,
+    championships.rawChampionshipRounds,
   ]);
 
   // ── Auto-sync on login (download-first) ───────────────────────────────────
@@ -298,6 +314,9 @@ export default function App() {
       whatsAppListTemplates: whatsAppLists.templates,
       whatsAppListDrafts: whatsAppLists.drafts,
       communityRules: communityRules.rules,
+      championships: championships.championships,
+      championshipTeams: championships.championshipTeams,
+      championshipRounds: championships.championshipRounds,
       activeSession: sess.activeSession,
       sessionDraft: loadSessionDraft(),
       lastSelectedPlayerIds: loadFromStorage<string[] | null>(
@@ -333,6 +352,11 @@ export default function App() {
         if (data.whatsAppListTemplates) whatsAppLists.setTemplates(data.whatsAppListTemplates);
         if (data.whatsAppListDrafts) whatsAppLists.setDrafts(data.whatsAppListDrafts);
         if (data.communityRules) communityRules.setRules(data.communityRules);
+        if (data.championships) championships.setChampionships(data.championships);
+        if (data.championshipTeams)
+          championships.setChampionshipTeams(data.championshipTeams);
+        if (data.championshipRounds)
+          championships.setChampionshipRounds(data.championshipRounds);
 
         if (data.activeSession !== undefined) {
           sess.setActiveSession(data.activeSession);
@@ -422,6 +446,43 @@ export default function App() {
           ),
       }).players,
     );
+  };
+
+  const materializeChampionshipRound = (roundId: string) => {
+    const round = championships.championshipRounds.find((item) => item.id === roundId);
+    if (!round) return productError('not_found', 'Rodada da liga não encontrada.');
+    if (round.sessionId) return productError('conflict', 'Esta rodada já possui uma sessão.');
+
+    const championship = championships.championships.find(
+      (item) => item.id === round.championshipId,
+    );
+    if (!championship) return productError('not_found', 'Liga da rodada não encontrada.');
+
+    const roster = championships.championshipTeams.filter(
+      (team) => team.championshipId === championship.id,
+    );
+    const now = new Date().toISOString();
+    const result = materializeRound(round, roster, championship.communityId, now);
+    if (result.ok === false) return result;
+
+    const session = { ...result.value.session, syncStatus: 'local' as const };
+    const teams = result.value.teams.map((team) => ({
+      ...team,
+      syncStatus: 'local' as const,
+      updatedAt: now,
+    }));
+    const game = {
+      ...result.value.game,
+      syncStatus: 'local' as const,
+      updatedAt: now,
+    };
+
+    sess.setSessions((current) => [...current, session]);
+    sess.setTeams((current) => [...current, ...teams]);
+    sess.setGames((current) => [...current, game]);
+    championships.markRoundMaterialized(round.id, session.id);
+
+    return appOk({ sessionId: session.id });
   };
 
   // Sync draft state
@@ -731,6 +792,9 @@ export default function App() {
               pointEvents={sess.pointEvents}
               teams={sess.teams}
               sessionReports={sess.sessionReports}
+              championships={championships.championships}
+              championshipTeams={championships.championshipTeams}
+              championshipRounds={championships.championshipRounds}
               presenceApi={communityPresence}
               whatsAppApi={whatsAppLists}
               rulesApi={communityRules}
@@ -779,6 +843,8 @@ export default function App() {
               onClearCommunityHistory={(communityId) => {
                 sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
               }}
+              onCreateChampionship={championships.create}
+              onMaterializeRound={materializeChampionshipRound}
               currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
               globalRole={auth.profile?.role ?? null}

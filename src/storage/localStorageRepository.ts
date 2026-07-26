@@ -17,6 +17,9 @@ export const STORAGE_KEYS = {
   whatsAppListTemplates: 'vpg_whatsapp_list_templates',
   whatsAppListDrafts: 'vpg_whatsapp_list_drafts',
   communityRules: 'vpg_community_rules',
+  championships: 'vpg_championships',
+  championshipTeams: 'vpg_championship_teams',
+  championshipRounds: 'vpg_championship_rounds',
   syncIssueLedger: 'vpg_sync_issue_ledger',
 };
 

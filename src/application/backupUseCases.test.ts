@@ -7,6 +7,7 @@ import {
   prepareImportedBackup,
 } from './backupUseCases';
 import { makePlayer, makeSession } from '../test/fixtures';
+import type { Championship, ChampionshipRound, ChampionshipTeam } from '../types';
 
 test('buildBackupFileName uses the export calendar date', () => {
   const fileName = buildBackupFileName(new Date('2026-07-17T15:45:00.000Z'));
@@ -17,6 +18,31 @@ test('buildBackupFileName uses the export calendar date', () => {
 test('buildBackupPayload includes operational data and local resume metadata', () => {
   const player = makePlayer('player-1');
   const session = makeSession('session-1');
+  const championship: Championship = {
+    id: 'champ-1',
+    communityId: 'community-1',
+    name: 'Liga',
+    format: 'round_robin',
+    classificationPoints: { win: 3, loss: 0 },
+    recurrenceRule: { daysOfWeek: [2], time: '20:00', startDate: '2026-08-04' },
+    createdAt: '2026-07-26T00:00:00.000Z',
+    updatedAt: '2026-07-26T00:00:00.000Z',
+  };
+  const championshipTeam: ChampionshipTeam = {
+    id: 'champ-team-1',
+    championshipId: championship.id,
+    name: 'Aurora',
+    playerIds: ['player-1'],
+  };
+  const championshipRound: ChampionshipRound = {
+    id: 'round-1',
+    championshipId: championship.id,
+    round: 1,
+    teamAId: 'champ-team-1',
+    teamBId: 'champ-team-2',
+    scheduledDate: '2026-08-04T20:00',
+    skipped: false,
+  };
   const payload = buildBackupPayload({
     players: [player],
     sessions: [session],
@@ -30,6 +56,9 @@ test('buildBackupPayload includes operational data and local resume metadata', (
     whatsAppListTemplates: [],
     whatsAppListDrafts: [],
     communityRules: [],
+    championships: [championship],
+    championshipTeams: [championshipTeam],
+    championshipRounds: [championshipRound],
     activeSession: session,
     sessionDraft: null,
     lastSelectedPlayerIds: ['player-1'],
@@ -38,6 +67,9 @@ test('buildBackupPayload includes operational data and local resume metadata', (
 
   assert.deepEqual(payload.players, [player]);
   assert.deepEqual(payload.sessions, [session]);
+  assert.deepEqual(payload.championships, [championship]);
+  assert.deepEqual(payload.championshipTeams, [championshipTeam]);
+  assert.deepEqual(payload.championshipRounds, [championshipRound]);
   assert.equal(payload.activeSession, session);
   assert.equal(payload.sessionDraft, null);
   assert.deepEqual(payload.lastSelectedPlayerIds, ['player-1']);

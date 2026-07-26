@@ -282,6 +282,49 @@ test('backend migration defines critical local id and lookup indexes', () => {
   }
 });
 
+test('consolidated schema backfills the operational tables from the initial sync migration', () => {
+  for (const table of requiredTables.filter((table) => table !== 'community_members')) {
+    assert.match(
+      baseSchema,
+      new RegExp(`create table(?: if not exists)? public\\.${table}\\b`, 'i'),
+      `consolidated schema is missing ${table}`,
+    );
+    assert.match(
+      baseSchema,
+      new RegExp(`alter table public\\.${table} enable row level security`, 'i'),
+      `consolidated schema is missing RLS for ${table}`,
+    );
+    assert.match(
+      baseSchema,
+      new RegExp(
+        `unique index if not exists ${table}_owner_local_id_idx on public\\.${table} \\(owner_id, local_id\\);`,
+        'i',
+      ),
+      `consolidated schema is missing the local id upsert index for ${table}`,
+    );
+  }
+
+  assert.match(
+    baseSchema,
+    /grant select, insert, update, delete on[\s\S]*public\.sessions[\s\S]*to authenticated;/i,
+  );
+
+  const sessionsPosition = baseSchema.indexOf('create table if not exists public.sessions (');
+  for (const table of ['teams', 'games', 'point_events', 'game_reports', 'session_reports']) {
+    const tablePosition = baseSchema.indexOf(`create table if not exists public.${table} (`);
+    assert.ok(tablePosition > sessionsPosition, `${table} must be declared after sessions`);
+  }
+
+  // point_events picked up point taxonomy and facilitator-assist columns from later migrations.
+  assert.match(baseSchema, /point_type text,\s*skill text,\s*fault text,\s*player_team_id text,/i);
+  assert.match(baseSchema, /event_kind text not null default 'point',\s*assist_player_id text/i);
+
+  // games briefly gained dedicated multiset columns, then had them dropped again in favor of
+  // storing sets/setTargets inside the existing metadata jsonb column.
+  assert.doesNotMatch(baseSchema, /create table(?: if not exists)? public\.games\s*\([\s\S]*?\bsets jsonb/i);
+  assert.doesNotMatch(baseSchema, /alter table public\.games\s+add column if not exists sets/i);
+});
+
 test('player evaluations migration defines per-organizer athlete evaluations', () => {
   assert.match(
     playerEvaluationsMigration,

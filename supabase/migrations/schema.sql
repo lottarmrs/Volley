@@ -588,6 +588,228 @@ create table public.modification_logs (
   created_at timestamptz default now() not null
 );
 
+-- 8. Create Sessions Table
+create table if not exists public.sessions (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete cascade,
+  name text not null,
+  date date not null,
+  location text,
+  notes text,
+  status text not null,
+  type text not null check (type in ('tournament', 'free_play')),
+  selected_player_ids text[] default '{}'::text[] not null,
+  team_ids text[] default '{}'::text[] not null,
+  config jsonb default '{}'::jsonb not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists sessions_community_id_idx on public.sessions (community_id);
+create index if not exists sessions_updated_at_idx on public.sessions (updated_at);
+create index if not exists sessions_deleted_at_idx on public.sessions (deleted_at);
+create unique index if not exists sessions_owner_local_id_idx on public.sessions (owner_id, local_id);
+
+-- 9. Create Teams Table
+create table if not exists public.teams (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  name text not null,
+  color text,
+  player_ids text[] default '{}'::text[] not null,
+  generated_by_algorithm boolean default false not null,
+  locked boolean default false not null,
+  strength_snapshot jsonb default '{}'::jsonb not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists teams_community_id_idx on public.teams (community_id);
+create index if not exists teams_session_id_idx on public.teams (session_id);
+create index if not exists teams_updated_at_idx on public.teams (updated_at);
+create index if not exists teams_deleted_at_idx on public.teams (deleted_at);
+create unique index if not exists teams_owner_local_id_idx on public.teams (owner_id, local_id);
+
+-- 10. Create Games Table
+create table if not exists public.games (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  type text not null check (type in ('tournament', 'free_play')),
+  sequence_number integer not null,
+  round integer,
+  stage text,
+  group_id text,
+  team_a_id text not null,
+  team_b_id text not null,
+  score_a integer default 0 not null,
+  score_b integer default 0 not null,
+  winner_team_id text,
+  loser_team_id text,
+  status text not null,
+  started_at timestamptz,
+  finished_at timestamptz,
+  finish_reason text,
+  point_ids text[] default '{}'::text[] not null,
+  metadata jsonb default '{}'::jsonb not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists games_community_id_idx on public.games (community_id);
+create index if not exists games_session_id_idx on public.games (session_id);
+create index if not exists games_updated_at_idx on public.games (updated_at);
+create index if not exists games_deleted_at_idx on public.games (deleted_at);
+create unique index if not exists games_owner_local_id_idx on public.games (owner_id, local_id);
+
+-- 11. Create Point Events Table
+create table if not exists public.point_events (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  game_id text not null,
+  sequence_number integer not null,
+  scoring_team_id text not null,
+  conceding_team_id text not null,
+  player_id text,
+  reason text,
+  score_before jsonb default '{}'::jsonb not null,
+  score_after jsonb default '{}'::jsonb not null,
+  occurred_at timestamptz not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  point_type text,
+  skill text,
+  fault text,
+  player_team_id text,
+  event_kind text not null default 'point',
+  assist_player_id text
+);
+
+create index if not exists point_events_community_id_idx on public.point_events (community_id);
+create index if not exists point_events_session_id_idx on public.point_events (session_id);
+create index if not exists point_events_updated_at_idx on public.point_events (updated_at);
+create index if not exists point_events_deleted_at_idx on public.point_events (deleted_at);
+create unique index if not exists point_events_owner_local_id_idx on public.point_events (owner_id, local_id);
+
+-- 12. Create Game Reports Table
+create table if not exists public.game_reports (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  game_id text not null,
+  sequence_number integer not null,
+  generated_at timestamptz not null,
+  report jsonb default '{}'::jsonb not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists game_reports_community_id_idx on public.game_reports (community_id);
+create index if not exists game_reports_session_id_idx on public.game_reports (session_id);
+create index if not exists game_reports_updated_at_idx on public.game_reports (updated_at);
+create index if not exists game_reports_deleted_at_idx on public.game_reports (deleted_at);
+create unique index if not exists game_reports_owner_local_id_idx on public.game_reports (owner_id, local_id);
+
+-- 13. Create Session Reports Table
+create table if not exists public.session_reports (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  generated_at timestamptz not null,
+  report jsonb default '{}'::jsonb not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists session_reports_community_id_idx on public.session_reports (community_id);
+create index if not exists session_reports_session_id_idx on public.session_reports (session_id);
+create index if not exists session_reports_updated_at_idx on public.session_reports (updated_at);
+create index if not exists session_reports_deleted_at_idx on public.session_reports (deleted_at);
+create unique index if not exists session_reports_owner_local_id_idx on public.session_reports (owner_id, local_id);
+
+-- 14. Create Community Presence Table
+create table if not exists public.community_presence (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid not null references public.communities(id) on delete cascade,
+  date date not null,
+  items jsonb default '[]'::jsonb not null,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  unique (community_id, date)
+);
+
+create index if not exists community_presence_community_id_idx on public.community_presence (community_id);
+create index if not exists community_presence_updated_at_idx on public.community_presence (updated_at);
+create index if not exists community_presence_deleted_at_idx on public.community_presence (deleted_at);
+create unique index if not exists community_presence_owner_local_id_idx on public.community_presence (owner_id, local_id);
+
+-- 15. Create WhatsApp List Drafts Table
+create table if not exists public.whatsapp_list_drafts (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid not null references public.communities(id) on delete cascade,
+  template_id text,
+  title text not null,
+  date date not null,
+  location text,
+  start_time text,
+  end_time text,
+  value numeric,
+  pix_key text,
+  pix_holder text,
+  pix_bank text,
+  payment_deadline text,
+  payment_note text,
+  setters jsonb default '[]'::jsonb not null,
+  main_slots jsonb default '[]'::jsonb not null,
+  reserve_slots jsonb default '[]'::jsonb not null,
+  setters_section_title text not null,
+  reserve_section_title text not null,
+  show_lock_icon boolean default true not null,
+  payment_symbol text default '✅' not null,
+  extra_text text,
+  local_id text,
+  sync_version integer default 1 not null,
+  deleted_at timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists whatsapp_list_drafts_community_id_idx on public.whatsapp_list_drafts (community_id);
+create index if not exists whatsapp_list_drafts_updated_at_idx on public.whatsapp_list_drafts (updated_at);
+create index if not exists whatsapp_list_drafts_deleted_at_idx on public.whatsapp_list_drafts (deleted_at);
+create unique index if not exists whatsapp_list_drafts_owner_local_id_idx on public.whatsapp_list_drafts (owner_id, local_id);
+
 -- Enable Row Level Security (RLS) on all tables
 alter table public.profiles enable row level security;
 alter table public.communities enable row level security;
@@ -603,6 +825,14 @@ alter table public.championship_rounds enable row level security;
 alter table public.community_rules enable row level security;
 alter table public.whatsapp_list_templates enable row level security;
 alter table public.modification_logs enable row level security;
+alter table public.sessions enable row level security;
+alter table public.teams enable row level security;
+alter table public.games enable row level security;
+alter table public.point_events enable row level security;
+alter table public.game_reports enable row level security;
+alter table public.session_reports enable row level security;
+alter table public.community_presence enable row level security;
+alter table public.whatsapp_list_drafts enable row level security;
 
 -- Create Policies for Profiles
 create policy "Users can read own profile" on public.profiles
@@ -837,8 +1067,130 @@ create policy "Community owner or admin can delete championship rounds"
     )
   );
 
+create policy "Community members can read sessions" on public.sessions
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can insert sessions" on public.sessions
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and (community_id is null or public.current_user_has_community_role(community_id)));
+create policy "Community organizers can update sessions" on public.sessions
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)))
+  with check (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can delete sessions" on public.sessions
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+
+create policy "Community members can read teams" on public.teams
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can insert teams" on public.teams
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and (community_id is null or public.current_user_has_community_role(community_id)));
+create policy "Community organizers can update teams" on public.teams
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)))
+  with check (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can delete teams" on public.teams
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+
+create policy "Community members can read games" on public.games
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can insert games" on public.games
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and (community_id is null or public.current_user_has_community_role(community_id)));
+create policy "Community organizers can update games" on public.games
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)))
+  with check (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can delete games" on public.games
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+
+create policy "Community members can read point events" on public.point_events
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can insert point events" on public.point_events
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and (community_id is null or public.current_user_has_community_role(community_id)));
+create policy "Community organizers can update point events" on public.point_events
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)))
+  with check (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can delete point events" on public.point_events
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+
+create policy "Community members can read game reports" on public.game_reports
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can insert game reports" on public.game_reports
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and (community_id is null or public.current_user_has_community_role(community_id)));
+create policy "Community organizers can update game reports" on public.game_reports
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)))
+  with check (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can delete game reports" on public.game_reports
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+
+create policy "Community members can read session reports" on public.session_reports
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can insert session reports" on public.session_reports
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and (community_id is null or public.current_user_has_community_role(community_id)));
+create policy "Community organizers can update session reports" on public.session_reports
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)))
+  with check (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+create policy "Community organizers can delete session reports" on public.session_reports
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or (community_id is not null and public.current_user_has_community_role(community_id)));
+
+create policy "Community members can read presence" on public.community_presence
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can insert presence" on public.community_presence
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+create policy "Community organizers can update presence" on public.community_presence
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id))
+  with check (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can delete presence" on public.community_presence
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+
+create policy "Community members can read whatsapp drafts" on public.whatsapp_list_drafts
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can insert whatsapp drafts" on public.whatsapp_list_drafts
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+create policy "Community organizers can update whatsapp drafts" on public.whatsapp_list_drafts
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id))
+  with check (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can delete whatsapp drafts" on public.whatsapp_list_drafts
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+
 grant select, insert, update, delete on public.community_members to authenticated;
 grant select, insert, update, delete on public.player_evaluations to authenticated;
+grant select, insert, update, delete on
+  public.sessions,
+  public.teams,
+  public.games,
+  public.point_events,
+  public.game_reports,
+  public.session_reports,
+  public.community_presence,
+  public.whatsapp_list_drafts
+to authenticated;
 grant select on public.player_avatar_proposals to authenticated;
 revoke all on table public.self_evaluations from public, anon;
 grant select, insert, update on public.self_evaluations to authenticated;
@@ -969,6 +1321,38 @@ create trigger audit_community_rules
 
 create trigger audit_whatsapp_list_templates
   after insert or update or delete on public.whatsapp_list_templates
+  for each row execute function public.log_table_changes();
+
+create trigger audit_sessions
+  after insert or update or delete on public.sessions
+  for each row execute function public.log_table_changes();
+
+create trigger audit_teams
+  after insert or update or delete on public.teams
+  for each row execute function public.log_table_changes();
+
+create trigger audit_games
+  after insert or update or delete on public.games
+  for each row execute function public.log_table_changes();
+
+create trigger audit_point_events
+  after insert or update or delete on public.point_events
+  for each row execute function public.log_table_changes();
+
+create trigger audit_game_reports
+  after insert or update or delete on public.game_reports
+  for each row execute function public.log_table_changes();
+
+create trigger audit_session_reports
+  after insert or update or delete on public.session_reports
+  for each row execute function public.log_table_changes();
+
+create trigger audit_community_presence
+  after insert or update or delete on public.community_presence
+  for each row execute function public.log_table_changes();
+
+create trigger audit_whatsapp_list_drafts
+  after insert or update or delete on public.whatsapp_list_drafts
   for each row execute function public.log_table_changes();
 
 create or replace function public.guard_player_user_id()

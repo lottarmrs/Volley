@@ -686,6 +686,8 @@ git commit -m "feat(db): add championships, championship_teams, championship_rou
 
 ### Task 3: Types & cloud services
 
+**Status: ✅ Concluída e revisada** — commit `cec3902`, review Approved with minor notes (spec ✅). Achado Important corrigido de imediato: `ChampionshipRecurrenceRule` estava declarado duas vezes (Task 1 + este arquivo) — consolidado num só lugar (commit `4cb8ba3`) antes da Task 4 começar a consumir. Ver `.superpowers/sdd/progress.md`.
+
 **Files:**
 - Modify: `src/shared/types/session.ts`
 - Modify: `src/types.ts`
@@ -699,14 +701,14 @@ git commit -m "feat(db): add championships, championship_teams, championship_rou
   `upsertChampionship`, `upsertTeam`, `upsertRound` methods (exact shapes below). Task 4
   depends on these exact names.
 
-- [ ] **Step 1: Read sibling cloud service files first**
+- [x] **Step 1: Read sibling cloud service files first**
 
 Read `src/infra/supabase/communityRulesCloudService.ts` (mapper + service object
 pattern) and one cloud service for a table with a foreign key relationship one level
 deep (to see how a related-table lookup is typically handled) before writing this
 task's file — match established conventions rather than inventing new ones.
 
-- [ ] **Step 2: Add the TypeScript types**
+- [x] **Step 2: Add the TypeScript types**
 
 In `src/shared/types/session.ts`, add (near the existing `Session`/`Team`
 definitions):
@@ -776,7 +778,7 @@ Re-export all four new types from `src/types.ts` the same way every other
 `export type { Session, Team, ... } from './shared/types/session';` block and add to
 it).
 
-- [ ] **Step 3: Write `championshipCloudService.ts`**
+- [x] **Step 3: Write `championshipCloudService.ts`**
 
 Follow `communityRulesCloudService.ts`'s exact structure (mapper functions + a plain
 exported service object, `supabase.from(...)`, throw on `error`, no retry logic beyond
@@ -807,7 +809,7 @@ Write the actual mapper bodies mapping every field from Task 2's migration colum
 `round`, `team_a_id`, `team_b_id`, `scheduled_date`, `skipped`, `session_id`) to/from
 the camelCase TS fields defined in Step 2 — do not leave any field unmapped.
 
-- [ ] **Step 4: Tests**
+- [x] **Step 4: Tests**
 
 Write tests for the mapper functions (round-trip: TS → db → TS produces the original
 shape) following the same testing convention Task 2 pointed you to for sibling cloud
@@ -816,7 +818,7 @@ source-text regex assertion for the Supabase-calling methods — see
 `selfEvaluationCloudService.ts`/its test file from the prior plan in this repo for the
 exact pattern to mirror).
 
-- [ ] **Step 5: Run the full suite, typecheck, lint**
+- [x] **Step 5: Run the full suite, typecheck, lint**
 
 ```bash
 npm test
@@ -824,7 +826,7 @@ npx tsc --noEmit
 npm run lint:eslint
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/shared/types/session.ts src/types.ts src/infra/supabase/championshipCloudService.ts src/infra/supabase/championshipCloudService.test.ts

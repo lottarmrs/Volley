@@ -171,6 +171,6 @@ test('championship cloud service calls supabase against the expected tables and 
   assert.match(source, /\.from\('championship_teams'\)/);
   assert.match(source, /\.from\('championship_rounds'\)/);
   assert.match(source, /onConflict:\s*'id'/);
-  assert.match(source, /onConflict:\s*'championship_id,round'/);
+  assert.match(source, /onConflict:\s*'championship_id,local_id'/);
   assert.match(source, /\.eq\('championship_id', championshipCloudId\)/);
 });

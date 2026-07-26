@@ -67,6 +67,13 @@ export function createChampionship(
   const roundCount = Math.max(...schedule.map((m) => m.round), 0);
   const dates = generateRoundDates(input.recurrenceRule, roundCount);
 
+  if (dates.length !== roundCount) {
+    return productError(
+      'invalid_input',
+      'A recorrência informada não cobre todas as rodadas da liga.',
+    );
+  }
+
   const rounds = schedule.map((match) => ({
     round: match.round,
     teamAId: match.teamAId,

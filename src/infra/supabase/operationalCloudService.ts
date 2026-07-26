@@ -96,7 +96,12 @@ export function mapDbToSession(db: DbRecord): Session {
   };
 }
 
-export function mapTeamToDb(local: Team, ownerId: string, communityId?: string | null) {
+export function mapTeamToDb(
+  local: Team,
+  ownerId: string,
+  communityId?: string | null,
+  championshipTeamCloudId?: string | null,
+) {
   return {
     id: local.id,
     owner_id: ownerId,
@@ -108,6 +113,7 @@ export function mapTeamToDb(local: Team, ownerId: string, communityId?: string |
     generated_by_algorithm: !!local.generatedByAlgorithm,
     locked: !!local.locked,
     strength_snapshot: local.strengthSnapshot || {},
+    championship_team_id: championshipTeamCloudId || null,
     local_id: local.id,
     deleted_at: local.deletedAt || null,
     updated_at: local.updatedAt || new Date().toISOString(),
@@ -124,6 +130,7 @@ export function mapDbToTeam(db: DbRecord): Team {
     generatedByAlgorithm: db.generated_by_algorithm,
     locked: db.locked,
     strengthSnapshot: db.strength_snapshot || {},
+    championshipTeamId: db.championship_team_id || undefined,
     cloudId: db.id,
     syncStatus: 'synced',
     lastSyncedAt: syncedAt(),
@@ -675,11 +682,20 @@ export const operationalCloudService = {
     locals: Team[],
     ownerId: string,
     sessionsById: Map<string, Session>,
+    championshipTeamCloudIds: Map<string, string> = new Map(),
   ): Promise<Team[]> {
     if (locals.length === 0) return [];
     const records = locals.map((local) => {
       const session = sessionsById.get(local.sessionId?.toLowerCase());
-      return mapTeamToDb(local, ownerId, session?.communityId || null);
+      const championshipTeamCloudId = local.championshipTeamId
+        ? championshipTeamCloudIds.get(local.championshipTeamId.toLowerCase())
+        : undefined;
+      return mapTeamToDb(
+        local,
+        ownerId,
+        session?.communityId || null,
+        championshipTeamCloudId,
+      );
     });
     const data = await bulkUpsertRows('teams', records);
     return data.map(mapDbToTeam);

@@ -49,6 +49,31 @@ test('createChampionship rejects fewer than 2 teams', () => {
   assert.equal(result.ok, false);
 });
 
+test('createChampionship rejects a recurrence window that cannot schedule every round', () => {
+  const result = createChampionship({
+    communityId: 'community-1',
+    name: 'Liga curta demais',
+    format: 'round_robin',
+    classificationPoints: { win: 3, loss: 0 },
+    recurrenceRule: {
+      daysOfWeek: [2],
+      time: '20:00',
+      startDate: '2026-08-01',
+      endDate: '2026-08-04',
+    },
+    teams: [
+      { id: 'team-1', name: 'Time A', playerIds: ['p1'] },
+      { id: 'team-2', name: 'Time B', playerIds: ['p2'] },
+      { id: 'team-3', name: 'Time C', playerIds: ['p3'] },
+      { id: 'team-4', name: 'Time D', playerIds: ['p4'] },
+    ],
+  });
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error.message, /recorrência/i);
+});
+
 test('getSeasonStandings aggregates games across multiple sessions using the championshipTeamId remap', () => {
   const teams = [
     { id: 'session1-teamA', championshipTeamId: 'champ-team-1' },

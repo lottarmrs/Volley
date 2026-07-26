@@ -314,6 +314,7 @@ test('team, game and point mappers preserve relationships through local ids', ()
     playerIds: ['player-local'],
     generatedByAlgorithm: true,
     locked: false,
+    championshipTeamId: 'champ-team-local',
     strengthSnapshot: {
       overall: 7,
       attack: 8,
@@ -371,7 +372,7 @@ test('team, game and point mappers preserve relationships through local ids', ()
   };
 
   const mappedTeam = mapDbToTeam({
-    ...mapTeamToDb(team, 'owner-id', 'community-cloud'),
+    ...mapTeamToDb(team, 'owner-id', 'community-cloud', 'champ-team-cloud'),
     id: 'team-cloud',
     updated_at: now,
     deleted_at: null,
@@ -392,6 +393,7 @@ test('team, game and point mappers preserve relationships through local ids', ()
   assert.equal(mappedTeam.sessionId, 'session-local');
   assert.equal(mappedTeam.cloudId, 'team-cloud');
   assert.deepEqual(mappedTeam.playerIds, ['player-local']);
+  assert.equal(mappedTeam.championshipTeamId, 'champ-team-cloud');
   assert.equal(mappedGame.sessionId, 'session-local');
   assert.equal(mappedGame.teamAId, 'team-a');
   assert.deepEqual(mappedGame.sets, [

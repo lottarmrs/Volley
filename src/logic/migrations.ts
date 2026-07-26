@@ -409,6 +409,24 @@ function pruneOrphanActiveReferences(data: any): any {
       .filter((player: any) => player?.id && !player.deletedAt)
       .map((player: any) => player.id),
   );
+  const activeChampionshipIds = new Set<string>(
+    (data.championships || [])
+      .filter(
+        (championship: any) =>
+          championship?.id &&
+          !championship.deletedAt &&
+          (!hasCommunities || activeCommunityIds.has(championship.communityId)),
+      )
+      .map((championship: any) => championship.id),
+  );
+  const activeChampionshipTeamIds = new Set<string>(
+    (data.championshipTeams || [])
+      .filter(
+        (team: any) =>
+          team?.id && !team.deletedAt && activeChampionshipIds.has(team.championshipId),
+      )
+      .map((team: any) => team.id),
+  );
 
   return {
     ...data,
@@ -458,6 +476,22 @@ function pruneOrphanActiveReferences(data: any): any {
           playerIds: filterIds(team.playerIds, activePlayerIds),
         }))
       : data.teams,
+    championships: (data.championships || []).filter(
+      (championship: any) =>
+        !hasCommunities || activeCommunityIds.has(championship.communityId),
+    ),
+    championshipTeams: (data.championshipTeams || [])
+      .filter((team: any) => activeChampionshipIds.has(team.championshipId))
+      .map((team: any) => ({
+        ...team,
+        playerIds: hasPlayers ? filterIds(team.playerIds, activePlayerIds) : team.playerIds,
+      })),
+    championshipRounds: (data.championshipRounds || []).filter(
+      (round: any) =>
+        activeChampionshipIds.has(round.championshipId) &&
+        activeChampionshipTeamIds.has(round.teamAId) &&
+        activeChampionshipTeamIds.has(round.teamBId),
+    ),
     communityPresence: (data.communityPresence || [])
       .filter((presence: any) => !hasCommunities || activeCommunityIds.has(presence.communityId))
       .map((presence: any) => ({
@@ -528,6 +562,10 @@ function remapPlayerReferences(data: any, playerIdMap: Map<string, string>) {
         : session.config,
     })),
     teams: (data.teams || []).map((team: any) => ({
+      ...team,
+      playerIds: remapArray(team.playerIds, playerIdMap),
+    })),
+    championshipTeams: (data.championshipTeams || []).map((team: any) => ({
       ...team,
       playerIds: remapArray(team.playerIds, playerIdMap),
     })),
@@ -606,6 +644,10 @@ function remapCommunityReferences(data: any, communityIdMap: Map<string, string>
     sessions: (data.sessions || []).map((session: any) => ({
       ...session,
       communityId: remapValue(session.communityId, communityIdMap),
+    })),
+    championships: (data.championships || []).map((championship: any) => ({
+      ...championship,
+      communityId: remapValue(championship.communityId, communityIdMap),
     })),
     communityRules: (data.communityRules || []).map((rule: any) => ({
       ...rule,

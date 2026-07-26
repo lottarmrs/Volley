@@ -171,7 +171,7 @@ export const championshipCloudService = {
     const { data, error } = await supabase
       .from('championship_rounds')
       .upsert(mapChampionshipRoundToDb(local, championshipCloudId, teamACloudId, teamBCloudId), {
-        onConflict: 'championship_id,round',
+        onConflict: 'championship_id,local_id',
       })
       .select()
       .single();

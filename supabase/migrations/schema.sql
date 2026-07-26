@@ -399,31 +399,81 @@ create table public.championship_teams (
   sync_version integer default 1 not null,
   deleted_at timestamptz,
   created_at timestamptz default now() not null,
-  updated_at timestamptz default now() not null
+  updated_at timestamptz default now() not null,
+  unique (championship_id, id)
 );
 
 create index if not exists championship_teams_championship_id_idx
   on public.championship_teams (championship_id);
 
+alter table if exists public.teams
+  add column if not exists championship_team_id uuid
+    references public.championship_teams(id) on delete set null;
+
+create index if not exists teams_championship_team_id_idx
+  on public.teams (championship_team_id);
+
 create table public.championship_rounds (
   id uuid primary key default gen_random_uuid(),
   championship_id uuid not null references public.championships(id) on delete cascade,
   round integer not null,
-  team_a_id uuid not null references public.championship_teams(id) on delete cascade,
-  team_b_id uuid not null references public.championship_teams(id) on delete cascade,
+  team_a_id uuid not null,
+  team_b_id uuid not null,
   scheduled_date timestamptz not null,
   skipped boolean not null default false,
   session_id uuid references public.sessions(id) on delete set null,
-  local_id text,
+  local_id text not null,
   sync_version integer default 1 not null,
   deleted_at timestamptz,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
-  unique (championship_id, round)
+  unique (championship_id, local_id),
+  check (team_a_id <> team_b_id),
+  foreign key (championship_id, team_a_id)
+    references public.championship_teams(championship_id, id) on delete cascade,
+  foreign key (championship_id, team_b_id)
+    references public.championship_teams(championship_id, id) on delete cascade
 );
 
 create index if not exists championship_rounds_championship_id_idx
   on public.championship_rounds (championship_id);
+
+create or replace function public.validate_championship_round_scope()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  championship_community_id uuid;
+  session_community_id uuid;
+begin
+  if new.session_id is null then
+    return new;
+  end if;
+
+  select community_id into championship_community_id
+  from public.championships where id = new.championship_id;
+
+  select community_id into session_community_id
+  from public.sessions where id = new.session_id;
+
+  if championship_community_id is null
+     or session_community_id is distinct from championship_community_id then
+    raise exception 'championship round session must belong to the championship community'
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.validate_championship_round_scope() from public, anon, authenticated;
+
+create trigger validate_championship_round_scope_trigger
+before insert or update of championship_id, session_id
+on public.championship_rounds
+for each row execute function public.validate_championship_round_scope();
 
 -- 5. Create Community Rules Table
 create table public.community_rules (

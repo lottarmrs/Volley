@@ -1257,7 +1257,13 @@ export const syncService = {
       local.teams,
       sessionsById,
       'teams',
-      (items) => operationalCloudService.bulkUpsertTeams(items, ownerId, sessionsById),
+      (items) =>
+        operationalCloudService.bulkUpsertTeams(
+          items,
+          ownerId,
+          sessionsById,
+          championshipTeamCloudIds,
+        ),
       options,
     );
 
@@ -1592,6 +1598,13 @@ export const syncService = {
         ? sessionLocalIds.get(round.sessionId.toLowerCase()) || round.sessionId
         : undefined,
     }));
+    const mappedOperationalTeams = operational.teams.map((team) => ({
+      ...team,
+      championshipTeamId: team.championshipTeamId
+        ? championshipTeamLocalIds.get(team.championshipTeamId.toLowerCase()) ||
+          team.championshipTeamId
+        : undefined,
+    }));
 
     return {
       communities: cloudCommunities,
@@ -1602,6 +1615,7 @@ export const syncService = {
       championshipTeams: mappedChampionshipTeams,
       championshipRounds: mappedChampionshipRounds,
       ...operational,
+      teams: mappedOperationalTeams,
     };
   },
 

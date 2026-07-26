@@ -292,7 +292,14 @@ test('downloadCloudDataToLocal restores championship references to local ids', a
     selfEvaluationCloudService.fetch = async () => null;
     operationalCloudService.fetchAll = async () => ({
       sessions: [makeSession({ id: 'session-local', cloudId: 'session-cloud' })],
-      teams: [],
+      teams: [
+        makeTeam({
+          id: 'session-team-local',
+          cloudId: 'session-team-cloud',
+          championshipTeamId: 'champ-team-cloud-a',
+          syncStatus: 'synced',
+        }),
+      ],
       games: [],
       pointEvents: [],
       gameReports: [],
@@ -348,6 +355,7 @@ test('downloadCloudDataToLocal restores championship references to local ids', a
     assert.equal(result.championships[0].communityId, 'community-local');
     assert.equal(result.championshipTeams[0].championshipId, 'champ-local');
     assert.deepEqual(result.championshipTeams[0].playerIds, ['player-local']);
+    assert.equal(result.teams[0].championshipTeamId, 'champ-team-local-a');
     assert.deepEqual(result.championshipRounds[0], {
       ...result.championshipRounds[0],
       championshipId: 'champ-local',
@@ -1616,4 +1624,3 @@ test('aggregatePlayerEvaluations output is unaffected by communityId on input ev
 
   assert.deepEqual(withCommunityId, withoutCommunityId);
 });
-

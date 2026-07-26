@@ -818,6 +818,7 @@ export default function App() {
                 communityPresence.setPresenceRecords(next.presenceRecords);
                 whatsAppLists.setTemplates(next.templates);
                 whatsAppLists.setDrafts(next.drafts);
+                championships.deleteForCommunity(communityId);
               }}
               onDuplicateCommunity={(communityId, includeAthletes) => {
                 const result = comm.duplicateCommunity(communityId, includeAthletes);
@@ -845,6 +846,10 @@ export default function App() {
               }}
               onCreateChampionship={championships.create}
               onMaterializeRound={materializeChampionshipRound}
+              onDeleteChampionship={championships.deleteChampionship}
+              onRescheduleRound={championships.rescheduleRound}
+              onSetRoundSkipped={championships.setRoundSkipped}
+              onUpdateChampionshipRecurrence={championships.updateRecurrence}
               currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
               globalRole={auth.profile?.role ?? null}

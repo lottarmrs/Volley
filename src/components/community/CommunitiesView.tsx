@@ -169,6 +169,13 @@ interface CommunitiesViewProps {
   onClearCommunityHistory: (communityId: string) => void;
   onCreateChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
   onMaterializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  onDeleteChampionship: (championshipId: string) => void;
+  onRescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
+  onSetRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;
+  onUpdateChampionshipRecurrence: (
+    championshipId: string,
+    recurrenceRule: Championship['recurrenceRule'],
+  ) => AppResult<unknown>;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
   globalRole: AuthRole | null;
@@ -252,6 +259,10 @@ export function CommunitiesView({
   onClearCommunityHistory,
   onCreateChampionship,
   onMaterializeRound,
+  onDeleteChampionship,
+  onRescheduleRound,
+  onSetRoundSkipped,
+  onUpdateChampionshipRecurrence,
   currentUserId,
   isSupabaseConfigured,
   globalRole,
@@ -303,6 +314,10 @@ export function CommunitiesView({
         onClearCommunityHistory={onClearCommunityHistory}
         onCreateChampionship={onCreateChampionship}
         onMaterializeRound={onMaterializeRound}
+        onDeleteChampionship={onDeleteChampionship}
+        onRescheduleRound={onRescheduleRound}
+        onSetRoundSkipped={onSetRoundSkipped}
+        onUpdateChampionshipRecurrence={onUpdateChampionshipRecurrence}
         currentUserId={currentUserId}
         isSupabaseConfigured={isSupabaseConfigured}
         globalRole={globalRole}
@@ -570,6 +585,10 @@ function CommunityDetailView({
   onClearCommunityHistory,
   onCreateChampionship,
   onMaterializeRound,
+  onDeleteChampionship,
+  onRescheduleRound,
+  onSetRoundSkipped,
+  onUpdateChampionshipRecurrence,
   currentUserId,
   isSupabaseConfigured,
   globalRole,
@@ -764,6 +783,10 @@ function CommunityDetailView({
           canManage={permissions.canEditRules}
           onCreateChampionship={onCreateChampionship}
           onMaterializeRound={onMaterializeRound}
+          onDeleteChampionship={onDeleteChampionship}
+          onRescheduleRound={onRescheduleRound}
+          onSetRoundSkipped={onSetRoundSkipped}
+          onUpdateChampionshipRecurrence={onUpdateChampionshipRecurrence}
         />
       )}
       {activeTab === 'ranking' && (
@@ -984,6 +1007,82 @@ function formatScheduledDate(value?: string) {
   });
 }
 
+function RecurrenceControls({
+  championship,
+  canManage,
+  onUpdate,
+  onResult,
+}: {
+  championship: Championship;
+  canManage: boolean;
+  onUpdate: (
+    championshipId: string,
+    recurrenceRule: Championship['recurrenceRule'],
+  ) => AppResult<unknown>;
+  onResult: (message: { kind: 'success' | 'error'; text: string }) => void;
+}) {
+  const [startDate, setStartDate] = useState(championship.recurrenceRule.startDate);
+  const [time, setTime] = useState(championship.recurrenceRule.time);
+  const [days, setDays] = useState(championship.recurrenceRule.daysOfWeek);
+
+  return (
+    <details className="collapse collapse-arrow border border-base-300 bg-base-100">
+      <summary className="collapse-title py-2 min-h-0 text-sm font-bold">
+        Ajustar recorrência
+      </summary>
+      <div className="collapse-content space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Field label="Novo início" type="date" value={startDate} onChange={setStartDate} />
+          <Field label="Novo horário" type="time" value={time} onChange={setTime} />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {WEEKDAYS.map((day) => (
+            <label key={day.value} className="label cursor-pointer gap-1 px-2 py-1">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-xs"
+                checked={days.includes(day.value)}
+                disabled={!canManage}
+                onChange={(event) =>
+                  setDays((current) =>
+                    event.target.checked
+                      ? [...current, day.value]
+                      : current.filter((value) => value !== day.value),
+                  )
+                }
+              />
+              <span className="label-text text-xs">{day.label.slice(0, 3)}</span>
+            </label>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn btn-outline btn-xs"
+          disabled={!canManage || !startDate || !time || days.length === 0}
+          onClick={() => {
+            const result = onUpdate(championship.id, {
+              ...championship.recurrenceRule,
+              startDate,
+              time,
+              daysOfWeek: [...days].sort((a, b) => a - b),
+            });
+            onResult(
+              result.ok === true
+                ? {
+                    kind: 'success',
+                    text: 'Calendário futuro atualizado; rodadas materializadas foram preservadas.',
+                  }
+                : { kind: 'error', text: result.error.message },
+            );
+          }}
+        >
+          Atualizar calendário futuro
+        </button>
+      </div>
+    </details>
+  );
+}
+
 export function ChampionshipsTab({
   community,
   players,
@@ -996,6 +1095,10 @@ export function ChampionshipsTab({
   canManage,
   onCreateChampionship,
   onMaterializeRound,
+  onDeleteChampionship,
+  onRescheduleRound,
+  onSetRoundSkipped,
+  onUpdateChampionshipRecurrence,
 }: {
   community: Community;
   players: Player[];
@@ -1008,6 +1111,13 @@ export function ChampionshipsTab({
   canManage: boolean;
   onCreateChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
   onMaterializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  onDeleteChampionship: (championshipId: string) => void;
+  onRescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
+  onSetRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;
+  onUpdateChampionshipRecurrence: (
+    championshipId: string,
+    recurrenceRule: Championship['recurrenceRule'],
+  ) => AppResult<unknown>;
 }) {
   const communityChampionships = useMemo(
     () => championships.filter((item) => item.communityId === community.id && !item.deletedAt),
@@ -1047,7 +1157,7 @@ export function ChampionshipsTab({
     : [];
   const nextRound = selectedRounds.find((round) => !round.sessionId && !round.skipped);
   const seasonSessionIds = new Set(
-    selectedRounds.flatMap((round) => (round.sessionId ? [round.sessionId] : [])),
+    selectedRounds.flatMap((round) => (!round.skipped && round.sessionId ? [round.sessionId] : [])),
   );
   const seasonSessionTeams = sessionTeams.filter((team) => seasonSessionIds.has(team.sessionId));
   const seasonGames = games.filter((game) => seasonSessionIds.has(game.sessionId));
@@ -1394,6 +1504,14 @@ export function ChampionshipsTab({
                         </span>
                       </div>
                     )}
+                    <div key={selectedChampionship.id}>
+                      <RecurrenceControls
+                        championship={selectedChampionship}
+                        canManage={canManage}
+                        onUpdate={onUpdateChampionshipRecurrence}
+                        onResult={setRoundMessage}
+                      />
+                    </div>
                     <div className="space-y-2 max-h-80 overflow-y-auto">
                       {selectedRounds.map((round) => {
                         const teamA = selectedTeams.find((team) => team.id === round.teamAId);
@@ -1403,35 +1521,66 @@ export function ChampionshipsTab({
                             key={round.id}
                             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-box border border-base-300 bg-base-100 p-3"
                           >
-                            <div>
+                            <div className="space-y-1">
                               <p className="font-bold">
                                 R{round.round} · {teamA?.name || 'Time A'} × {teamB?.name || 'Time B'}
                               </p>
-                              <p className="text-xs text-base-content/60">
-                                {formatScheduledDate(round.scheduledDate)}
-                              </p>
+                              {round.sessionId ? (
+                                <p className="text-xs text-base-content/60">
+                                  {formatScheduledDate(round.scheduledDate)}
+                                </p>
+                              ) : (
+                                <input
+                                  type="datetime-local"
+                                  className="input input-bordered input-xs"
+                                  aria-label={`Data da rodada ${round.round}`}
+                                  value={round.scheduledDate.slice(0, 16)}
+                                  disabled={!canManage}
+                                  onChange={(event) => {
+                                    const result = onRescheduleRound(round.id, event.target.value);
+                                    if (result.ok === false) {
+                                      setRoundMessage({ kind: 'error', text: result.error.message });
+                                    }
+                                  }}
+                                />
+                              )}
                             </div>
                             {round.sessionId ? (
                               <span className="badge badge-success badge-soft">Sessão criada</span>
                             ) : (
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-xs"
-                                disabled={!canManage || round.skipped}
-                                onClick={() => {
-                                  const result = onMaterializeRound(round.id);
-                                  if (result.ok === false) {
-                                    setRoundMessage({ kind: 'error', text: result.error.message });
-                                  } else {
-                                    setRoundMessage({
-                                      kind: 'success',
-                                      text: `Rodada ${round.round} materializada como sessão.`,
-                                    });
-                                  }
-                                }}
-                              >
-                                Materializar rodada
-                              </button>
+                              <div className="flex flex-wrap justify-end gap-1">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  disabled={!canManage}
+                                  onClick={() => {
+                                    const result = onSetRoundSkipped(round.id, !round.skipped);
+                                    if (result.ok === false) {
+                                      setRoundMessage({ kind: 'error', text: result.error.message });
+                                    }
+                                  }}
+                                >
+                                  {round.skipped ? 'Reativar' : 'Pular'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-xs"
+                                  disabled={!canManage || round.skipped}
+                                  onClick={() => {
+                                    const result = onMaterializeRound(round.id);
+                                    if (result.ok === false) {
+                                      setRoundMessage({ kind: 'error', text: result.error.message });
+                                    } else {
+                                      setRoundMessage({
+                                        kind: 'success',
+                                        text: `Rodada ${round.round} materializada como sessão.`,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Materializar rodada
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -1444,6 +1593,20 @@ export function ChampionshipsTab({
                       >
                         {roundMessage.text}
                       </div>
+                    )}
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="btn btn-error btn-outline btn-xs self-start"
+                        onClick={() => {
+                          if (window.confirm('Excluir esta liga e o calendário ainda não materializado?')) {
+                            onDeleteChampionship(selectedChampionship.id);
+                            setSelectedChampionshipId(null);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir liga
+                      </button>
                     )}
                   </div>
                 </div>

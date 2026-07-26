@@ -1258,6 +1258,12 @@ teste autenticou no Supabase, mas o guard permaneceu em `/auth/loading` após
 classificação e materialização da aba foram verificadas pelos testes de componente;
 esta limitação foi registrada sem alegar verificação visual da aba.
 
+**Fast-follow da revisão final:** a seção também passou a oferecer exclusão de liga,
+reagendamento/pulo manual de partidas e edição da recorrência futura. O recálculo
+preserva por teste as datas de partidas já materializadas. A exclusão da comunidade
+agora remove agregados apenas locais e cria tombstones pendentes para registros já
+sincronizados.
+
 - [x] **Step 6: Commit**
 
 ```bash
@@ -1286,3 +1292,18 @@ git commit -m "feat(ui): add minimal championship management section to Communit
       (`npm run lint:eslint`).
 - [x] The new migration has been applied to and verified against the real Supabase
       project (`csoslatxjjazrtrtylke`).
+
+### Final review fast-follow
+
+- [x] Partidas distintas da mesma rodada usam `(championship_id, local_id)` como
+      identidade de upsert, sem sobrescrever confrontos paralelos.
+- [x] `teams.championship_team_id` persiste o vínculo da sessão com o time da
+      temporada e o download remapeia o ID de nuvem de volta ao ID local.
+- [x] FKs compostas e trigger validam times do mesmo campeonato e sessão da mesma
+      comunidade.
+- [x] Importação remapeia `Championship.communityId` e
+      `ChampionshipTeam.playerIds`, além de podar agregados órfãos.
+- [x] Migration `championship_integrity` aplicada no projeto real e verificada no
+      catálogo: bridge, identidade, FK de escopo e trigger presentes.
+- [x] Gate final: 474 testes unitários + 86 testes de UI, TypeScript/lint e build de
+      produção aprovados em 2026-07-26.

@@ -82,6 +82,10 @@ function renderTab(overrides: Partial<ComponentProps<typeof ChampionshipsTab>> =
       canManage
       onCreateChampionship={() => appOk(undefined)}
       onMaterializeRound={() => appOk({ sessionId: 'session-new' })}
+      onDeleteChampionship={() => {}}
+      onRescheduleRound={() => appOk(undefined)}
+      onSetRoundSkipped={() => appOk(undefined)}
+      onUpdateChampionshipRecurrence={() => appOk(undefined)}
       {...overrides}
     />,
   );

@@ -92,4 +92,113 @@ describe('useChampionships', () => {
       syncStatus: 'pending',
     });
   });
+
+  it('removes a local-only championship aggregate when its community is deleted', () => {
+    const { result } = renderHook(() => useChampionships());
+    act(() => {
+      result.current.create(createInput);
+    });
+
+    act(() => {
+      result.current.deleteForCommunity('community-1');
+    });
+
+    expect(result.current.rawChampionships).toEqual([]);
+    expect(result.current.rawChampionshipTeams).toEqual([]);
+    expect(result.current.rawChampionshipRounds).toEqual([]);
+  });
+
+  it('tombstones a cloud-backed championship aggregate for sync on deletion', () => {
+    const { result } = renderHook(() => useChampionships());
+    act(() => {
+      result.current.create(createInput);
+    });
+    act(() => {
+      result.current.setChampionships((current) =>
+        current.map((item) => ({ ...item, cloudId: 'champ-cloud', syncStatus: 'synced' })),
+      );
+      result.current.setChampionshipTeams((current) =>
+        current.map((item, index) => ({
+          ...item,
+          cloudId: `team-cloud-${index}`,
+          syncStatus: 'synced',
+        })),
+      );
+      result.current.setChampionshipRounds((current) =>
+        current.map((item) => ({ ...item, cloudId: 'round-cloud', syncStatus: 'synced' })),
+      );
+    });
+
+    act(() => {
+      result.current.deleteChampionship(result.current.rawChampionships[0].id);
+    });
+
+    expect(result.current.championships).toEqual([]);
+    expect(result.current.rawChampionships[0]).toMatchObject({
+      cloudId: 'champ-cloud',
+      syncStatus: 'pending',
+    });
+    expect(result.current.rawChampionships[0].deletedAt).toBeTruthy();
+    expect(result.current.rawChampionshipTeams.every((item) => item.deletedAt)).toBe(true);
+    expect(result.current.rawChampionshipRounds.every((item) => item.deletedAt)).toBe(true);
+  });
+
+  it('updates future recurrence dates while preserving materialized fixtures', () => {
+    const { result } = renderHook(() => useChampionships());
+    act(() => {
+      result.current.create({
+        ...createInput,
+        teams: [
+          ...createInput.teams,
+          { id: 'team-c', name: 'Céu', playerIds: ['p5'] },
+          { id: 'team-d', name: 'Duna', playerIds: ['p6'] },
+        ],
+      });
+    });
+    const championshipId = result.current.championships[0].id;
+    const materializedRound = result.current.championshipRounds[0];
+    const originalDate = materializedRound.scheduledDate;
+    act(() => {
+      result.current.markRoundMaterialized(materializedRound.id, 'session-1');
+    });
+
+    act(() => {
+      const updated = result.current.updateRecurrence(championshipId, {
+        daysOfWeek: [4],
+        time: '21:30',
+        startDate: '2026-09-01',
+        endDate: null,
+      });
+      expect(updated.ok).toBe(true);
+    });
+
+    expect(
+      result.current.championshipRounds.find((item) => item.id === materializedRound.id)
+        ?.scheduledDate,
+    ).toBe(originalDate);
+    expect(
+      result.current.championshipRounds
+        .filter((item) => !item.sessionId)
+        .every((item) => item.scheduledDate.includes('T21:30')),
+    ).toBe(true);
+  });
+
+  it('supports manual skip and reschedule only before materialization', () => {
+    const { result } = renderHook(() => useChampionships());
+    act(() => {
+      result.current.create(createInput);
+    });
+    const roundId = result.current.championshipRounds[0].id;
+
+    act(() => {
+      expect(result.current.setRoundSkipped(roundId, true).ok).toBe(true);
+      expect(result.current.rescheduleRound(roundId, '2026-09-10T19:15').ok).toBe(true);
+    });
+
+    expect(result.current.championshipRounds[0]).toMatchObject({
+      skipped: true,
+      scheduledDate: '2026-09-10T19:15',
+      syncStatus: 'pending',
+    });
+  });
 });

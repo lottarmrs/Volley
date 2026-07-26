@@ -165,6 +165,14 @@ test('sanitizeAndConsolidateImportedBackup merges duplicate local players and re
       },
     ],
     teams: [{ id: 'team-1', playerIds: ['player-empty', 'player-active'] }],
+    championships: [{ id: 'champ-1', communityId: 'community-1' }],
+    championshipTeams: [
+      {
+        id: 'champ-team-1',
+        championshipId: 'champ-1',
+        playerIds: ['player-empty', 'player-active'],
+      },
+    ],
     pointEvents: [
       {
         id: 'point-1',
@@ -180,6 +188,7 @@ test('sanitizeAndConsolidateImportedBackup merges duplicate local players and re
   assert.equal(imported.players[0].syncStatus, 'pending');
   assert.deepEqual(imported.sessions[0].selectedPlayerIds, ['player-active']);
   assert.deepEqual(imported.teams[0].playerIds, ['player-active']);
+  assert.deepEqual(imported.championshipTeams[0].playerIds, ['player-active']);
   assert.equal(imported.pointEvents[0].playerId, 'player-active');
   assert.equal(imported.pointEvents[0].assistPlayerId, 'player-active');
   assert.deepEqual(imported.sessions[0].config.playerPositions, { 'player-active': 'oposto' });
@@ -214,6 +223,28 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
       },
     ],
     teams: [{ id: 'team-1', playerIds: ['player-1', 'missing-player'] }],
+    championships: [
+      { id: 'champ-1', communityId: 'community-1' },
+      { id: 'champ-orphan', communityId: 'missing-community' },
+    ],
+    championshipTeams: [
+      { id: 'champ-team-a', championshipId: 'champ-1', playerIds: ['player-1'] },
+      { id: 'champ-team-orphan', championshipId: 'champ-orphan', playerIds: ['player-1'] },
+    ],
+    championshipRounds: [
+      {
+        id: 'round-1',
+        championshipId: 'champ-1',
+        teamAId: 'champ-team-a',
+        teamBId: 'champ-team-a',
+      },
+      {
+        id: 'round-orphan',
+        championshipId: 'champ-orphan',
+        teamAId: 'champ-team-orphan',
+        teamBId: 'champ-team-orphan',
+      },
+    ],
     communityPresence: [
       {
         communityId: 'community-1',
@@ -247,6 +278,9 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
   });
   assert.deepEqual(imported.sessions[0].config.balanceConstraints.pairsTogether, []);
   assert.deepEqual(imported.teams[0].playerIds, ['player-1']);
+  assert.deepEqual(imported.championships.map((item: any) => item.id), ['champ-1']);
+  assert.deepEqual(imported.championshipTeams.map((item: any) => item.id), ['champ-team-a']);
+  assert.deepEqual(imported.championshipRounds.map((item: any) => item.id), ['round-1']);
   assert.deepEqual(imported.communityPresence, [
     {
       communityId: 'community-1',
@@ -260,4 +294,17 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
   assert.deepEqual(imported.communityRules, []);
   assert.deepEqual(imported.whatsAppListTemplates, []);
   assert.deepEqual(imported.whatsAppListDrafts[0].setters, [{ displayName: 'Fantasma' }]);
+});
+
+test('sanitizeAndConsolidateImportedBackup remaps championships to a canonical community', () => {
+  const imported = sanitizeAndConsolidateImportedBackup({
+    communities: [
+      { id: 'community-old', name: 'Liga Central', updatedAt: '2026-06-01T00:00:00.000Z' },
+      { id: 'community-new', name: 'Liga Central', updatedAt: '2026-07-01T00:00:00.000Z' },
+    ],
+    championships: [{ id: 'champ-1', communityId: 'community-old' }],
+  });
+
+  assert.equal(imported.communities.length, 1);
+  assert.equal(imported.championships[0].communityId, imported.communities[0].id);
 });

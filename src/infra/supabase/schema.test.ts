@@ -115,6 +115,13 @@ const championshipSchedulingMigration = readFixture(
   ),
 );
 
+const championshipIntegrityMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726120000_championship_integrity.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1602,4 +1609,23 @@ test('consolidated schema includes championship scheduling tables with RLS enabl
       `missing consolidated RLS for ${table}`,
     );
   }
+});
+
+test('championship integrity migration preserves every fixture and the season team bridge', () => {
+  assert.match(
+    championshipIntegrityMigration,
+    /drop constraint if exists championship_rounds_championship_id_round_key/i,
+  );
+  assert.match(
+    championshipIntegrityMigration,
+    /unique \(championship_id, local_id\)/i,
+  );
+  assert.match(
+    championshipIntegrityMigration,
+    /add column if not exists championship_team_id uuid/i,
+  );
+  assert.match(
+    championshipIntegrityMigration,
+    /validate_championship_round_scope/i,
+  );
 });

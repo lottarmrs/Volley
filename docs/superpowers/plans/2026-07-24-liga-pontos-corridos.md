@@ -842,6 +842,8 @@ premiações: `getSeasonAwards` agora recebe os elencos canônicos de
 `ChampionshipTeam`, preservando nomes dos times e o bônus do MVP sem alterar a lógica
 legada de `tournament.ts`. Ver `.superpowers/sdd/progress.md`.
 
+**Revisão independente confirmada** — spec ✅, code quality Approved. Desvio de tipo em `materializeRound` e o cast `as Team[]` do fast-follow ambos verificados como corretos/seguros (não apenas confiados). Lacuna real encontrada: a Task 6 não chama `materializeRound` em nenhum passo listado — vou ajustar o brief da Task 6 pra incluir um gatilho explícito de materialização de rodada.
+
 **Files:**
 - Create: `src/application/championshipUseCases.ts`
 - Create: `src/application/championshipUseCases.test.ts`
@@ -855,13 +857,13 @@ legada de `tournament.ts`. Ver `.superpowers/sdd/progress.md`.
 - Produces: `createChampionship`, `materializeRound`, `getSeasonStandings`,
   `getSeasonAwards` — exact signatures below. Task 6 (UI) depends on these.
 
-- [ ] **Step 1: Read `appResult.ts` and one existing `*UseCases.ts` file**
+- [x] **Step 1: Read `appResult.ts` and one existing `*UseCases.ts` file**
 
 Read `src/application/appResult.ts` in full, plus `src/application/localCommunityRulesUseCases.ts`
 (or a comparable thin use-case file) to match this codebase's established
 input/output/error-wrapping convention exactly — do not invent a different shape.
 
-- [ ] **Step 2: Write the failing test for `createChampionship`**
+- [x] **Step 2: Write the failing test for `createChampionship`**
 
 ```typescript
 // src/application/championshipUseCases.test.ts
@@ -911,12 +913,12 @@ describe('createChampionship', () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `npx vitest run src/application/championshipUseCases.test.ts`
 Expected: FAIL — module doesn't exist.
 
-- [ ] **Step 4: Implement `createChampionship`**
+- [x] **Step 4: Implement `createChampionship`**
 
 ```typescript
 // src/application/championshipUseCases.ts
@@ -988,12 +990,12 @@ Adjust the `productError`/`AppResult`/`{ ok: true, value: ... }` shape to exactl
 whatever `appResult.ts` actually exports (Step 1) — this snippet illustrates the logic,
 not necessarily the literal helper names.
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run src/application/championshipUseCases.test.ts`
 Expected: both tests PASS.
 
-- [ ] **Step 6: Write the failing test for `getSeasonStandings`**
+- [x] **Step 6: Write the failing test for `getSeasonStandings`**
 
 ```typescript
 // append to src/application/championshipUseCases.test.ts
@@ -1029,7 +1031,7 @@ describe('getSeasonStandings', () => {
 });
 ```
 
-- [ ] **Step 7: Run test to verify it fails, then implement `getSeasonStandings`**
+- [x] **Step 7: Run test to verify it fails, then implement `getSeasonStandings`**
 
 ```typescript
 // append to src/application/championshipUseCases.ts
@@ -1065,12 +1067,12 @@ fields together, that comparison silently fails after remapping. This is already
 handled by Task 1's implementation — just call it as shown above, no further remapping
 logic needed here.
 
-- [ ] **Step 8: Run test to verify it passes**
+- [x] **Step 8: Run test to verify it passes**
 
 Run: `npx vitest run src/application/championshipUseCases.test.ts`
 Expected: PASS.
 
-- [ ] **Step 9: Write `materializeRound` and `getSeasonAwards`**
+- [x] **Step 9: Write `materializeRound` and `getSeasonAwards`**
 
 `materializeRound(round: ChampionshipRound, teams: ChampionshipTeam[], communityId: string, now: string): { session: Omit<Session, 'id' | 'cloudId' | 'syncStatus' | 'lastSyncedAt' | 'deletedAt'>; teams: Omit<Team, 'id' | 'cloudId' | 'syncStatus' | 'lastSyncedAt' | 'deletedAt'>[]; game: Omit<Game, 'id'> }` —
 builds the local (not-yet-persisted) `Session`/`Team`/`Game` objects for a round per
@@ -1098,7 +1100,7 @@ Write both functions' full implementations and tests following the same TDD step
 Steps 2-8 above (write failing test, verify fail, implement, verify pass) — do not
 skip the RED step for these two functions just because they're later in the task.
 
-- [ ] **Step 10: Run the full suite, typecheck, lint**
+- [x] **Step 10: Run the full suite, typecheck, lint**
 
 ```bash
 npm test
@@ -1106,7 +1108,7 @@ npx tsc --noEmit
 npm run lint:eslint
 ```
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add src/application/championshipUseCases.ts src/application/championshipUseCases.test.ts

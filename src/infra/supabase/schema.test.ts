@@ -140,6 +140,13 @@ const dropLegacyCommunitiesUpdatePolicyMigration = readFixture(
   ),
 );
 
+const mandatoryMfaAal2EnforcementMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726110000_mandatory_mfa_and_aal2_enforcement.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -724,7 +731,14 @@ test('consolidated schema guards profile roles while preserving role RPC', () =>
   const expectedRpc = extractSqlFunction(roleManagementMigration, 'set_user_role');
   const actualRpc = extractSqlFunction(baseSchema, 'set_user_role');
   assert.ok(actualRpc, 'missing legitimate set_user_role RPC');
-  assert.equal(normalizeSql(actualRpc), normalizeSql(expectedRpc));
+  assert.ok(expectedRpc, 'missing historical set_user_role RPC to compare against');
+  // The consolidated schema's set_user_role has since diverged from this original
+  // migration: production now requires AAL2 (mandatory MFA hardening) and its error
+  // messages were normalized to plain ASCII, so this is no longer a literal-equality
+  // comparison — only the core role-change logic is asserted to still be present.
+  assert.match(actualRpc, /perform public\.require_aal2\(\);/i);
+  assert.match(actualRpc, /if not public\.is_superadmin\(\) then/i);
+  assert.match(actualRpc, /new_role not in \('master', 'programmer', 'user'\)/i);
   assert.match(actualRpc, /perform set_config\('app\.allow_role_change', 'on', true\)/i);
   assert.match(
     baseSchema,
@@ -1851,5 +1865,77 @@ test('consolidated schema includes the community capability layer', () => {
     'transfer_community_ownership',
   ]) {
     assert.ok(extractSqlFunction(baseSchema, fn), `consolidated schema missing ${fn}`);
+  }
+});
+
+test('mandatory MFA migration derives requires_aal2 on ensure_account_ready', () => {
+  for (const artifact of [mandatoryMfaAal2EnforcementMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'ensure_account_ready');
+    assert.ok(fn, 'missing ensure_account_ready');
+    assert.match(
+      fn,
+      /returns table \(\s*state text,[\s\S]*username text,\s*requires_aal2 boolean\s*\)/i,
+      'requires_aal2 boolean must be the final output column',
+    );
+    // Both return branches (needs_username and ready) must select the derived value.
+    const returnCalls = fn.match(/public\.account_requires_aal2\(v_uid\)/gi) ?? [];
+    assert.equal(returnCalls.length, 2, 'both return query branches must call account_requires_aal2');
+  }
+
+  assert.match(
+    mandatoryMfaAal2EnforcementMigration,
+    /drop function public\.ensure_account_ready\(text\);/i,
+  );
+});
+
+test('account_requires_aal2 checks global master/programmer role and active owner/admin community membership', () => {
+  for (const artifact of [mandatoryMfaAal2EnforcementMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'account_requires_aal2');
+    assert.ok(fn, 'missing account_requires_aal2');
+    assert.match(fn, /security definer[\s\S]*set search_path = public/i);
+    assert.match(
+      fn,
+      /from public\.profiles\s*where id = p_uid and role in \('master', 'programmer'\)/i,
+    );
+    assert.match(
+      fn,
+      /from public\.community_members\s*where user_id = p_uid and role in \('owner', 'admin'\) and status = 'active'/i,
+    );
+  }
+});
+
+test('require_aal2 raises 42501 unless the caller jwt aal claim is aal2', () => {
+  for (const artifact of [mandatoryMfaAal2EnforcementMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'require_aal2');
+    assert.ok(fn, 'missing require_aal2');
+    assert.match(fn, /set search_path = public/i);
+    assert.match(fn, /auth\.jwt\(\) ->> 'aal'/i);
+    assert.match(fn, /<> 'aal2'/i);
+    assert.match(fn, /errcode = '42501'/i);
+  }
+});
+
+test('the four sensitive role/ownership RPCs enforce AAL2 at the database layer', () => {
+  for (const fn of [
+    'set_user_role',
+    'set_community_member_role',
+    'remove_community_member',
+    'transfer_community_ownership',
+  ]) {
+    const migrationFn = extractSqlFunction(mandatoryMfaAal2EnforcementMigration, fn);
+    const schemaFn = extractSqlFunction(baseSchema, fn);
+    assert.ok(migrationFn, `migration missing ${fn}`);
+    assert.ok(schemaFn, `consolidated schema missing ${fn}`);
+    assert.match(migrationFn, /perform public\.require_aal2\(\);/i, fn);
+    assert.match(schemaFn, /perform public\.require_aal2\(\);/i, fn);
+  }
+
+  // set_community_member_role and remove_community_member authenticate first — an
+  // unauthenticated caller must still see 'Nao autenticado', not an AAL2 error.
+  for (const fn of ['set_community_member_role', 'remove_community_member']) {
+    const schemaFn = extractSqlFunction(baseSchema, fn);
+    const authCheckPosition = schemaFn.search(/raise exception 'Nao autenticado'/i);
+    const aal2Position = schemaFn.search(/perform public\.require_aal2\(\);/i);
+    assert.ok(authCheckPosition >= 0 && authCheckPosition < aal2Position, fn);
   }
 });

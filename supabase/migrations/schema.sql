@@ -393,6 +393,50 @@ $$;
 revoke execute on function public.community_has_capability(uuid, text) from public, anon;
 grant execute on function public.community_has_capability(uuid, text) to authenticated;
 
+-- PRE-FLIGHT CORRECTION (decidida antes da execução): 'admin' entra aqui.
+-- O texto original desta task exigia aal2 em set_community_member_role e
+-- remove_community_member, mas só obrigava MFA para master/programmer/owner —
+-- e o seed de capabilities dá manage_members/remove_members ao admin. Um admin
+-- nunca seria mandado enrolar TOTP, nunca chegaria a aal2, e toda chamada dele
+-- a essas duas RPCs falharia com 42501 para sempre. Incluir 'admin' fecha a
+-- contradição mantendo as quatro RPCs sob require_aal2().
+create or replace function public.account_requires_aal2(p_uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    exists (
+      select 1 from public.profiles
+      where id = p_uid and role in ('master', 'programmer')
+    )
+    or exists (
+      select 1 from public.community_members
+      where user_id = p_uid and role in ('owner', 'admin') and status = 'active'
+    );
+$$;
+
+revoke execute on function public.account_requires_aal2(uuid) from public, anon;
+grant execute on function public.account_requires_aal2(uuid) to authenticated;
+
+-- AAL2 enforcement at the DB layer for sensitive role/ownership RPCs, independent of
+-- client-side gating (per "Operacoes administrativas sensiveis exigem aal2 no banco",
+-- docs/superpowers/specs/2026-07-22-scalable-product-restructure-design.md).
+create or replace function public.require_aal2()
+returns void
+language plpgsql
+stable
+set search_path = public
+as $$
+begin
+  if coalesce((select auth.jwt() ->> 'aal'), '') <> 'aal2' then
+    raise exception 'Esta operacao exige verificacao em duas etapas (AAL2).' using errcode = '42501';
+  end if;
+end;
+$$;
+
 -- Member-management RPCs, capability-gated. The "target_member.role = 'owner' ->
 -- reject" guard is what makes these two unable to ever touch an owner, for anyone,
 -- including programmer/master.
@@ -413,6 +457,8 @@ begin
   if v_uid is null then
     raise exception 'Nao autenticado' using errcode = '42501';
   end if;
+
+  perform public.require_aal2();
 
   if p_role not in ('admin', 'moderator', 'organizador', 'member') then
     raise exception 'Invalid community member role: %', p_role using errcode = '22023';
@@ -457,6 +503,8 @@ begin
     raise exception 'Nao autenticado' using errcode = '42501';
   end if;
 
+  perform public.require_aal2();
+
   select * into target_member from public.community_members where id = p_member_id;
 
   if target_member.id is null then
@@ -490,6 +538,8 @@ declare
   current_owner public.community_members;
   new_owner public.community_members;
 begin
+  perform public.require_aal2();
+
   if not public.has_capability('manage_community_ownership') then
     raise exception 'Apenas master pode transferir a posse de uma comunidade' using errcode = '42501';
   end if;
@@ -566,19 +616,21 @@ as $$
 declare
   updated public.profiles;
 begin
+  perform public.require_aal2();
+
   if not public.is_superadmin() then
-    raise exception 'Apenas um master pode alterar papéis.' using errcode = '42501';
+    raise exception 'Apenas um master pode alterar papeis.' using errcode = '42501';
   end if;
 
   if new_role not in ('master', 'programmer', 'user') then
-    raise exception 'Papel inválido: %', new_role using errcode = '22023';
+    raise exception 'Papel invalido: %', new_role using errcode = '22023';
   end if;
 
   -- Protege o último master: não permite rebaixá-lo.
   if new_role <> 'master'
      and exists (select 1 from public.profiles where id = target_user_id and role = 'master')
      and (select count(*) from public.profiles where role = 'master') <= 1 then
-    raise exception 'Não é possível rebaixar o último master.' using errcode = '42501';
+    raise exception 'Nao e possivel rebaixar o ultimo master.' using errcode = '42501';
   end if;
 
   perform set_config('app.allow_role_change', 'on', true);
@@ -590,7 +642,7 @@ begin
    returning * into updated;
 
   if updated.id is null then
-    raise exception 'Usuário não encontrado.' using errcode = '22023';
+    raise exception 'Usuario nao encontrado.' using errcode = '22023';
   end if;
 
   return updated;
@@ -1753,7 +1805,8 @@ returns table (
   profile_created_at timestamptz,
   profile_updated_at timestamptz,
   player_id uuid,
-  username text
+  username text,
+  requires_aal2 boolean
 )
 language plpgsql
 security definer
@@ -1834,7 +1887,8 @@ begin
       v_profile.created_at,
       v_profile.updated_at,
       v_player.id,
-      null::text;
+      null::text,
+      public.account_requires_aal2(v_uid);
   else
     return query select
       'ready'::text,
@@ -1845,7 +1899,8 @@ begin
       v_profile.created_at,
       v_profile.updated_at,
       v_player.id,
-      v_player.username;
+      v_player.username,
+      public.account_requires_aal2(v_uid);
   end if;
 exception
   when unique_violation then

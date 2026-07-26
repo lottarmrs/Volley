@@ -1310,5 +1310,5 @@ git commit -m "feat(ui): add minimal championship management section to Communit
       `sessionId` inexistente/de outra comunidade.
 - [x] Migration `championship_integrity` aplicada no projeto real e verificada no
       catálogo: bridge, identidade, FK de escopo e trigger presentes.
-- [x] Gate final: 474 testes unitários + 86 testes de UI, TypeScript/lint e build de
+- [x] Gate final: 477 testes unitários + 86 testes de UI, TypeScript/lint e build de
       produção aprovados em 2026-07-26.

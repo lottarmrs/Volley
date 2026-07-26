@@ -176,6 +176,95 @@ test('uploadLocalDataToCloud resolves championship references before upload', as
   }
 });
 
+test('uploadLocalDataToCloud excludes a championship round whose session has not synced yet', async () => {
+  // Critical-bug-shaped case: championship_rounds.session_id is a nullable FK to
+  // sessions.id (the CLOUD id). If the referenced session hasn't been uploaded yet
+  // (no cloud row exists), the round must NOT be uploaded with the session's LOCAL
+  // id disguised as a cloud id — it must be excluded from this sync pass and
+  // retried once the session actually syncs.
+  const originalUpsertChampionship = championshipCloudService.upsertChampionship;
+  const originalUpsertTeam = championshipCloudService.upsertTeam;
+  const originalUpsertRound = championshipCloudService.upsertRound;
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  let roundUploadCalled = false;
+
+  const championship: Championship = {
+    id: 'champ-local',
+    communityId: 'community-local',
+    name: 'Liga de Verao',
+    format: 'round_robin',
+    classificationPoints: { win: 3, loss: 0 },
+    recurrenceRule: { daysOfWeek: [2], time: '20:00', startDate: '2026-08-01' },
+    createdAt: '2026-07-26T00:00:00.000Z',
+    updatedAt: '2026-07-26T00:00:00.000Z',
+    syncStatus: 'pending',
+  };
+  const championshipTeam: ChampionshipTeam = {
+    id: 'champ-team-local-a',
+    championshipId: 'champ-local',
+    name: 'Time A',
+    playerIds: [],
+    syncStatus: 'pending',
+  };
+  const otherTeam: ChampionshipTeam = {
+    ...championshipTeam,
+    id: 'champ-team-local-b',
+    name: 'Time B',
+  };
+  const round: ChampionshipRound = {
+    id: 'round-local',
+    championshipId: 'champ-local',
+    round: 1,
+    teamAId: championshipTeam.id,
+    teamBId: otherTeam.id,
+    scheduledDate: '2026-08-04T20:00',
+    skipped: false,
+    sessionId: 'session-not-yet-synced',
+    syncStatus: 'pending',
+  };
+
+  try {
+    championshipCloudService.upsertChampionship = async (item) => ({
+      ...item,
+      cloudId: 'champ-cloud',
+    });
+    championshipCloudService.upsertTeam = async (item) => ({
+      ...item,
+      cloudId: `${item.id}-cloud`,
+    });
+    championshipCloudService.upsertRound = async (item) => {
+      roundUploadCalled = true;
+      return { ...item, cloudId: 'round-cloud' };
+    };
+    // The referenced session fails to upload (e.g. offline, RLS, transient error) —
+    // it never gets a cloudId this pass.
+    operationalCloudService.upsertSession = async () => {
+      throw new Error('network error');
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-local', cloudId: 'community-cloud' })],
+        sessions: [makeSession({ id: 'session-not-yet-synced' })],
+        championships: [championship],
+        championshipTeams: [championshipTeam, otherTeam],
+        championshipRounds: [round],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(roundUploadCalled, false, 'round must not be uploaded while its session is unsynced');
+    assert.equal(result.championshipRounds[0].sessionId, 'session-not-yet-synced');
+    assert.equal(result.championshipRounds[0].cloudId, undefined);
+    assert.equal(result.championshipRounds[0].syncStatus, 'pending');
+  } finally {
+    championshipCloudService.upsertChampionship = originalUpsertChampionship;
+    championshipCloudService.upsertTeam = originalUpsertTeam;
+    championshipCloudService.upsertRound = originalUpsertRound;
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
 test('downloadCloudDataToLocal restores championship references to local ids', async () => {
   const originalCommunities = communityCloudService.fetchAll;
   const originalPlayers = playerCloudService.fetchAll;

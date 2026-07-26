@@ -1,13 +1,6 @@
-import type { PointEvent, Player, Position } from '../types';
+import type { PointEvent, Player, Position, ChampionshipRecurrenceRule } from '../types';
 import type { AwardWinner } from './tournament';
 import { isCreditedPoint } from './match';
-
-export interface ChampionshipRecurrenceRule {
-  daysOfWeek: number[]; // 0 (Sunday) .. 6 (Saturday)
-  time: string; // 'HH:mm'
-  startDate: string; // 'YYYY-MM-DD'
-  endDate?: string | null; // 'YYYY-MM-DD', inclusive
-}
 
 export function generateRoundDates(
   rule: ChampionshipRecurrenceRule,

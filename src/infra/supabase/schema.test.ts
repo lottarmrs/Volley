@@ -126,6 +126,20 @@ const globalRoleCapabilitiesMigration = readFixture(
   ),
 );
 
+const communityRoleCapabilitiesMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726100000_community_role_capabilities.sql',
+    import.meta.url,
+  ),
+);
+
+const dropLegacyCommunitiesUpdatePolicyMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726160000_drop_legacy_communities_update_policy.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1726,4 +1740,116 @@ test('consolidated schema includes global role capabilities with RLS and has_cap
     extractSqlFunction(baseSchema, 'has_capability'),
     'consolidated schema missing has_capability function',
   );
+});
+
+test('community role capabilities migration adds organizador and capability-gates member RPCs', () => {
+  assert.match(
+    communityRoleCapabilitiesMigration,
+    /check \(role in \('owner', 'admin', 'moderator', 'organizador', 'member'\)\)/i,
+  );
+
+  const insertBlock = communityRoleCapabilitiesMigration.match(
+    /insert into public\.community_role_capabilities \(role, capability\) values[\s\S]*?on conflict do nothing;/i,
+  )?.[0];
+  assert.ok(insertBlock, 'missing community capability seed block');
+  assert.match(insertBlock, /\('organizador', 'manage_sessions'\)/i);
+  // organizador and moderator run sessions; they must never gain member management
+  // or the ability to edit community info.
+  assert.doesNotMatch(insertBlock, /\('organizador', 'manage_members'\)/i);
+  assert.doesNotMatch(insertBlock, /\('organizador', 'edit_community_info'\)/i);
+  assert.doesNotMatch(insertBlock, /\('moderator', 'manage_members'\)/i);
+  assert.doesNotMatch(insertBlock, /\('moderator', 'edit_community_info'\)/i);
+  // 'member' holds no capabilities at all by default.
+  assert.doesNotMatch(insertBlock, /\('member',/i);
+
+  for (const table of [
+    'community_role_capabilities',
+    'community_role_capability_overrides',
+  ]) {
+    assert.match(
+      communityRoleCapabilitiesMigration,
+      new RegExp(`alter table public\\.${table} enable row level security;`, 'i'),
+    );
+    assert.match(
+      communityRoleCapabilitiesMigration,
+      new RegExp(`revoke all on table public\\.${table} from public, anon;`, 'i'),
+    );
+  }
+
+  const capabilityFn = extractSqlFunction(
+    communityRoleCapabilitiesMigration,
+    'community_has_capability',
+  );
+  assert.ok(capabilityFn, 'missing community_has_capability function');
+  assert.match(capabilityFn, /security definer[\s\S]*set search_path = public/i);
+  // An override row wins over the role default, in either direction.
+  assert.match(capabilityFn, /coalesce\([\s\S]*select o\.granted[\s\S]*community_role_capability_overrides o/i);
+  assert.match(capabilityFn, /cm\.status = 'active'/i);
+
+  for (const [fn, capability] of [
+    ['set_community_member_role', 'manage_members'],
+    ['remove_community_member', 'remove_members'],
+  ] as const) {
+    const body = extractSqlFunction(communityRoleCapabilitiesMigration, fn);
+    assert.ok(body, `missing ${fn} function`);
+    assert.match(
+      body,
+      new RegExp(`community_has_capability\\(target_member\\.community_id, '${capability}'\\)`, 'i'),
+    );
+    // The owner guard is what keeps these RPCs from ever touching an owner row,
+    // for any caller including master/programmer.
+    assert.match(body, /target_member\.role = 'owner'/i);
+    assert.doesNotMatch(body, /array\['owner', ?'admin'\]/i);
+  }
+
+  const transfer = extractSqlFunction(
+    communityRoleCapabilitiesMigration,
+    'transfer_community_ownership',
+  );
+  assert.ok(transfer, 'missing transfer_community_ownership function');
+  assert.match(transfer, /has_capability\('manage_community_ownership'\)/i);
+  // Promote the new owner BEFORE demoting the old one, or the last-owner guard
+  // trigger rejects the demote.
+  const promoteAt = transfer.search(/set role = 'owner'/i);
+  const demoteAt = transfer.search(/set role = 'admin'/i);
+  assert.ok(promoteAt !== -1 && demoteAt !== -1, 'missing promote/demote statements');
+  assert.ok(promoteAt < demoteAt, 'must promote the new owner before demoting the old one');
+});
+
+test('communities UPDATE is capability-gated with no legacy bypass policy', () => {
+  // Both the capability layer and the follow-up drop are needed: the capability
+  // migration's own drop targeted a policy name that no longer existed, leaving the
+  // legacy policy live and OR-ing past any granted=false override.
+  assert.match(
+    communityRoleCapabilitiesMigration,
+    /create policy "Community capability holders can update communities"/i,
+  );
+  assert.match(
+    dropLegacyCommunitiesUpdatePolicyMigration,
+    /drop policy if exists "Community owners and admins can update communities" on public\.communities;/i,
+  );
+
+  assert.match(baseSchema, /create policy "Community capability holders can update communities"/i);
+  assert.doesNotMatch(
+    baseSchema,
+    /create policy "Community owners and admins can update communities"/i,
+  );
+  assert.doesNotMatch(baseSchema, /create policy "Users can update own communities"/i);
+});
+
+test('consolidated schema includes the community capability layer', () => {
+  assert.match(baseSchema, /create table public\.community_role_capabilities \(/i);
+  assert.match(baseSchema, /create table public\.community_role_capability_overrides \(/i);
+  assert.match(
+    baseSchema,
+    /check \(role in \('owner', 'admin', 'moderator', 'organizador', 'member'\)\)/i,
+  );
+  for (const fn of [
+    'community_has_capability',
+    'set_community_member_role',
+    'remove_community_member',
+    'transfer_community_ownership',
+  ]) {
+    assert.ok(extractSqlFunction(baseSchema, fn), `consolidated schema missing ${fn}`);
+  }
 });

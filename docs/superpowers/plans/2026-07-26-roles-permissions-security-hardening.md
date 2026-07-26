@@ -53,6 +53,9 @@ dependencies.
 
 ### Task 1: Global role capabilities
 
+**Status: ✅ Concluída.** Aplicada em produção como `20260726124909_global_role_capabilities`,
+arquivo e `schema.sql` no repo, commit `0483091`.
+
 **Files:**
 - Create: `supabase/migrations/20260726090000_global_role_capabilities.sql`
 - Modify: `supabase/migrations/schema.sql`
@@ -173,6 +176,27 @@ git commit -m "feat(db): add global role capabilities table and has_capability()
 ---
 
 ### Task 2: Community role capabilities, `organizador`, overrides, and RPC rewrites
+
+**Status: ✅ Concluída, com duas correções fora do texto original.**
+
+Aplicada em produção como `20260726153631_community_role_capabilities`. Duas coisas
+deram errado e foram corrigidas depois:
+
+1. **O arquivo da migration foi perdido.** Ficou untracked e sumiu numa limpeza de
+   worktree; o `schema.sql` também nunca recebeu os objetos da task. Produção tinha a
+   camada de capabilities inteira sem nenhum registro no repo. Recuperado byte a byte
+   de `supabase_migrations.schema_migrations` (10581 caracteres, conferido) para
+   `supabase/migrations/20260726100000_community_role_capabilities.sql`.
+2. **O `drop policy` do Step 2 era no-op e deixou um bypass ativo.** O plano mandava
+   dropar `"Users can update own communities"`, mas produção já tinha renomeado essa
+   policy em `20260610161203` para `"Community owners and admins can update
+   communities"`. Como o Postgres faz OR entre policies permissivas, a policy legada
+   continuou viva ao lado da nova e furava qualquer override com `granted = false`.
+   Corrigido por `20260726160000_drop_legacy_communities_update_policy.sql` (aplicado;
+   produção tinha zero comunidades, então sem impacto em dados). O Completion Gate
+   deste plano partia de uma premissa errada aqui: dizia que `admin` estava *bloqueado*
+   de editar comunidade, mas isso só valia para o `schema.sql` (defasado) — em produção
+   `admin` já conseguia editar pela policy legada.
 
 **Files:**
 - Create: `supabase/migrations/20260726100000_community_role_capabilities.sql`
@@ -1240,6 +1264,24 @@ git commit -m "docs(db): mark community_players.role as deprecated"
 ```
 
 ---
+
+## Achado aberto: `schema.sql` está longe de reproduzir produção
+
+Descoberto ao fazer o Step 4 da Task 2. **24 das 48 funções de produção não existem no
+`schema.sql`** — não é só a Task 2. Faltam, entre outras, o sistema de entrada em
+comunidade inteiro (`request_to_join_community`, `request_to_join_public`,
+`approve_join_request`, `reject_join_request`, `generate_join_code`,
+`disable_join_code`, `find_community_by_code`, `search_public_communities`,
+`leave_community`, `add_community_member_by_email`, `set_community_visibility`),
+a aprovação de avatar (`propose_player_avatar`, `approve_player_avatar`,
+`reject_player_avatar`), e guards como `prevent_last_community_owner_change` e
+`guard_community_member_owner_role`.
+
+O backfill anterior (`3191f24`) cobriu apenas **tabelas**, não funções. Enquanto isso
+não for fechado, `schema.sql` não serve para o propósito declarado dele ("paste this
+schema directly into the Supabase SQL Editor"): um projeto novo criado a partir dele
+sobe sem metade dos RPCs. Vale um plano próprio, com o mesmo cuidado de verificação
+contra produção usado aqui.
 
 ## Completion Gate
 

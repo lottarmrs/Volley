@@ -398,6 +398,8 @@ git commit -m "feat(logic): add championship recurrence, position awards, and te
 
 ### Task 2: Database — championships, championship_teams, championship_rounds
 
+**Status: ✅ Concluída e revisada** — commit `9431d3f`, review Approved (spec ✅). Achado Important não-bloqueante: `schema.sql` nunca incluiu sessions/teams/games/etc. (lacuna pré-existente) — a FK nova `championship_rounds.session_id` é a primeira coisa a realmente depender disso, quebrando um paste fresco do arquivo. Escalado como tarefa separada (`task_09f6c6c7`), não corrigido aqui. Ver `.superpowers/sdd/progress.md`.
+
 **Files:**
 - Create: `supabase/migrations/20260725120000_championship_scheduling.sql`
 - Modify: `supabase/migrations/schema.sql`
@@ -409,7 +411,7 @@ git commit -m "feat(logic): add championship recurrence, position awards, and te
   do not write a new authorization function).
 - Produces: three tables with RLS, ready for Task 3's cloud services to read/write.
 
-- [ ] **Step 1: Read the existing modern community-scoped table pattern before writing SQL**
+- [x] **Step 1: Read the existing modern community-scoped table pattern before writing SQL**
 
 Read `src/infra/supabase/schema.test.ts` and `supabase/migrations/schema.sql` for a
 table created **after** RBAC roles existed (e.g. `sessions`, `community_players`, or
@@ -419,7 +421,7 @@ follow that modern pattern (`current_user_has_community_role`), **not** the olde
 `community_rules`/`whatsapp_list_templates` pattern (owner-only, pre-RBAC, no role
 check) which predates community roles and is not the convention for new tables.
 
-- [ ] **Step 2: Write the migration**
+- [x] **Step 2: Write the migration**
 
 Create `supabase/migrations/20260725120000_championship_scheduling.sql`:
 
@@ -635,7 +637,7 @@ existing read policies on other tables call it. If it does not support a no-argu
 call, use the same explicit full-roles-list form the read policies on `sessions` (or
 another comparable modern table) actually use instead.
 
-- [ ] **Step 2: Apply the migration to the real Supabase project**
+- [x] **Step 2: Apply the migration to the real Supabase project**
 
 Use the Supabase MCP `apply_migration` tool against project `csoslatxjjazrtrtylke`.
 Verify with `list_tables`/`execute_sql` that all three tables exist with RLS enabled
@@ -643,13 +645,13 @@ and the expected policies. Run `get_advisors` (security + performance) and confi
 new advisories beyond an expected unindexed-FK INFO note (consistent with the pattern
 already accepted in Plano 2's migration for `player_evaluations.community_id`).
 
-- [ ] **Step 3: Update the consolidated schema.sql**
+- [x] **Step 3: Update the consolidated schema.sql**
 
 Append the three table definitions (with their indexes, RLS, policies, grants) to
 `supabase/migrations/schema.sql`, placed near other community-scoped tables (e.g. after
 `community_players`/`sessions`), matching this file's existing formatting conventions.
 
-- [ ] **Step 4: Update schema.test.ts**
+- [x] **Step 4: Update schema.test.ts**
 
 Following this file's existing pattern (see how Plano 2's
 `20260724150000_evaluation_community_authorization.sql` test was written — read that
@@ -661,7 +663,7 @@ test block first), add:
 - A test asserting the final/consolidated `schema.sql` state includes all three tables
   with RLS enabled.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 ```bash
 npm test
@@ -673,7 +675,7 @@ checkout artifact recurs in your environment — see this repo's recurring note 
 `core.autocrlf`; if you see exactly those two failures and nothing else, restore
 affected files from `git show HEAD:<path>` before concluding anything is broken.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations/20260725120000_championship_scheduling.sql supabase/migrations/schema.sql src/infra/supabase/schema.test.ts

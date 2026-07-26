@@ -14,3 +14,4 @@
 - [ ] Logs nao incluem access token, refresh token, secret TOTP ou senha.
 - [ ] Smoke test de cadastro, recovery, Google, onboarding e logout passou.
 - [ ] Nenhuma tabela de produto foi resetada nesta entrega.
+- [ ] Senha minima configurada em 8 caracteres (Authentication -> Policies).

@@ -119,6 +119,13 @@ export function PasswordRecoveryPage() {
           setUpdateError(null);
           try {
             await supabaseAuthClient.updatePassword(newPassword);
+            try {
+              await supabaseAuthClient.signOutOthers();
+            } catch {
+              // Nao bloqueia a mensagem de sucesso: a senha ja foi trocada,
+              // e invalidar as outras sessoes e um reforco de seguranca, nao
+              // um pre-requisito para o usuario seguir em frente.
+            }
             setUpdated(true);
           } catch (cause) {
             setUpdateError(

@@ -23,6 +23,7 @@ const { authClientMock } = vi.hoisted(() => ({
     verifyTotp: vi.fn(),
     requestPasswordRecovery: vi.fn(),
     updatePassword: vi.fn(),
+    signOutOthers: vi.fn(),
   },
 }));
 
@@ -300,6 +301,7 @@ describe('PasswordRecoveryPage', () => {
   beforeEach(() => {
     authClientMock.requestPasswordRecovery.mockReset();
     authClientMock.updatePassword.mockReset();
+    authClientMock.signOutOthers.mockReset();
   });
 
   it('sends a recovery email when there is no active session', async () => {
@@ -326,6 +328,7 @@ describe('PasswordRecoveryPage', () => {
 
   it('shows the set-new-password form and calls updatePassword when a recovery session is present', async () => {
     authClientMock.updatePassword.mockResolvedValue(undefined);
+    authClientMock.signOutOthers.mockResolvedValue(undefined);
     renderAuthPage(
       '/recuperar-senha',
       {
@@ -345,5 +348,26 @@ describe('PasswordRecoveryPage', () => {
     );
     await waitFor(() => expect(screen.getByText('Senha atualizada com sucesso.')).toBeTruthy());
     expect(authClientMock.requestPasswordRecovery).not.toHaveBeenCalled();
+    expect(authClientMock.signOutOthers).toHaveBeenCalledTimes(1);
+  });
+
+  it('still shows the success message when signOutOthers rejects', async () => {
+    authClientMock.updatePassword.mockResolvedValue(undefined);
+    authClientMock.signOutOthers.mockRejectedValue(new Error('network error'));
+    renderAuthPage(
+      '/recuperar-senha',
+      {
+        state: { kind: 'ready' } as unknown as AuthSessionState,
+        session: {} as unknown as AuthSessionContextValue['session'],
+      },
+      undefined,
+      <PasswordRecoveryPage />,
+    );
+    fireEvent.change(screen.getByLabelText('Nova senha'), {
+      target: { value: 'nova-senha-forte' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
+    await waitFor(() => expect(authClientMock.signOutOthers).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText('Senha atualizada com sucesso.')).toBeTruthy());
   });
 });

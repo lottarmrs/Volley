@@ -113,6 +113,21 @@ test('TOTP verification with an explicit factorId skips the verified-status look
   ]);
 });
 
+test('signOutOthers calls auth.signOut with scope "others"', async () => {
+  let options: unknown;
+  const client = createAuthClient(
+    {
+      signOut: async (value: unknown) => {
+        options = value;
+        return { error: null };
+      },
+    } as never,
+    { origin: 'https://panelinha.test' },
+  );
+  await client.signOutOthers();
+  assert.deepEqual(options, { scope: 'others' });
+});
+
 test('sign-up forwards the claim code as auth metadata', async () => {
   let payload: unknown;
   const client = createAuthClient(

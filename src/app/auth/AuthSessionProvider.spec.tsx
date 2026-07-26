@@ -32,6 +32,7 @@ function fakeAuthClient(options: {
     updatePassword: async () => {},
     getAssuranceLevel: async () => ({ current: null, next: null }),
     signOut: async () => {},
+    signOutOthers: async () => {},
     enrollTotp: async () => {
       throw new Error('not implemented');
     },

@@ -20,6 +20,7 @@ export interface AuthClient {
   updatePassword(password: string): Promise<void>;
   getAssuranceLevel(): Promise<AssuranceLevel>;
   signOut(): Promise<void>;
+  signOutOthers(): Promise<void>;
   enrollTotp(): Promise<MfaEnrollment>;
   verifyTotp(code: string, factorId?: string): Promise<void>;
 }
@@ -97,6 +98,10 @@ export function createAuthClient(
       const { error } = await auth.signOut();
       fail(error);
     },
+    async signOutOthers() {
+      const { error } = await auth.signOut({ scope: 'others' });
+      fail(error);
+    },
     async enrollTotp() {
       const { data, error } = await auth.mfa.enroll({ factorType: 'totp' });
       fail(error);
@@ -147,6 +152,7 @@ const unavailableAuthClient: AuthClient = {
   },
   getAssuranceLevel: async () => ({ current: null, next: null }),
   signOut: async () => {},
+  signOutOthers: async () => {},
   enrollTotp: async () => {
     throw unavailable;
   },

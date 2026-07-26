@@ -837,6 +837,11 @@ git commit -m "feat(types): add Championship types and cloud service"
 
 ### Task 4: Application layer — create season, materialize round, season stats
 
+**Status: ✅ Concluída e revisada** — commit `0521e14` mais fast-follow do contrato de
+premiações: `getSeasonAwards` agora recebe os elencos canônicos de
+`ChampionshipTeam`, preservando nomes dos times e o bônus do MVP sem alterar a lógica
+legada de `tournament.ts`. Ver `.superpowers/sdd/progress.md`.
+
 **Files:**
 - Create: `src/application/championshipUseCases.ts`
 - Create: `src/application/championshipUseCases.test.ts`
@@ -1078,13 +1083,16 @@ exactly match their source `ChampionshipTeam`s.
 
 `getSeasonAwards(pointEvents: PointEvent[], players: Player[], sessionTeams: {id:
 string; championshipTeamId?: string}[], championshipTeamIds: string[],
-classificationPoints: {...}, games: Game[]): { awards: TournamentAwards; mvp:
+classificationPoints: {...}, games: Game[], championshipTeams: ChampionshipTeam[]): { awards: TournamentAwards; mvp:
 TournamentMVP | null; awardsByPosition: ReturnType<typeof calculateAwardsByPosition>;
 topScorers: ReturnType<typeof calculateTopScorers> }` —
 computes `getSeasonStandings` internally, then calls `calculateTournamentAwards`,
 `calculateTournamentMVP`, `calculateAwardsByPosition`, `calculateTopScorers` with the
-already-remapped teams/standings. Write a test proving the MVP/awards reflect players
-across two different sessions' point events, not just one.
+already-remapped teams/standings. `championshipTeams` supplies the canonical team names
+and player rosters required to associate award winners with their season team and apply
+the MVP team-performance bonus. Write a test proving the MVP/awards reflect players
+across two different sessions' point events, not just one, including the canonical team
+name and season standing contribution.
 
 Write both functions' full implementations and tests following the same TDD steps as
 Steps 2-8 above (write failing test, verify fail, implement, verify pass) — do not

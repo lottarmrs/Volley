@@ -185,6 +185,10 @@ function pointEvent(overrides: Partial<PointEvent> = {}): PointEvent {
 
 test('getSeasonAwards reflects players across two different sessions point events, not just one', () => {
   const players = [makePlayer('p1'), makePlayer('p2')];
+  const championshipTeams = [
+    championshipTeam({ id: 'champ-team-1', name: 'Time A', playerIds: ['p1'] }),
+    championshipTeam({ id: 'champ-team-2', name: 'Time B', playerIds: ['p2'] }),
+  ];
   const sessionTeams = [
     { id: 'session1-teamA', championshipTeamId: 'champ-team-1' },
     { id: 'session1-teamB', championshipTeamId: 'champ-team-2' },
@@ -224,10 +228,16 @@ test('getSeasonAwards reflects players across two different sessions point event
     ['champ-team-1', 'champ-team-2'],
     { win: 3, loss: 0 },
     games,
+    championshipTeams,
   );
 
   assert.equal(result.mvp?.playerId, 'p1');
   assert.equal(result.mvp?.totalPoints, 4);
+  assert.equal(result.mvp?.teamName, 'Time A');
+  assert.equal(result.mvp?.teamWinRate, 100);
+  assert.equal(result.mvp?.mvpScore, 5.5);
+  assert.equal(result.awards.mvp?.teamName, 'Time A');
+  assert.equal(result.awards.attack?.teamName, 'Time A');
   const p1TopScorer = result.topScorers.find((s) => s.playerId === 'p1')!;
   assert.equal(p1TopScorer.totalPoints, 4);
 });

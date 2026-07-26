@@ -258,6 +258,7 @@ export function getSeasonAwards(
     walkoverLoss?: number;
   },
   games: Game[],
+  championshipTeams: ChampionshipTeam[],
 ): {
   awards: TournamentAwards;
   mvp: TournamentMVP | null;
@@ -271,12 +272,16 @@ export function getSeasonAwards(
     games,
   });
 
-  // ponytail: sessionTeams here only carries id/championshipTeamId (no rosters), so
-  // there's no Team[] to resolve player -> team for award teamNames or the MVP
-  // win-rate bonus — both come back zero/undefined at season level. Add real
-  // ChampionshipTeam rosters here if the UI needs per-team season award badges.
-  const awards = calculateTournamentAwards(pointEvents, players, [], standings);
-  const mvp = calculateTournamentMVP(pointEvents, [], players, standings);
+  const awardTeams = championshipTeams.map(({ id, name, playerIds }) => ({
+    id,
+    name,
+    playerIds,
+  }));
+  // The legacy tournament calculators type this read-only projection as Team[], but
+  // only consume id/name/playerIds. Keep their implementation byte-identical.
+  const tournamentTeams = awardTeams as Team[];
+  const awards = calculateTournamentAwards(pointEvents, players, tournamentTeams, standings);
+  const mvp = calculateTournamentMVP(pointEvents, tournamentTeams, players, standings);
   const awardsByPosition = calculateAwardsByPosition(pointEvents, players);
   const topScorers = calculateTopScorers(pointEvents);
 

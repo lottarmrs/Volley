@@ -108,6 +108,13 @@ const evaluationCommunityAuthorizationMigration = readFixture(
   ),
 );
 
+const championshipSchedulingMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260725120000_championship_scheduling.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1514,4 +1521,85 @@ test('consolidated schema mirrors community-authorized evaluation writes and sel
     baseSchema,
     /grant select, insert, update on public\.self_evaluations to authenticated;/i,
   );
+});
+
+test('championship scheduling migration creates championships, championship_teams, and championship_rounds', () => {
+  assert.match(championshipSchedulingMigration, /create table public\.championships \(/i);
+  assert.match(championshipSchedulingMigration, /create table public\.championship_teams \(/i);
+  assert.match(championshipSchedulingMigration, /create table public\.championship_rounds \(/i);
+
+  assert.match(
+    championshipSchedulingMigration,
+    /unique \(championship_id, round\)/i,
+  );
+
+  for (const table of ['championships', 'championship_teams', 'championship_rounds']) {
+    assert.match(
+      championshipSchedulingMigration,
+      new RegExp(`alter table public\\.${table} enable row level security;`, 'i'),
+      `missing RLS for ${table}`,
+    );
+    assert.match(
+      championshipSchedulingMigration,
+      new RegExp(`revoke all on table public\\.${table} from public, anon;`, 'i'),
+      `missing revoke for ${table}`,
+    );
+    assert.match(
+      championshipSchedulingMigration,
+      new RegExp(
+        `grant select, insert, update, delete on public\\.${table} to authenticated;`,
+        'i',
+      ),
+      `missing grant for ${table}`,
+    );
+  }
+
+  for (const policyName of [
+    'Community owner or admin can insert championships',
+    'Community owner or admin can update championships',
+    'Community owner or admin can delete championships',
+    'Community owner or admin can insert championship teams',
+    'Community owner or admin can update championship teams',
+    'Community owner or admin can delete championship teams',
+    'Community owner or admin can insert championship rounds',
+    'Community owner or admin can update championship rounds',
+    'Community owner or admin can delete championship rounds',
+  ]) {
+    const policyBlock = championshipSchedulingMigration.match(
+      new RegExp(`create policy "${policyName}"[\\s\\S]*?;`, 'i'),
+    )?.[0];
+    assert.ok(policyBlock, `missing policy: ${policyName}`);
+    assert.match(
+      policyBlock,
+      /current_user_has_community_role\((?:c\.)?community_id, array\['owner', 'admin'\]\)/i,
+      `policy "${policyName}" must check owner/admin community role`,
+    );
+  }
+
+  for (const policyName of [
+    'Community members can read championships',
+    'Community members can read championship teams',
+    'Community members can read championship rounds',
+  ]) {
+    assert.match(
+      championshipSchedulingMigration,
+      new RegExp(`create policy "${policyName}"`, 'i'),
+      `missing read policy: ${policyName}`,
+    );
+  }
+});
+
+test('consolidated schema includes championship scheduling tables with RLS enabled', () => {
+  for (const table of ['championships', 'championship_teams', 'championship_rounds']) {
+    assert.match(
+      baseSchema,
+      new RegExp(`create table public\\.${table} \\(`, 'i'),
+      `missing consolidated table ${table}`,
+    );
+    assert.match(
+      baseSchema,
+      new RegExp(`alter table public\\.${table} enable row level security;`, 'i'),
+      `missing consolidated RLS for ${table}`,
+    );
+  }
 });

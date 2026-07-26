@@ -44,6 +44,8 @@ No new dependencies.
 
 ### Task 1: Domain logic — recurrence engine, position awards, id remap
 
+**Status: ✅ Concluída e revisada** — commit `330aeee`, review Approved (sem findings acima de Minor). Ver `.superpowers/sdd/progress.md` para detalhes.
+
 **Files:**
 - Create: `src/logic/championship.ts`
 - Create: `src/logic/championship.test.ts`
@@ -56,7 +58,7 @@ No new dependencies.
   `remapTeamIdsForChampionship` — exact signatures below. Tasks 4 and 6 depend on
   these exact names and shapes.
 
-- [ ] **Step 1: Write the failing tests for `generateRoundDates`**
+- [x] **Step 1: Write the failing tests for `generateRoundDates`**
 
 ```typescript
 // src/logic/championship.test.ts
@@ -111,12 +113,12 @@ describe('generateRoundDates', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run src/logic/championship.test.ts`
 Expected: FAIL with "Cannot find module './championship'" (file doesn't exist yet).
 
-- [ ] **Step 3: Implement `generateRoundDates`**
+- [x] **Step 3: Implement `generateRoundDates`**
 
 ```typescript
 // src/logic/championship.ts
@@ -153,14 +155,14 @@ export function generateRoundDates(
 }
 ```
 
-- [ ] **Step 4: Run tests to verify `generateRoundDates` passes**
+- [x] **Step 4: Run tests to verify `generateRoundDates` passes**
 
 Run: `npx vitest run src/logic/championship.test.ts`
 Expected: the 4 `generateRoundDates` tests PASS (the file will still fail to import
 `calculateAwardsByPosition`/`remapTeamIdsForChampionship` — write those next before
 running the full file again).
 
-- [ ] **Step 5: Write the failing tests for `calculateAwardsByPosition`**
+- [x] **Step 5: Write the failing tests for `calculateAwardsByPosition`**
 
 ```typescript
 // append to src/logic/championship.test.ts
@@ -286,12 +288,12 @@ describe('remapTeamIdsForChampionship', () => {
 });
 ```
 
-- [ ] **Step 6: Run tests to verify they fail**
+- [x] **Step 6: Run tests to verify they fail**
 
 Run: `npx vitest run src/logic/championship.test.ts`
 Expected: FAIL — `calculateAwardsByPosition`/`remapTeamIdsForChampionship` not exported.
 
-- [ ] **Step 7: Implement `calculateAwardsByPosition` and `remapTeamIdsForChampionship`**
+- [x] **Step 7: Implement `calculateAwardsByPosition` and `remapTeamIdsForChampionship`**
 
 ```typescript
 // append to src/logic/championship.ts
@@ -371,12 +373,12 @@ essa comparação nunca bate depois do remapeamento e a classificação quebra
 silenciosamente (todo jogo passaria a não ter vencedor detectado). Os testes acima
 cobrem exatamente isso.
 
-- [ ] **Step 8: Run tests to verify they pass**
+- [x] **Step 8: Run tests to verify they pass**
 
 Run: `npx vitest run src/logic/championship.test.ts`
 Expected: all tests PASS.
 
-- [ ] **Step 9: Run typecheck and lint**
+- [x] **Step 9: Run typecheck and lint**
 
 ```bash
 npx tsc --noEmit
@@ -385,7 +387,7 @@ npm run lint:eslint
 
 Expected: both clean.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/logic/championship.ts src/logic/championship.test.ts

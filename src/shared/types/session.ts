@@ -126,7 +126,63 @@ export interface Team {
   playerIds: string[];
   generatedByAlgorithm: boolean;
   locked: boolean;
+  championshipTeamId?: string;
   strengthSnapshot: TeamStrengthSnapshot;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChampionshipRecurrenceRule {
+  daysOfWeek: number[];
+  time: string;
+  startDate: string;
+  endDate?: string | null;
+}
+
+export interface Championship {
+  id: string;
+  communityId: string;
+  name: string;
+  format: 'round_robin' | 'double_round_robin';
+  classificationPoints: {
+    win: number;
+    loss: number;
+    walkoverWin?: number;
+    walkoverLoss?: number;
+  };
+  recurrenceRule: ChampionshipRecurrenceRule;
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChampionshipTeam {
+  id: string;
+  championshipId: string;
+  name: string;
+  playerIds: string[];
+  cloudId?: string;
+  syncStatus?: CloudSyncStatus;
+  lastSyncedAt?: string;
+  deletedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChampionshipRound {
+  id: string;
+  championshipId: string;
+  round: number;
+  teamAId: string; // ChampionshipTeam.id
+  teamBId: string; // ChampionshipTeam.id
+  scheduledDate: string;
+  skipped: boolean;
+  sessionId?: string;
   cloudId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;

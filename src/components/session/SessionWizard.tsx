@@ -35,6 +35,7 @@ import {
   Community,
   Game,
   RotationType,
+  TournamentFormat,
 } from '../../types';
 import {
   resolveComposition,
@@ -307,7 +308,7 @@ export function SessionWizard({
     if (!activeSession?.config) return;
     onUpdateSession({
       config: {
-        ...(activeSession.config as any),
+        ...activeSession.config,
         playerPositions: { ...playerPositions, [playerId]: pos },
       },
     });
@@ -651,7 +652,9 @@ export function SessionWizard({
                       </label>
                       <select
                         value={positionFilter}
-                        onChange={(e) => setPositionFilter(e.target.value as any)}
+                        onChange={(e) =>
+                          setPositionFilter(e.target.value as 'all' | Position)
+                        }
                         className="select select-bordered w-full select-sm uppercase text-[10px]"
                       >
                         <option value="all">Todas</option>
@@ -959,7 +962,7 @@ export function SessionWizard({
                 </div>
 
                 <div className="space-y-6">
-                  {activeSession.type === 'tournament' && (
+                  {config.type === 'tournament' && (
                     <div className="space-y-6">
                       <div className="fieldset">
                         <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest mb-3">
@@ -1003,13 +1006,15 @@ export function SessionWizard({
                               badge: 'Completo',
                             },
                           ].map((f) => {
-                            const isSelected = (config as any).format === f.id;
+                            const isSelected = config.format === f.id;
                             return (
                               <button
                                 key={f.id}
                                 type="button"
                                 onClick={() =>
-                                  onUpdateSession({ config: { ...(config as any), format: f.id } })
+                                  onUpdateSession({
+                                    config: { ...config, format: f.id as TournamentFormat },
+                                  })
                                 }
                                 className={`card card-border cursor-pointer text-left hover:scale-[1.01] transition-all p-4 bg-base-200 border border-base-300 flex flex-row items-start gap-4 ${
                                   isSelected
@@ -1047,8 +1052,7 @@ export function SessionWizard({
                         </div>
                       </div>
 
-                      {((config as any).format === 'knockout' ||
-                        (config as any).format === 'groups_knockout') && (
+                      {(config.format === 'knockout' || config.format === 'groups_knockout') && (
                         <div className="fieldset pt-4 border-t border-base-300">
                           <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest mb-3">
                             Fases do Mata-Mata
@@ -1058,10 +1062,10 @@ export function SessionWizard({
                               <input
                                 type="checkbox"
                                 className="checkbox checkbox-primary checkbox-sm"
-                                checked={(config as any).hasFinal !== false}
+                                checked={config.hasFinal !== false}
                                 onChange={(e) =>
                                   onUpdateSession({
-                                    config: { ...(config as any), hasFinal: e.target.checked },
+                                    config: { ...config, hasFinal: e.target.checked },
                                   })
                                 }
                               />
@@ -1078,11 +1082,11 @@ export function SessionWizard({
                               <input
                                 type="checkbox"
                                 className="checkbox checkbox-secondary checkbox-sm"
-                                checked={(config as any).hasThirdPlaceMatch !== false}
+                                checked={config.hasThirdPlaceMatch !== false}
                                 onChange={(e) =>
                                   onUpdateSession({
                                     config: {
-                                      ...(config as any),
+                                      ...config,
                                       hasThirdPlaceMatch: e.target.checked,
                                     },
                                   })
@@ -1101,7 +1105,7 @@ export function SessionWizard({
                         </div>
                       )}
 
-                      {(config as any).format === 'round_robin' && (
+                      {config.format === 'round_robin' && (
                         <div className="fieldset pt-4 border-t border-base-300">
                           <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest mb-3">
                             Playoffs do Campeonato
@@ -1111,11 +1115,11 @@ export function SessionWizard({
                               <input
                                 type="checkbox"
                                 className="checkbox checkbox-primary checkbox-sm"
-                                checked={(config as any).roundRobinPlayoffs === true}
+                                checked={config.roundRobinPlayoffs === true}
                                 onChange={(e) =>
                                   onUpdateSession({
                                     config: {
-                                      ...(config as any),
+                                      ...config,
                                       roundRobinPlayoffs: e.target.checked,
                                       hasFinal: e.target.checked,
                                       hasThirdPlaceMatch: e.target.checked,
@@ -1196,33 +1200,35 @@ export function SessionWizard({
                         Formato de Vitória
                       </label>
                       <div className="flex flex-col gap-2 w-full">
-                        {[
-                          {
-                            id: 'direct_3',
-                            icon: <Target className="w-3.5 h-3.5" />,
-                            label: '3 Direto',
-                            tip: 'Quando empatar perto do ponto final, joga até 3 pontos extras.',
-                          },
-                          {
-                            id: 'win_by_2',
-                            icon: <Scale className="w-3.5 h-3.5" />,
-                            label: 'Vai a 2',
-                            tip: 'O jogo só termina quando um time abrir 2 pontos de vantagem.',
-                          },
-                        ].map((m) => (
+                        {(
+                          [
+                            {
+                              id: 'direct_3',
+                              icon: <Target className="w-3.5 h-3.5" />,
+                              label: '3 Direto',
+                              tip: 'Quando empatar perto do ponto final, joga até 3 pontos extras.',
+                            },
+                            {
+                              id: 'win_by_2',
+                              icon: <Scale className="w-3.5 h-3.5" />,
+                              label: 'Vai a 2',
+                              tip: 'O jogo só termina quando um time abrir 2 pontos de vantagem.',
+                            },
+                          ] as const
+                        ).map((m) => (
                           <button
                             key={m.id}
                             type="button"
                             onClick={() =>
                               onUpdateSession({
                                 config:
-                                  activeSession.type === 'tournament'
+                                  config.type === 'tournament'
                                     ? {
-                                        ...(config as any),
+                                        ...config,
                                         tieBreakMethod: m.id,
                                         victoryRule: m.id,
                                       }
-                                    : { ...(config as any), tieBreakMethod: m.id },
+                                    : { ...config, tieBreakMethod: m.id },
                               })
                             }
                             className={`btn text-left p-3 h-auto block ${config.tieBreakMethod === m.id ? 'btn-primary' : 'btn-neutral'}`}
@@ -1243,7 +1249,7 @@ export function SessionWizard({
                   </div>
 
                   {/* Rotation Rules (Free Play) */}
-                  {activeSession.type === 'free_play' && (
+                  {config.type === 'free_play' && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -1258,10 +1264,10 @@ export function SessionWizard({
                             type="button"
                             onClick={() =>
                               onUpdateSession({
-                                config: { ...(config as any), rotationSystem: 'winner_stays' },
+                                config: { ...config, rotationSystem: 'winner_stays' },
                               })
                             }
-                            className={`btn text-left p-4 h-auto block ${(config as any).rotationSystem === 'winner_stays' ? 'btn-success btn-soft' : 'btn-neutral'}`}
+                            className={`btn text-left p-4 h-auto block ${config.rotationSystem === 'winner_stays' ? 'btn-success btn-soft' : 'btn-neutral'}`}
                           >
                             <div className="flex items-center gap-2">
                               <Zap className="w-4 h-4 text-success" />
@@ -1276,12 +1282,12 @@ export function SessionWizard({
                             onClick={() =>
                               onUpdateSession({
                                 config: {
-                                  ...(config as any),
+                                  ...config,
                                   rotationSystem: 'max_consecutive_games',
                                 },
                               })
                             }
-                            className={`btn text-left p-4 h-auto block ${(config as any).rotationSystem === 'max_consecutive_games' ? 'btn-info btn-soft' : 'btn-neutral'}`}
+                            className={`btn text-left p-4 h-auto block ${config.rotationSystem === 'max_consecutive_games' ? 'btn-info btn-soft' : 'btn-neutral'}`}
                           >
                             <div className="flex items-center gap-2">
                               <RotateCw className="w-4 h-4 text-info" />
@@ -1296,7 +1302,7 @@ export function SessionWizard({
                         </div>
                       </div>
 
-                      {(config as any).rotationSystem === 'max_consecutive_games' && (
+                      {config.rotationSystem === 'max_consecutive_games' && (
                         <div className="fieldset">
                           <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest mb-2">
                             Vitórias máximas consecutivas
@@ -1308,10 +1314,10 @@ export function SessionWizard({
                                 type="button"
                                 onClick={() =>
                                   onUpdateSession({
-                                    config: { ...(config as any), maxConsecutiveGames: n },
+                                    config: { ...config, maxConsecutiveGames: n },
                                   })
                                 }
-                                className={`btn join-item flex-1 font-mono font-bold text-sm ${(config as any).maxConsecutiveGames === n ? 'btn-info' : 'btn-neutral'}`}
+                                className={`btn join-item flex-1 font-mono font-bold text-sm ${config.maxConsecutiveGames === n ? 'btn-info' : 'btn-neutral'}`}
                               >
                                 {n}
                               </button>
@@ -1414,36 +1420,36 @@ export function SessionWizard({
                           {activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}
                         </span>
                       </div>
-                      {activeSession.type === 'tournament' && (
+                      {activeSession.config?.type === 'tournament' && (
                         <div className="flex justify-between border-b border-base-300/40 pb-1">
                           <span className="text-[10px] font-bold text-text-muted uppercase">
                             Formato
                           </span>
                           <span className="text-[10px] font-bold text-base-content uppercase">
-                            {(activeSession.config as any).format === 'round_robin'
+                            {activeSession.config.format === 'round_robin'
                               ? 'Todos contra todos'
-                              : (activeSession.config as any).format === 'double_round_robin'
+                              : activeSession.config.format === 'double_round_robin'
                                 ? 'Turno e Returno'
-                                : (activeSession.config as any).format === 'knockout'
+                                : activeSession.config.format === 'knockout'
                                   ? 'Mata-mata'
-                                  : (activeSession.config as any).format === 'group_stage'
+                                  : activeSession.config.format === 'group_stage'
                                     ? 'Fase de Grupos'
-                                    : (activeSession.config as any).format === 'groups_knockout'
+                                    : activeSession.config.format === 'groups_knockout'
                                       ? 'Grupos + Mata-mata'
                                       : 'Torneio'}
                           </span>
                         </div>
                       )}
-                      {activeSession.type === 'tournament' &&
-                        ((activeSession.config as any).format === 'knockout' ||
-                          (activeSession.config as any).format === 'groups_knockout') && (
+                      {activeSession.config?.type === 'tournament' &&
+                        (activeSession.config.format === 'knockout' ||
+                          activeSession.config.format === 'groups_knockout') && (
                           <>
                             <div className="flex justify-between border-b border-base-300/40 pb-1">
                               <span className="text-[10px] font-bold text-text-muted uppercase">
                                 Grande Final
                               </span>
                               <span className="text-[10px] font-bold text-base-content uppercase">
-                                {(activeSession.config as any).hasFinal !== false ? 'Sim' : 'Não'}
+                                {activeSession.config.hasFinal !== false ? 'Sim' : 'Não'}
                               </span>
                             </div>
                             <div className="flex justify-between border-b border-base-300/40 pb-1">
@@ -1451,7 +1457,7 @@ export function SessionWizard({
                                 Disputa de 3º Lugar
                               </span>
                               <span className="text-[10px] font-bold text-base-content uppercase">
-                                {(activeSession.config as any).hasThirdPlaceMatch !== false
+                                {activeSession.config.hasThirdPlaceMatch !== false
                                   ? 'Sim'
                                   : 'Não'}
                               </span>
@@ -1505,21 +1511,27 @@ export function SessionWizard({
                           Perfil Técnico
                         </label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
-                          {[
-                            { id: 'balanced', label: 'Equilibrado', desc: 'Distribuição geral' },
-                            { id: 'competitive', label: 'Competitivo', desc: 'Foco técnico total' },
-                            { id: 'social', label: 'Social', desc: 'Gênero e tamanho' },
-                            { id: 'mixed', label: 'Misto', desc: 'Cota de gênero' },
-                          ].map((m) => (
+                          {(
+                            [
+                              { id: 'balanced', label: 'Equilibrado', desc: 'Distribuição geral' },
+                              {
+                                id: 'competitive',
+                                label: 'Competitivo',
+                                desc: 'Foco técnico total',
+                              },
+                              { id: 'social', label: 'Social', desc: 'Gênero e tamanho' },
+                              { id: 'mixed', label: 'Misto', desc: 'Cota de gênero' },
+                            ] as const
+                          ).map((m) => (
                             <button
                               key={m.id}
                               type="button"
                               onClick={() =>
                                 onUpdateSession({
-                                  config: { ...(activeSession.config as any), balanceMode: m.id },
+                                  config: { ...activeSession.config!, balanceMode: m.id },
                                 })
                               }
-                              className={`btn btn-sm text-left h-auto block p-2 ${(activeSession.config as any)?.balanceMode === m.id || (!(activeSession.config as any)?.balanceMode && m.id === 'balanced') ? 'btn-accent' : 'btn-neutral'}`}
+                              className={`btn btn-sm text-left h-auto block p-2 ${activeSession.config?.balanceMode === m.id || (!activeSession.config?.balanceMode && m.id === 'balanced') ? 'btn-accent' : 'btn-neutral'}`}
                             >
                               <span className="text-[9px] font-bold uppercase block">
                                 {m.label}
@@ -1558,7 +1570,7 @@ export function SessionWizard({
                               onClick={() =>
                                 onUpdateSession({
                                   config: {
-                                    ...(activeSession.config as any),
+                                    ...activeSession.config!,
                                     rotationType: r.id,
                                   },
                                 })
@@ -2558,13 +2570,13 @@ export function SessionWizard({
                     <input
                       type="checkbox"
                       className="toggle toggle-primary toggle-sm"
-                      checked={((activeSession.config as any)?.repetitionWeight ?? 0.8) > 0}
+                      checked={(activeSession.config?.repetitionWeight ?? 0.8) > 0}
                       onChange={(e) => {
                         onUpdateSession({
                           config: {
-                            ...activeSession.config,
+                            ...activeSession.config!,
                             repetitionWeight: e.target.checked ? 0.8 : 0,
-                          } as any,
+                          },
                         });
                       }}
                     />
@@ -2578,7 +2590,7 @@ export function SessionWizard({
                     </div>
                   </label>
 
-                  {((activeSession.config as any)?.repetitionWeight ?? 0.8) > 0 && (
+                  {(activeSession.config?.repetitionWeight ?? 0.8) > 0 && (
                     <div className="mt-2 space-y-1.5 pl-1">
                       <label className="text-[9px] font-bold uppercase text-text-muted tracking-wider">
                         Intensidade da Mistura
@@ -2595,15 +2607,15 @@ export function SessionWizard({
                             onClick={() =>
                               onUpdateSession({
                                 config: {
-                                  ...activeSession.config,
+                                  ...activeSession.config!,
                                   repetitionWeight: opt.value,
-                                } as any,
+                                },
                               })
                             }
                             className={`btn btn-xs join-item flex-1 font-bold ${
-                              (activeSession.config as any)?.repetitionWeight === opt.value ||
+                              activeSession.config?.repetitionWeight === opt.value ||
                               (opt.value === 0.8 &&
-                                (activeSession.config as any)?.repetitionWeight === undefined)
+                                activeSession.config?.repetitionWeight === undefined)
                                 ? 'btn-primary'
                                 : 'btn-neutral'
                             }`}

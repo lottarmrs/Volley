@@ -24,23 +24,35 @@ export interface AuthClient {
   verifyTotp(code: string, factorId?: string): Promise<void>;
 }
 
-export interface MfaEnrollment { factorId: string; qrCode: string; secret: string }
+export interface MfaEnrollment {
+  factorId: string;
+  qrCode: string;
+  secret: string;
+}
 
 export function createAuthClient(
   auth: typeof supabase.auth,
   location: Pick<Location, 'origin'> = window.location,
 ): AuthClient {
-  const fail = (error: { message: string } | null) => { if (error) throw error; };
+  const fail = (error: { message: string } | null) => {
+    if (error) throw error;
+  };
   return {
     async getSession() {
-      const { data, error } = await auth.getSession(); fail(error); return data.session;
+      const { data, error } = await auth.getSession();
+      fail(error);
+      return data.session;
     },
     onSessionChange(listener) {
       const { data } = auth.onAuthStateChange((_event, session) => listener(session));
       return () => data.subscription.unsubscribe();
     },
     async signIn(email, password, captchaToken) {
-      const { error } = await auth.signInWithPassword({ email, password, options: { captchaToken } });
+      const { error } = await auth.signInWithPassword({
+        email,
+        password,
+        options: { captchaToken },
+      });
       fail(error);
     },
     async signUp(email, password, name, username, claimCode, captchaToken) {
@@ -73,14 +85,17 @@ export function createAuthClient(
       fail(error);
     },
     async updatePassword(password) {
-      const { error } = await auth.updateUser({ password }); fail(error);
+      const { error } = await auth.updateUser({ password });
+      fail(error);
     },
     async getAssuranceLevel() {
-      const { data, error } = await auth.mfa.getAuthenticatorAssuranceLevel(); fail(error);
+      const { data, error } = await auth.mfa.getAuthenticatorAssuranceLevel();
+      fail(error);
       return { current: data.currentLevel, next: data.nextLevel };
     },
     async signOut() {
-      const { error } = await auth.signOut(); fail(error);
+      const { error } = await auth.signOut();
+      fail(error);
     },
     async enrollTotp() {
       const { data, error } = await auth.mfa.enroll({ factorType: 'totp' });
@@ -90,14 +105,18 @@ export function createAuthClient(
     async verifyTotp(code, factorId) {
       let targetFactorId = factorId;
       if (!targetFactorId) {
-        const factors = await auth.mfa.listFactors(); fail(factors.error);
+        const factors = await auth.mfa.listFactors();
+        fail(factors.error);
         const factor = factors.data.totp.find((item) => item.status === 'verified');
         if (!factor) throw new Error('Nenhum fator TOTP verificado.');
         targetFactorId = factor.id;
       }
-      const challenge = await auth.mfa.challenge({ factorId: targetFactorId }); fail(challenge.error);
+      const challenge = await auth.mfa.challenge({ factorId: targetFactorId });
+      fail(challenge.error);
       const verified = await auth.mfa.verify({
-        factorId: targetFactorId, challengeId: challenge.data.id, code,
+        factorId: targetFactorId,
+        challengeId: challenge.data.id,
+        code,
       });
       fail(verified.error);
     },
@@ -108,16 +127,32 @@ const unavailable = new Error('Supabase is not configured.');
 const unavailableAuthClient: AuthClient = {
   getSession: async () => null,
   onSessionChange: () => () => {},
-  signIn: async () => { throw unavailable; },
-  signUp: async () => { throw unavailable; },
-  signInWithGoogle: async () => { throw unavailable; },
-  linkGoogleIdentity: async () => { throw unavailable; },
-  requestPasswordRecovery: async () => { throw unavailable; },
-  updatePassword: async () => { throw unavailable; },
+  signIn: async () => {
+    throw unavailable;
+  },
+  signUp: async () => {
+    throw unavailable;
+  },
+  signInWithGoogle: async () => {
+    throw unavailable;
+  },
+  linkGoogleIdentity: async () => {
+    throw unavailable;
+  },
+  requestPasswordRecovery: async () => {
+    throw unavailable;
+  },
+  updatePassword: async () => {
+    throw unavailable;
+  },
   getAssuranceLevel: async () => ({ current: null, next: null }),
   signOut: async () => {},
-  enrollTotp: async () => { throw unavailable; },
-  verifyTotp: async (_code: string, _factorId?: string) => { throw unavailable; },
+  enrollTotp: async () => {
+    throw unavailable;
+  },
+  verifyTotp: async (_code: string, _factorId?: string) => {
+    throw unavailable;
+  },
 };
 
 export const supabaseAuthClient = isSupabaseConfigured

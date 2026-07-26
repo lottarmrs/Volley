@@ -43,10 +43,7 @@ import {
 } from '../../types';
 import type { AppResult } from '../../application/appResult';
 import type { CreateChampionshipInput } from '../../application/championshipUseCases';
-import {
-  getSeasonAwards,
-  getSeasonStandings,
-} from '../../application/championshipUseCases';
+import { getSeasonAwards, getSeasonStandings } from '../../application/championshipUseCases';
 import { generateUUID } from '../../logic/uuid';
 import type { AwardWinner } from '../../logic/tournament';
 import { calculateGeneralOverall } from '../../logic/calculations';
@@ -1311,7 +1308,10 @@ export function ChampionshipsTab({
               <legend className="text-sm font-bold mb-2">Dias das rodadas</legend>
               <div className="flex flex-wrap gap-2">
                 {WEEKDAYS.map((day) => (
-                  <label key={day.value} className="label cursor-pointer gap-2 rounded-box border border-base-300 px-3">
+                  <label
+                    key={day.value}
+                    className="label cursor-pointer gap-2 rounded-box border border-base-300 px-3"
+                  >
                     <input
                       type="checkbox"
                       className="checkbox checkbox-primary checkbox-sm"
@@ -1348,7 +1348,10 @@ export function ChampionshipsTab({
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {teamDrafts.map((team, teamIndex) => (
-                  <div key={team.id} className="rounded-box border border-base-300 bg-base-100 p-3 space-y-3">
+                  <div
+                    key={team.id}
+                    className="rounded-box border border-base-300 bg-base-100 p-3 space-y-3"
+                  >
                     <div className="flex items-end gap-2">
                       <div className="grow">
                         <Field
@@ -1382,7 +1385,10 @@ export function ChampionshipsTab({
                       {players.map((player) => {
                         const playerName = getPlayerDisplayName(player);
                         return (
-                          <label key={player.id} className="label cursor-pointer justify-start gap-2 py-1">
+                          <label
+                            key={player.id}
+                            className="label cursor-pointer justify-start gap-2 py-1"
+                          >
                             <input
                               type="checkbox"
                               className="checkbox checkbox-sm"
@@ -1414,7 +1420,11 @@ export function ChampionshipsTab({
               </div>
             )}
             <div className="card-actions justify-end">
-              <button type="button" className="btn btn-ghost" onClick={() => setShowCreateForm(false)}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setShowCreateForm(false)}
+              >
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary">
@@ -1458,7 +1468,9 @@ export function ChampionshipsTab({
                   type="button"
                   aria-pressed={isSelected}
                   className={`card card-border text-left transition-colors ${
-                    isSelected ? 'border-primary bg-primary/10' : 'bg-base-200 hover:border-primary/50'
+                    isSelected
+                      ? 'border-primary bg-primary/10'
+                      : 'bg-base-200 hover:border-primary/50'
                   }`}
                   onClick={() => setSelectedChampionshipId(item.id)}
                 >
@@ -1492,7 +1504,8 @@ export function ChampionshipsTab({
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="font-black uppercase">Rodadas</h4>
                       <span className="badge badge-outline">
-                        {selectedRounds.filter((round) => round.sessionId).length}/{selectedRounds.length}
+                        {selectedRounds.filter((round) => round.sessionId).length}/
+                        {selectedRounds.length}
                       </span>
                     </div>
                     {nextRound && (
@@ -1523,7 +1536,8 @@ export function ChampionshipsTab({
                           >
                             <div className="space-y-1">
                               <p className="font-bold">
-                                R{round.round} · {teamA?.name || 'Time A'} × {teamB?.name || 'Time B'}
+                                R{round.round} · {teamA?.name || 'Time A'} ×{' '}
+                                {teamB?.name || 'Time B'}
                               </p>
                               {round.sessionId ? (
                                 <p className="text-xs text-base-content/60">
@@ -1539,7 +1553,10 @@ export function ChampionshipsTab({
                                   onChange={(event) => {
                                     const result = onRescheduleRound(round.id, event.target.value);
                                     if (result.ok === false) {
-                                      setRoundMessage({ kind: 'error', text: result.error.message });
+                                      setRoundMessage({
+                                        kind: 'error',
+                                        text: result.error.message,
+                                      });
                                     }
                                   }}
                                 />
@@ -1556,7 +1573,10 @@ export function ChampionshipsTab({
                                   onClick={() => {
                                     const result = onSetRoundSkipped(round.id, !round.skipped);
                                     if (result.ok === false) {
-                                      setRoundMessage({ kind: 'error', text: result.error.message });
+                                      setRoundMessage({
+                                        kind: 'error',
+                                        text: result.error.message,
+                                      });
                                     }
                                   }}
                                 >
@@ -1569,7 +1589,10 @@ export function ChampionshipsTab({
                                   onClick={() => {
                                     const result = onMaterializeRound(round.id);
                                     if (result.ok === false) {
-                                      setRoundMessage({ kind: 'error', text: result.error.message });
+                                      setRoundMessage({
+                                        kind: 'error',
+                                        text: result.error.message,
+                                      });
                                     } else {
                                       setRoundMessage({
                                         kind: 'success',
@@ -1599,7 +1622,11 @@ export function ChampionshipsTab({
                         type="button"
                         className="btn btn-error btn-outline btn-xs self-start"
                         onClick={() => {
-                          if (window.confirm('Excluir esta liga e o calendário ainda não materializado?')) {
+                          if (
+                            window.confirm(
+                              'Excluir esta liga e o calendário ainda não materializado?',
+                            )
+                          ) {
                             onDeleteChampionship(selectedChampionship.id);
                             setSelectedChampionshipId(null);
                           }
@@ -1615,7 +1642,9 @@ export function ChampionshipsTab({
                   <div className="card-body p-4 gap-3">
                     <h4 className="font-black uppercase">Premiações</h4>
                     <div className="rounded-box bg-base-100 border border-base-300 p-4">
-                      <span className="text-xs uppercase font-bold text-base-content/50">MVP da temporada</span>
+                      <span className="text-xs uppercase font-bold text-base-content/50">
+                        MVP da temporada
+                      </span>
                       <p className="text-lg font-black mt-1">
                         {seasonAwards?.mvp?.playerName || 'Aguardando resultados'}
                       </p>
@@ -1627,10 +1656,15 @@ export function ChampionshipsTab({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {awardCards.map(([label, winner]) => (
-                        <div key={label as string} className="rounded-box bg-base-100 border border-base-300 p-3">
+                        <div
+                          key={label as string}
+                          className="rounded-box bg-base-100 border border-base-300 p-3"
+                        >
                           <span className="text-xs text-base-content/50">{label}</span>
                           <p className="font-bold text-sm">{winner?.playerName || '—'}</p>
-                          {winner && <p className="text-xs text-base-content/50">{winner.teamName}</p>}
+                          {winner && (
+                            <p className="text-xs text-base-content/50">{winner.teamName}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1659,7 +1693,8 @@ export function ChampionshipsTab({
                       <tr key={standing.teamId}>
                         <td className="font-black">{standing.position}</td>
                         <td className="font-bold">
-                          {selectedTeams.find((team) => team.id === standing.teamId)?.name || 'Time'}
+                          {selectedTeams.find((team) => team.id === standing.teamId)?.name ||
+                            'Time'}
                         </td>
                         <td>{standing.gamesPlayed}</td>
                         <td>{standing.wins}</td>

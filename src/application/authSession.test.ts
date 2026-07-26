@@ -5,8 +5,12 @@ import type { UserProfile } from '@shared/types';
 
 function profile(id: string): UserProfile {
   return {
-    id, name: 'Ana', email: 'ana@example.com', role: 'user',
-    createdAt: '2026-07-22T00:00:00Z', updatedAt: '2026-07-22T00:00:00Z',
+    id,
+    name: 'Ana',
+    email: 'ana@example.com',
+    role: 'user',
+    createdAt: '2026-07-22T00:00:00Z',
+    updatedAt: '2026-07-22T00:00:00Z',
   };
 }
 
@@ -26,7 +30,10 @@ test('missing username requires onboarding without logging out', () => {
     resolveAuthSessionState({
       session: { userId: 'u1', emailConfirmed: true },
       account: {
-        state: 'needs_username', profile: profile('u1'), playerId: 'p1', username: null,
+        state: 'needs_username',
+        profile: profile('u1'),
+        playerId: 'p1',
+        username: null,
       },
     }).kind,
     'onboarding',

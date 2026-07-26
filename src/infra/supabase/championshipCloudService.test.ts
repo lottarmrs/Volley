@@ -93,7 +93,10 @@ test('mapDbToChampionship round-trips the recurrence rule and classification poi
 });
 
 test('mapDbToChampionship defaults endDate to null when the db column is null', () => {
-  const db = mapChampionshipToDb({ ...championship, recurrenceRule: { ...championship.recurrenceRule, endDate: null } }, 'owner-1');
+  const db = mapChampionshipToDb(
+    { ...championship, recurrenceRule: { ...championship.recurrenceRule, endDate: null } },
+    'owner-1',
+  );
   const mapped = mapDbToChampionship(db);
   assert.equal(mapped.recurrenceRule.endDate, null);
 });
@@ -123,7 +126,12 @@ test('mapDbToChampionshipTeam round-trips a championship team', () => {
 });
 
 test('mapChampionshipRoundToDb maps round, team foreign keys, and scheduling fields', () => {
-  const db = mapChampionshipRoundToDb(championshipRound, 'cloud-champ-1', 'cloud-team-a', 'cloud-team-b');
+  const db = mapChampionshipRoundToDb(
+    championshipRound,
+    'cloud-champ-1',
+    'cloud-team-a',
+    'cloud-team-b',
+  );
 
   assert.equal(db.championship_id, 'cloud-champ-1');
   assert.equal(db.round, 1);
@@ -147,7 +155,12 @@ test('mapChampionshipRoundToDb carries a materialized sessionId through', () => 
 });
 
 test('mapDbToChampionshipRound round-trips a championship round', () => {
-  const db = mapChampionshipRoundToDb(championshipRound, 'cloud-champ-1', 'cloud-team-a', 'cloud-team-b');
+  const db = mapChampionshipRoundToDb(
+    championshipRound,
+    'cloud-champ-1',
+    'cloud-team-a',
+    'cloud-team-b',
+  );
   db.id = 'cloud-round-1';
 
   const mapped = mapDbToChampionshipRound(db);

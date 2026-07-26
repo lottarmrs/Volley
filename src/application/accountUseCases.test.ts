@@ -9,8 +9,12 @@ import {
 const ready: AccountSnapshot = {
   state: 'ready',
   profile: {
-    id: 'user-1', name: 'Ana', email: 'ana@example.com', role: 'user',
-    createdAt: '2026-07-22T00:00:00Z', updatedAt: '2026-07-22T00:00:00Z',
+    id: 'user-1',
+    name: 'Ana',
+    email: 'ana@example.com',
+    role: 'user',
+    createdAt: '2026-07-22T00:00:00Z',
+    updatedAt: '2026-07-22T00:00:00Z',
   },
   playerId: 'player-1',
   username: 'ana-voleio',

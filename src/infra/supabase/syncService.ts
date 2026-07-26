@@ -877,9 +877,7 @@ export function consolidateDuplicateRecords(
     ...championship,
     communityId: remapId(championship.communityId, communityIdMap, summary),
     syncStatus:
-      communityIdMap.size > 0 && !championship.deletedAt
-        ? 'pending'
-        : championship.syncStatus,
+      communityIdMap.size > 0 && !championship.deletedAt ? 'pending' : championship.syncStatus,
   }));
 
   const championshipTeams = local.championshipTeams.map((team) => ({
@@ -1078,7 +1076,10 @@ export const syncService = {
           player.evaluationCommunityId,
           communityCloudIds,
         );
-        if (!evaluationCommunityCloudId || evaluationCommunityCloudId === player.evaluationCommunityId) {
+        if (
+          !evaluationCommunityCloudId ||
+          evaluationCommunityCloudId === player.evaluationCommunityId
+        ) {
           continue;
         }
         playersWithResolvedEvaluationCommunity.push({
@@ -1518,15 +1519,14 @@ export const syncService = {
       cloudEvaluations,
       operational,
       cloudChampionships,
-    ] =
-      await Promise.all([
-        communityRulesCloudService.fetchAll(),
-        whatsappTemplateCloudService.fetchAll(),
-        communityPlayerCloudService.fetchAll(),
-        playerEvaluationCloudService.fetchAll(),
-        operationalCloudService.fetchAll(),
-        championshipCloudService.fetchAll(),
-      ]);
+    ] = await Promise.all([
+      communityRulesCloudService.fetchAll(),
+      whatsappTemplateCloudService.fetchAll(),
+      communityPlayerCloudService.fetchAll(),
+      playerEvaluationCloudService.fetchAll(),
+      operationalCloudService.fetchAll(),
+      championshipCloudService.fetchAll(),
+    ]);
 
     const championshipChildren = await Promise.all(
       cloudChampionships.map(async (championship) => {
@@ -1555,7 +1555,9 @@ export const syncService = {
     // A player's own self-evaluation is only readable by that player's linked
     // account (RLS on self_evaluations restricts rows to their own player_id),
     // so at most one cloud player can match the current user.
-    const ownPlayer = ownerId ? cloudPlayers.find((player) => player.userId === ownerId) : undefined;
+    const ownPlayer = ownerId
+      ? cloudPlayers.find((player) => player.userId === ownerId)
+      : undefined;
     const selfEvaluation = ownPlayer?.cloudId
       ? await selfEvaluationCloudService.fetch(ownPlayer.cloudId)
       : null;

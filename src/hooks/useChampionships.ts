@@ -130,42 +130,46 @@ export function useChampionships() {
     [championships, deleteChampionship],
   );
 
-  const rescheduleRound = useCallback((roundId: string, scheduledDate: string) => {
-    const round = championshipRounds.find((item) => item.id === roundId);
-    if (!round) return productError('not_found', 'Rodada não encontrada.');
-    if (round.sessionId) {
-      return productError('invalid_input', 'Uma rodada materializada mantém sua data original.');
-    }
-    if (!scheduledDate || Number.isNaN(new Date(scheduledDate).getTime())) {
-      return productError('invalid_input', 'Informe uma data válida para a rodada.');
-    }
-    const now = new Date().toISOString();
-    setChampionshipRounds((current) =>
-      current.map((item) =>
-        item.id === roundId
-          ? { ...item, scheduledDate, syncStatus: 'pending', updatedAt: now }
-          : item,
-      ),
-    );
-    return appOk(undefined);
-  }, [championshipRounds]);
+  const rescheduleRound = useCallback(
+    (roundId: string, scheduledDate: string) => {
+      const round = championshipRounds.find((item) => item.id === roundId);
+      if (!round) return productError('not_found', 'Rodada não encontrada.');
+      if (round.sessionId) {
+        return productError('invalid_input', 'Uma rodada materializada mantém sua data original.');
+      }
+      if (!scheduledDate || Number.isNaN(new Date(scheduledDate).getTime())) {
+        return productError('invalid_input', 'Informe uma data válida para a rodada.');
+      }
+      const now = new Date().toISOString();
+      setChampionshipRounds((current) =>
+        current.map((item) =>
+          item.id === roundId
+            ? { ...item, scheduledDate, syncStatus: 'pending', updatedAt: now }
+            : item,
+        ),
+      );
+      return appOk(undefined);
+    },
+    [championshipRounds],
+  );
 
-  const setRoundSkipped = useCallback((roundId: string, skipped: boolean) => {
-    const round = championshipRounds.find((item) => item.id === roundId);
-    if (!round) return productError('not_found', 'Rodada não encontrada.');
-    if (round.sessionId) {
-      return productError('invalid_input', 'Uma rodada materializada não pode ser pulada.');
-    }
-    const now = new Date().toISOString();
-    setChampionshipRounds((current) =>
-      current.map((item) =>
-        item.id === roundId
-          ? { ...item, skipped, syncStatus: 'pending', updatedAt: now }
-          : item,
-      ),
-    );
-    return appOk(undefined);
-  }, [championshipRounds]);
+  const setRoundSkipped = useCallback(
+    (roundId: string, skipped: boolean) => {
+      const round = championshipRounds.find((item) => item.id === roundId);
+      if (!round) return productError('not_found', 'Rodada não encontrada.');
+      if (round.sessionId) {
+        return productError('invalid_input', 'Uma rodada materializada não pode ser pulada.');
+      }
+      const now = new Date().toISOString();
+      setChampionshipRounds((current) =>
+        current.map((item) =>
+          item.id === roundId ? { ...item, skipped, syncStatus: 'pending', updatedAt: now } : item,
+        ),
+      );
+      return appOk(undefined);
+    },
+    [championshipRounds],
+  );
 
   const updateRecurrence = useCallback(
     (championshipId: string, recurrenceRule: Championship['recurrenceRule']) => {

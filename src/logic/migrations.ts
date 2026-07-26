@@ -498,8 +498,7 @@ function pruneOrphanActiveReferences(data: any): any {
         }))
       : data.teams,
     championships: (data.championships || []).filter(
-      (championship: any) =>
-        !hasCommunities || activeCommunityIds.has(championship.communityId),
+      (championship: any) => !hasCommunities || activeCommunityIds.has(championship.communityId),
     ),
     championshipTeams: (data.championshipTeams || [])
       .filter((team: any) => activeChampionshipIds.has(team.championshipId))

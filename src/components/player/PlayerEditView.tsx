@@ -27,7 +27,16 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts';
-import { Player, Attributes, Position, Game, PointEvent, Team, Community, Session } from '../../types';
+import {
+  Player,
+  Attributes,
+  Position,
+  Game,
+  PointEvent,
+  Team,
+  Community,
+  Session,
+} from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
   getBalancingRole,

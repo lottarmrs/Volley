@@ -137,9 +137,7 @@ test('uploadLocalDataToCloud resolves championship references before upload', as
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [
-          makeSharedCommunity({ id: 'community-local', cloudId: 'community-cloud' }),
-        ],
+        communities: [makeSharedCommunity({ id: 'community-local', cloudId: 'community-cloud' })],
         players: [makeSyncPlayer({ id: 'player-local', cloudId: 'player-cloud' })],
         sessions: [makeSession()],
         championships: [championship],
@@ -155,8 +153,7 @@ test('uploadLocalDataToCloud resolves championship references before upload', as
       ['player-cloud'],
     );
     assert.equal(
-      (calls['team:champ-team-local-a'] as { championshipCloudId: string })
-        .championshipCloudId,
+      (calls['team:champ-team-local-a'] as { championshipCloudId: string }).championshipCloudId,
       'champ-cloud',
     );
     assert.deepEqual(calls.round, {
@@ -253,7 +250,11 @@ test('uploadLocalDataToCloud excludes a championship round whose session has not
       'owner-1',
     );
 
-    assert.equal(roundUploadCalled, false, 'round must not be uploaded while its session is unsynced');
+    assert.equal(
+      roundUploadCalled,
+      false,
+      'round must not be uploaded while its session is unsynced',
+    );
     assert.equal(result.championshipRounds[0].sessionId, 'session-not-yet-synced');
     assert.equal(result.championshipRounds[0].cloudId, undefined);
     assert.equal(result.championshipRounds[0].syncStatus, 'pending');
@@ -1471,11 +1472,10 @@ test('downloadCloudDataToLocal fetches and merges the current user own self-eval
 
   try {
     communityCloudService.fetchAll = async () => [];
-    playerCloudService.fetchAll = async () =>
-      [
-        makeSyncPlayer({ id: 'player-me', cloudId: 'cloud-me', userId: 'owner-1' }),
-        makeSyncPlayer({ id: 'player-other', cloudId: 'cloud-other', userId: 'owner-2' }),
-      ];
+    playerCloudService.fetchAll = async () => [
+      makeSyncPlayer({ id: 'player-me', cloudId: 'cloud-me', userId: 'owner-1' }),
+      makeSyncPlayer({ id: 'player-other', cloudId: 'cloud-other', userId: 'owner-2' }),
+    ];
     communityRulesCloudService.fetchAll = async () => [];
     whatsappTemplateCloudService.fetchAll = async () => [];
     communityPlayerCloudService.fetchAll = async () => [];
@@ -1564,9 +1564,7 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
 
     await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [
-          makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' }),
-        ],
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
         players: [
           makeSyncPlayer({
             id: 'evaluated',

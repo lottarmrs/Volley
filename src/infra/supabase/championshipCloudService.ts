@@ -151,7 +151,10 @@ export const championshipCloudService = {
     return mapDbToChampionship(data);
   },
 
-  async upsertTeam(local: ChampionshipTeam, championshipCloudId: string): Promise<ChampionshipTeam> {
+  async upsertTeam(
+    local: ChampionshipTeam,
+    championshipCloudId: string,
+  ): Promise<ChampionshipTeam> {
     const { data, error } = await supabase
       .from('championship_teams')
       .upsert(mapChampionshipTeamToDb(local, championshipCloudId), { onConflict: 'id' })

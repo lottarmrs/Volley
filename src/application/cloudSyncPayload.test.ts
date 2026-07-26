@@ -59,7 +59,9 @@ test('buildLocalSyncPayload preserves all sync collections for cloud commands', 
 test('normalizeCloudSyncResultPayload migrates legacy session and game records before applying them', () => {
   const payload = buildLocalSyncPayload(
     collections({
-      sessions: [{ id: 'session-1', type: 'championship', config: { type: 'championship' } } as never],
+      sessions: [
+        { id: 'session-1', type: 'championship', config: { type: 'championship' } } as never,
+      ],
       games: [{ id: 'game-1', type: 'championship' } as never],
     }),
   );

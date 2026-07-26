@@ -265,12 +265,48 @@ test('getSeasonAwards reflects players across two different sessions point event
   ];
   // p1 scores once in session 1, three times in session 2 -> should outrank p2 (2 points, session 1 only).
   const pointEvents: PointEvent[] = [
-    pointEvent({ id: 'pt1', sessionId: 'session-1', gameId: 'g1', playerId: 'p1', skill: 'ataque' }),
-    pointEvent({ id: 'pt2', sessionId: 'session-1', gameId: 'g1', playerId: 'p2', skill: 'ataque' }),
-    pointEvent({ id: 'pt3', sessionId: 'session-1', gameId: 'g1', playerId: 'p2', skill: 'ataque' }),
-    pointEvent({ id: 'pt4', sessionId: 'session-2', gameId: 'g2', playerId: 'p1', skill: 'ataque' }),
-    pointEvent({ id: 'pt5', sessionId: 'session-2', gameId: 'g2', playerId: 'p1', skill: 'ataque' }),
-    pointEvent({ id: 'pt6', sessionId: 'session-2', gameId: 'g2', playerId: 'p1', skill: 'ataque' }),
+    pointEvent({
+      id: 'pt1',
+      sessionId: 'session-1',
+      gameId: 'g1',
+      playerId: 'p1',
+      skill: 'ataque',
+    }),
+    pointEvent({
+      id: 'pt2',
+      sessionId: 'session-1',
+      gameId: 'g1',
+      playerId: 'p2',
+      skill: 'ataque',
+    }),
+    pointEvent({
+      id: 'pt3',
+      sessionId: 'session-1',
+      gameId: 'g1',
+      playerId: 'p2',
+      skill: 'ataque',
+    }),
+    pointEvent({
+      id: 'pt4',
+      sessionId: 'session-2',
+      gameId: 'g2',
+      playerId: 'p1',
+      skill: 'ataque',
+    }),
+    pointEvent({
+      id: 'pt5',
+      sessionId: 'session-2',
+      gameId: 'g2',
+      playerId: 'p1',
+      skill: 'ataque',
+    }),
+    pointEvent({
+      id: 'pt6',
+      sessionId: 'session-2',
+      gameId: 'g2',
+      playerId: 'p1',
+      skill: 'ataque',
+    }),
   ];
 
   const result = getSeasonAwards(

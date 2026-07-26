@@ -2,10 +2,7 @@ import type { PointEvent, Player, Position, ChampionshipRecurrenceRule } from '.
 import type { AwardWinner } from './tournament';
 import { isCreditedPoint } from './match';
 
-export function generateRoundDates(
-  rule: ChampionshipRecurrenceRule,
-  roundCount: number,
-): string[] {
+export function generateRoundDates(rule: ChampionshipRecurrenceRule, roundCount: number): string[] {
   const dates: string[] = [];
   const sortedDays = [...rule.daysOfWeek].sort((a, b) => a - b);
   if (sortedDays.length === 0 || roundCount <= 0) return dates;
@@ -40,8 +37,10 @@ export function calculateAwardsByPosition(
   for (const point of pointEvents) {
     if (!point.playerId || !isCreditedPoint(point)) continue;
     counts[point.playerId] = (counts[point.playerId] || 0) + 1;
-    if (point.skill === 'saque') acesByPlayer[point.playerId] = (acesByPlayer[point.playerId] || 0) + 1;
-    if (point.skill === 'bloqueio') blocksByPlayer[point.playerId] = (blocksByPlayer[point.playerId] || 0) + 1;
+    if (point.skill === 'saque')
+      acesByPlayer[point.playerId] = (acesByPlayer[point.playerId] || 0) + 1;
+    if (point.skill === 'bloqueio')
+      blocksByPlayer[point.playerId] = (blocksByPlayer[point.playerId] || 0) + 1;
   }
 
   const playerById = new Map(players.map((p) => [p.id, p]));

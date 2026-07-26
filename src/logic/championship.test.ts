@@ -93,79 +93,97 @@ test('calculateAwardsByPosition', async (t) => {
 });
 
 test('remapTeamIdsForChampionship', async (t) => {
-  await t.test('rewrites teamAId/teamBId/winnerTeamId/loserTeamId using the championshipTeamId lookup', () => {
-    const games = [
-      {
-        id: 'g1',
-        teamAId: 'session-team-1',
-        teamBId: 'session-team-2',
-        winnerTeamId: 'session-team-1',
-        loserTeamId: 'session-team-2',
-      },
-      {
-        id: 'g2',
-        teamAId: 'session-team-2',
-        teamBId: 'session-team-1',
-        winnerTeamId: 'session-team-1',
-        loserTeamId: 'session-team-2',
-      },
-    ];
-    const lookup = new Map([
-      ['session-team-1', 'champ-team-A'],
-      ['session-team-2', 'champ-team-B'],
-    ]);
+  await t.test(
+    'rewrites teamAId/teamBId/winnerTeamId/loserTeamId using the championshipTeamId lookup',
+    () => {
+      const games = [
+        {
+          id: 'g1',
+          teamAId: 'session-team-1',
+          teamBId: 'session-team-2',
+          winnerTeamId: 'session-team-1',
+          loserTeamId: 'session-team-2',
+        },
+        {
+          id: 'g2',
+          teamAId: 'session-team-2',
+          teamBId: 'session-team-1',
+          winnerTeamId: 'session-team-1',
+          loserTeamId: 'session-team-2',
+        },
+      ];
+      const lookup = new Map([
+        ['session-team-1', 'champ-team-A'],
+        ['session-team-2', 'champ-team-B'],
+      ]);
 
-    const remapped = remapTeamIdsForChampionship(games, lookup);
+      const remapped = remapTeamIdsForChampionship(games, lookup);
 
-    assert.deepEqual(remapped, [
-      {
-        id: 'g1',
-        teamAId: 'champ-team-A',
-        teamBId: 'champ-team-B',
-        winnerTeamId: 'champ-team-A',
-        loserTeamId: 'champ-team-B',
-      },
-      {
-        id: 'g2',
-        teamAId: 'champ-team-B',
-        teamBId: 'champ-team-A',
-        winnerTeamId: 'champ-team-A',
-        loserTeamId: 'champ-team-B',
-      },
-    ]);
-  });
+      assert.deepEqual(remapped, [
+        {
+          id: 'g1',
+          teamAId: 'champ-team-A',
+          teamBId: 'champ-team-B',
+          winnerTeamId: 'champ-team-A',
+          loserTeamId: 'champ-team-B',
+        },
+        {
+          id: 'g2',
+          teamAId: 'champ-team-B',
+          teamBId: 'champ-team-A',
+          winnerTeamId: 'champ-team-A',
+          loserTeamId: 'champ-team-B',
+        },
+      ]);
+    },
+  );
 
-  await t.test('leaves winnerTeamId/loserTeamId undefined untouched (not every game has a result yet)', () => {
-    const games = [
-      {
-        id: 'g1',
-        teamAId: 'session-team-1',
-        teamBId: 'session-team-2',
-        winnerTeamId: undefined,
-        loserTeamId: undefined,
-      },
-    ];
-    const lookup = new Map([
-      ['session-team-1', 'champ-team-A'],
-      ['session-team-2', 'champ-team-B'],
-    ]);
+  await t.test(
+    'leaves winnerTeamId/loserTeamId undefined untouched (not every game has a result yet)',
+    () => {
+      const games = [
+        {
+          id: 'g1',
+          teamAId: 'session-team-1',
+          teamBId: 'session-team-2',
+          winnerTeamId: undefined,
+          loserTeamId: undefined,
+        },
+      ];
+      const lookup = new Map([
+        ['session-team-1', 'champ-team-A'],
+        ['session-team-2', 'champ-team-B'],
+      ]);
 
-    const remapped = remapTeamIdsForChampionship(games, lookup);
+      const remapped = remapTeamIdsForChampionship(games, lookup);
 
-    assert.strictEqual(remapped[0].winnerTeamId, undefined);
-    assert.strictEqual(remapped[0].loserTeamId, undefined);
-  });
+      assert.strictEqual(remapped[0].winnerTeamId, undefined);
+      assert.strictEqual(remapped[0].loserTeamId, undefined);
+    },
+  );
 
   await t.test('leaves a game unchanged if its team id has no entry in the lookup', () => {
     const games = [
-      { id: 'g1', teamAId: 'unknown-team', teamBId: 'session-team-1', winnerTeamId: undefined, loserTeamId: undefined },
+      {
+        id: 'g1',
+        teamAId: 'unknown-team',
+        teamBId: 'session-team-1',
+        winnerTeamId: undefined,
+        loserTeamId: undefined,
+      },
     ];
     const lookup = new Map([['session-team-1', 'champ-team-A']]);
 
     const remapped = remapTeamIdsForChampionship(games, lookup);
 
     assert.deepEqual(remapped, [
-      { id: 'g1', teamAId: 'unknown-team', teamBId: 'champ-team-A', winnerTeamId: undefined, loserTeamId: undefined },
+      {
+        id: 'g1',
+        teamAId: 'unknown-team',
+        teamBId: 'champ-team-A',
+        winnerTeamId: undefined,
+        loserTeamId: undefined,
+      },
     ]);
   });
 });

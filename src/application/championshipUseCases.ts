@@ -50,12 +50,16 @@ export interface CreatedChampionship {
     recurrenceRule: ChampionshipRecurrenceRule;
   };
   teams: CreateChampionshipInput['teams'];
-  rounds: { round: number; teamAId: string; teamBId: string; scheduledDate: string; skipped: false }[];
+  rounds: {
+    round: number;
+    teamAId: string;
+    teamBId: string;
+    scheduledDate: string;
+    skipped: false;
+  }[];
 }
 
-export function createChampionship(
-  input: CreateChampionshipInput,
-): AppResult<CreatedChampionship> {
+export function createChampionship(input: CreateChampionshipInput): AppResult<CreatedChampionship> {
   if (input.teams.length < 2) {
     return productError('invalid_input', 'Uma liga precisa de pelo menos 2 times.');
   }

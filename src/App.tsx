@@ -356,10 +356,8 @@ export default function App() {
         if (data.whatsAppListDrafts) whatsAppLists.setDrafts(data.whatsAppListDrafts);
         if (data.communityRules) communityRules.setRules(data.communityRules);
         if (data.championships) championships.setChampionships(data.championships);
-        if (data.championshipTeams)
-          championships.setChampionshipTeams(data.championshipTeams);
-        if (data.championshipRounds)
-          championships.setChampionshipRounds(data.championshipRounds);
+        if (data.championshipTeams) championships.setChampionshipTeams(data.championshipTeams);
+        if (data.championshipRounds) championships.setChampionshipRounds(data.championshipRounds);
 
         if (data.activeSession !== undefined) {
           sess.setActiveSession(data.activeSession);

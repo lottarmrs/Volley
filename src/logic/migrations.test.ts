@@ -279,12 +279,18 @@ test('sanitizeAndConsolidateImportedBackup prunes orphaned active references', (
   });
   assert.deepEqual(imported.sessions[0].config.balanceConstraints.pairsTogether, []);
   assert.deepEqual(imported.teams[0].playerIds, ['player-1']);
-  assert.deepEqual(imported.championships.map((item: any) => item.id), ['champ-1']);
-  assert.deepEqual(imported.championshipTeams.map((item: any) => item.id), [
-    'champ-team-a',
-    'champ-team-b',
-  ]);
-  assert.deepEqual(imported.championshipRounds.map((item: any) => item.id), ['round-1']);
+  assert.deepEqual(
+    imported.championships.map((item: any) => item.id),
+    ['champ-1'],
+  );
+  assert.deepEqual(
+    imported.championshipTeams.map((item: any) => item.id),
+    ['champ-team-a', 'champ-team-b'],
+  );
+  assert.deepEqual(
+    imported.championshipRounds.map((item: any) => item.id),
+    ['round-1'],
+  );
   assert.deepEqual(imported.communityPresence, [
     {
       communityId: 'community-1',
@@ -369,7 +375,8 @@ test('sanitizeAndConsolidateImportedBackup rejects cross-championship and dangli
     ],
   });
 
-  assert.deepEqual(imported.championshipRounds.map((round: any) => round.id), [
-    'round-valid',
-  ]);
+  assert.deepEqual(
+    imported.championshipRounds.map((round: any) => round.id),
+    ['round-valid'],
+  );
 });

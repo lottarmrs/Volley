@@ -88,10 +88,7 @@ const accountIdentityMigration = readFixture(
 );
 
 const playerClaimCodesMigration = readFixture(
-  new URL(
-    '../../../supabase/migrations/20260723230000_player_claim_codes.sql',
-    import.meta.url,
-  ),
+  new URL('../../../supabase/migrations/20260723230000_player_claim_codes.sql', import.meta.url),
 );
 
 const removePlayerLinkProposalSystemMigration = readFixture(
@@ -321,7 +318,10 @@ test('consolidated schema backfills the operational tables from the initial sync
 
   // games briefly gained dedicated multiset columns, then had them dropped again in favor of
   // storing sets/setTargets inside the existing metadata jsonb column.
-  assert.doesNotMatch(baseSchema, /create table(?: if not exists)? public\.games\s*\([\s\S]*?\bsets jsonb/i);
+  assert.doesNotMatch(
+    baseSchema,
+    /create table(?: if not exists)? public\.games\s*\([\s\S]*?\bsets jsonb/i,
+  );
   assert.doesNotMatch(baseSchema, /alter table public\.games\s+add column if not exists sets/i);
 });
 
@@ -1111,10 +1111,7 @@ test('consolidated schema removes the player link proposal system', () => {
       functionName,
     );
   }
-  assert.doesNotMatch(
-    baseSchema,
-    /create policy "App staff can read link proposals"/i,
-  );
+  assert.doesNotMatch(baseSchema, /create policy "App staff can read link proposals"/i);
 });
 
 test('account identity migration creates one canonical player per account', () => {
@@ -1288,10 +1285,7 @@ test('consolidated schema composes a narrow guard with soft-delete unlink', () =
 });
 
 test('player claim codes table exists with owner/staff-only read access', () => {
-  assert.match(
-    playerClaimCodesMigration,
-    /create table if not exists public\.player_claim_codes/i,
-  );
+  assert.match(playerClaimCodesMigration, /create table if not exists public\.player_claim_codes/i);
   assert.match(playerClaimCodesMigration, /player_id uuid primary key/i);
   assert.match(playerClaimCodesMigration, /code text not null unique/i);
   assert.match(
@@ -1328,10 +1322,7 @@ test('claim code generation trigger only fires for accountless players', () => {
 });
 
 test('handle_new_user claims a matching code before creating a fresh player', () => {
-  assert.match(
-    playerClaimCodesMigration,
-    /create or replace function public\.handle_new_user/i,
-  );
+  assert.match(playerClaimCodesMigration, /create or replace function public\.handle_new_user/i);
   assert.match(
     playerClaimCodesMigration,
     /v_claim_code text := upper\(trim\(new\.raw_user_meta_data->>'claim_code'\)\)/i,
@@ -1549,20 +1540,14 @@ test('consolidated schema mirrors community-authorized evaluation writes and sel
     /create policy "Community members can read player evaluations" on public\.player_evaluations/i,
   );
 
-  assert.match(
-    baseSchema,
-    /create or replace function public\.current_user_has_community_role/i,
-  );
+  assert.match(baseSchema, /create or replace function public\.current_user_has_community_role/i);
   assert.match(
     baseSchema,
     /grant execute on function public\.current_user_has_community_role\(uuid, text\[\]\) to authenticated;/i,
   );
 
   assert.match(baseSchema, /create table public\.self_evaluations \(/i);
-  assert.match(
-    baseSchema,
-    /alter table public\.self_evaluations enable row level security;/i,
-  );
+  assert.match(baseSchema, /alter table public\.self_evaluations enable row level security;/i);
   for (const policy of [
     'Players can read their own self-evaluation',
     'Players can upsert their own self-evaluation',
@@ -1570,10 +1555,7 @@ test('consolidated schema mirrors community-authorized evaluation writes and sel
   ]) {
     assert.match(baseSchema, new RegExp(`create policy "${policy}"`, 'i'));
   }
-  assert.match(
-    baseSchema,
-    /revoke all on table public\.self_evaluations from public, anon;/i,
-  );
+  assert.match(baseSchema, /revoke all on table public\.self_evaluations from public, anon;/i);
   assert.match(
     baseSchema,
     /grant select, insert, update on public\.self_evaluations to authenticated;/i,
@@ -1585,10 +1567,7 @@ test('championship scheduling migration creates championships, championship_team
   assert.match(championshipSchedulingMigration, /create table public\.championship_teams \(/i);
   assert.match(championshipSchedulingMigration, /create table public\.championship_rounds \(/i);
 
-  assert.match(
-    championshipSchedulingMigration,
-    /unique \(championship_id, round\)/i,
-  );
+  assert.match(championshipSchedulingMigration, /unique \(championship_id, round\)/i);
 
   for (const table of ['championships', 'championship_teams', 'championship_rounds']) {
     assert.match(
@@ -1666,18 +1645,12 @@ test('championship integrity migration preserves every fixture and the season te
     championshipIntegrityMigration,
     /drop constraint if exists championship_rounds_championship_id_round_key/i,
   );
-  assert.match(
-    championshipIntegrityMigration,
-    /unique \(championship_id, local_id\)/i,
-  );
+  assert.match(championshipIntegrityMigration, /unique \(championship_id, local_id\)/i);
   assert.match(
     championshipIntegrityMigration,
     /add column if not exists championship_team_id uuid/i,
   );
-  assert.match(
-    championshipIntegrityMigration,
-    /validate_championship_round_scope/i,
-  );
+  assert.match(championshipIntegrityMigration, /validate_championship_round_scope/i);
 });
 
 test('global role capabilities migration seeds master/programmer capabilities and defines has_capability', () => {
@@ -1689,10 +1662,7 @@ test('global role capabilities migration seeds master/programmer capabilities an
     globalRoleCapabilitiesMigration,
     /role text not null check \(role in \('master', 'programmer', 'user'\)\)/i,
   );
-  assert.match(
-    globalRoleCapabilitiesMigration,
-    /primary key \(role, capability\)/i,
-  );
+  assert.match(globalRoleCapabilitiesMigration, /primary key \(role, capability\)/i);
 
   const insertBlock = globalRoleCapabilitiesMigration.match(
     /insert into public\.global_role_capabilities \(role, capability\) values[\s\S]*?on conflict do nothing;/i,
@@ -1724,17 +1694,17 @@ test('global role capabilities migration seeds master/programmer capabilities an
     /grant select on table public\.global_role_capabilities to authenticated;/i,
   );
 
-  const hasCapabilityFunction = extractSqlFunction(globalRoleCapabilitiesMigration, 'has_capability');
+  const hasCapabilityFunction = extractSqlFunction(
+    globalRoleCapabilitiesMigration,
+    'has_capability',
+  );
   assert.ok(hasCapabilityFunction, 'missing has_capability function');
   assert.match(hasCapabilityFunction, /security definer[\s\S]*set search_path = public/i);
   assert.match(
     hasCapabilityFunction,
     /join public\.global_role_capabilities c on c\.role = p\.role/i,
   );
-  assert.match(
-    hasCapabilityFunction,
-    /p\.id = \(select auth\.uid\(\)\)/i,
-  );
+  assert.match(hasCapabilityFunction, /p\.id = \(select auth\.uid\(\)\)/i);
   assert.match(
     globalRoleCapabilitiesMigration,
     /revoke execute on function public\.has_capability\(text\) from public, anon;/i,

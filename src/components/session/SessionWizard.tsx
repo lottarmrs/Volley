@@ -652,9 +652,7 @@ export function SessionWizard({
                       </label>
                       <select
                         value={positionFilter}
-                        onChange={(e) =>
-                          setPositionFilter(e.target.value as 'all' | Position)
-                        }
+                        onChange={(e) => setPositionFilter(e.target.value as 'all' | Position)}
                         className="select select-bordered w-full select-sm uppercase text-[10px]"
                       >
                         <option value="all">Todas</option>
@@ -1457,9 +1455,7 @@ export function SessionWizard({
                                 Disputa de 3º Lugar
                               </span>
                               <span className="text-[10px] font-bold text-base-content uppercase">
-                                {activeSession.config.hasThirdPlaceMatch !== false
-                                  ? 'Sim'
-                                  : 'Não'}
+                                {activeSession.config.hasThirdPlaceMatch !== false ? 'Sim' : 'Não'}
                               </span>
                             </div>
                           </>

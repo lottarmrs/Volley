@@ -2,7 +2,10 @@ import type { AccountGateway, AccountSnapshot } from '@app/accountUseCases';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 
 interface RpcClient {
-  rpc(name: string, args: Record<string, unknown>): Promise<{
+  rpc(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<{
     data: unknown;
     error: { code?: string; message: string } | null;
   }>;

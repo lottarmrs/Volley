@@ -698,12 +698,7 @@ export const operationalCloudService = {
       const championshipTeamCloudId = local.championshipTeamId
         ? championshipTeamCloudIds.get(local.championshipTeamId.toLowerCase())
         : undefined;
-      return mapTeamToDb(
-        local,
-        ownerId,
-        session?.communityId || null,
-        championshipTeamCloudId,
-      );
+      return mapTeamToDb(local, ownerId, session?.communityId || null, championshipTeamCloudId);
     });
     const data = await bulkUpsertRows('teams', records);
     return data.map(mapDbToTeam);

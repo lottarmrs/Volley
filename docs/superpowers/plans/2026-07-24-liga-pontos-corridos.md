@@ -1307,7 +1307,7 @@ git commit -m "feat(ui): add minimal championship management section to Communit
 - [x] Importação remapeia `Championship.communityId` e
       `ChampionshipTeam.playerIds`, além de podar agregados órfãos.
 - [x] Importação rejeita partidas com times de outro campeonato, times repetidos ou
-      `sessionId` inexistente.
+      `sessionId` inexistente/de outra comunidade.
 - [x] Migration `championship_integrity` aplicada no projeto real e verificada no
       catálogo: bridge, identidade, FK de escopo e trigger presentes.
 - [x] Gate final: 474 testes unitários + 86 testes de UI, TypeScript/lint e build de

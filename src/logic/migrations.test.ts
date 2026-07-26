@@ -315,8 +315,14 @@ test('sanitizeAndConsolidateImportedBackup remaps championships to a canonical c
 
 test('sanitizeAndConsolidateImportedBackup rejects cross-championship and dangling-session rounds', () => {
   const imported = sanitizeAndConsolidateImportedBackup({
-    communities: [{ id: 'community-1', name: 'Liga Central' }],
-    sessions: [{ id: 'session-1', communityId: 'community-1' }],
+    communities: [
+      { id: 'community-1', name: 'Liga Central' },
+      { id: 'community-2', name: 'Liga Visitante' },
+    ],
+    sessions: [
+      { id: 'session-1', communityId: 'community-1' },
+      { id: 'session-other-community', communityId: 'community-2' },
+    ],
     championships: [
       { id: 'champ-1', communityId: 'community-1' },
       { id: 'champ-2', communityId: 'community-1' },
@@ -352,6 +358,13 @@ test('sanitizeAndConsolidateImportedBackup rejects cross-championship and dangli
         teamAId: 'team-a',
         teamBId: 'team-b',
         sessionId: 'session-missing',
+      },
+      {
+        id: 'round-cross-community-session',
+        championshipId: 'champ-1',
+        teamAId: 'team-a',
+        teamBId: 'team-b',
+        sessionId: 'session-other-community',
       },
     ],
   });

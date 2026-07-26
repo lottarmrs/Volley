@@ -420,6 +420,16 @@ function pruneOrphanActiveReferences(data: any): any {
       )
       .map((championship: any) => championship.id),
   );
+  const communityIdByChampionshipId = new Map<string, string>(
+    (data.championships || [])
+      .filter(
+        (championship: any) =>
+          championship?.id &&
+          !championship.deletedAt &&
+          (!hasCommunities || activeCommunityIds.has(championship.communityId)),
+      )
+      .map((championship: any) => [championship.id, championship.communityId]),
+  );
   const championshipIdByTeamId = new Map<string, string>(
     (data.championshipTeams || [])
       .filter(
@@ -432,6 +442,11 @@ function pruneOrphanActiveReferences(data: any): any {
     (data.sessions || [])
       .filter((session: any) => session?.id && !session.deletedAt)
       .map((session: any) => session.id),
+  );
+  const communityIdBySessionId = new Map<string, string | null>(
+    (data.sessions || [])
+      .filter((session: any) => session?.id && !session.deletedAt)
+      .map((session: any) => [session.id, session.communityId ?? null]),
   );
 
   return {
@@ -498,7 +513,11 @@ function pruneOrphanActiveReferences(data: any): any {
         round.teamAId !== round.teamBId &&
         championshipIdByTeamId.get(round.teamAId) === round.championshipId &&
         championshipIdByTeamId.get(round.teamBId) === round.championshipId &&
-        (!hasSessions || !round.sessionId || activeSessionIds.has(round.sessionId)),
+        (!hasSessions ||
+          !round.sessionId ||
+          (activeSessionIds.has(round.sessionId) &&
+            communityIdBySessionId.get(round.sessionId) ===
+              communityIdByChampionshipId.get(round.championshipId))),
     ),
     communityPresence: (data.communityPresence || [])
       .filter((presence: any) => !hasCommunities || activeCommunityIds.has(presence.communityId))

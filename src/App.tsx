@@ -490,7 +490,7 @@ export default function App() {
 
   const clearChampionshipTeamBridges = (championshipIds: Set<string>) => {
     const teamIds = new Set<string>(
-      championships.championshipTeams
+      championships.rawChampionshipTeams
         .filter((team) => championshipIds.has(team.championshipId))
         .map((team) => team.id),
     );
@@ -506,7 +506,7 @@ export default function App() {
 
   const deleteChampionshipsForCommunity = (communityId: string) => {
     const championshipIds = new Set<string>(
-      championships.championships
+      championships.rawChampionships
         .filter((championship) => championship.communityId === communityId)
         .map((championship) => championship.id),
     );

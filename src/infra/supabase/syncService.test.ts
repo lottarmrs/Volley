@@ -18,11 +18,15 @@ import { communityCloudService } from './communityCloudService';
 import { communityPlayerCloudService } from './communityPlayerCloudService';
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
+import { championshipCloudService } from './championshipCloudService';
 import { aggregatePlayerEvaluations } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
   Community,
   CommunityPresence,
+  Championship,
+  ChampionshipRound,
+  ChampionshipTeam,
   Player,
   PlayerEvaluation,
   PointEvent,
@@ -61,9 +65,221 @@ function emptyPayload(overrides: Partial<LocalSyncPayload> = {}): LocalSyncPaylo
     sessionReports: [],
     presenceRecords: [],
     drafts: [],
+    championships: [],
+    championshipTeams: [],
+    championshipRounds: [],
     ...overrides,
   };
 }
+
+test('uploadLocalDataToCloud resolves championship references before upload', async () => {
+  const originalUpsertChampionship = championshipCloudService.upsertChampionship;
+  const originalUpsertTeam = championshipCloudService.upsertTeam;
+  const originalUpsertRound = championshipCloudService.upsertRound;
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const calls: Record<string, unknown> = {};
+
+  const championship: Championship = {
+    id: 'champ-local',
+    communityId: 'community-local',
+    name: 'Liga de Verao',
+    format: 'round_robin',
+    classificationPoints: { win: 3, loss: 0 },
+    recurrenceRule: { daysOfWeek: [2], time: '20:00', startDate: '2026-08-01' },
+    createdAt: '2026-07-26T00:00:00.000Z',
+    updatedAt: '2026-07-26T00:00:00.000Z',
+    syncStatus: 'pending',
+  };
+  const championshipTeam: ChampionshipTeam = {
+    id: 'champ-team-local-a',
+    championshipId: 'champ-local',
+    name: 'Time A',
+    playerIds: ['player-local'],
+    syncStatus: 'pending',
+  };
+  const otherTeam: ChampionshipTeam = {
+    ...championshipTeam,
+    id: 'champ-team-local-b',
+    name: 'Time B',
+    playerIds: [],
+  };
+  const round: ChampionshipRound = {
+    id: 'round-local',
+    championshipId: 'champ-local',
+    round: 1,
+    teamAId: championshipTeam.id,
+    teamBId: otherTeam.id,
+    scheduledDate: '2026-08-04T20:00',
+    skipped: false,
+    sessionId: 'session-local',
+    syncStatus: 'pending',
+  };
+
+  try {
+    championshipCloudService.upsertChampionship = async (item) => {
+      calls.championship = item;
+      return { ...item, cloudId: 'champ-cloud' };
+    };
+    championshipCloudService.upsertTeam = async (item, championshipCloudId) => {
+      calls[`team:${item.id}`] = { item, championshipCloudId };
+      return { ...item, cloudId: `${item.id}-cloud` };
+    };
+    championshipCloudService.upsertRound = async (
+      item,
+      championshipCloudId,
+      teamACloudId,
+      teamBCloudId,
+    ) => {
+      calls.round = { item, championshipCloudId, teamACloudId, teamBCloudId };
+      return { ...item, cloudId: 'round-cloud' };
+    };
+    operationalCloudService.upsertSession = async (item) => ({ ...item, cloudId: 'session-cloud' });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [
+          makeSharedCommunity({ id: 'community-local', cloudId: 'community-cloud' }),
+        ],
+        players: [makeSyncPlayer({ id: 'player-local', cloudId: 'player-cloud' })],
+        sessions: [makeSession()],
+        championships: [championship],
+        championshipTeams: [championshipTeam, otherTeam],
+        championshipRounds: [round],
+      }),
+      'owner-1',
+    );
+
+    assert.equal((calls.championship as Championship).communityId, 'community-cloud');
+    assert.deepEqual(
+      (calls['team:champ-team-local-a'] as { item: ChampionshipTeam }).item.playerIds,
+      ['player-cloud'],
+    );
+    assert.equal(
+      (calls['team:champ-team-local-a'] as { championshipCloudId: string })
+        .championshipCloudId,
+      'champ-cloud',
+    );
+    assert.deepEqual(calls.round, {
+      item: { ...round, sessionId: 'session-cloud' },
+      championshipCloudId: 'champ-cloud',
+      teamACloudId: 'champ-team-local-a-cloud',
+      teamBCloudId: 'champ-team-local-b-cloud',
+    });
+    assert.equal(result.championships[0].cloudId, 'champ-cloud');
+    assert.equal(result.championshipTeams[0].cloudId, 'champ-team-local-a-cloud');
+    assert.equal(result.championshipRounds[0].cloudId, 'round-cloud');
+  } finally {
+    championshipCloudService.upsertChampionship = originalUpsertChampionship;
+    championshipCloudService.upsertTeam = originalUpsertTeam;
+    championshipCloudService.upsertRound = originalUpsertRound;
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
+test('downloadCloudDataToLocal restores championship references to local ids', async () => {
+  const originalCommunities = communityCloudService.fetchAll;
+  const originalPlayers = playerCloudService.fetchAll;
+  const originalRules = communityRulesCloudService.fetchAll;
+  const originalTemplates = whatsappTemplateCloudService.fetchAll;
+  const originalRelations = communityPlayerCloudService.fetchAll;
+  const originalEvaluations = playerEvaluationCloudService.fetchAll;
+  const originalOperational = operationalCloudService.fetchAll;
+  const originalSelfEvaluation = selfEvaluationCloudService.fetch;
+  const originalChampionships = championshipCloudService.fetchAll;
+  const originalTeams = championshipCloudService.fetchTeams;
+  const originalRounds = championshipCloudService.fetchRounds;
+
+  try {
+    communityCloudService.fetchAll = async () => [
+      makeSharedCommunity({ id: 'community-local', cloudId: 'community-cloud' }),
+    ];
+    playerCloudService.fetchAll = async () => [
+      makeSyncPlayer({ id: 'player-local', cloudId: 'player-cloud' }),
+    ];
+    communityRulesCloudService.fetchAll = async () => [];
+    whatsappTemplateCloudService.fetchAll = async () => [];
+    communityPlayerCloudService.fetchAll = async () => [];
+    playerEvaluationCloudService.fetchAll = async () => [];
+    selfEvaluationCloudService.fetch = async () => null;
+    operationalCloudService.fetchAll = async () => ({
+      sessions: [makeSession({ id: 'session-local', cloudId: 'session-cloud' })],
+      teams: [],
+      games: [],
+      pointEvents: [],
+      gameReports: [],
+      sessionReports: [],
+      presenceRecords: [],
+      drafts: [],
+    });
+    championshipCloudService.fetchAll = async () => [
+      {
+        id: 'champ-local',
+        cloudId: 'champ-cloud',
+        communityId: 'community-cloud',
+        name: 'Liga',
+        format: 'round_robin',
+        classificationPoints: { win: 3, loss: 0 },
+        recurrenceRule: { daysOfWeek: [2], time: '20:00', startDate: '2026-08-01' },
+        createdAt: '2026-07-26T00:00:00.000Z',
+        updatedAt: '2026-07-26T00:00:00.000Z',
+      },
+    ];
+    championshipCloudService.fetchTeams = async () => [
+      {
+        id: 'champ-team-local-a',
+        cloudId: 'champ-team-cloud-a',
+        championshipId: 'champ-cloud',
+        name: 'Time A',
+        playerIds: ['player-cloud'],
+      },
+      {
+        id: 'champ-team-local-b',
+        cloudId: 'champ-team-cloud-b',
+        championshipId: 'champ-cloud',
+        name: 'Time B',
+        playerIds: [],
+      },
+    ];
+    championshipCloudService.fetchRounds = async () => [
+      {
+        id: 'round-local',
+        cloudId: 'round-cloud',
+        championshipId: 'champ-cloud',
+        round: 1,
+        teamAId: 'champ-team-cloud-a',
+        teamBId: 'champ-team-cloud-b',
+        scheduledDate: '2026-08-04T20:00',
+        skipped: false,
+        sessionId: 'session-cloud',
+      },
+    ];
+
+    const result = await syncService.downloadCloudDataToLocal('owner-1');
+
+    assert.equal(result.championships[0].communityId, 'community-local');
+    assert.equal(result.championshipTeams[0].championshipId, 'champ-local');
+    assert.deepEqual(result.championshipTeams[0].playerIds, ['player-local']);
+    assert.deepEqual(result.championshipRounds[0], {
+      ...result.championshipRounds[0],
+      championshipId: 'champ-local',
+      teamAId: 'champ-team-local-a',
+      teamBId: 'champ-team-local-b',
+      sessionId: 'session-local',
+    });
+  } finally {
+    communityCloudService.fetchAll = originalCommunities;
+    playerCloudService.fetchAll = originalPlayers;
+    communityRulesCloudService.fetchAll = originalRules;
+    whatsappTemplateCloudService.fetchAll = originalTemplates;
+    communityPlayerCloudService.fetchAll = originalRelations;
+    playerEvaluationCloudService.fetchAll = originalEvaluations;
+    operationalCloudService.fetchAll = originalOperational;
+    selfEvaluationCloudService.fetch = originalSelfEvaluation;
+    championshipCloudService.fetchAll = originalChampionships;
+    championshipCloudService.fetchTeams = originalTeams;
+    championshipCloudService.fetchRounds = originalRounds;
+  }
+});
 
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -829,6 +1045,9 @@ test('consolidateDuplicateRecords merges old duplicates and remaps historical re
           updatedAt: '2026-06-03T08:00:00.000Z',
         },
       ],
+      championships: [],
+      championshipTeams: [],
+      championshipRounds: [],
     } as any,
     { ownerId: 'owner-1', deletedAt: '2026-06-04T00:00:00.000Z' },
   );
@@ -1078,6 +1297,7 @@ test('downloadCloudDataToLocal fetches and merges the current user own self-eval
   const originalRelations = communityPlayerCloudService.fetchAll;
   const originalEvaluations = playerEvaluationCloudService.fetchAll;
   const originalOperational = operationalCloudService.fetchAll;
+  const originalChampionships = championshipCloudService.fetchAll;
   const originalSelfEvaluationFetch = selfEvaluationCloudService.fetch;
   const fetchedPlayerIds: string[] = [];
 
@@ -1093,6 +1313,7 @@ test('downloadCloudDataToLocal fetches and merges the current user own self-eval
     communityPlayerCloudService.fetchAll = async () => [];
     playerEvaluationCloudService.fetchAll = async () => [];
     operationalCloudService.fetchAll = async () => emptyOperationalPayload();
+    championshipCloudService.fetchAll = async () => [];
     selfEvaluationCloudService.fetch = async (playerId: string) => {
       fetchedPlayerIds.push(playerId);
       return { attributes: { ...baseAttributes, saque: 9 }, updatedAt: '2026-07-24T00:00:00.000Z' };
@@ -1114,6 +1335,7 @@ test('downloadCloudDataToLocal fetches and merges the current user own self-eval
     communityPlayerCloudService.fetchAll = originalRelations;
     playerEvaluationCloudService.fetchAll = originalEvaluations;
     operationalCloudService.fetchAll = originalOperational;
+    championshipCloudService.fetchAll = originalChampionships;
     selfEvaluationCloudService.fetch = originalSelfEvaluationFetch;
   }
 });
@@ -1126,6 +1348,7 @@ test('downloadCloudDataToLocal never fetches a self-evaluation when no owner is 
   const originalRelations = communityPlayerCloudService.fetchAll;
   const originalEvaluations = playerEvaluationCloudService.fetchAll;
   const originalOperational = operationalCloudService.fetchAll;
+  const originalChampionships = championshipCloudService.fetchAll;
   const originalSelfEvaluationFetch = selfEvaluationCloudService.fetch;
 
   try {
@@ -1138,6 +1361,7 @@ test('downloadCloudDataToLocal never fetches a self-evaluation when no owner is 
     communityPlayerCloudService.fetchAll = async () => [];
     playerEvaluationCloudService.fetchAll = async () => [];
     operationalCloudService.fetchAll = async () => emptyOperationalPayload();
+    championshipCloudService.fetchAll = async () => [];
     selfEvaluationCloudService.fetch = async () => assert.fail('should not fetch without an owner');
 
     const result = await syncService.downloadCloudDataToLocal(undefined);
@@ -1151,6 +1375,7 @@ test('downloadCloudDataToLocal never fetches a self-evaluation when no owner is 
     communityPlayerCloudService.fetchAll = originalRelations;
     playerEvaluationCloudService.fetchAll = originalEvaluations;
     operationalCloudService.fetchAll = originalOperational;
+    championshipCloudService.fetchAll = originalChampionships;
     selfEvaluationCloudService.fetch = originalSelfEvaluationFetch;
   }
 });

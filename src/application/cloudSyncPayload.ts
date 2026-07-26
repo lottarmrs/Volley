@@ -3,6 +3,9 @@ import type {
   Community,
   CommunityPresence,
   CommunityRules,
+  Championship,
+  ChampionshipRound,
+  ChampionshipTeam,
   Game,
   GameReport,
   Player,
@@ -28,6 +31,9 @@ export interface CloudSyncPayloadCollections {
   gameReports: GameReport[];
   sessionReports: SessionReport[];
   presenceRecords: CommunityPresence[];
+  championships: Championship[];
+  championshipTeams: ChampionshipTeam[];
+  championshipRounds: ChampionshipRound[];
 }
 
 export function buildLocalSyncPayload(collections: CloudSyncPayloadCollections): LocalSyncPayload {
@@ -44,6 +50,9 @@ export function buildLocalSyncPayload(collections: CloudSyncPayloadCollections):
     sessionReports: collections.sessionReports,
     presenceRecords: collections.presenceRecords,
     drafts: collections.drafts,
+    championships: collections.championships,
+    championshipTeams: collections.championshipTeams,
+    championshipRounds: collections.championshipRounds,
   };
 }
 

@@ -22,6 +22,9 @@ const payload = (): LocalSyncPayload => ({
   sessionReports: [],
   presenceRecords: [],
   drafts: [],
+  championships: [],
+  championshipTeams: [],
+  championshipRounds: [],
 });
 
 test('uploadCloudDataCommand sends local data through the gateway', async () => {

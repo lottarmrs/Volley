@@ -6,12 +6,16 @@ import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { selfEvaluationCloudService } from './selfEvaluationCloudService';
+import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
   Community,
   CommunityPresence,
   CommunityRules,
+  Championship,
+  ChampionshipRound,
+  ChampionshipTeam,
   Game,
   GameReport,
   Player,
@@ -28,6 +32,9 @@ export interface LocalSyncPayload extends OperationalSyncPayload {
   players: Player[];
   rules: CommunityRules[];
   templates: WhatsAppListTemplate[];
+  championships: Championship[];
+  championshipTeams: ChampionshipTeam[];
+  championshipRounds: ChampionshipRound[];
 }
 
 export interface SyncOptions {
@@ -592,6 +599,25 @@ function makeCloudIdLookup<T extends { id: string; cloudId?: string }>(items: T[
   return new Map(items.map((item) => [item.id.toLowerCase(), item.cloudId || item.id]));
 }
 
+function makePersistedCloudIdLookup<T extends { id: string; cloudId?: string }>(items: T[]) {
+  const lookup = new Map<string, string>();
+  for (const item of items) {
+    if (!item.cloudId) continue;
+    lookup.set(item.id.toLowerCase(), item.cloudId);
+    lookup.set(item.cloudId.toLowerCase(), item.cloudId);
+  }
+  return lookup;
+}
+
+function makeLocalIdLookup<T extends { id: string; cloudId?: string }>(items: T[]) {
+  const lookup = new Map<string, string>();
+  for (const item of items) {
+    lookup.set(item.id.toLowerCase(), item.id);
+    if (item.cloudId) lookup.set(item.cloudId.toLowerCase(), item.id);
+  }
+  return lookup;
+}
+
 function resolveCloudId(
   localOrCloudId: string | null | undefined,
   lookup: Map<string, string>,
@@ -847,6 +873,21 @@ export function consolidateDuplicateRecords(
         : draft.syncStatus,
   }));
 
+  const championships = local.championships.map((championship) => ({
+    ...championship,
+    communityId: remapId(championship.communityId, communityIdMap, summary),
+    syncStatus:
+      communityIdMap.size > 0 && !championship.deletedAt
+        ? 'pending'
+        : championship.syncStatus,
+  }));
+
+  const championshipTeams = local.championshipTeams.map((team) => ({
+    ...team,
+    playerIds: remapIdArray(team.playerIds, playerIdMap, summary),
+    syncStatus: playerIdMap.size > 0 && !team.deletedAt ? 'pending' : team.syncStatus,
+  }));
+
   return {
     payload: {
       communities,
@@ -861,6 +902,9 @@ export function consolidateDuplicateRecords(
       sessionReports,
       presenceRecords,
       drafts,
+      championships,
+      championshipTeams,
+      championshipRounds: local.championshipRounds,
     },
     summary,
   };
@@ -1096,6 +1140,49 @@ export const syncService = {
       }
     }
 
+    const updatedChampionships: Championship[] = [];
+    for (const championship of local.championships) {
+      try {
+        const communityCloudId = resolveCloudId(championship.communityId, communityCloudIds);
+        if (!communityCloudId || !communityCloudIds.has(championship.communityId.toLowerCase())) {
+          updatedChampionships.push(championship);
+          continue;
+        }
+        const uploaded = await championshipCloudService.upsertChampionship(
+          { ...championship, communityId: communityCloudId },
+          ownerId,
+        );
+        updatedChampionships.push(markSynced(championship, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`campeonato "${championship.name}"`, error);
+        updatedChampionships.push(championship);
+      }
+    }
+
+    const championshipCloudIds = makePersistedCloudIdLookup(updatedChampionships);
+    const persistedPlayerCloudIds = makePersistedCloudIdLookup(updatedPlayers);
+    const updatedChampionshipTeams: ChampionshipTeam[] = [];
+    for (const team of local.championshipTeams) {
+      try {
+        const championshipCloudId = championshipCloudIds.get(team.championshipId.toLowerCase());
+        const playerCloudIdsForTeam = team.playerIds.map((playerId) =>
+          persistedPlayerCloudIds.get(playerId.toLowerCase()),
+        );
+        if (!championshipCloudId || playerCloudIdsForTeam.some((playerId) => !playerId)) {
+          updatedChampionshipTeams.push(team);
+          continue;
+        }
+        const uploaded = await championshipCloudService.upsertTeam(
+          { ...team, playerIds: playerCloudIdsForTeam as string[] },
+          championshipCloudId,
+        );
+        updatedChampionshipTeams.push(markSynced(team, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`time de campeonato "${team.name}"`, error);
+        updatedChampionshipTeams.push(team);
+      }
+    }
+
     const updatedSessions: Session[] = [];
     for (const session of local.sessions) {
       try {
@@ -1128,6 +1215,43 @@ export const syncService = {
         },
       ]),
     );
+
+    const championshipTeamCloudIds = makePersistedCloudIdLookup(updatedChampionshipTeams);
+    const sessionCloudIds = makePersistedCloudIdLookup(updatedSessions);
+    const updatedChampionshipRounds: ChampionshipRound[] = [];
+    for (const round of local.championshipRounds) {
+      try {
+        const championshipCloudId = championshipCloudIds.get(round.championshipId.toLowerCase());
+        const teamACloudId = championshipTeamCloudIds.get(round.teamAId.toLowerCase());
+        const teamBCloudId = championshipTeamCloudIds.get(round.teamBId.toLowerCase());
+        const sessionCloudId = round.sessionId
+          ? sessionCloudIds.get(round.sessionId.toLowerCase())
+          : undefined;
+        if (
+          !championshipCloudId ||
+          !teamACloudId ||
+          !teamBCloudId ||
+          (round.sessionId && !sessionCloudId)
+        ) {
+          updatedChampionshipRounds.push(round);
+          continue;
+        }
+        const roundForUpload = {
+          ...round,
+          sessionId: sessionCloudId,
+        };
+        const uploaded = await championshipCloudService.upsertRound(
+          roundForUpload,
+          championshipCloudId,
+          teamACloudId,
+          teamBCloudId,
+        );
+        updatedChampionshipRounds.push(markSynced(round, uploaded.cloudId, syncedAt));
+      } catch (error) {
+        onIssue(`rodada ${round.round}`, error);
+        updatedChampionshipRounds.push(round);
+      }
+    }
 
     const updatedTeams = await bulkUploadSessionChildren<Team>(
       local.teams,
@@ -1364,6 +1488,9 @@ export const syncService = {
       sessionReports: updatedSessionReports,
       presenceRecords: visibleOrPendingDelete(updatedPresenceRecords),
       drafts: visibleOrPendingDelete(updatedDrafts),
+      championships: visible(updatedChampionships),
+      championshipTeams: visible(updatedChampionshipTeams),
+      championshipRounds: visible(updatedChampionshipRounds),
     };
   },
 
@@ -1371,14 +1498,35 @@ export const syncService = {
     const cloudCommunities = await communityCloudService.fetchAll();
     const cloudPlayers = await playerCloudService.fetchAll();
 
-    const [cloudRules, cloudTemplates, cloudRelations, cloudEvaluations, operational] =
+    const [
+      cloudRules,
+      cloudTemplates,
+      cloudRelations,
+      cloudEvaluations,
+      operational,
+      cloudChampionships,
+    ] =
       await Promise.all([
         communityRulesCloudService.fetchAll(),
         whatsappTemplateCloudService.fetchAll(),
         communityPlayerCloudService.fetchAll(),
         playerEvaluationCloudService.fetchAll(),
         operationalCloudService.fetchAll(),
+        championshipCloudService.fetchAll(),
       ]);
+
+    const championshipChildren = await Promise.all(
+      cloudChampionships.map(async (championship) => {
+        const championshipCloudId = championship.cloudId || championship.id;
+        const [teams, rounds] = await Promise.all([
+          championshipCloudService.fetchTeams(championshipCloudId),
+          championshipCloudService.fetchRounds(championshipCloudId),
+        ]);
+        return { teams, rounds };
+      }),
+    );
+    const cloudChampionshipTeams = championshipChildren.flatMap((entry) => entry.teams);
+    const cloudChampionshipRounds = championshipChildren.flatMap((entry) => entry.rounds);
 
     const playerMemberships: Record<string, string[]> = {};
     for (const relation of cloudRelations) {
@@ -1416,11 +1564,43 @@ export const syncService = {
         : aggregated;
     });
 
+    const communityLocalIds = makeLocalIdLookup(cloudCommunities);
+    const playerLocalIds = makeLocalIdLookup(cloudPlayers);
+    const championshipLocalIds = makeLocalIdLookup(cloudChampionships);
+    const championshipTeamLocalIds = makeLocalIdLookup(cloudChampionshipTeams);
+    const sessionLocalIds = makeLocalIdLookup(operational.sessions);
+    const mappedChampionships = cloudChampionships.map((championship) => ({
+      ...championship,
+      communityId:
+        communityLocalIds.get(championship.communityId.toLowerCase()) || championship.communityId,
+    }));
+    const mappedChampionshipTeams = cloudChampionshipTeams.map((team) => ({
+      ...team,
+      championshipId:
+        championshipLocalIds.get(team.championshipId.toLowerCase()) || team.championshipId,
+      playerIds: team.playerIds.map(
+        (playerId) => playerLocalIds.get(playerId.toLowerCase()) || playerId,
+      ),
+    }));
+    const mappedChampionshipRounds = cloudChampionshipRounds.map((round) => ({
+      ...round,
+      championshipId:
+        championshipLocalIds.get(round.championshipId.toLowerCase()) || round.championshipId,
+      teamAId: championshipTeamLocalIds.get(round.teamAId.toLowerCase()) || round.teamAId,
+      teamBId: championshipTeamLocalIds.get(round.teamBId.toLowerCase()) || round.teamBId,
+      sessionId: round.sessionId
+        ? sessionLocalIds.get(round.sessionId.toLowerCase()) || round.sessionId
+        : undefined,
+    }));
+
     return {
       communities: cloudCommunities,
       players: mappedPlayers,
       rules: cloudRules,
       templates: cloudTemplates,
+      championships: mappedChampionships,
+      championshipTeams: mappedChampionshipTeams,
+      championshipRounds: mappedChampionshipRounds,
       ...operational,
     };
   },
@@ -1470,6 +1650,19 @@ export const syncService = {
         getId: (item) => `${item.communityId}:${item.date}`,
       }),
       drafts: mergeEntityLists(repairedLocal.drafts, cloud.drafts, { getId: (item) => item.id }),
+      championships: mergeEntityLists(repairedLocal.championships, cloud.championships, {
+        getId: (item) => item.id,
+      }),
+      championshipTeams: mergeEntityLists(
+        repairedLocal.championshipTeams,
+        cloud.championshipTeams,
+        { getId: (item) => item.id },
+      ),
+      championshipRounds: mergeEntityLists(
+        repairedLocal.championshipRounds,
+        cloud.championshipRounds,
+        { getId: (item) => item.id },
+      ),
     };
 
     return this.uploadLocalDataToCloud(merged, ownerId, {

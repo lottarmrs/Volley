@@ -19,6 +19,9 @@ function emptyPayload(): LocalSyncPayload {
     sessionReports: [],
     presenceRecords: [],
     drafts: [],
+    championships: [],
+    championshipTeams: [],
+    championshipRounds: [],
   };
 }
 

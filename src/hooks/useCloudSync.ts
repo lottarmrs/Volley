@@ -28,6 +28,9 @@ import {
   Community,
   CommunityPresence,
   CommunityRules,
+  Championship,
+  ChampionshipRound,
+  ChampionshipTeam,
   Game,
   GameReport,
   Player,
@@ -71,6 +74,12 @@ export interface CloudSyncDeps {
   setSessionReports: (value: SessionReport[]) => void;
   presenceRecords: CommunityPresence[];
   setPresenceRecords: (value: CommunityPresence[]) => void;
+  championships?: Championship[];
+  setChampionships?: (value: Championship[]) => void;
+  championshipTeams?: ChampionshipTeam[];
+  setChampionshipTeams?: (value: ChampionshipTeam[]) => void;
+  championshipRounds?: ChampionshipRound[];
+  setChampionshipRounds?: (value: ChampionshipRound[]) => void;
   /** Optional sink for user-facing feedback (e.g. toasts). */
   onToast?: (message: string, variant: 'success' | 'error') => void;
 }
@@ -94,7 +103,13 @@ export function useCloudSync(deps: CloudSyncDeps) {
     loadFromStorage<string | null>(LAST_SYNCED_AT_KEY, null),
   );
 
-  const buildPayload = (): LocalSyncPayload => buildLocalSyncPayload(deps);
+  const buildPayload = (): LocalSyncPayload =>
+    buildLocalSyncPayload({
+      ...deps,
+      championships: deps.championships || [],
+      championshipTeams: deps.championshipTeams || [],
+      championshipRounds: deps.championshipRounds || [],
+    });
 
   const applyResult = (result: LocalSyncPayload) => {
     const normalized = normalizeCloudSyncResultPayload(result);
@@ -111,6 +126,9 @@ export function useCloudSync(deps: CloudSyncDeps) {
     deps.setSessionReports(normalized.sessionReports);
     deps.setPresenceRecords(normalized.presenceRecords);
     deps.setDrafts(normalized.drafts);
+    deps.setChampionships?.(normalized.championships);
+    deps.setChampionshipTeams?.(normalized.championshipTeams);
+    deps.setChampionshipRounds?.(normalized.championshipRounds);
 
     const nowStr = new Date().toISOString();
     setLastSyncedAt(nowStr);

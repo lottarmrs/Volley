@@ -21,6 +21,9 @@ const collections = (
   gameReports: [],
   sessionReports: [],
   presenceRecords: [],
+  championships: [],
+  championshipTeams: [],
+  championshipRounds: [],
   ...overrides,
 });
 
@@ -29,6 +32,9 @@ test('buildLocalSyncPayload preserves all sync collections for cloud commands', 
     collections({
       communities: [{ id: 'community-1', name: 'Panelinha' } as never],
       players: [{ id: 'player-1', nome: 'Ana' } as never],
+      championships: [{ id: 'championship-1', name: 'Liga' } as never],
+      championshipTeams: [{ id: 'championship-team-1', name: 'Time A' } as never],
+      championshipRounds: [{ id: 'championship-round-1', round: 1 } as never],
     }),
   );
 
@@ -36,10 +42,16 @@ test('buildLocalSyncPayload preserves all sync collections for cloud commands', 
     {
       communities: payload.communities.map((item) => item.id),
       players: payload.players.map((item) => item.id),
+      championships: payload.championships.map((item) => item.id),
+      championshipTeams: payload.championshipTeams.map((item) => item.id),
+      championshipRounds: payload.championshipRounds.map((item) => item.id),
     },
     {
       communities: ['community-1'],
       players: ['player-1'],
+      championships: ['championship-1'],
+      championshipTeams: ['championship-team-1'],
+      championshipRounds: ['championship-round-1'],
     },
   );
 });

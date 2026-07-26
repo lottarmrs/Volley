@@ -1130,7 +1130,7 @@ git commit -m "feat(app): add championship creation, round materialization, and 
 - Produces: `LocalSyncPayload` gains `championships`, `championshipTeams`,
   `championshipRounds` fields, synced the same way every other entity list already is.
 
-- [ ] **Step 1: Read the existing sync pattern for one comparable multi-table entity**
+- [x] **Step 1: Read the existing sync pattern for one comparable multi-table entity**
 
 Read how `communityRulesCloudService`/`community_rules` (a single related table) AND
 how `sessions`/`teams`/`games` (a parent-child chain of three related tables, the
@@ -1144,14 +1144,14 @@ pattern. `championship_rounds.session_id` needs the same local→cloud id resolu
 plan this session was exactly a missed instance of this same resolution step, so trace
 this carefully.
 
-- [ ] **Step 2: Add `championships`/`championshipTeams`/`championshipRounds` to `LocalSyncPayload`**
+- [x] **Step 2: Add `championships`/`championshipTeams`/`championshipRounds` to `LocalSyncPayload`**
 
 Add the three optional array fields to `LocalSyncPayload` (defined in
 `syncService.ts`), mirroring exactly how `linkProposals` used to be threaded (a
 now-removed feature from earlier this session, whose sync wiring pattern is otherwise
 identical to what's needed here) or how `rules`/`sessions` currently are.
 
-- [ ] **Step 3: Wire upload and download**
+- [x] **Step 3: Wire upload and download**
 
 In `uploadLocalDataToCloud`: upsert championships, then teams (each resolving its
 `championshipId` to the parent championship's cloud id via `resolveCloudId`), then
@@ -1164,14 +1164,14 @@ In `downloadCloudDataToLocal`: fetch championships, teams, rounds via
 `championshipCloudService`, map cloud ids back to local representations the same way
 every other fetched entity already is in this function.
 
-- [ ] **Step 4: Tests**
+- [x] **Step 4: Tests**
 
 Write tests in `syncService.test.ts` mirroring the exact test style already used for
 another entity's upload/download round-trip in this file, plus a test proving a
 `championship_round.session_id` is correctly resolved to its session's cloud id before
 upload (the Critical-bug-shaped case named in Step 1).
 
-- [ ] **Step 5: Run the full suite, typecheck, lint**
+- [x] **Step 5: Run the full suite, typecheck, lint**
 
 ```bash
 npm test
@@ -1179,7 +1179,7 @@ npx tsc --noEmit
 npm run lint:eslint
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/infra/supabase/syncService.ts src/infra/supabase/syncService.test.ts src/application/cloudSyncPayload.ts src/hooks/useCloudSync.ts

@@ -45,8 +45,18 @@ function TotpEnrollmentForm({
   );
 }
 
+// Sem este efeito o login "conclui" mas a tela continua no formulario: nada
+// reage a sessao que o AuthSessionProvider acabou de resolver.
 export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { state } = useAuthSession();
+  useEffect(() => {
+    if (state.kind === 'initializing' || state.kind === 'anonymous') return;
+    navigate(routeForAuthState(state) ?? destinationFromLocationState(location.state), {
+      replace: true,
+    });
+  }, [state, navigate, location.state]);
   return (
     <AuthForm
       mode={mode}
@@ -173,9 +183,11 @@ export function AuthLoadingPage() {
   );
 }
 
-// Aguarda o provider OAuth concluir e o AuthSessionProvider reconciliar a
-// sessao, depois segue para a rota correspondente ao novo estado.
-export function AuthCallbackPage() {
+// Aguarda o AuthSessionProvider reconciliar a sessao, depois segue para a rota
+// correspondente ao novo estado. Serve /auth/callback (retorno do OAuth) e
+// /auth/loading (destino do AuthGuard enquanto o estado e 'initializing') — sem
+// isso, a rota de loading fica presa no spinner depois que a sessao resolve.
+export function AuthTransitionPage() {
   const { state } = useAuthSession();
   const navigate = useNavigate();
   useEffect(() => {

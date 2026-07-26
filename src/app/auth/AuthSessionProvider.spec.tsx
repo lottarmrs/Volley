@@ -64,6 +64,31 @@ describe('AuthSessionProvider', () => {
     await waitFor(() => expect(screen.getByText('ready')).toBeTruthy());
   });
 
+  it('surfaces a recoverable error instead of hanging when getSession rejects', async () => {
+    const client = fakeAuthClient({ user: null });
+    render(
+      <AuthSessionProvider
+        authClient={{
+          ...client,
+          getSession: async () => {
+            throw new Error('Invalid Refresh Token');
+          },
+        }}
+        accountGateway={{
+          ensureReady: async () => ({
+            state: 'ready',
+            profile: profile('u1'),
+            playerId: 'p1',
+            username: 'ana',
+          }),
+        }}
+      >
+        <Probe />
+      </AuthSessionProvider>,
+    );
+    await waitFor(() => expect(screen.queryByText('initializing')).toBeNull());
+  });
+
   it('keeps a valid session as recoverable_error when bootstrap fails', async () => {
     render(
       <AuthSessionProvider

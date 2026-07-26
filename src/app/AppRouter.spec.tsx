@@ -40,4 +40,39 @@ describe('AppRouter', () => {
     renderRouter('/comunidades', { kind: 'onboarding', userId: 'u1', playerId: 'p1' });
     expect(screen.getByLabelText('Username')).toBeTruthy();
   });
+
+  it('leaves the login page once the session is signed in', () => {
+    renderRouter('/entrar', {
+      kind: 'ready',
+      userId: 'u1',
+      account: {
+        state: 'ready',
+        profile: {
+          id: 'u1',
+          name: 'Ana',
+          email: 'ana@example.com',
+          role: 'user',
+          createdAt: '2026-07-22T00:00:00Z',
+          updatedAt: '2026-07-22T00:00:00Z',
+        },
+        playerId: 'p1',
+        username: 'ana',
+      },
+    });
+    expect(screen.queryByRole('heading', { name: /entrar no sistema/i })).toBeNull();
+  });
+
+  it('navigates away from /auth/loading once the session finishes resolving', () => {
+    const { rerender } = renderRouter('/auth/loading', { kind: 'initializing' });
+    expect(screen.getByText(/carregando sess/i)).toBeTruthy();
+
+    authSessionMock.current = { ...authSessionMock.current, state: { kind: 'anonymous' } };
+    rerender(
+      <MemoryRouter initialEntries={['/auth/loading']}>
+        <AppRouter />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('heading', { name: /entrar/i })).toBeTruthy();
+  });
 });

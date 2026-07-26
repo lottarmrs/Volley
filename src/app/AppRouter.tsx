@@ -2,8 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import App from '../App';
 import { AuthGuard } from './auth/AuthGuard';
 import {
-  AuthCallbackPage,
-  AuthLoadingPage,
+  AuthTransitionPage,
   EmailVerificationPage,
   LoginPage,
   MfaChallengePage,
@@ -19,8 +18,8 @@ export function AppRouter() {
       <Route path="/entrar" element={<LoginPage mode="signin" />} />
       <Route path="/cadastro" element={<LoginPage mode="signup" />} />
       <Route path="/recuperar-senha" element={<PasswordRecoveryPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route path="/auth/loading" element={<AuthLoadingPage />} />
+      <Route path="/auth/callback" element={<AuthTransitionPage />} />
+      <Route path="/auth/loading" element={<AuthTransitionPage />} />
       <Route path="/auth/recuperar-sessao" element={<RecoverableSessionPage />} />
       <Route path="/verificar-email" element={<EmailVerificationPage />} />
       <Route path="/escolher-username" element={<UsernameOnboardingPage />} />

@@ -122,6 +122,13 @@ const championshipIntegrityMigration = readFixture(
   ),
 );
 
+const globalRoleCapabilitiesMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726090000_global_role_capabilities.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1627,5 +1634,83 @@ test('championship integrity migration preserves every fixture and the season te
   assert.match(
     championshipIntegrityMigration,
     /validate_championship_round_scope/i,
+  );
+});
+
+test('global role capabilities migration seeds master/programmer capabilities and defines has_capability', () => {
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /create table public\.global_role_capabilities \(/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /role text not null check \(role in \('master', 'programmer', 'user'\)\)/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /primary key \(role, capability\)/i,
+  );
+
+  const insertBlock = globalRoleCapabilitiesMigration.match(
+    /insert into public\.global_role_capabilities \(role, capability\) values[\s\S]*?on conflict do nothing;/i,
+  )?.[0];
+  assert.ok(insertBlock, 'missing capability seed block');
+  assert.match(insertBlock, /\('master', 'manage_community_ownership'\)/i);
+  assert.match(insertBlock, /\('master', 'manage_global_roles'\)/i);
+  assert.match(insertBlock, /\('programmer', 'view_all_profiles'\)/i);
+  assert.match(insertBlock, /\('programmer', 'manage_communities_any'\)/i);
+  // Critical: programmer must never hold manage_community_ownership — this is the
+  // hard guard that keeps programmer from ever becoming or removing a community
+  // owner via transfer_community_ownership (Task 2).
+  assert.doesNotMatch(insertBlock, /\('programmer', 'manage_community_ownership'\)/i);
+
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /alter table public\.global_role_capabilities enable row level security;/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /create policy "Authenticated users can read global role capabilities"[\s\S]*?for select to authenticated\s*using \(true\);/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /revoke all on table public\.global_role_capabilities from public, anon;/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /grant select on table public\.global_role_capabilities to authenticated;/i,
+  );
+
+  const hasCapabilityFunction = extractSqlFunction(globalRoleCapabilitiesMigration, 'has_capability');
+  assert.ok(hasCapabilityFunction, 'missing has_capability function');
+  assert.match(hasCapabilityFunction, /security definer[\s\S]*set search_path = public/i);
+  assert.match(
+    hasCapabilityFunction,
+    /join public\.global_role_capabilities c on c\.role = p\.role/i,
+  );
+  assert.match(
+    hasCapabilityFunction,
+    /p\.id = \(select auth\.uid\(\)\)/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /revoke execute on function public\.has_capability\(text\) from public, anon;/i,
+  );
+  assert.match(
+    globalRoleCapabilitiesMigration,
+    /grant execute on function public\.has_capability\(text\) to authenticated;/i,
+  );
+});
+
+test('consolidated schema includes global role capabilities with RLS and has_capability', () => {
+  assert.match(baseSchema, /create table public\.global_role_capabilities \(/i);
+  assert.match(
+    baseSchema,
+    /alter table public\.global_role_capabilities enable row level security;/i,
+  );
+  assert.doesNotMatch(baseSchema, /\('programmer', 'manage_community_ownership'\)/i);
+  assert.ok(
+    extractSqlFunction(baseSchema, 'has_capability'),
+    'consolidated schema missing has_capability function',
   );
 });

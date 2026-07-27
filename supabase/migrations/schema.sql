@@ -437,6 +437,9 @@ begin
 end;
 $$;
 
+revoke execute on function public.require_aal2() from public, anon;
+grant execute on function public.require_aal2() to authenticated;
+
 -- Member-management RPCs, capability-gated. The "target_member.role = 'owner' ->
 -- reject" guard is what makes these two unable to ever touch an owner, for anyone,
 -- including programmer/master.
@@ -626,7 +629,6 @@ begin
     raise exception 'Papel invalido: %', new_role using errcode = '22023';
   end if;
 
-  -- Protege o último master: não permite rebaixá-lo.
   if new_role <> 'master'
      and exists (select 1 from public.profiles where id = target_user_id and role = 'master')
      and (select count(*) from public.profiles where role = 'master') <= 1 then

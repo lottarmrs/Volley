@@ -728,17 +728,21 @@ test('consolidated schema guards profile roles while preserving role RPC', () =>
     /create trigger trg_guard_profile_role\s+before update on public\.profiles\s+for each row execute function public\.guard_profile_role\(\);/i,
   );
 
-  const expectedRpc = extractSqlFunction(roleManagementMigration, 'set_user_role');
   const actualRpc = extractSqlFunction(baseSchema, 'set_user_role');
   assert.ok(actualRpc, 'missing legitimate set_user_role RPC');
-  assert.ok(expectedRpc, 'missing historical set_user_role RPC to compare against');
-  // The consolidated schema's set_user_role has since diverged from this original
-  // migration: production now requires AAL2 (mandatory MFA hardening) and its error
-  // messages were normalized to plain ASCII, so this is no longer a literal-equality
-  // comparison — only the core role-change logic is asserted to still be present.
+  // The consolidated schema's set_user_role has since diverged from the original
+  // role-management migration: production now requires AAL2 (mandatory MFA
+  // hardening), so this is no longer a literal-equality comparison against that
+  // migration — only the core role-change logic is asserted to still be present.
+  // (Production's error messages were always plain ASCII; only this repo's migration
+  // file and schema.sql carried accented text before finding 4 fixed that.)
   assert.match(actualRpc, /perform public\.require_aal2\(\);/i);
   assert.match(actualRpc, /if not public\.is_superadmin\(\) then/i);
   assert.match(actualRpc, /new_role not in \('master', 'programmer', 'user'\)/i);
+  assert.match(
+    actualRpc,
+    /\(select count\(\*\) from public\.profiles where role = 'master'\) <= 1/i,
+  );
   assert.match(actualRpc, /perform set_config\('app\.allow_role_change', 'on', true\)/i);
   assert.match(
     baseSchema,

@@ -302,7 +302,8 @@ export function SessionWizard({
       ?.playerPositions ?? {};
 
   /** Posição efetiva do atleta nesta sessão: ajuste manual, com fallback no cadastro. */
-  const getEffectivePosition = (p: Player): Position => playerPositions[p.id] ?? p.posicaoPrincipal;
+  const getEffectivePosition = (p: Player): Position | null =>
+    playerPositions[p.id] ?? p.posicaoPrincipal;
 
   const setPlayerPosition = (playerId: string, pos: Position) => {
     if (!activeSession?.config) return;
@@ -460,7 +461,7 @@ export function SessionWizard({
     if (!selectedMovePlayer) return;
 
     const targetPlayerIsLocked =
-      activeSession.config?.balanceConstraints?.lockedPlayerIdxs?.[targetPlayerId] !== undefined;
+      activeSession?.config?.balanceConstraints?.lockedPlayerIdxs?.[targetPlayerId] !== undefined;
     if (targetPlayerIsLocked) {
       alert('Este atleta está fixado e não pode ser movido.');
       return;
@@ -2027,11 +2028,13 @@ export function SessionWizard({
                                   className={`text-[8px] font-bold uppercase ${overridden ? 'text-accent/80' : 'text-base-content/40'}`}
                                   title={
                                     overridden
-                                      ? `Função nesta sessão · cadastro: ${POSITION_LABELS[p.posicaoPrincipal]}`
+                                      ? `Função nesta sessão · cadastro: ${
+                                          p.posicaoPrincipal ? POSITION_LABELS[p.posicaoPrincipal] : '--'
+                                        }`
                                       : undefined
                                   }
                                 >
-                                  {POSITION_LABELS[effPos]}
+                                  {effPos ? POSITION_LABELS[effPos] : '--'}
                                   {overridden ? ' *' : ''}
                                 </span>
                               );

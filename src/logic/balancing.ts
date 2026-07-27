@@ -1221,12 +1221,23 @@ function assignLabelsToDivisions(divisions: Division[]): void {
 
   const assigned = new Set<string>();
 
+  // `explanation` e opcional, e o compilador nao consegue estreitar entre dois acessos
+  // por indice computado. Guardar a divisao e a lista em locais deixa a intencao
+  // explicita sem precisar de assercao.
+  const label = (index: number, reason: string, quality: string) => {
+    const division = divisions[index];
+    const explanation = division.explanation ?? [];
+    explanation.unshift(reason);
+    division.explanation = explanation;
+    division.qualityLabel = quality;
+  };
+
   // 1. Overall
-  divisions[bestOverallIdx].explanation = divisions[bestOverallIdx].explanation || [];
-  divisions[bestOverallIdx].explanation.unshift(
+  label(
+    bestOverallIdx,
     'Divisão com menor variação de força geral entre as equipes.',
+    'Melhor Equilíbrio Geral',
   );
-  divisions[bestOverallIdx].qualityLabel = 'Melhor Equilíbrio Geral';
   assigned.add(bestOverallIdx.toString());
 
   // 2. Fundamentals
@@ -1244,11 +1255,11 @@ function assignLabelsToDivisions(divisions: Division[]): void {
       }
     });
   }
-  divisions[fundTargetIdx].explanation = divisions[fundTargetIdx].explanation || [];
-  divisions[fundTargetIdx].explanation.unshift(
+  label(
+    fundTargetIdx,
     'Divisão focada no equilíbrio perfeito de fundamentos (ataque e defesa).',
+    'Melhor Equilíbrio Técnico',
   );
-  divisions[fundTargetIdx].qualityLabel = 'Melhor Equilíbrio Técnico';
   assigned.add(fundTargetIdx.toString());
 
   // 3. Physical
@@ -1261,11 +1272,11 @@ function assignLabelsToDivisions(divisions: Division[]): void {
       }
     }
   }
-  divisions[heightTargetIdx].explanation = divisions[heightTargetIdx].explanation || [];
-  divisions[heightTargetIdx].explanation.unshift(
+  label(
+    heightTargetIdx,
     'Divisão com melhor balanceamento de altura média e presença de rede.',
+    'Melhor Distribuição Física',
   );
-  divisions[heightTargetIdx].qualityLabel = 'Melhor Distribuição Física';
 }
 
 // Quantos jogadores compartilham o mesmo time entre duas soluções (0 = idênticas)

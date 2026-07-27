@@ -25,7 +25,7 @@ const HIGHLIGHT_SKILLS: { skill: Skill; label: string }[] = [
 ];
 
 // Fundamento inferido pela posição quando o marcador não troca manualmente.
-const inferSkill = (position: string): Skill =>
+const inferSkill = (position: string | null): Skill =>
   position === 'levantador' ? 'levantamento' : position === 'libero' ? 'defesa' : 'defesa';
 
 export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) => {
@@ -101,7 +101,8 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
                         >
                           <p className="text-xs font-bold">{p.apelido || p.nome}</p>
                           <p className="text-[9px] uppercase text-base-content/60">
-                            {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                            {(p.posicaoPrincipal && positionLabels[p.posicaoPrincipal]) ||
+                              'Jogador'}
                           </p>
                         </button>
                       ))}

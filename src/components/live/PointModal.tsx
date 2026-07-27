@@ -310,7 +310,7 @@ export const PointModal = ({
                         {p.nome}
                       </p>
                       <p className="text-[9px] uppercase text-base-content/60">
-                        {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                        {(p.posicaoPrincipal && positionLabels[p.posicaoPrincipal]) || 'Jogador'}
                       </p>
                     </button>
                   ))}
@@ -365,7 +365,8 @@ export const PointModal = ({
                             {p.apelido || p.nome}
                           </p>
                           <p className="text-[8px] uppercase text-base-content/60">
-                            {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                            {(p.posicaoPrincipal && positionLabels[p.posicaoPrincipal]) ||
+                              'Jogador'}
                           </p>
                         </button>
                       ))}
@@ -494,7 +495,8 @@ export const PointModal = ({
                             {p.nome}
                           </p>
                           <p className="text-[9px] uppercase text-base-content/60">
-                            {positionLabels[p.posicaoPrincipal] || 'Jogador'}
+                            {(p.posicaoPrincipal && positionLabels[p.posicaoPrincipal]) ||
+                              'Jogador'}
                           </p>
                         </button>
                       ))}

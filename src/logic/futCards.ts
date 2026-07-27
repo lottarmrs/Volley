@@ -322,7 +322,9 @@ const DEFAULT_FRAME: CardFrame = {
 /** Build the complete VUT card for a player. Expensive — call on-demand, memoize. */
 export function buildVutCard(player: Player, ctx: BuildVutCardContext): VutCard {
   const stats = generateFutStats(player);
-  const posLabel = POS_LABELS[player.posicaoPrincipal] || 'ALL';
+  // Mantem o fallback 'ALL' que ja existia para posicao desconhecida; a unica mudanca
+  // e nao indexar o mapa com null.
+  const posLabel = (player.posicaoPrincipal ? POS_LABELS[player.posicaoPrincipal] : null) || 'ALL';
 
   // Form badge
   const formAvg = autoFormFromHistory(player);

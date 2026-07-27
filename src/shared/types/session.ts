@@ -536,8 +536,12 @@ export interface AthleteVector {
   consistency: number;
   emotionalControl: number;
   heightCm: number | null;
-  gender: Gender;
-  position: string;
+  // Nulos de verdade: jogador criado junto com a conta nasce sem genero e sem
+  // posicao. Todos os consumidores comparam por igualdade ('M'/'F', 'central'...),
+  // entao um nulo simplesmente nao entra em nenhuma contagem — que e o comportamento
+  // correto, o mesmo de SessionSetupSummary.
+  gender: Gender | null;
+  position: string | null;
   secondaryPositions?: string[];
   isInjured: boolean;
   currentForm: number;

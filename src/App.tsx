@@ -1149,8 +1149,10 @@ export default function App() {
                         {p.player.apelido || p.player.nome}
                       </span>
                       <span className="text-[10px] font-semibold text-base-content/50 uppercase">
-                        {rankingPositionLabels[p.player.posicaoPrincipal] ||
-                          p.player.posicaoPrincipal}
+                        {p.player.posicaoPrincipal
+                          ? rankingPositionLabels[p.player.posicaoPrincipal] ||
+                            p.player.posicaoPrincipal
+                          : '--'}
                         {p.player.status.lesionado && (
                           <span className="ml-1.5 px-1 py-0.5 bg-error/15 text-error text-[8px] rounded uppercase font-bold">
                             Lesionado
@@ -1242,8 +1244,10 @@ export default function App() {
                       )}
                     </td>
                     <td className="p-4 font-semibold text-base-content/60 uppercase text-[10px]">
-                      {rankingPositionLabels[p.player.posicaoPrincipal] ||
-                        p.player.posicaoPrincipal}
+                      {p.player.posicaoPrincipal
+                        ? rankingPositionLabels[p.player.posicaoPrincipal] ||
+                          p.player.posicaoPrincipal
+                        : '--'}
                     </td>
                     <td className="p-4 text-center font-mono font-bold text-base-content/70">
                       {p.stats.gamesPlayed}

@@ -514,7 +514,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           ) : (
             <>
               <Download className="w-4 h-4" />
-              {navigator.canShare ? 'Compartilhar Carta' : 'Baixar Imagem (PNG)'}
+              {typeof navigator.canShare === 'function'
+                ? 'Compartilhar Carta'
+                : 'Baixar Imagem (PNG)'}
             </>
           )}
         </button>

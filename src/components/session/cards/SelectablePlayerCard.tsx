@@ -15,8 +15,9 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
   player,
   isSelected,
   onToggle,
-  communities = [],
+  communities: communitiesProp,
 }) => {
+  const communities = communitiesProp ?? [];
   const overall = calculateGeneralOverall(player);
   const balancingRole = getBalancingRole(player.atributos);
 

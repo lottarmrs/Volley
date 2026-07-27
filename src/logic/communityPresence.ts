@@ -63,7 +63,10 @@ export function getPresenceSummary(presence: CommunityPresence | null, players: 
   const groups = getPresenceGroups(presence, players);
   const strength = calculateTeamStrength(groups.present);
   const byPosition = groups.present.reduce<Record<string, number>>((acc, player) => {
-    acc[player.posicaoPrincipal] = (acc[player.posicaoPrincipal] || 0) + 1;
+    // Sem posicao definida vai para um balde proprio em vez de virar a chave "null":
+    // assim a soma dos grupos continua batendo com o total de presentes.
+    const key = player.posicaoPrincipal ?? 'sem_posicao';
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
 

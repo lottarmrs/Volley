@@ -47,9 +47,9 @@ export interface Player {
   avatarUrl?: string;
   nome: string;
   apelido: string;
-  genero: Gender;
+  genero: Gender | null;
   ativo: boolean;
-  posicaoPrincipal: Position;
+  posicaoPrincipal: Position | null;
   posicoesSecundarias: Position[];
   alturaCm?: number;
   maoDominante: 'direita' | 'esquerda';

@@ -152,6 +152,12 @@ test('toggleLockedPlayerTeam adds switches and removes locked team constraints',
   const switched = toggleLockedPlayerTeam(locked, 'p1', 1);
   const removed = toggleLockedPlayerTeam(switched, 'p1', 1);
 
+  // Session['config'] e opcional, entao o retorno e possivelmente undefined. Afirmar
+  // que veio preenchido faz parte do contrato sob teste — nao e ruido de tipo.
+  assert.ok(locked);
+  assert.ok(switched);
+  assert.ok(removed);
+
   assert.equal(locked.balanceConstraints?.lockedPlayerIdxs?.p1, 0);
   assert.equal(switched.balanceConstraints?.lockedPlayerIdxs?.p1, 1);
   assert.deepEqual(removed.balanceConstraints?.lockedPlayerIdxs, {});
@@ -162,6 +168,11 @@ test('player pair constraints are unique and removable regardless of pair order'
   const duplicate = addPlayerPairConstraint(withPair, 'p2', 'p1', 'together');
   const separated = addPlayerPairConstraint(duplicate, 'p1', 'p3', 'separated');
   const removed = removePlayerPairConstraint(separated, 'p2', 'p1', 'together');
+
+  assert.ok(withPair);
+  assert.ok(duplicate);
+  assert.ok(separated);
+  assert.ok(removed);
 
   assert.deepEqual(withPair.balanceConstraints?.pairsTogether, [['p1', 'p2']]);
   assert.deepEqual(duplicate.balanceConstraints?.pairsTogether, [['p1', 'p2']]);

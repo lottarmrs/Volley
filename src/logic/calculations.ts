@@ -23,14 +23,18 @@ export function calculateHeightScore(heightCm?: number | null): number {
   return Number(clamp(score, 1, 10).toFixed(1));
 }
 
-export const calculatePositionOverall = (player: Player, position: Position): number => {
+export const calculatePositionOverall = (player: Player, position: Position | null): number => {
   // Um jogador criado junto com a conta (ensure_account_ready) nasce sem posicao:
   // primary_position fica null e o mapper repassa como esta. POSITION_WEIGHTS[null] e
   // undefined, e Object.entries(undefined) lanca — o que derrubava a aba de Atletas
   // inteira em tela preta, porque PlayerItem chama isto para cada card. Sem posicao
   // definida, 'all-rounder' e a leitura correta: pesos equilibrados, nenhum
   // fundamento privilegiado.
-  const weights = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS['all-rounder'];
+  // Cobre os dois casos: sem posicao (null) e posicao desconhecida. primary_position e
+  // texto livre no banco, sem CHECK, entao um valor fora da lista chega aqui de
+  // verdade — e POSITION_WEIGHTS[desconhecida] tambem seria undefined.
+  const weights =
+    (position ? POSITION_WEIGHTS[position] : undefined) ?? POSITION_WEIGHTS['all-rounder'];
   const { atributos, formaAtual, alturaCm } = player;
   const heightScore = calculateHeightScore(alturaCm);
 
@@ -155,7 +159,7 @@ export const getAutoSpecialty = (player: Player): string => {
   if (topVal < 4) return 'Em Desenvolvimento';
 
   // Prefer a position-critical attribute if it's close to the top (within 1 point)
-  const critical = POSITION_CRITICAL[posicaoPrincipal] ?? [];
+  const critical = posicaoPrincipal ? (POSITION_CRITICAL[posicaoPrincipal] ?? []) : [];
   for (const key of critical) {
     const val = atributos[key] ?? 0;
     if (val >= topVal - 1 && val >= 6) {

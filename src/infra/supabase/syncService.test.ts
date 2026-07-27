@@ -1327,12 +1327,14 @@ test('syncNow restores cloud user id while repairing a newer legacy unlink inten
 test('syncNow auto-repairs duplicate local players before uploading', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpload = syncService.uploadLocalDataToCloud;
-  let capturedMergedPayload: LocalSyncPayload | null = null;
+  // Guardado dentro de um objeto de proposito: o compilador nao ve a atribuicao feita
+  // no callback e estreitaria uma variavel solta para null, quebrando a leitura abaixo.
+  const captured: { mergedPayload: LocalSyncPayload | null } = { mergedPayload: null };
 
   try {
     syncService.downloadCloudDataToLocal = async () => emptyPayload();
     syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
-      capturedMergedPayload = payload;
+      captured.mergedPayload = payload;
       return payload;
     };
 
@@ -1374,10 +1376,11 @@ test('syncNow auto-repairs duplicate local players before uploading', async () =
       'owner-1',
     );
 
+    const merged = captured.mergedPayload;
+    assert.ok(merged, 'merged payload was never captured');
+
     assert.deepEqual(
-      capturedMergedPayload?.players
-        .filter((player) => !player.deletedAt)
-        .map((player) => player.id),
+      merged.players.filter((player) => !player.deletedAt).map((player) => player.id),
       ['player-active'],
     );
     assert.deepEqual(result.sessions[0].selectedPlayerIds, ['player-active']);

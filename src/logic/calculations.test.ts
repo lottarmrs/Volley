@@ -7,24 +7,26 @@ import {
   getAutoWeakness,
 } from './calculations';
 import { Player, Position } from '../types';
+import { makePlayer } from '../test/fixtures';
 
 // A player created by ensure_account_ready at signup: the RPC inserts only
 // owner_id/user_id/name/username, so the DB defaults apply — attributes, forma_atual,
 // profile and status are all '{}'::jsonb and primary_position is null. The cloud
 // mapper passes those straight through, so this is exactly what reaches the UI.
 function accountCreatedPlayer(): Player {
-  return {
-    id: 'p1',
+  return makePlayer('p1', {
     nome: 'TESTEADM',
     apelido: '',
-    ativo: true,
-    posicaoPrincipal: null as unknown as Position,
-    posicoesSecundarias: [],
+    genero: null,
+    posicaoPrincipal: null,
+    // These fields are genuinely `{}` on the wire for an account-created player —
+    // the DB's jsonb defaults, not a typed Player value. That's the precondition
+    // under test, so the cast is the point, not a shortcut around it.
     atributos: {} as Player['atributos'],
     perfil: {} as Player['perfil'],
     formaAtual: {} as Player['formaAtual'],
     status: {} as Player['status'],
-  } as Player;
+  });
 }
 
 test('calculatePositionOverall survives a player with no primary position', () => {

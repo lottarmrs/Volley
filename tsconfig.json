@@ -33,7 +33,8 @@
       "@test/*": ["./src/test/*"]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "strictNullChecks": true
   },
   "exclude": ["dist", "developer-roadmap", "graphify-out", "node_modules"]
 }

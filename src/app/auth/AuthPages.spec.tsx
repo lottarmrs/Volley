@@ -50,7 +50,6 @@ function renderAuthPage(
   page: ReactNode = <UsernameOnboardingPage />,
 ) {
   authSessionMock.current = {
-    state: overrides.state,
     session: null,
     account: null,
     retry: vi.fn(),

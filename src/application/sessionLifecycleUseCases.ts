@@ -508,7 +508,7 @@ export function buildDivisionFallbackBalanceInput(plan: DivisionGenerationPlan |
   config: FreePlayConfig | TournamentConfig;
   partnershipMatrix?: PartnershipMatrix;
 } | null {
-  if (!plan) return null;
+  if (!plan || !plan.request.config) return null;
 
   return {
     players: plan.request.players,

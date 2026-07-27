@@ -1744,7 +1744,7 @@ function CommunityPlayersTab({
   sessions: Session[];
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
   onCreatePlayer: (name: string, communityId: string) => void;
-  onLinkedCloudPlayer: (player: Player, communityId: string) => void;
+  onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
   canManageMembers?: boolean;
@@ -1918,7 +1918,8 @@ function CommunityPlayersTab({
             <div>
               <div className="font-bold">{getPlayerDisplayName(player)}</div>
               <div className="text-xs opacity-60">
-                {player.nome} - {POSITION_LABELS[player.posicaoPrincipal]}
+                {player.nome} -{' '}
+                {player.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--'}
               </div>
               <progress
                 className="progress progress-primary w-32 h-1 mt-2"
@@ -1966,7 +1967,9 @@ function CommunityPlayersTab({
                     onClick={() => togglePlayer(player.id)}
                   >
                     {getPlayerDisplayName(player)}
-                    <span className="badge">{POSITION_LABELS[player.posicaoPrincipal]}</span>
+                    <span className="badge">
+                      {player.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--'}
+                    </span>
                   </button>
                 ))}
             </div>
@@ -2114,7 +2117,9 @@ function CommunityPresenceTab({
           <div key={player.id} className="list-row">
             <div>
               <div className="font-bold">{getPlayerDisplayName(player)}</div>
-              <div className="text-xs opacity-60">{POSITION_LABELS[player.posicaoPrincipal]}</div>
+              <div className="text-xs opacity-60">
+                {player.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--'}
+              </div>
             </div>
             <PresenceStatusControl
               status={getPresenceStatus(presence, player.id)}

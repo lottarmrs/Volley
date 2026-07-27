@@ -367,7 +367,8 @@ export const PlayerEditView = ({
                     <div>
                       <p className="text-xs font-bold tracking-tight">{p.apelido || p.nome}</p>
                       <span className="text-[9px] text-base-content/50 font-mono uppercase">
-                        {positionAbbreviations[p.posicaoPrincipal]} • {p.genero}
+                        {p.posicaoPrincipal ? positionAbbreviations[p.posicaoPrincipal] : '--'} •{' '}
+                        {p.genero}
                       </span>
                     </div>
                   </div>

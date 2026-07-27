@@ -1,25 +1,27 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { PlayerItem } from './PlayerComponents';
-import type { Player, Position } from '../../types';
+import type { Player } from '../../types';
+import { makePlayer } from '../../test/fixtures';
 
 // Exactly what reaches the UI for a player created together with an account:
 // ensure_account_ready inserts only owner_id/user_id/name/username, so the DB
 // defaults apply (attributes/forma_atual/profile/status all '{}'::jsonb,
 // primary_position null) and mapDbToPlayer passes them straight through.
 function accountCreatedPlayer(): Player {
-  return {
-    id: '565a23e5-8b3e-4a3f-bc47-1803e1f46b4d',
+  return makePlayer('565a23e5-8b3e-4a3f-bc47-1803e1f46b4d', {
     nome: 'TESTEADM',
     apelido: '',
-    ativo: true,
-    posicaoPrincipal: null as unknown as Position,
-    posicoesSecundarias: [],
+    genero: null,
+    posicaoPrincipal: null,
+    // These fields are genuinely `{}` on the wire for an account-created player —
+    // the DB's jsonb defaults, not a typed Player value. That's the precondition
+    // under test, so the cast is the point, not a shortcut around it.
     atributos: {} as Player['atributos'],
     perfil: {} as Player['perfil'],
     formaAtual: {} as Player['formaAtual'],
     status: {} as Player['status'],
-  } as Player;
+  });
 }
 
 describe('PlayerItem', () => {
@@ -42,7 +44,7 @@ describe('PlayerItem', () => {
   });
 
   it('still shows a declared gender', () => {
-    render(<PlayerItem player={{ ...accountCreatedPlayer(), genero: 'F' } as Player} />);
+    render(<PlayerItem player={{ ...accountCreatedPlayer(), genero: 'F' }} />);
 
     expect(screen.getByText(/feminino/i)).toBeTruthy();
   });

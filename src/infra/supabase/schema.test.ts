@@ -147,6 +147,39 @@ const mandatoryMfaAal2EnforcementMigration = readFixture(
   ),
 );
 
+const functionSecurityHardeningMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260610195250_harden_function_security.sql',
+    import.meta.url,
+  ),
+);
+
+const communityJoinSystemMigration = readFixture(
+  new URL('../../../supabase/migrations/20260624204113_community_join_system.sql', import.meta.url),
+);
+
+const communityDiscoveryMigration = readFixture(
+  new URL('../../../supabase/migrations/20260625192530_community_discovery.sql', import.meta.url),
+);
+
+const communityModelV2Migration = readFixture(
+  new URL('../../../supabase/migrations/20260624203424_community_model_v2.sql', import.meta.url),
+);
+
+const globalAthleteIdentityMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260610161256_global_athlete_identity.sql',
+    import.meta.url,
+  ),
+);
+
+const communityPlayersOptimizationMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260617180615_community_players_optimization.sql',
+    import.meta.url,
+  ),
+);
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -1780,10 +1813,7 @@ test('community role capabilities migration adds organizador and capability-gate
   // 'member' holds no capabilities at all by default.
   assert.doesNotMatch(insertBlock, /\('member',/i);
 
-  for (const table of [
-    'community_role_capabilities',
-    'community_role_capability_overrides',
-  ]) {
+  for (const table of ['community_role_capabilities', 'community_role_capability_overrides']) {
     assert.match(
       communityRoleCapabilitiesMigration,
       new RegExp(`alter table public\\.${table} enable row level security;`, 'i'),
@@ -1801,7 +1831,10 @@ test('community role capabilities migration adds organizador and capability-gate
   assert.ok(capabilityFn, 'missing community_has_capability function');
   assert.match(capabilityFn, /security definer[\s\S]*set search_path = public/i);
   // An override row wins over the role default, in either direction.
-  assert.match(capabilityFn, /coalesce\([\s\S]*select o\.granted[\s\S]*community_role_capability_overrides o/i);
+  assert.match(
+    capabilityFn,
+    /coalesce\([\s\S]*select o\.granted[\s\S]*community_role_capability_overrides o/i,
+  );
   assert.match(capabilityFn, /cm\.status = 'active'/i);
 
   for (const [fn, capability] of [
@@ -1812,7 +1845,10 @@ test('community role capabilities migration adds organizador and capability-gate
     assert.ok(body, `missing ${fn} function`);
     assert.match(
       body,
-      new RegExp(`community_has_capability\\(target_member\\.community_id, '${capability}'\\)`, 'i'),
+      new RegExp(
+        `community_has_capability\\(target_member\\.community_id, '${capability}'\\)`,
+        'i',
+      ),
     );
     // The owner guard is what keeps these RPCs from ever touching an owner row,
     // for any caller including master/programmer.
@@ -1942,4 +1978,246 @@ test('the four sensitive role/ownership RPCs enforce AAL2 at the database layer'
     const aal2Position = schemaFn.search(/perform public\.require_aal2\(\);/i);
     assert.ok(authCheckPosition >= 0 && authCheckPosition < aal2Position, fn);
   }
+});
+test('consolidated schema carries every community join/discovery RPC verbatim', () => {
+  // schema.sql is the "paste into the SQL Editor" snapshot. Every RPC below is live
+  // in production but was missing from it entirely, so a fresh project stood up from
+  // this file could not join, approve, discover, or leave a community at all.
+  const expected: [string, string][] = [
+    ['generate_join_code', communityJoinSystemMigration],
+    ['disable_join_code', communityJoinSystemMigration],
+    ['find_community_by_code', communityJoinSystemMigration],
+    ['request_to_join_community', communityJoinSystemMigration],
+    ['approve_join_request', communityJoinSystemMigration],
+    ['reject_join_request', communityJoinSystemMigration],
+    ['leave_community', communityJoinSystemMigration],
+    ['set_community_visibility', communityDiscoveryMigration],
+    ['search_public_communities', communityDiscoveryMigration],
+    ['request_to_join_public', communityDiscoveryMigration],
+    // Superseded twice; 20260624203424 holds the authoritative definition.
+    ['add_community_member_by_email', communityModelV2Migration],
+    ['propose_player_avatar', avatarApprovalMigration],
+    ['approve_player_avatar', avatarApprovalMigration],
+    ['reject_player_avatar', avatarApprovalMigration],
+    ['find_player_by_username', globalAthleteIdentityMigration],
+    ['current_user_shares_profile', migration],
+    ['ensure_community_owner_member', migration],
+    // schema.sql carried a hand-written copy of this one that predated community_id:
+    // it only ever wrote owner_id, so a project stood up from the file logged audit
+    // rows with no community attribution, and lacked the nullif(..., '') guard that
+    // keeps an empty owner_id from blowing up the uuid cast.
+    ['log_table_changes', migration],
+    ['guard_community_member_owner_role', rbacHardeningMigration],
+    ['sync_community_player_active_status', communityPlayersOptimizationMigration],
+  ];
+
+  for (const [fn, source] of expected) {
+    const inSchema = extractSqlFunction(baseSchema, fn);
+    assert.ok(inSchema, `consolidated schema missing ${fn}`);
+
+    const inMigration = extractSqlFunction(source, fn);
+    assert.ok(inMigration, `authoritative migration for ${fn} not found`);
+
+    // Compare bodies modulo whitespace/case so a reformat does not fail the test but
+    // a changed predicate or a dropped guard does.
+    const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim().toLowerCase();
+    assert.equal(
+      normalize(inSchema),
+      normalize(inMigration),
+      `${fn} in schema.sql does not match its authoritative migration definition`,
+    );
+  }
+});
+
+test('consolidated schema inlines the search_path that was applied by ALTER', () => {
+  // 20260610161203 created prevent_last_community_owner_change WITHOUT a search_path;
+  // 20260610195250 pinned it afterwards with `alter function`. Production therefore has
+  // the pin, and schema.sql — which has no later ALTER to replay — must inline it.
+  assert.match(
+    functionSecurityHardeningMigration,
+    /alter function public\.prevent_last_community_owner_change\(\) set search_path = public;/i,
+  );
+  const guard = extractSqlFunction(baseSchema, 'prevent_last_community_owner_change');
+  assert.ok(guard, 'consolidated schema missing prevent_last_community_owner_change');
+  assert.match(guard, /language plpgsql\s+set search_path = public/i);
+  // The invariant itself: both the DELETE and the demote path must count owners.
+  assert.match(guard, /tg_op = 'DELETE' and old\.role = 'owner'/i);
+  assert.match(guard, /tg_op = 'UPDATE' and old\.role = 'owner' and new\.role <> 'owner'/i);
+  assert.equal(guard.match(/owner_count <= 1/gi)?.length, 2);
+});
+
+test('consolidated schema grants the recovered RPCs to authenticated only', () => {
+  // Every SECURITY DEFINER RPC must have PUBLIC/anon EXECUTE revoked; schema.sql
+  // applies these per function rather than in bulk, so a missing pair is silent.
+  const signatures = [
+    'generate_join_code(uuid)',
+    'disable_join_code(uuid)',
+    'find_community_by_code(text)',
+    'request_to_join_community(text)',
+    'approve_join_request(uuid)',
+    'reject_join_request(uuid)',
+    'leave_community(uuid)',
+    'set_community_visibility(uuid, text)',
+    'search_public_communities(text)',
+    'request_to_join_public(uuid)',
+    'add_community_member_by_email(uuid, text, text)',
+    'propose_player_avatar(uuid, text)',
+    'approve_player_avatar(uuid)',
+    'reject_player_avatar(uuid)',
+    'find_player_by_username(text)',
+    'current_user_shares_profile(uuid)',
+  ];
+  for (const sig of signatures) {
+    const escaped = sig.replace(/[()]/g, (c) => `\\${c}`);
+    assert.match(
+      baseSchema,
+      new RegExp(`revoke execute on function public\\.${escaped} from public, anon;`, 'i'),
+      `missing revoke for ${sig}`,
+    );
+    assert.match(
+      baseSchema,
+      new RegExp(`grant execute on function public\\.${escaped} to authenticated;`, 'i'),
+      `missing grant for ${sig}`,
+    );
+  }
+
+  // The three trigger-only functions are callable by nobody.
+  for (const fn of [
+    'ensure_community_owner_member',
+    'prevent_last_community_owner_change',
+    'guard_community_member_owner_role',
+  ]) {
+    assert.match(
+      baseSchema,
+      new RegExp(
+        `revoke execute on function public\\.${fn}\\(\\) from public, anon, authenticated;`,
+        'i',
+      ),
+      `missing revoke for trigger function ${fn}`,
+    );
+  }
+});
+
+test('consolidated schema wires the community and community_players triggers', () => {
+  const triggers: [string, string, string][] = [
+    ['create_community_owner_member', 'communities', 'ensure_community_owner_member'],
+    [
+      'prevent_last_community_owner_delete',
+      'community_members',
+      'prevent_last_community_owner_change',
+    ],
+    [
+      'prevent_last_community_owner_update',
+      'community_members',
+      'prevent_last_community_owner_change',
+    ],
+    [
+      'trg_guard_community_member_owner_role',
+      'community_members',
+      'guard_community_member_owner_role',
+    ],
+    [
+      'trigger_sync_community_player_active_status',
+      'community_players',
+      'sync_community_player_active_status',
+    ],
+    ['set_community_players_updated_at', 'community_players', 'set_updated_at'],
+  ];
+  for (const [trigger, table, fn] of triggers) {
+    assert.match(
+      baseSchema,
+      new RegExp(
+        `create trigger ${trigger}\\s+[\\s\\S]{0,80}?on public\\.${table}\\s+for each row execute function public\\.${fn}\\(\\);`,
+        'i',
+      ),
+      `missing or misdirected trigger ${trigger}`,
+    );
+  }
+});
+
+test('consolidated schema RLS is membership-scoped, not the pre-migration owner-only set', () => {
+  // These four tables were still carrying the original owner_id-only policies, so a
+  // fresh project reproduced from schema.sql would let no community member read
+  // anything they did not personally create.
+  const live = [
+    ['Profiles are readable by self or shared communities', 'profiles'],
+    ['Community members can read communities', 'communities'],
+    ['Community owners and admins can delete communities', 'communities'],
+    ['Community members can read players', 'players'],
+    ['Player admins can update players', 'players'],
+    ['Community members can read community players', 'community_players'],
+    ['Community members can read memberships', 'community_members'],
+    ['Community owners and admins can insert memberships', 'community_members'],
+    ['Community members can read community rules', 'community_rules'],
+    ['Community members can read whatsapp templates', 'whatsapp_list_templates'],
+    ['Community members can read modification logs', 'modification_logs'],
+  ] as const;
+  for (const [name, table] of live) {
+    assert.match(
+      baseSchema,
+      new RegExp(`create policy "${name}" on public\\.${table}`, 'i'),
+      `consolidated schema missing policy "${name}"`,
+    );
+  }
+
+  // ...and the superseded names must be gone, or Postgres ORs them back in.
+  const dropped = [
+    'Users can read own profile',
+    'Users can read own communities',
+    'Users can insert own communities',
+    'Users can delete own communities',
+    'Users can read own players',
+    'Users can update own players',
+    'Users can read own community players',
+    'Users can insert own community players',
+    'Users can update own community players',
+    'Users can delete own community players',
+    'Users can read own community rules',
+    'Users can read own whatsapp templates',
+    'Users can read own logs',
+  ];
+  for (const name of dropped) {
+    assert.doesNotMatch(
+      baseSchema,
+      new RegExp(`create policy "${name}"`, 'i'),
+      `consolidated schema still carries superseded policy "${name}"`,
+    );
+  }
+
+  // App-staff read access for the support panel, one policy per operational table.
+  for (const table of [
+    'communities',
+    'community_members',
+    'community_rules',
+    'community_players',
+    'sessions',
+    'teams',
+    'games',
+    'point_events',
+    'game_reports',
+    'session_reports',
+  ]) {
+    assert.match(
+      baseSchema,
+      new RegExp(
+        `create policy "App staff can read ${table}" on public\\.${table}\\s+for select to authenticated using \\(public\\.is_app_staff\\(\\)\\);`,
+        'i',
+      ),
+      `missing app-staff read policy for ${table}`,
+    );
+  }
+});
+
+test('consolidated schema has the communities columns the join system needs', () => {
+  // The join/discovery RPCs read communities.join_code and communities.visibility.
+  // Without these columns schema.sql does not even execute.
+  assert.match(
+    baseSchema,
+    /visibility text not null default 'private' check \(visibility in \('private', 'public'\)\)/i,
+  );
+  assert.match(baseSchema, /^\s*join_code text,$/im);
+  assert.match(
+    baseSchema,
+    /create unique index if not exists communities_join_code_idx\s+on public\.communities \(join_code\) where join_code is not null;/i,
+  );
 });

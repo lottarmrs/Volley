@@ -25,12 +25,17 @@ create table public.communities (
   color text,
   icon text,
   archived boolean default false not null,
+  visibility text not null default 'private' check (visibility in ('private', 'public')),
+  join_code text,
   local_id text,
   sync_version integer default 1 not null,
   deleted_at timestamptz,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
+
+create unique index if not exists communities_join_code_idx
+  on public.communities (join_code) where join_code is not null;
 
 -- 3. Create Players Table
 create table public.players (
@@ -215,6 +220,43 @@ as $$
   );
 $$;
 
+-- Two members of the same community can see each other's profile. Defined here
+-- because the profiles SELECT policy below depends on it.
+create or replace function public.current_user_shares_profile(target_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select target_user_id = (select auth.uid())
+  or exists (
+    select 1
+    from public.community_members mine
+    join public.community_members theirs on theirs.community_id = mine.community_id
+    where mine.user_id = (select auth.uid())
+      and theirs.user_id = target_user_id
+  );
+$$;
+
+-- Controlled lookup: returns minimal identity for an athlete by handle, so a user
+-- can discover an existing global athlete to add to their community. Does NOT
+-- broaden row-level read of the players table; the SECURITY DEFINER function
+-- exposes only id/username/name.
+create or replace function public.find_player_by_username(target_username text)
+returns table (id uuid, username text, name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.id, p.username, p.name
+  from public.players p
+  where lower(p.username) = lower(trim(target_username))
+    and p.deleted_at is null
+  limit 1;
+$$;
+
 revoke execute on function public.is_superadmin() from public, anon;
 revoke execute on function public.is_app_staff() from public, anon;
 revoke execute on function public.current_user_can_access_player(uuid) from public, anon;
@@ -225,6 +267,10 @@ grant execute on function public.is_app_staff() to authenticated;
 grant execute on function public.current_user_can_access_player(uuid) to authenticated;
 grant execute on function public.current_user_is_player_admin(uuid) to authenticated;
 grant execute on function public.current_user_has_community_role(uuid, text[]) to authenticated;
+revoke execute on function public.current_user_shares_profile(uuid) from public, anon;
+grant execute on function public.current_user_shares_profile(uuid) to authenticated;
+revoke execute on function public.find_player_by_username(text) from public, anon;
+grant execute on function public.find_player_by_username(text) to authenticated;
 
 -- Capability layer for global roles. Existing is_app_staff()/is_superadmin() checks
 -- above are untouched; only new/rewritten checks use has_capability(). See
@@ -1142,28 +1188,37 @@ alter table public.community_presence enable row level security;
 alter table public.whatsapp_list_drafts enable row level security;
 
 -- Create Policies for Profiles
-create policy "Users can read own profile" on public.profiles
-  for select to authenticated using (id = (select auth.uid()));
+-- SELECT is membership-scoped, not self-only: two members of the same community
+-- can see each other. Replaced the original "Users can read own profile".
+create policy "Profiles are readable by self or shared communities" on public.profiles
+  for select to authenticated
+  using (public.current_user_shares_profile(id));
 create policy "Users can update own profile" on public.profiles
-  for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
+  for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
 
 -- Create Policies for Communities
-create policy "Users can read own communities" on public.communities
-  for select to authenticated using (owner_id = (select auth.uid()));
-create policy "Users can insert own communities" on public.communities
-  for insert to authenticated with check (owner_id = (select auth.uid()));
+create policy "Community members can read communities" on public.communities
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(id));
+create policy "Users can insert owned communities" on public.communities
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()));
 -- UPDATE is capability-gated (not owner_id-only), so per-community capability
 -- overrides actually govern who can edit community info.
 create policy "Community capability holders can update communities" on public.communities
   for update to authenticated
   using (public.community_has_capability(id, 'edit_community_info'))
   with check (public.community_has_capability(id, 'edit_community_info'));
-create policy "Users can delete own communities" on public.communities
-  for delete to authenticated using (owner_id = (select auth.uid()));
+create policy "Community owners and admins can delete communities" on public.communities
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(id, array['owner', 'admin']));
 
 -- Create Policies for Players
-create policy "Users can read own players" on public.players
-  for select to authenticated using (owner_id = (select auth.uid()));
+create policy "Community members can read players" on public.players
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_can_access_player(id));
 create policy "Linked users can read their own player" on public.players
   for select to authenticated using (
     user_id = (select auth.uid())
@@ -1174,8 +1229,27 @@ create policy "Users can insert unlinked owned players" on public.players
     owner_id = (select auth.uid())
     and user_id is null
   );
-create policy "Users can update own players" on public.players
-  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+-- UPDATE is owner/player-admin only. Ordinary community members contribute via
+-- player_evaluations, never by writing the canonical players row.
+create policy "Player admins can update players" on public.players
+  for update to authenticated
+  using (
+    owner_id = (select auth.uid())
+    or public.current_user_is_player_admin(id)
+  )
+  with check (
+    owner_id = (select auth.uid())
+    or public.current_user_is_player_admin(id)
+  );
+-- NOTE (production drift, reproduced faithfully): both DELETE policies below are
+-- live in production. 20260722162234 added the has_account_identity_history
+-- restriction but never dropped "Player owners can delete players" from
+-- 20260610161203, and Postgres ORs permissive policies — so the unrestricted one
+-- wins and an owner can delete a player that has account-identity history.
+-- Closing this needs a production migration; it is out of scope for this snapshot.
+create policy "Player owners can delete players" on public.players
+  for delete to authenticated
+  using (owner_id = (select auth.uid()));
 create policy "Users can delete owned legacy players" on public.players
   for delete to authenticated using (
     owner_id = (select auth.uid())
@@ -1183,15 +1257,51 @@ create policy "Users can delete owned legacy players" on public.players
   );
 
 -- Create Policies for Community Players
-create policy "Users can read own community players" on public.community_players
-  for select to authenticated using (owner_id = (select auth.uid()));
-create policy "Users can insert own community players" on public.community_players
-  for insert to authenticated with check (owner_id = (select auth.uid()));
-create policy "Users can update own community players" on public.community_players
-  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-create policy "Users can delete own community players" on public.community_players
-  for delete to authenticated using (owner_id = (select auth.uid()));
+-- NOTE (production drift, reproduced faithfully): the write policies were last
+-- rewritten by 20260617180615, before the v2 role rename, so they still name the
+-- retired 'organizer' role. After the rename that array element matches nothing,
+-- leaving owner/admin/moderator as the effective set via the helper's default.
+create policy "Community members can read community players" on public.community_players
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can insert community players" on public.community_players
+  for insert to authenticated
+  with check (
+    owner_id = (select auth.uid())
+    and public.current_user_has_community_role(community_id, array['owner', 'admin', 'organizer'])
+  );
+create policy "Community organizers can update community players" on public.community_players
+  for update to authenticated
+  using (
+    owner_id = (select auth.uid())
+    or public.current_user_has_community_role(community_id, array['owner', 'admin', 'organizer'])
+  )
+  with check (
+    owner_id = (select auth.uid())
+    or public.current_user_has_community_role(community_id, array['owner', 'admin', 'organizer'])
+  );
+create policy "Community organizers can delete community players" on public.community_players
+  for delete to authenticated
+  using (
+    owner_id = (select auth.uid())
+    or public.current_user_has_community_role(community_id, array['owner', 'admin', 'organizer'])
+  );
 
+-- Create Policies for Community Members
+create policy "Community members can read memberships" on public.community_members
+  for select to authenticated
+  using (public.current_user_has_community_role(community_id));
+create policy "Community owners and admins can insert memberships" on public.community_members
+  for insert to authenticated
+  with check (public.current_user_has_community_role(community_id, array['owner', 'admin']));
+create policy "Community owners and admins can update memberships" on public.community_members
+  for update to authenticated
+  using (public.current_user_has_community_role(community_id, array['owner', 'admin']))
+  with check (public.current_user_has_community_role(community_id, array['owner', 'admin']));
+create policy "Community owners and admins can delete memberships" on public.community_members
+  for delete to authenticated
+  using (public.current_user_has_community_role(community_id, array['owner', 'admin']));
+-- A member always sees their OWN membership row, even while still 'pending'.
 create policy "Users can read their own membership" on public.community_members
   for select to authenticated using (user_id = (select auth.uid()));
 
@@ -1513,29 +1623,67 @@ revoke all on table public.championship_rounds from public, anon;
 grant select, insert, update, delete on public.championship_rounds to authenticated;
 
 -- Create Policies for Community Rules
-create policy "Users can read own community rules" on public.community_rules
-  for select to authenticated using (owner_id = (select auth.uid()));
-create policy "Users can insert own community rules" on public.community_rules
-  for insert to authenticated with check (owner_id = (select auth.uid()));
-create policy "Users can update own community rules" on public.community_rules
-  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-create policy "Users can delete own community rules" on public.community_rules
-  for delete to authenticated using (owner_id = (select auth.uid()));
+create policy "Community members can read community rules" on public.community_rules
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community owners and admins can insert community rules" on public.community_rules
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id, array['owner', 'admin']));
+create policy "Community owners and admins can update community rules" on public.community_rules
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id, array['owner', 'admin']))
+  with check (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id, array['owner', 'admin']));
+create policy "Community owners and admins can delete community rules" on public.community_rules
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id, array['owner', 'admin']));
 
 -- Create Policies for WhatsApp List Templates
-create policy "Users can read own whatsapp templates" on public.whatsapp_list_templates
-  for select to authenticated using (owner_id = (select auth.uid()));
-create policy "Users can insert own whatsapp templates" on public.whatsapp_list_templates
-  for insert to authenticated with check (owner_id = (select auth.uid()));
-create policy "Users can update own whatsapp templates" on public.whatsapp_list_templates
-  for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-create policy "Users can delete own whatsapp templates" on public.whatsapp_list_templates
-  for delete to authenticated using (owner_id = (select auth.uid()));
+create policy "Community members can read whatsapp templates" on public.whatsapp_list_templates
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can insert whatsapp templates" on public.whatsapp_list_templates
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+create policy "Community organizers can update whatsapp templates" on public.whatsapp_list_templates
+  for update to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id))
+  with check (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
+create policy "Community organizers can delete whatsapp templates" on public.whatsapp_list_templates
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) or public.current_user_has_community_role(community_id));
 
 -- Create Policies for Modification Logs
-create policy "Users can read own logs" on public.modification_logs
-  for select to authenticated using (owner_id = (select auth.uid()));
+create policy "Community members can read modification logs" on public.modification_logs
+  for select to authenticated
+  using (
+    owner_id = (select auth.uid())
+    or (community_id is not null and public.current_user_has_community_role(community_id))
+  );
 -- Note: modification_logs has no insert/update/delete policies since it is populated via triggers running under SECURITY DEFINER
+
+-- Support access for app staff (master | programmer): additional PERMISSIVE
+-- SELECT-only policies on the operational tables. Writes still require a
+-- community role / superadmin.
+create policy "App staff can read communities" on public.communities
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read community_members" on public.community_members
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read community_rules" on public.community_rules
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read community_players" on public.community_players
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read sessions" on public.sessions
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read teams" on public.teams
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read games" on public.games
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read point_events" on public.point_events
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read game_reports" on public.game_reports
+  for select to authenticated using (public.is_app_staff());
+create policy "App staff can read session_reports" on public.session_reports
+  for select to authenticated using (public.is_app_staff());
 
 -- Trigger function for audit logging of table changes
 create or replace function public.log_table_changes()
@@ -1545,67 +1693,49 @@ security definer set search_path = public
 as $$
 declare
   record_owner uuid;
+  record_community uuid;
 begin
-  record_owner := coalesce(
-    (to_jsonb(new)->>'owner_id')::uuid,
-    (to_jsonb(old)->>'owner_id')::uuid
-  );
-
   if (tg_op = 'INSERT') then
+    record_owner := nullif(to_jsonb(new)->>'owner_id', '')::uuid;
+    record_community := coalesce(
+      nullif(to_jsonb(new)->>'community_id', '')::uuid,
+      case when tg_table_name = 'communities' then new.id else null end
+    );
+
     insert into public.modification_logs (
-      owner_id,
-      changed_by,
-      table_name,
-      record_id,
-      action_type,
-      old_data,
-      new_data
+      owner_id, community_id, changed_by, table_name, record_id, action_type, old_data, new_data
     ) values (
-      record_owner,
-      auth.uid(),
-      tg_table_name,
-      new.id::text,
-      tg_op,
-      null,
-      to_jsonb(new)
+      record_owner, record_community, auth.uid(), tg_table_name, new.id::text, tg_op, null, to_jsonb(new)
     );
     return new;
   elsif (tg_op = 'UPDATE') then
+    record_owner := coalesce(
+      nullif(to_jsonb(new)->>'owner_id', '')::uuid,
+      nullif(to_jsonb(old)->>'owner_id', '')::uuid
+    );
+    record_community := coalesce(
+      nullif(to_jsonb(new)->>'community_id', '')::uuid,
+      nullif(to_jsonb(old)->>'community_id', '')::uuid,
+      case when tg_table_name = 'communities' then new.id else null end
+    );
+
     insert into public.modification_logs (
-      owner_id,
-      changed_by,
-      table_name,
-      record_id,
-      action_type,
-      old_data,
-      new_data
+      owner_id, community_id, changed_by, table_name, record_id, action_type, old_data, new_data
     ) values (
-      record_owner,
-      auth.uid(),
-      tg_table_name,
-      new.id::text,
-      tg_op,
-      to_jsonb(old),
-      to_jsonb(new)
+      record_owner, record_community, auth.uid(), tg_table_name, new.id::text, tg_op, to_jsonb(old), to_jsonb(new)
     );
     return new;
   elsif (tg_op = 'DELETE') then
+    record_owner := nullif(to_jsonb(old)->>'owner_id', '')::uuid;
+    record_community := coalesce(
+      nullif(to_jsonb(old)->>'community_id', '')::uuid,
+      case when tg_table_name = 'communities' then old.id else null end
+    );
+
     insert into public.modification_logs (
-      owner_id,
-      changed_by,
-      table_name,
-      record_id,
-      action_type,
-      old_data,
-      new_data
+      owner_id, community_id, changed_by, table_name, record_id, action_type, old_data, new_data
     ) values (
-      record_owner,
-      auth.uid(),
-      tg_table_name,
-      old.id::text,
-      tg_op,
-      to_jsonb(old),
-      null
+      record_owner, record_community, auth.uid(), tg_table_name, old.id::text, tg_op, to_jsonb(old), null
     );
     return old;
   end if;
@@ -2117,3 +2247,662 @@ drop trigger if exists trg_generate_player_claim_code on public.players;
 create trigger trg_generate_player_claim_code
   after insert on public.players
   for each row execute function public.generate_player_claim_code();
+-- ============================================================================
+-- Community membership guards, join/discovery system, and avatar approval.
+--
+-- Placed at the end of this file on purpose: every table these touch, plus
+-- public.set_updated_at() and the role/capability helpers above, must already
+-- exist. A `create or replace` placed before its dependencies silently loses
+-- the intended definition.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- 1. Owner invariants on community_members
+-- ----------------------------------------------------------------------------
+
+-- Creating a community immediately makes the creator its 'owner' member.
+create or replace function public.ensure_community_owner_member()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.community_members (community_id, user_id, role, created_by)
+  values (new.id, new.owner_id, 'owner', new.owner_id)
+  on conflict (community_id, user_id) do nothing;
+  return new;
+end;
+$$;
+
+-- A community can never be left without an owner.
+create or replace function public.prevent_last_community_owner_change()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  owner_count integer;
+begin
+  if tg_op = 'DELETE' and old.role = 'owner' then
+    select count(*) into owner_count
+    from public.community_members
+    where community_id = old.community_id and role = 'owner';
+
+    if owner_count <= 1 then
+      raise exception 'Cannot remove the last owner from a community'
+        using errcode = '23514';
+    end if;
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' and old.role = 'owner' and new.role <> 'owner' then
+    select count(*) into owner_count
+    from public.community_members
+    where community_id = old.community_id and role = 'owner';
+
+    if owner_count <= 1 then
+      raise exception 'Cannot demote the last owner from a community'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+-- Anti-escalation: only the current owner (or the community creator on their
+-- first membership row, or a superadmin) may assign 'owner'. An admin cannot
+-- modify or remove the owner's row.
+create or replace function public.guard_community_member_owner_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid        uuid := (select auth.uid());
+  v_actor_role text;
+  v_is_creator boolean;
+begin
+  if public.is_superadmin() then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+
+  select role into v_actor_role
+  from public.community_members
+  where community_id = coalesce(new.community_id, old.community_id)
+    and user_id = v_uid;
+
+  if tg_op in ('INSERT', 'UPDATE') and new.role = 'owner' then
+    v_is_creator := exists (
+      select 1 from public.communities c
+      where c.id = new.community_id and c.owner_id = v_uid
+    );
+    if not (v_actor_role = 'owner' or (new.user_id = v_uid and v_is_creator)) then
+      raise exception 'Apenas o dono da comunidade pode atribuir o papel owner'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  if tg_op in ('UPDATE', 'DELETE')
+     and old.role = 'owner'
+     and old.user_id <> v_uid
+     and coalesce(v_actor_role, '') <> 'owner' then
+    raise exception 'Apenas o dono pode modificar o vínculo do owner'
+      using errcode = '42501';
+  end if;
+
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+revoke execute on function public.ensure_community_owner_member() from public, anon, authenticated;
+revoke execute on function public.prevent_last_community_owner_change() from public, anon, authenticated;
+revoke execute on function public.guard_community_member_owner_role() from public, anon, authenticated;
+
+drop trigger if exists create_community_owner_member on public.communities;
+create trigger create_community_owner_member
+  after insert on public.communities
+  for each row execute function public.ensure_community_owner_member();
+
+drop trigger if exists prevent_last_community_owner_delete on public.community_members;
+create trigger prevent_last_community_owner_delete
+  before delete on public.community_members
+  for each row execute function public.prevent_last_community_owner_change();
+
+drop trigger if exists prevent_last_community_owner_update on public.community_members;
+create trigger prevent_last_community_owner_update
+  before update on public.community_members
+  for each row execute function public.prevent_last_community_owner_change();
+
+drop trigger if exists trg_guard_community_member_owner_role on public.community_members;
+create trigger trg_guard_community_member_owner_role
+  before insert or update or delete on public.community_members
+  for each row execute function public.guard_community_member_owner_role();
+
+-- ----------------------------------------------------------------------------
+-- 2. community_players: keep the legacy `active` flag and `status` in sync
+-- ----------------------------------------------------------------------------
+create or replace function public.sync_community_player_active_status()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.status is not null and (old.status is null or new.status <> old.status) then
+    new.active := (new.status = 'active');
+  elsif new.active is not null and (old.active is null or new.active <> old.active) then
+    new.status := case when new.active then 'active' else 'inactive' end;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trigger_sync_community_player_active_status on public.community_players;
+create trigger trigger_sync_community_player_active_status
+  before insert or update on public.community_players
+  for each row execute function public.sync_community_player_active_status();
+
+drop trigger if exists set_community_players_updated_at on public.community_players;
+create trigger set_community_players_updated_at
+  before update on public.community_players
+  for each row execute function public.set_updated_at();
+
+-- ----------------------------------------------------------------------------
+-- 3. Direct invite by a staff member, looked up by email
+--
+-- NOTE (production drift, reproduced faithfully): the accepted-role list was
+-- last updated by 20260624203424 and never extended when 'organizador' was
+-- added, so this RPC still rejects that role. Fixing it needs a production
+-- migration; it is out of scope for this snapshot.
+-- ----------------------------------------------------------------------------
+create or replace function public.add_community_member_by_email(
+  target_community_id uuid,
+  target_email text,
+  target_role text default 'moderator'
+)
+returns public.community_members
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_user_id uuid;
+  inserted_member public.community_members;
+begin
+  if target_role not in ('owner', 'admin', 'moderator', 'member') then
+    raise exception 'Invalid community member role: %', target_role using errcode = '22023';
+  end if;
+
+  if not (
+    public.is_superadmin()
+    or public.current_user_has_community_role(target_community_id, array['owner', 'admin'])
+  ) then
+    raise exception 'Only owners and admins can add community members' using errcode = '42501';
+  end if;
+
+  select p.id into target_user_id
+  from public.profiles p
+  where lower(p.email) = lower(trim(target_email))
+  limit 1;
+
+  if target_user_id is null then
+    raise exception 'No registered user found for email %', target_email using errcode = '22023';
+  end if;
+
+  insert into public.community_members (community_id, user_id, role, status, created_by)
+  values (target_community_id, target_user_id, target_role, 'active', (select auth.uid()))
+  on conflict (community_id, user_id)
+  do update set role = excluded.role, status = 'active', updated_at = now()
+  returning * into inserted_member;
+
+  return inserted_member;
+end;
+$$;
+
+revoke execute on function public.add_community_member_by_email(uuid, text, text) from public, anon;
+grant execute on function public.add_community_member_by_email(uuid, text, text) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 4. Invite code
+-- ----------------------------------------------------------------------------
+create or replace function public.generate_join_code(target_community_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+begin
+  if not (public.is_superadmin()
+          or public.current_user_has_community_role(target_community_id, array['owner', 'admin'])) then
+    raise exception 'Apenas dono/admin podem gerenciar o código de convite' using errcode = '42501';
+  end if;
+
+  loop
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+    exit when not exists (select 1 from public.communities where join_code = v_code);
+  end loop;
+
+  update public.communities
+     set join_code = v_code, updated_at = now()
+   where id = target_community_id;
+
+  return v_code;
+end;
+$$;
+revoke execute on function public.generate_join_code(uuid) from public, anon;
+grant execute on function public.generate_join_code(uuid) to authenticated;
+
+create or replace function public.disable_join_code(target_community_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (public.is_superadmin()
+          or public.current_user_has_community_role(target_community_id, array['owner', 'admin'])) then
+    raise exception 'Apenas dono/admin podem gerenciar o código de convite' using errcode = '42501';
+  end if;
+  update public.communities set join_code = null, updated_at = now() where id = target_community_id;
+end;
+$$;
+revoke execute on function public.disable_join_code(uuid) from public, anon;
+grant execute on function public.disable_join_code(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 5. Preview by code (any authenticated user holding the code)
+-- ----------------------------------------------------------------------------
+create or replace function public.find_community_by_code(p_code text)
+returns table (id uuid, name text, description text, member_count bigint, my_status text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    c.id,
+    c.name,
+    c.description,
+    (select count(*) from public.community_members m where m.community_id = c.id and m.status = 'active'),
+    (select cm.status from public.community_members cm
+       where cm.community_id = c.id and cm.user_id = (select auth.uid()) limit 1)
+  from public.communities c
+  where c.join_code = upper(trim(p_code)) and c.deleted_at is null
+  limit 1;
+$$;
+revoke execute on function public.find_community_by_code(text) from public, anon;
+grant execute on function public.find_community_by_code(text) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 6. Join request (creates a 'pending' membership; a re-request revives a
+--    'rejected' one but never downgrades an already-'active' membership)
+-- ----------------------------------------------------------------------------
+create or replace function public.request_to_join_community(p_code text)
+returns public.community_members
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid  uuid := (select auth.uid());
+  v_comm uuid;
+  v_row  public.community_members;
+begin
+  if v_uid is null then
+    raise exception 'Não autenticado' using errcode = '42501';
+  end if;
+
+  select id into v_comm
+  from public.communities
+  where join_code = upper(trim(p_code)) and deleted_at is null
+  limit 1;
+
+  if v_comm is null then
+    raise exception 'Código de convite inválido' using errcode = '22023';
+  end if;
+
+  insert into public.community_members (community_id, user_id, role, status)
+  values (v_comm, v_uid, 'member', 'pending')
+  on conflict (community_id, user_id) do update
+    set status = case when public.community_members.status = 'active' then 'active' else 'pending' end,
+        updated_at = now()
+  returning * into v_row;
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.request_to_join_community(text) from public, anon;
+grant execute on function public.request_to_join_community(text) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 7. Approve / reject a join request (owner/admin)
+-- ----------------------------------------------------------------------------
+create or replace function public.approve_join_request(p_member_id uuid)
+returns public.community_members
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_comm uuid;
+  v_row  public.community_members;
+begin
+  select community_id into v_comm from public.community_members where id = p_member_id;
+  if v_comm is null then
+    raise exception 'Solicitação não encontrada' using errcode = '22023';
+  end if;
+  if not (public.is_superadmin()
+          or public.current_user_has_community_role(v_comm, array['owner', 'admin'])) then
+    raise exception 'Apenas dono/admin podem aprovar solicitações' using errcode = '42501';
+  end if;
+
+  update public.community_members
+     set status = 'active', updated_at = now()
+   where id = p_member_id
+   returning * into v_row;
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.approve_join_request(uuid) from public, anon;
+grant execute on function public.approve_join_request(uuid) to authenticated;
+
+create or replace function public.reject_join_request(p_member_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_comm uuid;
+begin
+  select community_id into v_comm from public.community_members where id = p_member_id;
+  if v_comm is null then
+    raise exception 'Solicitação não encontrada' using errcode = '22023';
+  end if;
+  if not (public.is_superadmin()
+          or public.current_user_has_community_role(v_comm, array['owner', 'admin'])) then
+    raise exception 'Apenas dono/admin podem rejeitar solicitações' using errcode = '42501';
+  end if;
+
+  update public.community_members
+     set status = 'rejected', updated_at = now()
+   where id = p_member_id;
+end;
+$$;
+revoke execute on function public.reject_join_request(uuid) from public, anon;
+grant execute on function public.reject_join_request(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 8. Leave a community (member/admin/moderator; the owner cannot leave)
+-- ----------------------------------------------------------------------------
+create or replace function public.leave_community(target_community_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+begin
+  if v_uid is null then
+    raise exception 'Não autenticado' using errcode = '42501';
+  end if;
+  delete from public.community_members
+   where community_id = target_community_id
+     and user_id = v_uid
+     and role <> 'owner';
+end;
+$$;
+revoke execute on function public.leave_community(uuid) from public, anon;
+grant execute on function public.leave_community(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 9. Public discovery (opt-in: visibility defaults to 'private'; joining a
+--    public community still goes through approval)
+-- ----------------------------------------------------------------------------
+create or replace function public.set_community_visibility(
+  target_community_id uuid,
+  p_visibility text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_visibility not in ('private', 'public') then
+    raise exception 'Visibilidade inválida: %', p_visibility using errcode = '22023';
+  end if;
+  if not (public.is_superadmin()
+          or public.current_user_has_community_role(target_community_id, array['owner', 'admin'])) then
+    raise exception 'Apenas dono/admin podem alterar a visibilidade' using errcode = '42501';
+  end if;
+  update public.communities
+     set visibility = p_visibility, updated_at = now()
+   where id = target_community_id;
+end;
+$$;
+revoke execute on function public.set_community_visibility(uuid, text) from public, anon;
+grant execute on function public.set_community_visibility(uuid, text) to authenticated;
+
+create or replace function public.search_public_communities(p_query text)
+returns table (
+  id uuid,
+  name text,
+  description text,
+  member_count bigint,
+  my_status text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    c.id,
+    c.name,
+    c.description,
+    (select count(*) from public.community_members m where m.community_id = c.id and m.status = 'active'),
+    (select cm.status from public.community_members cm
+       where cm.community_id = c.id and cm.user_id = (select auth.uid()) limit 1)
+  from public.communities c
+  where c.visibility = 'public'
+    and c.deleted_at is null
+    and (
+      coalesce(trim(p_query), '') = ''
+      or c.name ilike '%' || trim(p_query) || '%'
+    )
+  order by c.name
+  limit 30;
+$$;
+revoke execute on function public.search_public_communities(text) from public, anon;
+grant execute on function public.search_public_communities(text) to authenticated;
+
+create or replace function public.request_to_join_public(target_community_id uuid)
+returns public.community_members
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_row public.community_members;
+begin
+  if v_uid is null then
+    raise exception 'Não autenticado' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1 from public.communities
+    where id = target_community_id and visibility = 'public' and deleted_at is null
+  ) then
+    raise exception 'Comunidade pública não encontrada' using errcode = '22023';
+  end if;
+
+  insert into public.community_members (community_id, user_id, role, status)
+  values (target_community_id, v_uid, 'member', 'pending')
+  on conflict (community_id, user_id) do update
+    set status = case when public.community_members.status = 'active' then 'active' else 'pending' end,
+        updated_at = now()
+  returning * into v_row;
+
+  return v_row;
+end;
+$$;
+revoke execute on function public.request_to_join_public(uuid) from public, anon;
+grant execute on function public.request_to_join_public(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 10. Avatar approval
+--     - any admin of the athlete may propose
+--     - if the proposer IS the creator, it is auto-approved and promoted now
+-- ----------------------------------------------------------------------------
+create or replace function public.propose_player_avatar(
+  p_player_id uuid,
+  p_image_url text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid        uuid := (select auth.uid());
+  v_owner_id   uuid;
+  v_proposal   uuid;
+  v_is_creator boolean;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+  if not public.current_user_is_player_admin(p_player_id) then
+    raise exception 'Only owners/admins of this athlete can propose a photo'
+      using errcode = '42501';
+  end if;
+
+  select owner_id into v_owner_id from public.players where id = p_player_id;
+  if v_owner_id is null then
+    raise exception 'Athlete not found' using errcode = '22023';
+  end if;
+  v_is_creator := (v_owner_id = v_uid);
+
+  insert into public.player_avatar_proposals (
+    player_id, proposed_by, image_url, status, reviewed_by, reviewed_at
+  )
+  values (
+    p_player_id, v_uid, p_image_url,
+    case when v_is_creator then 'approved' else 'pending' end,
+    case when v_is_creator then v_uid else null end,
+    case when v_is_creator then now() else null end
+  )
+  returning id into v_proposal;
+
+  -- Creator changes take effect immediately.
+  if v_is_creator then
+    perform set_config('app.allow_avatar_promotion', 'on', true);
+    update public.players
+       set avatar_url = p_image_url,
+           updated_at = now()
+     where id = p_player_id;
+    -- Any older pending proposals are now stale.
+    update public.player_avatar_proposals
+       set status = 'superseded'
+     where player_id = p_player_id
+       and status = 'pending'
+       and id <> v_proposal;
+  end if;
+
+  return v_proposal;
+end;
+$$;
+
+revoke execute on function public.propose_player_avatar(uuid, text) from public, anon;
+grant execute on function public.propose_player_avatar(uuid, text) to authenticated;
+
+create or replace function public.approve_player_avatar(p_proposal_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid      uuid := (select auth.uid());
+  v_player   uuid;
+  v_image    text;
+  v_owner_id uuid;
+begin
+  select pr.player_id, pr.image_url
+    into v_player, v_image
+  from public.player_avatar_proposals pr
+  where pr.id = p_proposal_id
+    and pr.status = 'pending';
+
+  if v_player is null then
+    raise exception 'Proposal not found or not pending' using errcode = '22023';
+  end if;
+
+  select owner_id into v_owner_id from public.players where id = v_player;
+  if v_owner_id is distinct from v_uid then
+    raise exception 'Only the athlete creator can approve a photo'
+      using errcode = '42501';
+  end if;
+
+  perform set_config('app.allow_avatar_promotion', 'on', true);
+  update public.players
+     set avatar_url = v_image,
+         updated_at = now()
+   where id = v_player;
+
+  update public.player_avatar_proposals
+     set status = 'approved', reviewed_by = v_uid, reviewed_at = now()
+   where id = p_proposal_id;
+
+  update public.player_avatar_proposals
+     set status = 'superseded'
+   where player_id = v_player
+     and status = 'pending'
+     and id <> p_proposal_id;
+end;
+$$;
+
+revoke execute on function public.approve_player_avatar(uuid) from public, anon;
+grant execute on function public.approve_player_avatar(uuid) to authenticated;
+
+create or replace function public.reject_player_avatar(p_proposal_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid      uuid := (select auth.uid());
+  v_player   uuid;
+  v_owner_id uuid;
+begin
+  select pr.player_id into v_player
+  from public.player_avatar_proposals pr
+  where pr.id = p_proposal_id
+    and pr.status = 'pending';
+
+  if v_player is null then
+    raise exception 'Proposal not found or not pending' using errcode = '22023';
+  end if;
+
+  select owner_id into v_owner_id from public.players where id = v_player;
+  if v_owner_id is distinct from v_uid then
+    raise exception 'Only the athlete creator can reject a photo'
+      using errcode = '42501';
+  end if;
+
+  update public.player_avatar_proposals
+     set status = 'rejected', reviewed_by = v_uid, reviewed_at = now()
+   where id = p_proposal_id;
+end;
+$$;
+
+revoke execute on function public.reject_player_avatar(uuid) from public, anon;
+grant execute on function public.reject_player_avatar(uuid) to authenticated;

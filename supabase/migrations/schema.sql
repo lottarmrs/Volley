@@ -1189,14 +1189,46 @@ alter table public.whatsapp_list_drafts enable row level security;
 
 -- Create Policies for Profiles
 -- SELECT is membership-scoped, not self-only: two members of the same community
--- can see each other. Replaced the original "Users can read own profile".
-create policy "Profiles are readable by self or shared communities" on public.profiles
+-- can see each other. Originally "Users can read own profile", then broadened to
+-- "Profiles are readable by self or shared communities" (which leaked email to any
+-- shared-community member), replaced in 20260726170000_community_profile_privacy by
+-- the narrower policy below: full-row access (including email) is limited to self,
+-- app staff, or a viewer holding 'manage_members' in a community shared with the
+-- target. Ordinary members instead read public.community_profile_summary (id, name
+-- only) for other members.
+create policy "Profiles are readable by self, staff, or member managers" on public.profiles
   for select to authenticated
-  using (public.current_user_shares_profile(id));
+  using (
+    id = (select auth.uid())
+    or public.is_app_staff()
+    or exists (
+      select 1
+      from public.community_members viewer
+      join public.community_members target
+        on target.community_id = viewer.community_id
+      where viewer.user_id = (select auth.uid())
+        and viewer.status = 'active'
+        and target.user_id = profiles.id
+        and target.status = 'active'
+        and public.community_has_capability(viewer.community_id, 'manage_members')
+    )
+  );
 create policy "Users can update own profile" on public.profiles
   for update to authenticated
   using (id = (select auth.uid()))
   with check (id = (select auth.uid()));
+
+-- Column-limited view for ordinary members: never selects email, so it cannot leak
+-- it regardless of the RLS bypass implied by view ownership. Authorization is
+-- current_user_shares_profile(id), the same helper the old (too-broad) profiles
+-- policy used.
+create or replace view public.community_profile_summary as
+select p.id, p.name
+from public.profiles p
+where public.current_user_shares_profile(p.id);
+
+grant select on public.community_profile_summary to authenticated;
+revoke all on public.community_profile_summary from anon;
 
 -- Create Policies for Communities
 create policy "Community members can read communities" on public.communities

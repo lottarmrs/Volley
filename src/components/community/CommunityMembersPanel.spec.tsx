@@ -69,4 +69,53 @@ describe('CommunityMembersPanel', () => {
     const option = within(roleSelect).getByText('Organizador') as HTMLOptionElement;
     expect(option.value).toBe('organizador');
   });
+
+  it('does not render an email line for a member whose email was hidden by RLS (email: null)', () => {
+    mockUseCommunityMembers([
+      member({ id: 'owner-row', userId: 'owner-1', role: 'owner', name: 'Ana' }),
+      member({
+        id: 'member-row',
+        userId: 'user-2',
+        role: 'member',
+        name: 'Bruno',
+        email: null,
+      }),
+    ]);
+
+    render(
+      <CommunityMembersPanel
+        community={community}
+        currentUserId="owner-1"
+        isSupabaseConfigured={true}
+        globalRole="user"
+      />,
+    );
+
+    expect(screen.getByText('Bruno')).toBeTruthy();
+    expect(screen.queryByText(/@/)).toBeNull();
+  });
+
+  it('renders the email line for a member whose email is visible', () => {
+    mockUseCommunityMembers([
+      member({ id: 'owner-row', userId: 'owner-1', role: 'owner', name: 'Ana' }),
+      member({
+        id: 'member-row',
+        userId: 'user-2',
+        role: 'member',
+        name: 'Bruno',
+        email: 'bruno@example.com',
+      }),
+    ]);
+
+    render(
+      <CommunityMembersPanel
+        community={community}
+        currentUserId="owner-1"
+        isSupabaseConfigured={true}
+        globalRole="user"
+      />,
+    );
+
+    expect(screen.getByText('bruno@example.com')).toBeTruthy();
+  });
 });

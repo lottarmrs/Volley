@@ -147,6 +147,13 @@ const mandatoryMfaAal2EnforcementMigration = readFixture(
   ),
 );
 
+const communityProfilePrivacyMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726170000_community_profile_privacy.sql',
+    import.meta.url,
+  ),
+);
+
 const functionSecurityHardeningMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260610195250_harden_function_security.sql',
@@ -1919,7 +1926,11 @@ test('mandatory MFA migration derives requires_aal2 on ensure_account_ready', ()
     );
     // Both return branches (needs_username and ready) must select the derived value.
     const returnCalls = fn.match(/public\.account_requires_aal2\(v_uid\)/gi) ?? [];
-    assert.equal(returnCalls.length, 2, 'both return query branches must call account_requires_aal2');
+    assert.equal(
+      returnCalls.length,
+      2,
+      'both return query branches must call account_requires_aal2',
+    );
   }
 
   assert.match(
@@ -2140,7 +2151,7 @@ test('consolidated schema RLS is membership-scoped, not the pre-migration owner-
   // fresh project reproduced from schema.sql would let no community member read
   // anything they did not personally create.
   const live = [
-    ['Profiles are readable by self or shared communities', 'profiles'],
+    ['Profiles are readable by self, staff, or member managers', 'profiles'],
     ['Community members can read communities', 'communities'],
     ['Community owners and admins can delete communities', 'communities'],
     ['Community members can read players', 'players'],
@@ -2163,6 +2174,7 @@ test('consolidated schema RLS is membership-scoped, not the pre-migration owner-
   // ...and the superseded names must be gone, or Postgres ORs them back in.
   const dropped = [
     'Users can read own profile',
+    'Profiles are readable by self or shared communities',
     'Users can read own communities',
     'Users can insert own communities',
     'Users can delete own communities',
@@ -2220,4 +2232,65 @@ test('consolidated schema has the communities columns the join system needs', ()
     baseSchema,
     /create unique index if not exists communities_join_code_idx\s+on public\.communities \(join_code\) where join_code is not null;/i,
   );
+});
+
+test('community profile privacy migration replaces the broad profiles read policy', () => {
+  assert.match(
+    communityProfilePrivacyMigration,
+    /drop policy if exists "Profiles are readable by self or shared communities" on public\.profiles;/i,
+  );
+
+  const policy = communityProfilePrivacyMigration.match(
+    /create policy "Profiles are readable by self, staff, or member managers"[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(policy, 'missing narrowed profiles read policy');
+  assert.match(policy, /for select to authenticated/i);
+  assert.match(policy, /id = \(select auth\.uid\(\)\)/i);
+  assert.match(policy, /public\.is_app_staff\(\)/i);
+  assert.match(
+    policy,
+    /public\.community_has_capability\(viewer\.community_id, 'manage_members'\)/i,
+  );
+
+  assert.doesNotMatch(
+    baseSchema,
+    /create policy "Profiles are readable by self or shared communities"/i,
+  );
+  assert.match(
+    baseSchema,
+    /create policy "Profiles are readable by self, staff, or member managers"/i,
+  );
+  // "App staff can read all profiles" is a separate permissive policy this task must
+  // not touch: src/infra/supabase/profilesAdminCloudService.ts relies on it for the
+  // global role-admin screen, and Postgres ORs permissive policies together.
+  assert.match(baseSchema, /create policy "App staff can read all profiles" on public\.profiles/i);
+});
+
+test('community_profile_summary view exposes only id and name, never email', () => {
+  assert.match(
+    communityProfilePrivacyMigration,
+    /create or replace view public\.community_profile_summary as/i,
+  );
+  const viewDefinition = communityProfilePrivacyMigration.match(
+    /create or replace view public\.community_profile_summary as[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(viewDefinition, 'missing community_profile_summary view definition');
+  assert.match(viewDefinition, /select p\.id, p\.name/i);
+  assert.doesNotMatch(viewDefinition, /email/i);
+  assert.match(viewDefinition, /public\.current_user_shares_profile\(p\.id\)/i);
+  assert.match(
+    communityProfilePrivacyMigration,
+    /grant select on public\.community_profile_summary to authenticated;/i,
+  );
+  assert.match(
+    communityProfilePrivacyMigration,
+    /revoke all on public\.community_profile_summary from anon;/i,
+  );
+
+  const schemaViewDefinition = baseSchema.match(
+    /create or replace view public\.community_profile_summary as[\s\S]*?;/i,
+  )?.[0];
+  assert.ok(schemaViewDefinition, 'consolidated schema missing community_profile_summary view');
+  assert.match(schemaViewDefinition, /select p\.id, p\.name/i);
+  assert.doesNotMatch(schemaViewDefinition, /email/i);
 });

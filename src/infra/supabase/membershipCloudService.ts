@@ -34,18 +34,52 @@ export function mapDbToCommunityMember(
   };
 }
 
-async function fetchProfilesByUserIds(userIds: string[]): Promise<Map<string, ProfileRecord>> {
+// ponytail: `client` defaults to the real supabase singleton and is only overridden
+// in tests (it's null/unconfigured under the Node test runner, unlike Vite), so
+// fetchProfilesByUserIds can be unit-tested without mocking the module.
+export async function fetchProfilesByUserIds(
+  userIds: string[],
+  client: any = supabase,
+): Promise<Map<string, ProfileRecord>> {
   const ids = Array.from(new Set(userIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
 
-  const { data, error } = await supabase.from('profiles').select(PROFILE_COLUMNS).in('id', ids);
+  const { data, error } = await client.from('profiles').select(PROFILE_COLUMNS).in('id', ids);
 
   if (error) {
     console.warn('[membership] NÃ£o foi possÃ­vel carregar perfis dos membros.', error);
     return new Map();
   }
 
-  return new Map((data || []).map((profile) => [profile.id, profile]));
+  const profiles = new Map<string, ProfileRecord>(
+    (data || []).map((profile: ProfileRecord) => [profile.id, profile]),
+  );
+
+  // RLS now hides full profile rows (including email) from ordinary community
+  // members (see 20260726170000_community_profile_privacy.sql). Any id missing from
+  // the result above is re-fetched from community_profile_summary, which exposes
+  // only id/name -- merged in with email forced to null since we have no basis to
+  // show it.
+  const missingIds = ids.filter((id) => !profiles.has(id));
+  if (missingIds.length > 0) {
+    const { data: summaryData, error: summaryError } = await client
+      .from('community_profile_summary')
+      .select('id, name')
+      .in('id', missingIds);
+
+    if (summaryError) {
+      console.warn(
+        '[membership] NÃ£o foi possÃ­vel carregar perfis resumidos dos membros.',
+        summaryError,
+      );
+    } else {
+      for (const row of summaryData || []) {
+        profiles.set(row.id, { id: row.id, name: row.name, email: null });
+      }
+    }
+  }
+
+  return profiles;
 }
 
 async function mapMembersWithProfiles(

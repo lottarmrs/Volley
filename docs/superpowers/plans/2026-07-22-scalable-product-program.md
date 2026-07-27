@@ -57,6 +57,11 @@ Spec completo: `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achi
 ## Regras do programa
 
 - A UI visivel permanece igual ate o plano 5 estar concluido.
+  - **Excecao aberta no Plano 3B (decisao do usuario, 2026-07-27):** uma aba de linha do
+    tempo de marcos de carreira. Escopo fechado a essa aba, reusando componentes
+    existentes, sem navegacao nova. Registrada aqui para que a regra nao apareca
+    violada sem explicacao; ver
+    `docs/superpowers/specs/2026-07-27-career-events-vut-design.md`, secao 3B.
 - Nenhum reset de producao ocorre antes do ensaio completo do plano 5.
 - Cada plano usa TDD, revisao por tarefa e commits pequenos.
 - Migrations sao aplicadas primeiro no Supabase local e depois no projeto real.

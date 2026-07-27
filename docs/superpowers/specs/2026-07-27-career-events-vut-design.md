@@ -40,8 +40,10 @@ depois amplia o catálogo sobre essa base.
 
 ## Não objetivos
 
-- **Nenhuma tela nova.** A regra do programa congela a UI visível até os gates do Plano 5.
-  A fase Experiência continua adiada.
+- **Nenhuma tela nova no 3A.** A regra do programa congela a UI visível até os gates do
+  Plano 5, e o 3A a respeita integralmente. O 3B abre **uma** exceção explícita e
+  delimitada — a aba de histórico de marcos — decidida pelo usuário e registrada na seção
+  do 3B. A fase Experiência continua adiada; nenhum outro fluxo é alterado.
 - **Não persistir VUT nem estado de conquista.** Ambos permanecem derivados. Persistir
   criaria cache que envelhece em silêncio; "recalculável" é a propriedade que o spec pede.
 - Não tocar avaliações (`player_evaluations`, `self_evaluations`) — domínio do Plano 2.
@@ -185,11 +187,42 @@ Detalhe por comunidade continua restrito a quem participa daquela comunidade. O 
 4. Cliente calcula VUT sobre o livro-razão confirmado; caminho provisório rotulado.
 5. Recálculo no claim.
 
-### 3B — Catálogo e marcos narráveis
+### 3B — Marcos de carreira e conquistas derivadas
 
-1. Tipos de marco (`milestone`): primeira vitória, 100 pontos, sequências.
-2. Conquistas novas escritas contra o modelo estável do 3A.
-3. Superfície mínima de histórico, respeitando o congelamento de UI.
+Conjunto **fechado e determinístico** de dez marcos. Cada um vira uma linha
+`type = 'milestone'` em `career_events`, com `occurred_at` igual à data da sessão que o
+atingiu, e `source_key` no formato `player:{id}|milestone:{slug}` — um por jogador, para
+sempre:
+
+| Slug | Condição |
+| --- | --- |
+| `first_session` | 1ª sessão registrada |
+| `first_win` | 1ª sessão vencida |
+| `games_10` / `games_50` / `games_100` | 10 / 50 / 100 jogos acumulados |
+| `points_100` / `points_500` / `points_1000` | 100 / 500 / 1000 pontos acumulados |
+| `streak_3` / `streak_5` | 3 / 5 sessões vencidas consecutivas |
+
+**Definição de "sessão vencida":** o jogador venceu mais jogos do que perdeu naquela
+sessão (`games_won > games_played - games_won`). Empate não conta como vitória.
+
+**Definição de sequência:** sessões vencidas consecutivas, ordenadas por `occurred_at`.
+Foi preciso definir sequência no nível de **sessão**, não de jogo: o livro-razão é
+session-granular e não guarda ordenação por jogo, então uma sequência por jogo não seria
+reconstruível a partir dele. Definir no nível que os dados suportam mantém a promessa de
+determinismo — o alternativo seria ler `games` cru e quebrar a fronteira do 3A.
+
+Marco é **retroativo e idempotente**: a regeneração recalcula os totais do jogador e
+insere apenas os marcos ainda não atingidos, usando a `source_key` como trava. Um jogo
+apagado que derrube o total abaixo do limiar remove o marco correspondente.
+
+Conquistas novas do catálogo leem esses marcos e os totais, não linhas cruas.
+
+**Tela mínima de histórico — exceção deliberada ao congelamento de UI.** A regra do
+programa (`2026-07-22-scalable-product-program.md`) diz que a UI visível permanece igual
+até os gates do Plano 5. O usuário optou explicitamente por abrir exceção aqui, ciente de
+que a fase Experiência provavelmente redesenha essa tela. Escopo da exceção: **uma** aba
+de linha do tempo, listando os marcos do jogador em ordem cronológica, reusando os
+componentes existentes. Nenhuma navegação nova, nenhum outro fluxo alterado.
 
 3A precisa vir primeiro porque as condições das conquistas são escritas **contra** o modelo
 de evento. Ampliar o catálogo antes obrigaria a reescrever cada condição quando o modelo

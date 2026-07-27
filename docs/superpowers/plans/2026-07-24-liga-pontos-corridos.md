@@ -400,6 +400,8 @@ git commit -m "feat(logic): add championship recurrence, position awards, and te
 
 **Status: ✅ Concluída e revisada** — commit `9431d3f`, review Approved (spec ✅). Achado Important não-bloqueante: `schema.sql` nunca incluiu sessions/teams/games/etc. (lacuna pré-existente) — a FK nova `championship_rounds.session_id` é a primeira coisa a realmente depender disso, quebrando um paste fresco do arquivo. Escalado como tarefa separada (`task_09f6c6c7`), não corrigido aqui. Ver `.superpowers/sdd/progress.md`.
 
+**Follow-up resolvido:** a pendência `task_09f6c6c7` foi fechada pelo commit `3191f24` ("fix(db): backfill sessions/teams/games/etc. tables into consolidated schema.sql"), que backfillou as 8 tabelas da migration inicial (sessions, teams, games, point_events, game_reports, session_reports, community_presence, whatsapp_list_drafts) no `schema.sql`, consolidado em `main` pelo merge `7bfc49e`. Um paste fresco do `schema.sql` agora funciona com a FK `championship_rounds.session_id`.
+
 **Files:**
 - Create: `supabase/migrations/20260725120000_championship_scheduling.sql`
 - Modify: `supabase/migrations/schema.sql`

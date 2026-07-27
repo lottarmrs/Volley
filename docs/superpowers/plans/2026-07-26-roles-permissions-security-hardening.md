@@ -1224,6 +1224,44 @@ git commit -m "feat(community): add organizador role to types, permissions, and 
 
 ### Task 7: Hide member email from non-privileged viewers
 
+**Status: ✅ Concluída** (commit `692411d`), **com uma vulnerabilidade crítica
+introduzida e corrigida** (`0530f45`).
+
+A migration subiu com apenas `revoke all ... from anon`. Só que o Supabase já concede
+`ALL` ao papel `authenticated` por padrão em objetos novos do schema `public`, então o
+`grant select ... to authenticated` era no-op e INSERT/UPDATE/DELETE continuaram de pé.
+Como a view é de tabela única (sem agregação/DISTINCT/LIMIT), o Postgres a torna
+**auto-updatable**, e ela roda com os direitos do dono (`postgres`, que tem
+`rolbypassrls`). Resultado: escrita pela view chegava em `public.profiles` **sem
+nenhum filtro de RLS** — e `profiles` não tem policy de DELETE nem de INSERT, ou seja,
+essas operações eram inalcançáveis para todo mundo antes disso.
+
+Qualquer usuário autenticado podia mandar
+`DELETE /rest/v1/community_profile_summary?id=eq.<vítima>` para quem compartilhasse
+comunidade com ele, apagando o `profiles` da vítima e cascateando por
+`community_members_user_id_fkey` — removendo-a de todas as comunidades. `PATCH`
+sobrescrevia `profiles.name` pelo mesmo caminho. Escalada de papel nunca foi possível:
+`role` não é coluna da view.
+
+Confirmado em produção antes de corrigir (`has_table_privilege('authenticated', ...,
+'DELETE')` = true, `information_schema.views.is_updatable` = YES). Corrigido revogando
+de `anon, authenticated` **antes** do grant. Teste de regressão exige que o revoke
+nomeie `authenticated` e venha antes do grant, e foi mutation-testado.
+
+Ironia registrada para a próxima vez: foi justamente a task que *restringiu* leitura de
+`profiles` que tornou significativo um caminho de escrita irrestrito.
+
+**Pendências menores levantadas na revisão (não corrigidas):**
+
+- `current_user_shares_profile` (o gate da view) **não filtra `status`**, enquanto a
+  policy nova exige `status = 'active'` dos dois lados. Então quem tem pedido
+  `pending`/`rejected` numa comunidade consegue ler o nome de todos os membros dela.
+  Não é regressão — o gate antigo era o mesmo e devolvia a linha inteira, com e-mail —
+  mas agora essa assimetria é load-bearing.
+- Membro comum passa a pagar sempre 2 round trips para montar lista de membros (a
+  primeira query devolve só a própria linha). É o caminho comum, não a exceção.
+- `client: any` em `membershipCloudService.ts` anula a tipagem da cadeia da query.
+
 **Files:**
 - Create: `supabase/migrations/20260726170000_community_profile_privacy.sql`
 - Modify: `supabase/migrations/schema.sql`
@@ -1373,6 +1411,11 @@ git commit -m "feat(privacy): hide member email from non-privileged community vi
 ---
 
 ### Task 8: Deprecate `community_players.role`
+
+**Status: ✅ Concluída** (commit `05dc64d`, aplicada em produção). O gate do Step 1 foi
+executado de verdade e confirmado na revisão: `community_players.role` aparece só como
+tipo e na lista de `select` de `communityPlayerCloudService.ts`, e não há nenhum
+`.role ===` sobre linha dessa tabela em `src/`. Mudança 100% documental.
 
 **Files:**
 - Create: `supabase/migrations/20260726190000_deprecate_community_players_role.sql`

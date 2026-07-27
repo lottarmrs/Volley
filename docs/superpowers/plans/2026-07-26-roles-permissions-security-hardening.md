@@ -553,6 +553,15 @@ git commit -m "feat(db): add community role capabilities, organizador role, and 
 
 ### Task 3: Password minimum length + session invalidation on password change
 
+**Status: ✅ Concluída** (commit `de2f926`, revisada). Uma pendência humana: o
+**Step 7 continua aberto** — `password_min_length = 8` é configuração do painel
+Supabase (Authentication → Policies), não SQL, e precisa ser feita por você.
+
+Nota da revisão: o comando de teste sugerido no Step 2/4 (`npx vitest run
+src/infra/supabase/authClient.test.ts`) estava errado — esse arquivo roda no runner
+nativo do Node (`npm run test:unit`), e o `vitest.config.ts` só inclui `*.spec.*`.
+Rodado como sugerido, o teste casaria zero arquivos e passaria sem executar nada.
+
 **Files:**
 - Modify: `src/infra/supabase/authClient.ts`
 - Modify: `src/infra/supabase/authClient.test.ts`
@@ -654,6 +663,25 @@ git commit -m "feat(auth): invalidate other sessions on password change; documen
 
 ### Task 4: Mandatory MFA — database layer
 
+**Status: ✅ Concluída** (commit `427ee7b`, aplicada em produção como
+`20260726223946`; correções de revisão em `65781c0`). A revisão comparou os sete
+corpos de função com produção via md5 e recuperou o corpo anterior de
+`ensure_account_ready` de `supabase_migrations` para provar que só os três trechos
+pretendidos mudaram. Login verificado funcionando depois do drop/recreate.
+
+Duas observações operacionais que valem registro:
+
+- **JWT de service-role não tem claim `aal`.** `require_aal2()` compara
+  `auth.jwt() ->> 'aal'` com `'aal2'`; um token de service role não traz essa claim,
+  então qualquer script de backend passa a receber 42501 nas quatro RPCs. Hoje não há
+  chamador assim em `src/`, mas o erro falaria de "verificação em duas etapas" para
+  algo que não tem nada a ver com MFA.
+- **Um único `master`, recuperação só pelo painel.** `set_user_role` agora exige aal2 e
+  é o único caminho para conceder papéis globais. Se o autenticador for perdido, a
+  saída é o SQL editor (`set_config('app.allow_role_change','on',true)` + `update
+  public.profiles`). Risco aceito conscientemente; vale promover um segundo
+  `programmer` antes de abrir para mais gente.
+
 **Files:**
 - Create: `supabase/migrations/20260726110000_mandatory_mfa_and_aal2_enforcement.sql`
 - Modify: `supabase/migrations/schema.sql`
@@ -675,7 +703,13 @@ public.ensure_account_ready(text)` before recreating it with the extra column.
 
 - [ ] **Step 2: Write the migration**
 
-Create `supabase/migrations/20260726110000_mandatory_mfa_and_aal2_enforcement.sql`:
+Create `supabase/migrations/20260726110000_mandatory_mfa_and_aal2_enforcement.sql`.
+
+Nota de ordem: `ensure_account_ready` chama `account_requires_aal2`. Como o corpo é
+plpgsql, o Postgres não resolve a referência na criação, então a ordem abaixo funciona;
+ainda assim, se preferir, mova o bloco de `account_requires_aal2` para antes do
+`drop function`. O que **não** pode mudar é o `drop function` vir antes do `create` —
+Postgres recusa `create or replace` quando a tabela de retorno muda de forma.
 
 ```sql
 -- Mandatory MFA determination + AAL2 enforcement at the database layer for sensitive
@@ -701,17 +735,112 @@ language plpgsql
 security definer
 set search_path = public
 as $$
--- Body: copy the existing function body verbatim from the migration read in Step 1,
--- with two changes:
---   1. Every `return query select ...` gains one more selected expression:
---      `public.account_requires_aal2(v_uid)` as the final column, matching the new
---      `requires_aal2` output column above.
---   2. Nothing else changes — same insert/upsert/username logic, same exceptions.
+declare
+  v_uid uuid := (select auth.uid());
+  v_email text;
+  v_name text;
+  v_username text := public.normalize_account_username(p_username);
+  v_profile public.profiles%rowtype;
+  v_player public.players%rowtype;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  select email, coalesce(raw_user_meta_data->>'name', split_part(email, '@', 1))
+    into v_email, v_name
+    from auth.users
+   where id = v_uid;
+
+  insert into public.profiles (id, name, email, role)
+  values (v_uid, v_name, v_email, 'user')
+  on conflict (id) do update
+    set email = excluded.email,
+        updated_at = now();
+
+  select * into v_profile from public.profiles where id = v_uid;
+
+  select * into v_player
+    from public.players
+   where user_id = v_uid and deleted_at is null
+   order by created_at
+   limit 1
+   for update;
+
+  if nullif(v_username, '') is not null
+     and not public.is_valid_account_username(v_username) then
+    raise exception 'Invalid username' using errcode = '22023';
+  end if;
+
+  if v_player.id is null then
+    insert into public.players (
+      owner_id,
+      user_id,
+      name,
+      username,
+      has_account_identity_history
+    )
+    values (v_uid, v_uid, v_name, nullif(v_username, ''), true)
+    on conflict (user_id) where user_id is not null
+    do update set updated_at = now()
+    returning * into v_player;
+  elsif (
+    v_player.username is null
+    or v_player.username <> public.normalize_account_username(v_player.username)
+    or not public.is_valid_account_username(v_player.username)
+  ) and nullif(v_username, '') is not null then
+    if not public.is_valid_account_username(v_username) then
+      raise exception 'Invalid username' using errcode = '22023';
+    end if;
+    update public.players
+       set username = v_username, updated_at = now()
+     where id = v_player.id
+     returning * into v_player;
+  end if;
+
+  if v_player.username is null
+     or v_player.username <> public.normalize_account_username(v_player.username)
+     or not public.is_valid_account_username(v_player.username) then
+    return query select
+      'needs_username'::text,
+      v_profile.id,
+      v_profile.name,
+      v_profile.email,
+      v_profile.role,
+      v_profile.created_at,
+      v_profile.updated_at,
+      v_player.id,
+      null::text,
+      public.account_requires_aal2(v_uid);
+  else
+    return query select
+      'ready'::text,
+      v_profile.id,
+      v_profile.name,
+      v_profile.email,
+      v_profile.role,
+      v_profile.created_at,
+      v_profile.updated_at,
+      v_player.id,
+      v_player.username,
+      public.account_requires_aal2(v_uid);
+  end if;
+exception
+  when unique_violation then
+    raise exception 'Username unavailable' using errcode = '23505';
+end;
 $$;
 
 revoke execute on function public.ensure_account_ready(text) from public, anon;
 grant execute on function public.ensure_account_ready(text) to authenticated;
 
+-- PRE-FLIGHT CORRECTION (decidida antes da execução): 'admin' entra aqui.
+-- O texto original desta task exigia aal2 em set_community_member_role e
+-- remove_community_member, mas só obrigava MFA para master/programmer/owner —
+-- e o seed de capabilities dá manage_members/remove_members ao admin. Um admin
+-- nunca seria mandado enrolar TOTP, nunca chegaria a aal2, e toda chamada dele
+-- a essas duas RPCs falharia com 42501 para sempre. Incluir 'admin' fecha a
+-- contradição mantendo as quatro RPCs sob require_aal2().
 create or replace function public.account_requires_aal2(p_uid uuid)
 returns boolean
 language sql
@@ -726,7 +855,7 @@ as $$
     )
     or exists (
       select 1 from public.community_members
-      where user_id = p_uid and role = 'owner' and status = 'active'
+      where user_id = p_uid and role in ('owner', 'admin') and status = 'active'
     );
 $$;
 
@@ -736,10 +865,14 @@ grant execute on function public.account_requires_aal2(uuid) to authenticated;
 -- AAL2 enforcement at the DB layer for sensitive role/ownership RPCs, independent of
 -- client-side gating (per "Operacoes administrativas sensiveis exigem aal2 no banco",
 -- docs/superpowers/specs/2026-07-22-scalable-product-restructure-design.md).
+-- PRE-FLIGHT CORRECTION: `set search_path = public` adicionado. Sem isso o
+-- advisor function_search_path_mutable acusa uma nova advertência, o que o
+-- Completion Gate deste plano proíbe ("get_advisors showing no new advisories").
 create or replace function public.require_aal2()
 returns void
 language plpgsql
 stable
+set search_path = public
 as $$
 begin
   if coalesce((select auth.jwt() ->> 'aal'), '') <> 'aal2' then
@@ -804,6 +937,32 @@ git commit -m "feat(db): derive mandatory-MFA requirement and enforce AAL2 on se
 ---
 
 ### Task 5: Mandatory MFA — client wiring
+
+**Status: ✅ Concluída** (commit `0f036ef`, mais correções bloqueantes em `6b992c3`).
+
+O Step 10 era pergunta aberta e a resposta foi empírica: `verifyTotp` **não** move o
+estado do provider, então `MfaSetupPage` chama `retry()` antes de navegar. Sem isso o
+enrollment terminava e o `AuthGuard` devolvia o usuário para `/configurar-mfa`.
+
+**A verificação no app real achou três defeitos que os testes não pegavam** — juntos,
+`/configurar-mfa` era um beco sem saída, e com MFA obrigatório essa é a única porta
+para master/programmer/owner/admin:
+
+1. O Supabase responde 422 ("A factor with the friendly name ... already exists")
+   enquanto existir um fator TOTP não verificado. Quem começasse a configuração e não
+   terminasse ficava travado para sempre. `enrollTotp` agora descarta fator não
+   verificado e refaz o enroll (só depois de uma falha — o caminho felizmente não paga
+   chamada extra), e nunca toca em fator verificado.
+2. `MfaSetupPage` renderizava o spinner sempre que `enrollment` era nulo, e o `error` só
+   aparecia **dentro do formulário**, que por sua vez dependia de `enrollment`. Falha de
+   enroll = "Carregando Sessão..." eterno, sem mensagem e sem saída — a mesma forma do
+   bug corrigido em `f55d06c`, em outro componente. Agora há estado de erro com botão
+   de tentar novamente.
+3. `enrollTotp` cria recurso no servidor, não é idempotente, e o StrictMode montava o
+   efeito duas vezes: duas inscrições disputavam o mesmo `friendly_name` vazio e a
+   perdedora matava a tela. O enroll roda uma vez por instância da página —
+   deliberadamente **sem** flag de cancelamento, porque junto com o guard o cleanup do
+   StrictMode cancelaria justamente a única inscrição em voo.
 
 **Files:**
 - Modify: `src/application/accountUseCases.ts`
@@ -939,6 +1098,20 @@ git commit -m "feat(auth): require mandatory TOTP enrollment for staff and commu
 
 ### Task 6: `organizador` role in types, permissions, and community UI
 
+**Status: ✅ Concluída** (commit `8562c5f`, revisada; correção em `31ae5a4`).
+
+A revisão conferiu a matriz de permissões do cliente contra o seed de capabilities que
+já está em produção e achou uma divergência **anterior a esta task**:
+`canEvaluatePlayer` liberava `moderator`, mas a RLS de `player_evaluations` exige
+`current_user_has_community_role(community_id, array['owner','admin'])` — ou seja, o app
+mostrava a ação e o banco recusava depois. O Step 4 mandava deixar `canEvaluatePlayer`
+"owner/admin-only (unchanged)": a intenção estava certa, o "unchanged" é que não era
+verdade. Corrigido para `isOwner || isAdmin`.
+
+Pendência deliberada: `canApproveMembers` existe, mas o painel de membros ainda gateia
+a aprovação por `canManageMembers`, então `moderator` ainda não aprova pela UI. O brief
+proibia mexer no componente nesta task.
+
 **Files:**
 - Modify: `src/shared/types/community.ts`
 - Modify: `src/domain/communityPermissions.ts`
@@ -1052,7 +1225,7 @@ git commit -m "feat(community): add organizador role to types, permissions, and 
 ### Task 7: Hide member email from non-privileged viewers
 
 **Files:**
-- Create: `supabase/migrations/20260726120000_community_profile_privacy.sql`
+- Create: `supabase/migrations/20260726170000_community_profile_privacy.sql`
 - Modify: `supabase/migrations/schema.sql`
 - Modify: `src/infra/supabase/schema.test.ts`
 - Modify: `src/infra/supabase/membershipCloudService.ts`
@@ -1077,7 +1250,7 @@ member. This is the policy this task replaces.
 
 - [ ] **Step 2: Write the migration**
 
-Create `supabase/migrations/20260726120000_community_profile_privacy.sql`:
+Create `supabase/migrations/20260726170000_community_profile_privacy.sql`:
 
 ```sql
 -- Hide profiles.email from ordinary community members; visible only to self, app
@@ -1193,7 +1366,7 @@ npm run lint:eslint
 - [ ] **Step 12: Commit**
 
 ```bash
-git add supabase/migrations/20260726120000_community_profile_privacy.sql supabase/migrations/schema.sql src/infra/supabase/schema.test.ts src/infra/supabase/membershipCloudService.ts src/infra/supabase/membershipCloudService.test.ts
+git add supabase/migrations/20260726170000_community_profile_privacy.sql supabase/migrations/schema.sql src/infra/supabase/schema.test.ts src/infra/supabase/membershipCloudService.ts src/infra/supabase/membershipCloudService.test.ts
 git commit -m "feat(privacy): hide member email from non-privileged community viewers"
 ```
 

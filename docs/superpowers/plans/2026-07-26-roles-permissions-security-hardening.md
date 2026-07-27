@@ -1283,6 +1283,61 @@ schema directly into the Supabase SQL Editor"): um projeto novo criado a partir 
 sobe sem metade dos RPCs. Vale um plano próprio, com o mesmo cuidado de verificação
 contra produção usado aqui.
 
+### Status: fechado em 2026-07-26 (com uma ressalva)
+
+As 20 funções restantes (as 4 de capability já tinham entrado em `c2ba7fd`) foram
+recuperadas para o `schema.sql`, junto com o que faltava para elas funcionarem:
+
+- **Colunas**: `communities.visibility` e `communities.join_code` + o índice único
+  parcial. Sem elas o `schema.sql` nem executava — os RPCs de entrada leem as duas.
+- **Triggers** (6): `create_community_owner_member`,
+  `prevent_last_community_owner_delete`, `prevent_last_community_owner_update`,
+  `trg_guard_community_member_owner_role`,
+  `trigger_sync_community_player_active_status`, `set_community_players_updated_at`.
+- **RLS**: o `schema.sql` ainda carregava as políticas `owner_id`-only *pré-migração*
+  de `profiles`, `communities`, `players`, `community_players`, `community_rules`,
+  `whatsapp_list_templates` e `modification_logs` — um projeto novo subia sem nenhum
+  acesso por filiação. Substituídas pelas versões vivas, mais as 10 políticas
+  `"App staff can read <tabela>"` que faltavam por completo.
+
+Cobertura em `src/infra/supabase/schema.test.ts`: comparação normalizada corpo-a-corpo
+de cada função contra a migration autoritativa, os pares `revoke`/`grant` por
+assinatura, a fiação dos triggers, e o conjunto de políticas vivas *e* o dos nomes
+superseded (que precisam estar ausentes, senão o Postgres faz `OR` e ressuscita o
+bypass). Oito mutações deliberadas foram testadas — todas quebram o teste.
+
+**Ressalva — a auditoria contou 48 funções em produção; o `schema.sql` agora tem 47.**
+A reconciliação foi feita a partir das migrations (o MCP do Supabase não estava
+disponível nesta sessão), e o conjunto delas fecha exatamente em 47 depois de
+descontar as 6 funções que `20260724000000` derrubou. Falta confirmar contra produção
+qual é a 48ª — pode ser uma função criada fora das migrations, ou um off-by-one na
+contagem original. Vale um `select p.proname from pg_proc p join pg_namespace n on
+n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f' order by 1;`
+comparado com a lista do `schema.sql`.
+
+### Drift de produção encontrado de passagem (não corrigido — precisa de migration)
+
+Reproduzidos fielmente no `schema.sql`, com comentário no lugar, porque esta tarefa era
+só do lado do repo:
+
+1. **`players` tem duas políticas de DELETE vivas.** `20260722162234` criou
+   `"Users can delete owned legacy players"` (que exige
+   `not has_account_identity_history`) mas nunca derrubou
+   `"Player owners can delete players"` de `20260610161203`. Postgres faz `OR` entre
+   políticas permissivas, então a irrestrita ganha e a proteção de
+   `has_account_identity_history` não vale nada. **É exatamente o mesmo bug que o
+   `c2ba7fd` fechou em `communities`.**
+2. **As políticas de escrita de `community_players` citam o papel `'organizer'`**, que
+   deixou de existir no rename da v2 (`20260624203424`). Foram escritas por
+   `20260617180615` e nunca atualizadas.
+3. **`add_community_member_by_email` rejeita `'organizador'`** — a lista de papéis
+   aceitos parou em `20260624203424`.
+4. **`sync_community_player_active_status` não tem `search_path` fixado** (nenhum
+   `alter function` a cobriu) — advisor `function_search_path_mutable`.
+5. **As políticas de `storage.objects` do bucket `avatars` não estão no `schema.sql`**
+   (4 políticas, de `20260624133117` + `20260629201136`), nem a criação do bucket.
+   Ficou de fora de propósito: é outro schema e depende do bucket existir.
+
 ## Completion Gate
 
 - [ ] `programmer` holds every `global_role_capabilities` grant except

@@ -1375,7 +1375,7 @@ git commit -m "feat(privacy): hide member email from non-privileged community vi
 ### Task 8: Deprecate `community_players.role`
 
 **Files:**
-- Create: `supabase/migrations/20260726130000_deprecate_community_players_role.sql`
+- Create: `supabase/migrations/20260726190000_deprecate_community_players_role.sql`
 - Modify: `supabase/migrations/schema.sql`
 - Modify: `docs/operations/auth-production-checklist.md`
 
@@ -1396,7 +1396,7 @@ use.
 
 - [ ] **Step 2: Write the migration**
 
-Create `supabase/migrations/20260726130000_deprecate_community_players_role.sql`:
+Create `supabase/migrations/20260726190000_deprecate_community_players_role.sql`:
 
 ```sql
 -- community_players.role is superseded by community_members.role (the actual RBAC
@@ -1432,7 +1432,7 @@ npm run lint:eslint
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/20260726130000_deprecate_community_players_role.sql supabase/migrations/schema.sql docs/operations/auth-production-checklist.md
+git add supabase/migrations/20260726190000_deprecate_community_players_role.sql supabase/migrations/schema.sql docs/operations/auth-production-checklist.md
 git commit -m "docs(db): mark community_players.role as deprecated"
 ```
 

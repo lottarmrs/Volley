@@ -1234,8 +1234,14 @@ select p.id, p.name
 from public.profiles p
 where public.current_user_shares_profile(p.id);
 
+-- Revoke BEFORE granting, and from authenticated too: Supabase's default privileges
+-- already give authenticated ALL on new objects in public, and this view is
+-- single-table, so Postgres makes it auto-updatable. Since it runs with its owner's
+-- rights (postgres bypasses RLS), leaving writes in place would let any authenticated
+-- user delete or rename public.profiles rows past every policy — profiles has no
+-- DELETE or INSERT policy at all. The view is read-only by design.
+revoke all on public.community_profile_summary from anon, authenticated;
 grant select on public.community_profile_summary to authenticated;
-revoke all on public.community_profile_summary from anon;
 
 -- Create Policies for Communities
 create policy "Community members can read communities" on public.communities

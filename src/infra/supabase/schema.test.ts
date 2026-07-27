@@ -154,6 +154,13 @@ const communityProfilePrivacyMigration = readFixture(
   ),
 );
 
+const communityProfileSummaryReadonlyMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726200000_lock_community_profile_summary_readonly.sql',
+    import.meta.url,
+  ),
+);
+
 const functionSecurityHardeningMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260610195250_harden_function_security.sql',
@@ -2293,4 +2300,30 @@ test('community_profile_summary view exposes only id and name, never email', () 
   assert.ok(schemaViewDefinition, 'consolidated schema missing community_profile_summary view');
   assert.match(schemaViewDefinition, /select p\.id, p\.name/i);
   assert.doesNotMatch(schemaViewDefinition, /email/i);
+});
+
+test('community_profile_summary is read-only for authenticated, not just anon', () => {
+  // The view is single-table, so Postgres makes it auto-updatable, and it runs with
+  // its owner's rights (postgres bypasses RLS). Supabase's default privileges already
+  // grant `authenticated` ALL on new objects in public, so revoking only from `anon`
+  // left INSERT/UPDATE/DELETE reachable — writes landed on public.profiles with no RLS
+  // filter, and profiles has no DELETE or INSERT policy at all. Any authenticated user
+  // could delete the profile of anyone sharing a community with them, cascading them
+  // out of every community via community_members_user_id_fkey.
+  for (const artifact of [communityProfileSummaryReadonlyMigration, baseSchema]) {
+    const revoke = artifact.match(
+      /revoke all on public\.community_profile_summary from ([^;]*);/i,
+    )?.[1];
+    assert.ok(revoke, 'missing revoke on community_profile_summary');
+    assert.match(revoke, /\bauthenticated\b/i, 'revoke must include authenticated, not just anon');
+    assert.match(revoke, /\banon\b/i);
+  }
+
+  // The revoke has to precede the grant, or it strips the select right back off.
+  const revokeAt = baseSchema.search(
+    /revoke all on public\.community_profile_summary from [^;]*;/i,
+  );
+  const grantAt = baseSchema.search(/grant select on public\.community_profile_summary to/i);
+  assert.ok(revokeAt !== -1 && grantAt !== -1, 'missing grant/revoke pair');
+  assert.ok(revokeAt < grantAt, 'revoke must come before the select grant');
 });

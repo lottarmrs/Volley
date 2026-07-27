@@ -24,7 +24,13 @@ export function calculateHeightScore(heightCm?: number | null): number {
 }
 
 export const calculatePositionOverall = (player: Player, position: Position): number => {
-  const weights = POSITION_WEIGHTS[position];
+  // Um jogador criado junto com a conta (ensure_account_ready) nasce sem posicao:
+  // primary_position fica null e o mapper repassa como esta. POSITION_WEIGHTS[null] e
+  // undefined, e Object.entries(undefined) lanca — o que derrubava a aba de Atletas
+  // inteira em tela preta, porque PlayerItem chama isto para cada card. Sem posicao
+  // definida, 'all-rounder' e a leitura correta: pesos equilibrados, nenhum
+  // fundamento privilegiado.
+  const weights = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS['all-rounder'];
   const { atributos, formaAtual, alturaCm } = player;
   const heightScore = calculateHeightScore(alturaCm);
 
@@ -33,28 +39,31 @@ export const calculatePositionOverall = (player: Player, position: Position): nu
   Object.entries(weights).forEach(([metric, weight]) => {
     if (!weight) return;
 
-    const value = metric === 'altura' ? heightScore : atributos[metric as keyof Attributes] || 0;
+    const value = metric === 'altura' ? heightScore : (atributos?.[metric as keyof Attributes] ?? 0);
 
     overall += value * weight;
   });
 
   const baseRating = Math.round(overall * 10);
-  const adjustedRating = Math.round(baseRating + formaAtual.valor * 0.5);
+  // formaAtual tambem chega como {} nesse cenario, e undefined * 0.5 = NaN vazava ate
+  // o DOM ("Received NaN for the children attribute").
+  const adjustedRating = Math.round(baseRating + (formaAtual?.valor ?? 0) * 0.5);
   return adjustedRating;
 };
 
 export const calculateGeneralOverall = (player: Player): number => {
   const { atributos, formaAtual, alturaCm } = player;
-  const values = Object.values(atributos);
+  const values = Object.values(atributos ?? {});
   const sum = values.reduce((acc, val) => acc + val, 0);
-  const baseAttrAvg = sum / values.length;
+  // Sem atributos, values.length e 0 e a media virava 0/0 = NaN.
+  const baseAttrAvg = values.length > 0 ? sum / values.length : 0;
 
   // Overall general: height weighs 5%
   const heightScore = calculateHeightScore(alturaCm);
   const overall = baseAttrAvg * 0.95 + heightScore * 0.05;
 
   const baseRating = Math.round(overall * 10);
-  const adjustedRating = Math.round(baseRating + formaAtual.valor * 0.5);
+  const adjustedRating = Math.round(baseRating + (formaAtual?.valor ?? 0) * 0.5);
   return adjustedRating;
 };
 
@@ -131,12 +140,16 @@ const POSITION_CRITICAL: Partial<Record<string, Array<keyof Attributes>>> = {
 export const getAutoSpecialty = (player: Player): string => {
   const { atributos, posicaoPrincipal, formaAtual } = player;
 
-  if (formaAtual.valor >= 4.5) return 'Pico Absoluto de Forma';
-  if (formaAtual.valor >= 3.5) return 'Em Grande Fase';
+  if ((formaAtual?.valor ?? 0) >= 4.5) return 'Pico Absoluto de Forma';
+  if ((formaAtual?.valor ?? 0) >= 3.5) return 'Em Grande Fase';
 
-  const sorted = (Object.entries(atributos) as [keyof Attributes, number][]).sort(
+  const sorted = (Object.entries(atributos ?? {}) as [keyof Attributes, number][]).sort(
     ([, a], [, b]) => b - a,
   );
+
+  // Jogador criado junto com a conta nasce com atributos {}, entao sorted fica vazio e
+  // desestruturar sorted[0] lancava "undefined is not iterable" — derrubando o card.
+  if (sorted.length === 0) return 'Em Desenvolvimento';
 
   const [topKey, topVal] = sorted[0];
   if (topVal < 4) return 'Em Desenvolvimento';
@@ -156,11 +169,15 @@ export const getAutoSpecialty = (player: Player): string => {
 export const getAutoWeakness = (player: Player): string => {
   const { atributos, formaAtual } = player;
 
-  if (formaAtual.valor <= -2.5) return 'Fora de Forma';
+  if ((formaAtual?.valor ?? 0) <= -2.5) return 'Fora de Forma';
 
-  const sorted = (Object.entries(atributos) as [keyof Attributes, number][]).sort(
+  const sorted = (Object.entries(atributos ?? {}) as [keyof Attributes, number][]).sort(
     ([, a], [, b]) => a - b,
   );
+
+  // Mesmo caso do getAutoSpecialty: sem atributos nao ha o que ordenar. Dizer "sem
+  // fraqueza evidente" seria mentira — nao ha dado nenhum ainda.
+  if (sorted.length === 0) return 'Sem dados suficientes';
 
   const [bottomKey, bottomVal] = sorted[0];
   if (bottomVal >= 7.5) return 'Sem fraqueza evidente';

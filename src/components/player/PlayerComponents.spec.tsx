@@ -1,0 +1,41 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { PlayerItem } from './PlayerComponents';
+import type { Player, Position } from '../../types';
+
+// Exactly what reaches the UI for a player created together with an account:
+// ensure_account_ready inserts only owner_id/user_id/name/username, so the DB
+// defaults apply (attributes/forma_atual/profile/status all '{}'::jsonb,
+// primary_position null) and mapDbToPlayer passes them straight through.
+function accountCreatedPlayer(): Player {
+  return {
+    id: '565a23e5-8b3e-4a3f-bc47-1803e1f46b4d',
+    nome: 'TESTEADM',
+    apelido: '',
+    ativo: true,
+    posicaoPrincipal: null as unknown as Position,
+    posicoesSecundarias: [],
+    atributos: {} as Player['atributos'],
+    perfil: {} as Player['perfil'],
+    formaAtual: {} as Player['formaAtual'],
+    status: {} as Player['status'],
+  } as Player;
+}
+
+describe('PlayerItem', () => {
+  it('renders a player that has no position, attributes or form', () => {
+    // Regression: calculatePositionOverall(player, null) did
+    // Object.entries(POSITION_WEIGHTS[null]) and threw, so one such player took the
+    // whole Atletas tab down to a black screen.
+    expect(() => render(<PlayerItem player={accountCreatedPlayer()} />)).not.toThrow();
+    expect(screen.getByText('TESTEADM')).toBeTruthy();
+  });
+
+  it('never emits NaN into the DOM for an empty player', () => {
+    // NaN reached the DOM as a style width and as card text, which is what produced
+    // the "Received NaN for the children attribute" React warnings.
+    const { container } = render(<PlayerItem player={accountCreatedPlayer()} />);
+
+    expect(container.innerHTML).not.toMatch(/NaN/);
+  });
+});

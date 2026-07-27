@@ -176,7 +176,9 @@ export const PlayerItem: React.FC<{
   };
 
   const initials = player.nome ? player.nome.substring(0, 2).toUpperCase() : 'AT';
-  const formPct = Math.round(((player.formaAtual.valor + 5) / 10) * 100);
+  // formaAtual chega como {} para jogador criado junto com a conta; sem o ?? 0 isto
+  // vira NaN e vaza para o style/DOM como largura de barra.
+  const formPct = Math.round((((player.formaAtual?.valor ?? 0) + 5) / 10) * 100);
   const formDelta = overall - rawOverall;
   const tierLabel =
     overall > 75 ? 'ELITE' : overall > 60 ? 'COMP' : overall > 45 ? 'SOCIAL' : 'BASE';

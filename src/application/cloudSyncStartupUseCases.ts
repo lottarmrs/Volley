@@ -5,6 +5,7 @@ export interface StartupCloudDownloadInput {
     | 'email_verification'
     | 'onboarding'
     | 'mfa_required'
+    | 'mfa_setup_required'
     | 'ready'
     | 'recoverable_error';
   isSupabaseConfigured: boolean;

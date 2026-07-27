@@ -180,6 +180,7 @@ describe('MfaSetupPage', () => {
   });
 
   it('enrolls, shows the QR code and verifies the first code before returning to route', async () => {
+    const retry = vi.fn().mockResolvedValue(undefined);
     authClientMock.enrollTotp.mockResolvedValue({
       factorId: 'factor-1',
       qrCode: 'data:image/png;base64,qr',
@@ -188,7 +189,7 @@ describe('MfaSetupPage', () => {
     authClientMock.verifyTotp.mockResolvedValue(undefined);
     renderAuthPage(
       '/configurar-mfa',
-      { state: { kind: 'mfa_setup', userId: 'u1' } as unknown as AuthSessionState },
+      { state: { kind: 'mfa_setup_required', userId: 'u1' } as unknown as AuthSessionState, retry },
       { from: { pathname: '/comunidades' } },
       <MfaSetupPage />,
     );
@@ -202,6 +203,9 @@ describe('MfaSetupPage', () => {
     await waitFor(() =>
       expect(authClientMock.verifyTotp).toHaveBeenCalledWith('123456', 'factor-1'),
     );
+    // verifyTotp alone doesn't move the provider's state forward (see
+    // AuthSessionProvider.spec.tsx) — MfaSetupPage must call retry() itself.
+    await waitFor(() => expect(retry).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
   });
 
@@ -214,7 +218,7 @@ describe('MfaSetupPage', () => {
     authClientMock.verifyTotp.mockRejectedValue(new Error('Codigo invalido.'));
     renderAuthPage(
       '/configurar-mfa',
-      { state: { kind: 'mfa_setup', userId: 'u1' } as unknown as AuthSessionState },
+      { state: { kind: 'mfa_setup_required', userId: 'u1' } as unknown as AuthSessionState },
       undefined,
       <MfaSetupPage />,
     );

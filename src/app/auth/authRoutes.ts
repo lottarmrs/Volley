@@ -12,6 +12,8 @@ export function routeForAuthState(state: AuthSessionState): string | null {
       return '/escolher-username';
     case 'mfa_required':
       return '/confirmar-mfa';
+    case 'mfa_setup_required':
+      return '/configurar-mfa';
     case 'recoverable_error':
       return '/auth/recuperar-sessao';
     case 'ready':

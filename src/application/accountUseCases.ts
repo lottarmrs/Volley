@@ -8,6 +8,7 @@ export interface AccountSnapshot {
   profile: UserProfile;
   playerId: string;
   username: string | null;
+  requiresAal2: boolean;
 }
 
 export interface AccountGateway {

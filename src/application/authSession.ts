@@ -6,6 +6,7 @@ export type AuthSessionState =
   | { kind: 'email_verification'; userId: string }
   | { kind: 'onboarding'; userId: string; playerId: string }
   | { kind: 'mfa_required'; userId: string; account: AccountSnapshot }
+  | { kind: 'mfa_setup_required'; userId: string; account: AccountSnapshot }
   | { kind: 'ready'; userId: string; account: AccountSnapshot }
   | { kind: 'recoverable_error'; userId: string; message: string };
 
@@ -23,7 +24,6 @@ export function resolveAuthSessionState(input: {
   session: SessionIdentity | null;
   account?: AccountSnapshot | null;
   aal?: AssuranceLevel | null;
-  requireAal2?: boolean;
 }): AuthSessionState {
   if (!input.session) return { kind: 'anonymous' };
   if (!input.session.emailConfirmed) {
@@ -36,8 +36,11 @@ export function resolveAuthSessionState(input: {
       playerId: input.account?.playerId ?? '',
     };
   }
-  if (input.requireAal2 && input.aal?.next === 'aal2' && input.aal.current !== 'aal2') {
+  if (input.aal?.next === 'aal2' && input.aal.current !== 'aal2') {
     return { kind: 'mfa_required', userId: input.session.userId, account: input.account };
+  }
+  if (input.account.requiresAal2 && input.aal?.next !== 'aal2') {
+    return { kind: 'mfa_setup_required', userId: input.session.userId, account: input.account };
   }
   return { kind: 'ready', userId: input.session.userId, account: input.account };
 }

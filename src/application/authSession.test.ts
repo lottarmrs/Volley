@@ -34,6 +34,7 @@ test('missing username requires onboarding without logging out', () => {
         profile: profile('u1'),
         playerId: 'p1',
         username: null,
+        requiresAal2: false,
       },
     }).kind,
     'onboarding',
@@ -44,10 +45,83 @@ test('administrative AAL requirement routes an AAL1 session to MFA', () => {
   assert.equal(
     resolveAuthSessionState({
       session: { userId: 'u1', emailConfirmed: true },
-      account: { state: 'ready', profile: profile('u1'), playerId: 'p1', username: 'ana' },
+      account: {
+        state: 'ready',
+        profile: profile('u1'),
+        playerId: 'p1',
+        username: 'ana',
+        requiresAal2: true,
+      },
       aal: { current: 'aal1', next: 'aal2' },
-      requireAal2: true,
     }).kind,
     'mfa_required',
+  );
+});
+
+test('mandatory MFA with no factor enrolled requires TOTP setup', () => {
+  assert.equal(
+    resolveAuthSessionState({
+      session: { userId: 'u1', emailConfirmed: true },
+      account: {
+        state: 'ready',
+        profile: profile('u1'),
+        playerId: 'p1',
+        username: 'ana',
+        requiresAal2: true,
+      },
+      aal: { current: 'aal1', next: null },
+    }).kind,
+    'mfa_setup_required',
+  );
+});
+
+test('mandatory MFA with an enrolled factor requires step-up, not re-enrollment', () => {
+  assert.equal(
+    resolveAuthSessionState({
+      session: { userId: 'u1', emailConfirmed: true },
+      account: {
+        state: 'ready',
+        profile: profile('u1'),
+        playerId: 'p1',
+        username: 'ana',
+        requiresAal2: true,
+      },
+      aal: { current: 'aal1', next: 'aal2' },
+    }).kind,
+    'mfa_required',
+  );
+});
+
+test('voluntary 2FA step-up for an ordinary user still routes to MFA (regression)', () => {
+  assert.equal(
+    resolveAuthSessionState({
+      session: { userId: 'u1', emailConfirmed: true },
+      account: {
+        state: 'ready',
+        profile: profile('u1'),
+        playerId: 'p1',
+        username: 'ana',
+        requiresAal2: false,
+      },
+      aal: { current: 'aal1', next: 'aal2' },
+    }).kind,
+    'mfa_required',
+  );
+});
+
+test('mandatory MFA already satisfied at aal2 is ready', () => {
+  assert.equal(
+    resolveAuthSessionState({
+      session: { userId: 'u1', emailConfirmed: true },
+      account: {
+        state: 'ready',
+        profile: profile('u1'),
+        playerId: 'p1',
+        username: 'ana',
+        requiresAal2: true,
+      },
+      aal: { current: 'aal2', next: 'aal2' },
+    }).kind,
+    'ready',
   );
 });

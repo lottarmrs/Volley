@@ -57,6 +57,7 @@ describe('AppRouter', () => {
         },
         playerId: 'p1',
         username: 'ana',
+        requiresAal2: false,
       },
     });
     expect(screen.queryByRole('heading', { name: /entrar no sistema/i })).toBeNull();

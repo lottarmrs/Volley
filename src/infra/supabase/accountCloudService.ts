@@ -33,6 +33,7 @@ export function createAccountCloudService(client: RpcClient): AccountGateway {
         },
         playerId: String(value.player_id),
         username: value.username == null ? null : String(value.username),
+        requiresAal2: Boolean(value.requires_aal2),
       };
     },
   };

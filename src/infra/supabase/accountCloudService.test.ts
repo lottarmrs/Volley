@@ -19,6 +19,7 @@ test('account adapter maps ensure_account_ready row', async () => {
             profile_updated_at: '2026-07-22T00:00:00Z',
             player_id: 'p1',
             username: 'ana',
+            requires_aal2: true,
           },
         ],
         error: null,
@@ -37,6 +38,7 @@ test('account adapter maps ensure_account_ready row', async () => {
     },
     playerId: 'p1',
     username: 'ana',
+    requiresAal2: true,
   });
   assert.deepEqual(calls, [['ensure_account_ready', { p_username: 'ana' }]]);
 });

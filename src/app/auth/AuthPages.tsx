@@ -236,6 +236,7 @@ export function RecoverableSessionPage() {
 export function MfaSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { retry } = useAuthSession();
   const [enrollment, setEnrollment] = useState<MfaEnrollment | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -256,6 +257,11 @@ export function MfaSetupPage() {
     setError(null);
     try {
       await supabaseAuthClient.verifyTotp(code, enrollment?.factorId);
+      // verifyTotp por si so nao dispara onAuthStateChange no provider (ver
+      // AuthSessionProvider.spec.tsx); sem retry() o estado fica preso em
+      // mfa_setup_required e o navigate abaixo seria imediatamente revertido
+      // pelo AuthGuard.
+      await retry();
       navigate(destinationFromLocationState(location.state), { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Codigo invalido.');

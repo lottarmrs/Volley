@@ -14,6 +14,7 @@ const account: AccountSnapshot = {
   },
   playerId: 'p1',
   username: 'ana',
+  requiresAal2: false,
 };
 
 describe('routeForAuthState', () => {

@@ -51,7 +51,6 @@ export function AuthSessionProvider({
           session: { userId: nextSession.user.id, emailConfirmed: true },
           account: result.value,
           aal,
-          requireAal2: true,
         }),
       );
     },

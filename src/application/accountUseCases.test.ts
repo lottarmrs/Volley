@@ -18,6 +18,7 @@ const ready: AccountSnapshot = {
   },
   playerId: 'player-1',
   username: 'ana-voleio',
+  requiresAal2: false,
 };
 
 test('ensureAccountReadyCommand delegates normalized username', async () => {

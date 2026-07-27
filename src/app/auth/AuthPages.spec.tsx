@@ -209,6 +209,28 @@ describe('MfaSetupPage', () => {
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
   });
 
+  it('surfaces an enrollment failure instead of spinning forever', async () => {
+    // Regressao: com MFA obrigatorio esta pagina e o unico caminho para
+    // master/programmer/owner/admin. Enquanto o erro so era renderizado dentro do
+    // formulario (que depende de enrollment), uma falha de enroll deixava a tela presa
+    // no spinner "Carregando Sessao..." e trancava a conta fora do app.
+    authClientMock.enrollTotp.mockRejectedValue(
+      new Error('A factor with the friendly name "" for this user already exists'),
+    );
+    renderAuthPage(
+      '/configurar-mfa',
+      {
+        state: { kind: 'mfa_setup_required', userId: 'u1' } as unknown as AuthSessionState,
+        retry: vi.fn(),
+      },
+      undefined,
+      <MfaSetupPage />,
+    );
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/already exists/i));
+    expect(screen.queryByText(/carregando sess/i)).toBeNull();
+    expect(screen.getByRole('button', { name: /tentar novamente/i })).toBeTruthy();
+  });
+
   it('shows a recoverable error for an invalid code', async () => {
     authClientMock.enrollTotp.mockResolvedValue({
       factorId: 'factor-1',

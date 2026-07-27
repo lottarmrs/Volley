@@ -103,7 +103,27 @@ export function createAuthClient(
       fail(error);
     },
     async enrollTotp() {
-      const { data, error } = await auth.mfa.enroll({ factorType: 'totp' });
+      // O Supabase recusa um segundo fator TOTP com 422 ("A factor with the friendly
+      // name ... already exists") enquanto existir um fator nao verificado — sobra de
+      // uma configuracao que ninguem terminou. Com MFA obrigatorio esta tela e o unico
+      // caminho para master/programmer/owner/admin, entao esse 422 trancaria a conta
+      // fora do app. Um fator nao verificado nao protege nada, entao ele e descartado
+      // e o enroll refeito. Fatores verificados nunca sao tocados.
+      let { data, error } = await auth.mfa.enroll({ factorType: 'totp' });
+      if (error) {
+        const existing = await auth.mfa.listFactors();
+        fail(existing.error);
+        for (const factor of existing.data.all) {
+          if (factor.factor_type === 'totp' && factor.status !== 'verified') {
+            // Falha aqui e ignorada: a limpeza e idempotente e duas chamadas
+            // concorrentes disputam o mesmo fator, entao a perdedora recebe
+            // "Factor not found". Se a remocao falhar de verdade, o enroll abaixo
+            // devolve o erro original e esse sim fica visivel.
+            await auth.mfa.unenroll({ factorId: factor.id });
+          }
+        }
+        ({ data, error } = await auth.mfa.enroll({ factorType: 'totp' }));
+      }
       fail(error);
       return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
     },

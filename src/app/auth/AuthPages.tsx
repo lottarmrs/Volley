@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { AuthForm } from '../../components/account/AuthForm';
@@ -241,7 +241,19 @@ export function MfaSetupPage() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const startedRef = useRef(false);
+
   useEffect(() => {
+    // enrollTotp cria um fator no servidor — nao e idempotente. O StrictMode monta o
+    // efeito duas vezes em dev, e duas inscricoes concorrentes disputam o mesmo
+    // friendly_name vazio: a segunda leva 422 e a tela morre no erro. Por isso a
+    // inscricao roda uma vez por instancia da pagina.
+    //
+    // Sem flag de "cancelado" de proposito: com o guard acima, o cleanup do
+    // StrictMode cancelaria justamente a unica inscricao em voo e a tela ficaria
+    // presa no spinner para sempre. Escrever estado apos desmontar e inofensivo.
+    if (startedRef.current) return;
+    startedRef.current = true;
     supabaseAuthClient
       .enrollTotp()
       .then(setEnrollment)
@@ -267,6 +279,43 @@ export function MfaSetupPage() {
       setError(cause instanceof Error ? cause.message : 'Codigo invalido.');
     }
   };
+
+  // Sem este ramo o erro de enroll fica invisivel: a tela cai no spinner de
+  // AuthLoadingPage e nunca sai dele, porque `error` so era renderizado dentro do
+  // formulario, que por sua vez depende de `enrollment`. Com MFA obrigatorio esta
+  // pagina e o unico caminho para master/programmer/owner/admin, entao uma falha
+  // silenciosa aqui tranca a conta fora do app.
+  if (!enrollment && error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
+        <h2 className="text-xl font-black uppercase tracking-wider">
+          Nao foi possivel iniciar a configuracao
+        </h2>
+        <p role="alert" className="text-xs text-base-content/60 max-w-md">
+          {error}
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={() => {
+            setError(null);
+            void supabaseAuthClient
+              .enrollTotp()
+              .then(setEnrollment)
+              .catch((cause) => {
+                setError(
+                  cause instanceof Error
+                    ? cause.message
+                    : 'Nao foi possivel iniciar a configuracao.',
+                );
+              });
+          }}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   if (!enrollment) return <AuthLoadingPage />;
 

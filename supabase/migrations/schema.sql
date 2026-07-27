@@ -242,7 +242,9 @@ as $$
     from public.community_members mine
     join public.community_members theirs on theirs.community_id = mine.community_id
     where mine.user_id = (select auth.uid())
+      and mine.status = 'active'
       and theirs.user_id = target_user_id
+      and theirs.status = 'active'
   );
 $$;
 
@@ -1216,7 +1218,6 @@ create policy "Profiles are readable by self, staff, or member managers" on publ
       where viewer.user_id = (select auth.uid())
         and viewer.status = 'active'
         and target.user_id = profiles.id
-        and target.status = 'active'
         and public.community_has_capability(viewer.community_id, 'manage_members')
     )
   );

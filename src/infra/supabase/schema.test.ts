@@ -161,6 +161,13 @@ const communityProfileSummaryReadonlyMigration = readFixture(
   ),
 );
 
+const profileVisibilityStatusMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260726210000_profile_visibility_status_rules.sql',
+    import.meta.url,
+  ),
+);
+
 const functionSecurityHardeningMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260610195250_harden_function_security.sql',
@@ -2018,7 +2025,9 @@ test('consolidated schema carries every community join/discovery RPC verbatim', 
     ['approve_player_avatar', avatarApprovalMigration],
     ['reject_player_avatar', avatarApprovalMigration],
     ['find_player_by_username', globalAthleteIdentityMigration],
-    ['current_user_shares_profile', migration],
+    // Superseded by 20260726210000, which added the active-membership filters —
+    // 20260610161203 no longer holds the authoritative body.
+    ['current_user_shares_profile', profileVisibilityStatusMigration],
     ['ensure_community_owner_member', migration],
     // schema.sql carried a hand-written copy of this one that predated community_id:
     // it only ever wrote owner_id, so a project stood up from the file logged audit
@@ -2300,6 +2309,39 @@ test('community_profile_summary view exposes only id and name, never email', () 
   assert.ok(schemaViewDefinition, 'consolidated schema missing community_profile_summary view');
   assert.match(schemaViewDefinition, /select p\.id, p\.name/i);
   assert.doesNotMatch(schemaViewDefinition, /email/i);
+});
+
+test('current_user_shares_profile requires BOTH sides to be active members', () => {
+  // Without the status filters, someone whose join request was still 'pending' — or
+  // who had been 'rejected' — could read the name of every member of a community they
+  // had merely asked to join, via community_profile_summary.
+  for (const artifact of [profileVisibilityStatusMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'current_user_shares_profile');
+    assert.ok(fn, 'missing current_user_shares_profile');
+    assert.match(fn, /mine\.status = 'active'/i, 'viewer side must be an active member');
+    assert.match(fn, /theirs\.status = 'active'/i, 'target side must be an active member');
+    // Reading your own profile must not depend on any membership at all.
+    assert.match(fn, /target_user_id = \(select auth\.uid\(\)\)/i);
+  }
+});
+
+test('member managers can read a pending requester profile', () => {
+  // The join-review panel renders `row.displayName || 'Solicitante'`, so requiring
+  // target.status = 'active' in this policy made every pending request show the
+  // placeholder instead of who was actually asking to join. Deciding on a request
+  // requires seeing the requester, so the target's status is deliberately not filtered
+  // here — the viewer still must be an active member holding manage_members.
+  const policy = baseSchema.match(
+    /create policy "Profiles are readable by self, staff, or member managers"[\s\S]*?\);/i,
+  )?.[0];
+  assert.ok(policy, 'consolidated schema missing the profiles select policy');
+  assert.match(policy, /viewer\.status = 'active'/i);
+  assert.match(policy, /community_has_capability\(viewer\.community_id, 'manage_members'\)/i);
+  assert.doesNotMatch(
+    policy,
+    /target\.status/i,
+    "target status must not be filtered, or pending requesters become unreadable",
+  );
 });
 
 test('community_profile_summary is read-only for authenticated, not just anon', () => {

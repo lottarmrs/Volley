@@ -9,9 +9,9 @@ depois que o anterior estiver integrado e seus gates estiverem verdes.
 | --- | --- | --- | --- |
 | 1 | Account Identity & Auth Foundation | Toda sessao valida converge para perfil + jogador 1:1; auth possui estados tipados, onboarding, recovery, Google e MFA shell | **Concluido** (`main`) |
 | 2 | Player Claim, Communities & Evaluations | Claim por codigo preserva jogador da conta (mais simples que o design original — sem aprovacao de comunidade); RBAC/comunidades ja existiam; avaliacao oficial por comunidade consolidada (sem agregacao ponderada, adiada) | **Concluido** (`main`) — ver notas abaixo |
-| 3 | Career Events, Global VUT & Achievements | Eventos confirmados geram VUT e conquistas globais deterministicas e recalculaveis | A escrever apos plano 2 |
-| 4 | Cloud-first Operational Offline | Cache por conta/comunidade, pacote offline, outbox idempotente e owner/device da sessao | A escrever apos plano 3 |
-| 5 | Screen Contracts, Reset & Cutover | UI atual usa contratos de aplicacao; reset preserva Auth; ensaio, rollback e corte fecham Produto escalavel | A escrever apos plano 4 |
+| 3 | Career Events, Global VUT & Achievements **(escopo expandido)** | Eventos confirmados geram VUT e conquistas globais deterministicas e recalculaveis; **inclui outbox idempotente, cache particionado, reentrância persistente, erros tipados e scaffold de reset** — ver nota de desvio abaixo | **Em implementação** (`main`) — spec `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achievements-design.md` |
+| 4 | Cloud-first Operational Offline **(escopo reduzido)** | Owner/device da sessao e pacote offline especifico — outbox e cache particionado implementados no Plano 3 | A escrever apos plano 3 |
+| 5 | Screen Contracts, Reset & Cutover **(escopo reduzido)** | UI atual usa contratos de aplicacao; reset aplicado em producao; ensaio, rollback e corte fecham Produto escalavel — scaffold de reset implementado no Plano 3 | A escrever apos plano 4 |
 
 ### Notas sobre o Plano 2 (divergencias do design original)
 
@@ -28,6 +28,31 @@ ambas decididas em brainstorm com o usuario:
   `point_events`, e isolamento por comunidade ficam adiados como refinamento futuro —
   ver memoria `multi-evaluation-attributes-design` e
   `docs/superpowers/specs/2026-07-24-plano-2-avaliacoes-design.md`.
+
+### Nota sobre o Plano 3 (desvio de escopo aprovado em 2026-07-27)
+
+Uma investigação systematic-debugging da superfície de sync existente revelou 13
+problemas latentes (FK resolution, idempotência parcial, concorrência, offline ausente,
+cache staleness, classificação de erros) agrupados em 6 classes. Em brainstorm com o
+usuário, decidiu-se **resolver todos** esses problemas no Plano 3, antecipando trabalhos
+originalmente atribuídos aos Planos 4 e 5. Consequências:
+
+- **Plano 3** assume: outbox idempotente (uma linha por operação de domínio), cache
+  particionado por `(auth_user_id, community_id)` com namespace em localStorage,
+  reentrância persistente com TTL, erros tipados `AppError`, e scaffold de reset de
+  produção (RPC + sequência referencial) sem aplicação automática — além do core
+  original (3 tabelas de carreira, 4 módulos de domínio, retrofit dos FutCard).
+- **Plano 4** reduz para: owner/device da sessão e pacotes offline específicos
+  (outbox e cache já feitos no Plano 3).
+- **Plano 5** reduz para: contratos de tela `ScreenContract`, aplicação manual do
+  reset, ensaio/rollback/corte final, e a fase Experiência/Interface
+  (esqueumorfismo funcional) — o scaffold de reset já existe.
+
+Estrutura do Plano 3: três blocos sequenciais com gates próprios —
+**Sync Foundation** (Classes C/D/E/F), **Career Engine** (Classes A/B + VUT global),
+**Retrofit UI** (mantém UI congelada, retrofit dos componentes existentes via adapter).
+
+Spec completo: `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achievements-design.md`.
 
 ## Regras do programa
 

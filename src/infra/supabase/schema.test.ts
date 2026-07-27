@@ -154,6 +154,10 @@ const communityProfilePrivacyMigration = readFixture(
   ),
 );
 
+const careerEventsMigration = readFixture(
+  new URL('../../../supabase/migrations/20260727100000_career_events.sql', import.meta.url),
+);
+
 const communityProfileSummaryReadonlyMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260726200000_lock_community_profile_summary_readonly.sql',
@@ -2342,6 +2346,27 @@ test('member managers can read a pending requester profile', () => {
     /target\.status/i,
     "target status must not be filtered, or pending requesters become unreadable",
   );
+});
+
+test('career_events is server-generated and read-only for clients', () => {
+  for (const artifact of [careerEventsMigration, baseSchema]) {
+    assert.match(artifact, /create table public\.career_events \(/i);
+    assert.match(artifact, /source_key text not null unique/i);
+    assert.match(artifact, /contract_version integer not null/i);
+    assert.match(artifact, /alter table public\.career_events enable row level security;/i);
+
+    // O revoke precisa citar authenticated E vir antes do grant: o padrao do Supabase
+    // concede ALL, entao revogar so de anon deixa INSERT/UPDATE/DELETE abertos.
+    const revoke = artifact.match(/revoke all on table public\.career_events from ([^;]*);/i)?.[1];
+    assert.ok(revoke, 'missing revoke on career_events');
+    assert.match(revoke, /\bauthenticated\b/i);
+    assert.match(revoke, /\banon\b/i);
+
+    const revokeAt = artifact.search(/revoke all on table public\.career_events/i);
+    const grantAt = artifact.search(/grant select on table public\.career_events/i);
+    assert.ok(revokeAt !== -1 && grantAt !== -1);
+    assert.ok(revokeAt < grantAt, 'revoke must precede the grant');
+  }
 });
 
 test('community_profile_summary is read-only for authenticated, not just anon', () => {

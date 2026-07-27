@@ -196,7 +196,8 @@ test('active owner admin moderator and member roles map to product permissions',
     approve: true,
     rules: false,
     profile: false,
-    evaluate: true,
+    // A RLS de player_evaluations so aceita owner/admin, entao moderator nao avalia.
+    evaluate: false,
     create: true,
   });
   assertWritePermissions(regularMember, {

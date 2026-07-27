@@ -45,7 +45,10 @@ function permissionsForRole(
     canApproveMembers: isOwner || isAdmin || isModerator,
     canEditRules: isOwner || isAdmin,
     canEditPlayerProfile: isOwner || isAdmin,
-    canEvaluatePlayer: isOwner || isAdmin || isModerator,
+    // Apenas owner/admin: a RLS de player_evaluations exige
+    // current_user_has_community_role(community_id, array['owner','admin']), entao
+    // liberar moderator aqui so mostraria uma acao que o banco recusa depois.
+    canEvaluatePlayer: isOwner || isAdmin,
     canCreateSession: isOwner || isAdmin || isModerator || isOrganizador,
   };
 }

@@ -44,6 +44,7 @@ export const COMMUNITY_ROLE_LABELS: Record<CommunityMemberRole, string> = {
   owner: 'Dono',
   admin: 'Admin',
   moderator: 'Moderador',
+  organizador: 'Organizador',
   member: 'Membro',
 };
 
@@ -51,12 +52,14 @@ export const COMMUNITY_ROLE_BADGE_CLASSES: Record<CommunityMemberRole, string> =
   owner: 'badge-primary',
   admin: 'badge-accent badge-soft',
   moderator: 'badge-outline',
+  organizador: 'badge-outline badge-soft',
   member: 'badge-ghost',
 };
 
 export const ASSIGNABLE_COMMUNITY_MEMBER_ROLES: readonly CommunityMemberRole[] = [
   'admin',
   'moderator',
+  'organizador',
   'member',
 ];
 
@@ -64,7 +67,8 @@ const ROLE_ORDER: Record<CommunityMemberRole, number> = {
   owner: 0,
   admin: 1,
   moderator: 2,
-  member: 3,
+  organizador: 3,
+  member: 4,
 };
 
 function memberStatus(member: CommunityMember): NonNullable<CommunityMember['status']> {

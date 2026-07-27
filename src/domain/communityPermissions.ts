@@ -16,6 +16,7 @@ export interface CommunityPermissions {
   canDeleteCommunity: boolean;
   canClearHistory: boolean;
   canManageMembers: boolean;
+  canApproveMembers: boolean;
   canEditRules: boolean;
   canEditPlayerProfile: boolean;
   canEvaluatePlayer: boolean;
@@ -30,6 +31,7 @@ function permissionsForRole(
   const isOwner = role === 'owner';
   const isAdmin = role === 'admin';
   const isModerator = role === 'moderator';
+  const isOrganizador = role === 'organizador';
   const canReadCommunity = role !== null;
 
   return {
@@ -40,10 +42,11 @@ function permissionsForRole(
     canDeleteCommunity: isOwner,
     canClearHistory: isOwner,
     canManageMembers: isOwner || isAdmin,
+    canApproveMembers: isOwner || isAdmin || isModerator,
     canEditRules: isOwner || isAdmin,
     canEditPlayerProfile: isOwner || isAdmin,
     canEvaluatePlayer: isOwner || isAdmin || isModerator,
-    canCreateSession: isOwner || isAdmin || isModerator,
+    canCreateSession: isOwner || isAdmin || isModerator || isOrganizador,
   };
 }
 
@@ -70,6 +73,7 @@ export function deriveCommunityPermissions(input: CommunityPermissionInput): Com
       canDeleteCommunity: false,
       canClearHistory: false,
       canManageMembers: false,
+      canApproveMembers: false,
       canEditRules: false,
       canEditPlayerProfile: false,
       canEvaluatePlayer: false,

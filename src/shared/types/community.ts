@@ -126,7 +126,7 @@ export interface UserProfile {
   updatedAt: string;
 }
 
-export type CommunityMemberRole = 'owner' | 'admin' | 'moderator' | 'member';
+export type CommunityMemberRole = 'owner' | 'admin' | 'moderator' | 'organizador' | 'member';
 
 /**
  * Estado da filiacao. 'active' = membro pleno; 'pending' = pediu para entrar e

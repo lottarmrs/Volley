@@ -28,6 +28,7 @@ function assertWritePermissions(
     delete: boolean;
     clear: boolean;
     manage: boolean;
+    approve?: boolean;
     rules: boolean;
     profile: boolean;
     evaluate: boolean;
@@ -38,6 +39,9 @@ function assertWritePermissions(
   assert.equal(permissions.canDeleteCommunity, expected.delete);
   assert.equal(permissions.canClearHistory, expected.clear);
   assert.equal(permissions.canManageMembers, expected.manage);
+  if (expected.approve !== undefined) {
+    assert.equal(permissions.canApproveMembers, expected.approve);
+  }
   assert.equal(permissions.canEditRules, expected.rules);
   assert.equal(permissions.canEditPlayerProfile, expected.profile);
   assert.equal(permissions.canEvaluatePlayer, expected.evaluate);
@@ -189,6 +193,7 @@ test('active owner admin moderator and member roles map to product permissions',
     delete: false,
     clear: false,
     manage: false,
+    approve: true,
     rules: false,
     profile: false,
     evaluate: true,
@@ -199,10 +204,33 @@ test('active owner admin moderator and member roles map to product permissions',
     delete: false,
     clear: false,
     manage: false,
+    approve: false,
     rules: false,
     profile: false,
     evaluate: false,
     create: false,
+  });
+});
+
+test('organizador can create sessions but has no other management permissions', () => {
+  const organizador = deriveCommunityPermissions({
+    isSupabaseConfigured: true,
+    userId: 'user-1',
+    globalRole: 'user',
+    community,
+    members: [member({ role: 'organizador' })],
+  });
+
+  assertWritePermissions(organizador, {
+    read: true,
+    delete: false,
+    clear: false,
+    manage: false,
+    approve: false,
+    rules: false,
+    profile: false,
+    evaluate: false,
+    create: true,
   });
 });
 

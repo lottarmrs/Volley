@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCommunityMembersViewModel } from './communityMembersViewModel';
+import {
+  ASSIGNABLE_COMMUNITY_MEMBER_ROLES,
+  buildCommunityMembersViewModel,
+} from './communityMembersViewModel';
 import type { Community, CommunityMember, Player } from '../types';
 
 const community: Community = {
@@ -144,7 +147,12 @@ test('owner can manage others but cannot edit owner or self', () => {
   assert.equal(vm.activeMembers[0].canChangeRole, false);
   assert.equal(vm.activeMembers[0].canRemove, false);
   assert.equal(vm.activeMembers[1].canChangeRole, true);
-  assert.deepEqual(vm.activeMembers[1].assignableRoles, ['admin', 'moderator', 'member']);
+  assert.deepEqual(vm.activeMembers[1].assignableRoles, [
+    'admin',
+    'moderator',
+    'organizador',
+    'member',
+  ]);
 });
 
 test('moderator can leave but cannot manage members', () => {
@@ -160,6 +168,20 @@ test('moderator can leave but cannot manage members', () => {
   assert.equal(vm.canManage, false);
   assert.equal(vm.canLeave, true);
   assert.equal(vm.activeMembers[0].roleLabel, 'Moderador');
+});
+
+test('organizador member row gets the Organizador label and role stays assignable', () => {
+  const vm = buildCommunityMembersViewModel({
+    community,
+    members: [member({ userId: 'organizador-1', role: 'organizador' })],
+    players: [],
+    currentUserId: 'organizador-1',
+    isSupabaseConfigured: true,
+    globalRole: 'user',
+  });
+
+  assert.equal(vm.activeMembers[0].roleLabel, 'Organizador');
+  assert.ok(ASSIGNABLE_COMMUNITY_MEMBER_ROLES.includes('organizador'));
 });
 
 test('programmer sees read-only support state even if membership says owner', () => {

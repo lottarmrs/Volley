@@ -31,6 +31,22 @@ describe('PlayerItem', () => {
     expect(screen.getByText('TESTEADM')).toBeTruthy();
   });
 
+  it('does not invent a gender for a player who has none', () => {
+    // The card used `genero === 'M' ? 'Masculino' : 'Feminino'`, so a null gender —
+    // every account-created player — was labelled Feminino.
+    render(<PlayerItem player={accountCreatedPlayer()} />);
+
+    expect(screen.queryByText(/feminino/i)).toBeNull();
+    expect(screen.queryByText(/masculino/i)).toBeNull();
+    expect(screen.getByText(/nao informado/i)).toBeTruthy();
+  });
+
+  it('still shows a declared gender', () => {
+    render(<PlayerItem player={{ ...accountCreatedPlayer(), genero: 'F' } as Player} />);
+
+    expect(screen.getByText(/feminino/i)).toBeTruthy();
+  });
+
   it('never emits NaN into the DOM for an empty player', () => {
     // NaN reached the DOM as a style width and as card text, which is what produced
     // the "Received NaN for the children attribute" React warnings.

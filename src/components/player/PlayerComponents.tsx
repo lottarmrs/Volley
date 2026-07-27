@@ -389,10 +389,25 @@ export const PlayerItem: React.FC<{
         {/* ── Bottom Row: Gender + Injury + Height ────────────────────── */}
         <div className="flex items-center justify-between pt-1 border-t border-base-300 text-[9px] font-mono text-base-content/40">
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Ternario binario afirmava "Feminino" para qualquer coisa != 'M',
+                inclusive genero nulo — que e o caso de todo jogador criado junto com
+                a conta. Sem dado, nao se inventa um. */}
             <span
-              className={`w-2 h-2 rounded-full ${player.genero === 'M' ? 'bg-info' : 'bg-secondary'}`}
+              className={`w-2 h-2 rounded-full ${
+                player.genero === 'M'
+                  ? 'bg-info'
+                  : player.genero === 'F'
+                    ? 'bg-secondary'
+                    : 'bg-base-content/20'
+              }`}
             />
-            <span className="uppercase">{player.genero === 'M' ? 'Masculino' : 'Feminino'}</span>
+            <span className="uppercase">
+              {player.genero === 'M'
+                ? 'Masculino'
+                : player.genero === 'F'
+                  ? 'Feminino'
+                  : 'Nao informado'}
+            </span>
             {player.status.lesionado && (
               <span className="badge badge-error badge-soft badge-xs font-bold uppercase rounded-md scale-90">
                 Lesionado

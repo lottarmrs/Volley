@@ -57,10 +57,17 @@ export const SelectablePlayerCard: React.FC<SelectablePlayerCardProps> = ({
           </p>
 
           <div className="flex items-center gap-1.5 mt-1 text-[8px] font-medium text-base-content/50 uppercase">
+            {/* Mesmo caso do card de atleta: sem genero definido nao se afirma 'Fem'. */}
             <span
-              className={`w-1 h-1 rounded-full ${player.genero === 'M' ? 'bg-info' : 'bg-secondary'}`}
+              className={`w-1 h-1 rounded-full ${
+                player.genero === 'M'
+                  ? 'bg-info'
+                  : player.genero === 'F'
+                    ? 'bg-secondary'
+                    : 'bg-base-content/20'
+              }`}
             />
-            <span>{player.genero === 'M' ? 'Masc' : 'Fem'}</span>
+            <span>{player.genero === 'M' ? 'Masc' : player.genero === 'F' ? 'Fem' : '--'}</span>
             {player.alturaCm && (
               <>
                 <span>•</span>

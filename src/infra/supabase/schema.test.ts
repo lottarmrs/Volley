@@ -162,6 +162,10 @@ const careerGenerationMigration = readFixture(
   new URL('../../../supabase/migrations/20260727110000_career_events_generation.sql', import.meta.url),
 );
 
+const careerTotalsMigration = readFixture(
+  new URL('../../../supabase/migrations/20260727120000_career_totals.sql', import.meta.url),
+);
+
 const communityProfileSummaryReadonlyMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260726200000_lock_community_profile_summary_readonly.sql',
@@ -2433,4 +2437,18 @@ test('career rollup mirrors the credited-point rules of statistics.ts', () => {
   assert.match(fn, /pe\.point_type = 'winner'/i);
   // Destaque nunca conta como ponto nem erro.
   assert.match(fn, /event_kind is distinct from 'highlight'/i);
+});
+
+test('career_totals aggregates globally without community attribution', () => {
+  for (const artifact of [careerTotalsMigration, baseSchema]) {
+    const view = artifact.match(/create or replace view public\.career_totals as[\s\S]*?;/i)?.[0];
+    assert.ok(view, 'missing career_totals view');
+    assert.match(view, /group by ce\.player_id/i);
+    // Nunca pode expor a comunidade de origem â€" e o que torna o total global seguro.
+    assert.doesNotMatch(view, /community_id/i);
+
+    const revoke = artifact.match(/revoke all on public\.career_totals from ([^;]*);/i)?.[1];
+    assert.ok(revoke);
+    assert.match(revoke, /\bauthenticated\b/i);
+  }
 });

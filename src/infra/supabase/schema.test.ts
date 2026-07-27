@@ -158,6 +158,10 @@ const careerEventsMigration = readFixture(
   new URL('../../../supabase/migrations/20260727100000_career_events.sql', import.meta.url),
 );
 
+const careerGenerationMigration = readFixture(
+  new URL('../../../supabase/migrations/20260727110000_career_events_generation.sql', import.meta.url),
+);
+
 const communityProfileSummaryReadonlyMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260726200000_lock_community_profile_summary_readonly.sql',
@@ -2393,4 +2397,40 @@ test('community_profile_summary is read-only for authenticated, not just anon', 
   const grantAt = baseSchema.search(/grant select on public\.community_profile_summary to/i);
   assert.ok(revokeAt !== -1 && grantAt !== -1, 'missing grant/revoke pair');
   assert.ok(revokeAt < grantAt, 'revoke must come before the select grant');
+});
+
+test('career regeneration uses statement triggers, not row triggers', () => {
+  // point_events chega em lote no sync; um trigger de linha recomputaria o mesmo
+  // resumo uma vez por ponto.
+  const triggers = careerGenerationMigration.match(/create trigger regenerate_career_after_[\s\S]*?;/gi) ?? [];
+  assert.equal(triggers.length, 6, 'expected 6 triggers (ins/upd/del on point_events and games)');
+  for (const trigger of triggers) {
+    assert.match(trigger, /for each statement/i, 'trigger must be statement-level');
+    assert.match(trigger, /referencing (new|old) table as touched_rows/i);
+  }
+  assert.doesNotMatch(careerGenerationMigration, /for each row/i);
+});
+
+test('career regeneration resolves local ids scoped by owner', () => {
+  // point_events.player_id / teams.player_ids carregam ids LOCAIS; o indice unico e
+  // (owner_id, local_id), entao o join tem de ser escopado por owner.
+  const fn = extractSqlFunction(careerGenerationMigration, 'regenerate_career_events_for_sessions');
+  assert.ok(fn, 'missing regenerate_career_events_for_sessions');
+  assert.match(fn, /coalesce\(p\.local_id, p\.id::text\)/i);
+  assert.match(fn, /pr\.owner_id = tr\.owner_id/i);
+  // Apagar-e-inserir e o que torna a regeneracao idempotente.
+  assert.match(fn, /delete from public\.career_events/i);
+  assert.match(fn, /and session_id = any\(target_sessions\)/i);
+  // So sessao e jogo finalizados entram, espelhando statistics.ts.
+  assert.match(fn, /se\.status = 'finished'/i);
+  assert.match(fn, /g\.status = 'finished'/i);
+});
+
+test('career rollup mirrors the credited-point rules of statistics.ts', () => {
+  const fn = extractSqlFunction(careerGenerationMigration, 'regenerate_career_events_for_sessions');
+  assert.ok(fn);
+  assert.match(fn, /'attack','block','serve_ace','defense_counterattack','tip'/i);
+  assert.match(fn, /pe\.point_type = 'winner'/i);
+  // Destaque nunca conta como ponto nem erro.
+  assert.match(fn, /event_kind is distinct from 'highlight'/i);
 });

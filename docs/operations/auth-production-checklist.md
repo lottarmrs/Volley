@@ -15,3 +15,4 @@
 - [ ] Smoke test de cadastro, recovery, Google, onboarding e logout passou.
 - [ ] Nenhuma tabela de produto foi resetada nesta entrega.
 - [ ] Senha minima configurada em 8 caracteres (Authentication -> Policies).
+- [ ] community_players.role permanece marcado como legado (nao usar em novas features).

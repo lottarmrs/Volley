@@ -1394,6 +1394,11 @@ $$;
 revoke execute on function public.regenerate_player_milestones(uuid) from public, anon;
 grant execute on function public.regenerate_player_milestones(uuid) to authenticated;
 
+-- Funcao de TRIGGER: ninguem deve chamar por RPC. Sem este revoke ela fica exposta em
+-- /rest/v1/rpc/regenerate_career_events (o Supabase concede execute por padrao). O
+-- trigger roda como dono da funcao e nao depende de grant.
+revoke all on function public.regenerate_career_events() from public, anon, authenticated;
+
 -- Trigger de STATEMENT com transition table. Um trigger de linha dispararia uma vez por
 -- ponto: point_events chega em lote no sync (bulkUpsertRows), entao uma sessao de 100
 -- pontos custaria 100 recomputacoes do mesmo resumo.

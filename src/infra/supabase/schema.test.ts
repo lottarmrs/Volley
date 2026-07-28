@@ -2523,6 +2523,17 @@ test('a player in two teams of one session counts the game once', () => {
   }
 });
 
+test('the career trigger function is not callable by anyone via RPC', () => {
+  // Ela subiu sem revoke e ficou exposta em /rest/v1/rpc/regenerate_career_events, o
+  // que o advisor do Supabase acusou. As duas funcoes com argumento foram revogadas;
+  // a de trigger, nao. Mesma classe de require_aal2 (20260726180000).
+  assert.match(
+    baseSchema,
+    /revoke all on function public\.regenerate_career_events\(\) from public, anon, authenticated;/i,
+    'trigger function must be revoked from anon AND authenticated',
+  );
+});
+
 test('error counting keeps the legacy opponent_error branch', () => {
   // statistics.ts conta erro por point_type='error' E, no legado (point_type nulo,
   // anterior a taxonomia de junho), por reason='opponent_error' com o time do jogador

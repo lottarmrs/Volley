@@ -15,8 +15,12 @@ import {
   Award,
   Image as ImageIcon,
   Medal,
+  History,
 } from 'lucide-react';
 import { FutCard } from './FutCard';
+import { CareerTimeline } from './CareerTimeline';
+import { usePlayerCareer } from '../../hooks/usePlayerCareer';
+import { careerStatsFromTotals } from '../../logic/career';
 import { Player, Session, Team, Game, PointEvent } from '../../types';
 import {
   buildVutCard,
@@ -40,7 +44,7 @@ interface FutCardModalProps {
   pointEvents: PointEvent[];
 }
 
-type MobileTab = 'card' | 'evolution' | 'album' | 'collection' | 'export';
+type MobileTab = 'card' | 'evolution' | 'album' | 'carreira' | 'collection' | 'export';
 
 const DEFAULT_FRAME_PREVIEW: CardFrame = {
   id: 'default',
@@ -117,10 +121,16 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   const [mobileTab, setMobileTab] = useState<MobileTab>('card');
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
 
+  // Carreira confirmada vem do livro-razao no servidor. Jogador que nunca sincronizou
+  // nao tem cloudId, entao nao ha carreira confirmada — a aba diz isso em vez de
+  // fingir que a carreira esta vazia.
+  const career = usePlayerCareer({ playerCloudId: player.cloudId, enabled: isOpen });
+
   const tabItems: { key: MobileTab; label: string; icon: React.ReactNode }[] = [
     { key: 'card', label: 'Card', icon: <Star className="w-3.5 h-3.5" /> },
     { key: 'evolution', label: 'Evolucao', icon: <TrendingUp className="w-3.5 h-3.5" /> },
     { key: 'album', label: 'Album', icon: <Trophy className="w-3.5 h-3.5" /> },
+    { key: 'carreira', label: 'Carreira', icon: <History className="w-3.5 h-3.5" /> },
     { key: 'collection', label: 'Colecao', icon: <Layers className="w-3.5 h-3.5" /> },
     { key: 'export', label: 'Exportar', icon: <Share2 className="w-3.5 h-3.5" /> },
   ];
@@ -753,6 +763,61 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     </div>
   );
 
+  const renderCareer = () => {
+    const stats = careerStatsFromTotals(career.totals);
+    // Sem cloudId o jogador nunca sincronizou: nao existe carreira CONFIRMADA para ele.
+    // Dizer isso e melhor do que mostrar zeros como se fossem fato.
+    const naoSincronizado = !player.cloudId;
+
+    return (
+      <div className="space-y-4">
+        <h3 className="text-xs font-bold uppercase text-base-content/50 tracking-wider flex items-center gap-2">
+          <History className="w-3.5 h-3.5 text-primary" />
+          Carreira confirmada
+        </h3>
+
+        {naoSincronizado ? (
+          <p className="text-xs text-base-content/60">
+            Este atleta ainda nao foi sincronizado com a nuvem, entao nao ha carreira
+            confirmada. Os numeros do card seguem valendo como progresso provisorio.
+          </p>
+        ) : career.loading ? (
+          <p className="text-xs text-base-content/60">Carregando carreira...</p>
+        ) : career.error ? (
+          <p role="alert" className="text-xs text-error">
+            {career.error}
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { label: 'Jogos', value: stats.gamesPlayed },
+                { label: 'Vitorias', value: stats.wins },
+                { label: 'Aproveitamento', value: `${stats.winRate}%` },
+                { label: 'Pontos', value: stats.totalPoints },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-base-200 rounded-lg p-2 border border-base-300 text-center"
+                >
+                  <p className="text-[9px] uppercase tracking-wider text-base-content/50">
+                    {item.label}
+                  </p>
+                  <p className="text-lg font-black">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <h4 className="text-xs font-bold uppercase text-base-content/50 tracking-wider pt-2">
+              Marcos
+            </h4>
+            <CareerTimeline events={career.events} />
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderCollection = () => (
     <div className="space-y-4">
       <h3 className="text-xs font-bold uppercase text-base-content/50 tracking-wider flex items-center gap-2">
@@ -986,6 +1051,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           )}
           {mobileTab === 'evolution' && renderEvolution()}
           {mobileTab === 'album' && renderAchievements()}
+          {mobileTab === 'carreira' && renderCareer()}
           {mobileTab === 'collection' && renderCollection()}
           {mobileTab === 'export' && renderExportConfig()}
         </div>
@@ -1034,7 +1100,8 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
 
             {(mobileTab === 'card' || mobileTab === 'evolution') && renderEvolution()}
             {mobileTab === 'album' && renderAchievements()}
-            {mobileTab === 'collection' && renderCollection()}
+            {mobileTab === 'carreira' && renderCareer()}
+          {mobileTab === 'collection' && renderCollection()}
             {mobileTab === 'export' && renderExportConfig()}
           </div>
         </div>

@@ -33,7 +33,44 @@ export interface TechnicalAppError {
   cause?: unknown;
 }
 
-export type AppError = ProductAppError | TechnicalAppError;
+export interface ValidationAppError {
+  kind: 'validation';
+  field: string;
+  message: string;
+  recoverable: false;
+}
+export interface AuthorizationAppError {
+  kind: 'authorization';
+  required?: 'owner' | 'admin' | 'aal2' | 'master' | 'programmer';
+  message: string;
+  recoverable: false;
+}
+export interface ConflictAppError {
+  kind: 'conflict';
+  resource: string;
+  message: string;
+  recoverable: false;
+}
+export interface OfflineAppError {
+  kind: 'offline_unavailable';
+  message: string;
+  recoverable: true;
+}
+export interface UnexpectedAppError {
+  kind: 'unexpected';
+  correlationId: string;
+  message: string;
+  recoverable: true;
+}
+
+export type AppError =
+  | ProductAppError
+  | TechnicalAppError
+  | ValidationAppError
+  | AuthorizationAppError
+  | ConflictAppError
+  | OfflineAppError
+  | UnexpectedAppError;
 
 export interface AppOkResult<T> {
   ok: true;
@@ -80,4 +117,31 @@ export function terminalIssue(code: ProductErrorCode, message: string, cause?: u
 
 export function isAppOk<T>(result: AppResult<T>): result is AppOkResult<T> {
   return result.ok;
+}
+
+export function validationError(field: string, message: string): AppErrorResult {
+  return { ok: false, error: { kind: 'validation', field, message, recoverable: false } };
+}
+export function authorizationError(
+  required: 'owner' | 'admin' | 'aal2' | 'master' | 'programmer',
+  message: string,
+): AppErrorResult {
+  return { ok: false, error: { kind: 'authorization', required, message, recoverable: false } };
+}
+export function conflictError(resource: string, message: string): AppErrorResult {
+  return { ok: false, error: { kind: 'conflict', resource, message, recoverable: false } };
+}
+export function offlineError(message: string): AppErrorResult {
+  return { ok: false, error: { kind: 'offline_unavailable', message, recoverable: true } };
+}
+export function unexpectedError(message: string): AppErrorResult {
+  return {
+    ok: false,
+    error: {
+      kind: 'unexpected',
+      message,
+      correlationId: crypto.randomUUID(),
+      recoverable: true,
+    },
+  };
 }

@@ -69,5 +69,5 @@ test('changeUserRoleCommand rejects missing user ids', async () => {
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, 'invalid_input');
+  assert.equal((result.error as any).code, 'invalid_input');
 });

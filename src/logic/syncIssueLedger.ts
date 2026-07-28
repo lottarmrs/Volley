@@ -1,4 +1,5 @@
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
+import type { AppError } from '../application/appResult';
 
 const MAX_SYNC_ISSUE_ENTRIES = 50;
 
@@ -14,6 +15,7 @@ export interface SyncIssueEntry {
   firstSeenAt: string;
   lastSeenAt: string;
   resolvedAt?: string;
+  kind?: AppError['kind'];
 }
 
 export interface SyncIssueInput {
@@ -21,6 +23,7 @@ export interface SyncIssueInput {
   context: string;
   error: unknown;
   occurredAt: string;
+  kind?: AppError['kind'];
 }
 
 export interface SyncIssueResolution {
@@ -63,6 +66,7 @@ export function recordSyncIssue(ledger: SyncIssueEntry[], input: SyncIssueInput)
         count: 1,
         firstSeenAt: input.occurredAt,
         lastSeenAt: input.occurredAt,
+        kind: input.kind ?? 'unexpected',
       },
       ...ledger,
     ]);

@@ -80,3 +80,12 @@ export function removeFromStorage(key: string) {
     console.error(`Error removing ${key} from storage:`, err);
   }
 }
+
+export function resolveCacheKey(userId: string, communityId: string, entityKind: string): string {
+  return `vpg_cache_${userId}_${communityId}_${entityKind}`;
+}
+
+export function validateCacheOwner(currentUserId: string, cacheOwnerId: string | null): boolean {
+  if (!cacheOwnerId) return true;
+  return cacheOwnerId === currentUserId;
+}

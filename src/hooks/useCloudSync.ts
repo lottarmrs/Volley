@@ -20,9 +20,11 @@ import {
   type SyncIssueEntry,
 } from '../logic/syncIssueLedger';
 import {
+  getLocalCacheOwnerId,
   loadFromStorage,
   markLocalCacheOwner,
   saveToStorage,
+  validateCacheOwner,
 } from '../storage/localStorageRepository';
 import {
   Community,
@@ -112,6 +114,10 @@ export function useCloudSync(deps: CloudSyncDeps) {
     });
 
   const applyResult = (result: LocalSyncPayload) => {
+    if (!validateCacheOwner(deps.userId ?? '', getLocalCacheOwnerId())) {
+      markLocalCacheOwner(deps.userId);
+      return;
+    }
     const normalized = normalizeCloudSyncResultPayload(result);
 
     deps.setCommunities(normalized.communities);

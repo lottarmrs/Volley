@@ -5,7 +5,9 @@ import {
   loadFromStorage,
   markLocalCacheOwner,
   removeFromStorage,
+  resolveCacheKey,
   saveToStorage,
+  validateCacheOwner,
 } from './localStorageRepository';
 
 describe('localStorageRepository', () => {
@@ -41,5 +43,23 @@ describe('localStorageRepository', () => {
 
     markLocalCacheOwner(null);
     expect(getLocalCacheOwnerId()).toBeNull();
+  });
+
+  describe('cache partition', () => {
+    it('resolveCacheKey produz vpg_cache_<userId>_<communityId>_<entityKind>', () => {
+      expect(resolveCacheKey('user-a', 'comm-1', 'sessions')).toBe('vpg_cache_user-a_comm-1_sessions');
+      expect(resolveCacheKey('user-a', '', 'players')).toBe('vpg_cache_user-a__players');
+    });
+
+    it('validateCacheOwner rejeita resultado de outro userId', () => {
+      expect(validateCacheOwner('user-a', 'user-a')).toBe(true);
+      expect(validateCacheOwner('user-a', 'user-b')).toBe(false);
+      expect(validateCacheOwner('user-a', null)).toBe(true);
+    });
+
+    it('getLocalCacheOwnerId retorna o dono marcado no storage', () => {
+      localStorage.setItem('vpg_cache_owner_id', 'user-x');
+      expect(getLocalCacheOwnerId()).toBe('user-x');
+    });
   });
 });

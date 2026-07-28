@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Mail, Lock, User, AtSign, LogIn, UserPlus, AlertCircle, Chrome } from 'lucide-react';
 import { CaptchaField } from '../../app/auth/CaptchaField';
 import { captchaSiteKey } from '../../app/auth/captchaEnv';
+import { validatePasswordLength } from '../../app/auth/passwordPolicy';
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/;
 
@@ -52,8 +53,9 @@ export function AuthForm({
       return;
     }
 
-    if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
+    const passwordError = validatePasswordLength(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 

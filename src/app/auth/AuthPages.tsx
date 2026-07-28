@@ -7,6 +7,7 @@ import { useAuthSession } from './useAuthSession';
 import { routeForAuthState } from './authRoutes';
 import { CaptchaField } from './CaptchaField';
 import { captchaSiteKey } from './captchaEnv';
+import { validatePasswordLength } from './passwordPolicy';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -117,6 +118,13 @@ export function PasswordRecoveryPage() {
         onSubmit={async (event) => {
           event.preventDefault();
           setUpdateError(null);
+          // Sem esta checagem o GoTrue recusa a senha curta e a mensagem em ingles
+          // dele vaza direto para a tela pelo catch abaixo.
+          const lengthError = validatePasswordLength(newPassword);
+          if (lengthError) {
+            setUpdateError(lengthError);
+            return;
+          }
           try {
             await supabaseAuthClient.updatePassword(newPassword);
             try {

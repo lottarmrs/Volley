@@ -166,6 +166,10 @@ const careerTotalsMigration = readFixture(
   new URL('../../../supabase/migrations/20260727120000_career_totals.sql', import.meta.url),
 );
 
+const careerMilestonesMigration = readFixture(
+  new URL('../../../supabase/migrations/20260727150000_career_milestones.sql', import.meta.url),
+);
+
 const communityProfileSummaryReadonlyMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260726200000_lock_community_profile_summary_readonly.sql',
@@ -2459,4 +2463,29 @@ test('recalculate_player_career resolves local team ids scoped by owner', () => 
   assert.match(fn, /p\.owner_id = t\.owner_id/i);
   assert.match(fn, /coalesce\(p\.local_id, p\.id::text\) = any\(t\.player_ids\)/i);
   assert.match(fn, /perform public\.regenerate_career_events_for_sessions\(affected\)/i);
+});
+
+const MILESTONE_SLUGS = [
+  'first_session', 'first_win',
+  'games_10', 'games_50', 'games_100',
+  'points_100', 'points_500', 'points_1000',
+  'streak_3', 'streak_5',
+];
+
+test('milestone generation covers exactly the ten agreed slugs', () => {
+  const fn = extractSqlFunction(careerMilestonesMigration, 'regenerate_player_milestones');
+  assert.ok(fn, 'missing regenerate_player_milestones');
+  for (const slug of MILESTONE_SLUGS) {
+    assert.match(fn, new RegExp(`'${slug}'`), `missing milestone ${slug}`);
+  }
+  // Marcos sao idempotentes por apagar-e-inserir + source_key unica.
+  assert.match(fn, /delete from public\.career_events\s+where type = 'milestone'/i);
+  assert.match(fn, /\|milestone:' \|\| h\.slug/i);
+});
+
+test('a won session requires more wins than losses', () => {
+  // Empate nao conta como vitoria — e o que torna streak_3/streak_5 deterministicos.
+  const fn = extractSqlFunction(careerMilestonesMigration, 'regenerate_player_milestones');
+  assert.ok(fn);
+  assert.match(fn, /games_won > so\.games_played - so\.games_won/i);
 });

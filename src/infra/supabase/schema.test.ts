@@ -2452,3 +2452,11 @@ test('career_totals aggregates globally without community attribution', () => {
     assert.match(revoke, /\bauthenticated\b/i);
   }
 });
+
+test('recalculate_player_career resolves local team ids scoped by owner', () => {
+  const fn = extractSqlFunction(baseSchema, 'recalculate_player_career');
+  assert.ok(fn, 'consolidated schema missing recalculate_player_career');
+  assert.match(fn, /p\.owner_id = t\.owner_id/i);
+  assert.match(fn, /coalesce\(p\.local_id, p\.id::text\) = any\(t\.player_ids\)/i);
+  assert.match(fn, /perform public\.regenerate_career_events_for_sessions\(affected\)/i);
+});

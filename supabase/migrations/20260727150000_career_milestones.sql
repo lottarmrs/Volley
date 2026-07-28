@@ -36,17 +36,23 @@ begin
       from sessions_ordered so
   ),
   -- Ilhas de sessoes vencidas consecutivas: seq menos a contagem de vitorias e
-  -- constante dentro de uma sequencia.
-  streaks as (
+  -- constante dentro de uma sequencia. Pre-computamos a chave em uma CTE separada
+  -- porque o Postgres nao permite aninhar funcoes de janela no mesmo nivel.
+  streak_keys as (
     select r.*,
-           case when r.session_won then
+           r.seq - sum(case when r.session_won then 1 else 0 end)
+                    over (order by r.seq) as streak_key
+      from running r
+  ),
+  streaks as (
+    select sk.*,
+           case when sk.session_won then
              row_number() over (
-               partition by (r.seq - sum(case when r.session_won then 1 else 0 end)
-                              over (order by r.seq))
-               order by r.seq
+               partition by sk.streak_key
+               order by sk.seq
              )
            else 0 end as streak_len
-      from running r
+      from streak_keys sk
   ),
   hits as (
     select 'first_session' as slug, min(occurred_at) as at from running

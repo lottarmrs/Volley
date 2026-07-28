@@ -35,23 +35,30 @@ begin
            sum(so.points) over (order by so.seq) as cum_points
       from sessions_ordered so
   ),
-  -- Ilhas de sessoes vencidas consecutivas: seq menos a contagem de vitorias e
-  -- constante dentro de uma sequencia. Pre-computamos a chave em uma CTE separada
-  -- porque o Postgres nao permite aninhar funcoes de janela no mesmo nivel.
+  -- Ilhas de sessoes vencidas consecutivas.
+  --
+  -- O filtro `where session_won` e essencial e nao e otimizacao: se as sessoes PERDIDAS
+  -- ficarem no conjunto, elas caem na mesma particao e inflam o row_number seguinte.
+  -- Com [V,V,D,V,V] a sequencia real maxima e 2, mas incluindo a derrota o calculo
+  -- devolvia 3 — e streak_3 era gravado sem ter sido conquistado, permanentemente,
+  -- porque a source_key do marco e fixa.
+  --
+  -- A chave fica em CTE separada porque o Postgres nao permite aninhar funcoes de
+  -- janela no mesmo nivel.
+  won_sessions as (
+    select r.* from running r where r.session_won
+  ),
   streak_keys as (
-    select r.*,
-           r.seq - sum(case when r.session_won then 1 else 0 end)
-                    over (order by r.seq) as streak_key
-      from running r
+    select w.*,
+           w.seq - row_number() over (order by w.seq) as streak_key
+      from won_sessions w
   ),
   streaks as (
     select sk.*,
-           case when sk.session_won then
-             row_number() over (
-               partition by sk.streak_key
-               order by sk.seq
-             )
-           else 0 end as streak_len
+           row_number() over (
+             partition by sk.streak_key
+             order by sk.seq
+           ) as streak_len
       from streak_keys sk
   ),
   hits as (

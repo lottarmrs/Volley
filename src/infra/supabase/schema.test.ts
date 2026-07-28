@@ -2490,3 +2490,48 @@ test('a won session requires more wins than losses', () => {
   assert.ok(fn);
   assert.match(fn, /games_won > so\.games_played - so\.games_won/i);
 });
+
+test('streak islands are built ONLY from won sessions', () => {
+  // Regressao verificada no Postgres: com [V,V,D,V,V] a sequencia real maxima e 2, mas
+  // deixando as sessoes perdidas no conjunto elas caem na mesma particao e inflam o
+  // row_number seguinte para 3 — streak_3 era gravado sem ter sido conquistado, e de
+  // forma permanente, porque a source_key do marco e fixa.
+  for (const artifact of [careerMilestonesMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'regenerate_player_milestones');
+    assert.ok(fn, 'missing regenerate_player_milestones');
+    assert.match(
+      fn,
+      /won_sessions as \(\s*select r\.\* from running r where r\.session_won\s*\)/i,
+      'streak must be computed over won sessions only',
+    );
+    assert.match(fn, /w\.seq - row_number\(\) over \(order by w\.seq\) as streak_key/i);
+    // A forma antiga somava vitorias sobre TODAS as linhas: e exatamente o bug.
+    assert.doesNotMatch(fn, /sum\(case when r\.session_won then 1 else 0 end\)/i);
+  }
+});
+
+test('a player in two teams of one session counts the game once', () => {
+  // Sem o distinct on, o join casa o mesmo jogo uma vez por time do jogador e
+  // games_played conta em dobro, distorcendo o win rate. statistics.ts usa filter e
+  // conta o jogo uma vez so.
+  for (const artifact of [careerGenerationMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'regenerate_career_events_for_sessions');
+    assert.ok(fn, 'missing regenerate_career_events_for_sessions');
+    assert.match(fn, /select distinct on \(pt\.player_uuid, gr\.id\)/i);
+    // A desambiguacao precisa preferir o time vencedor.
+    assert.match(fn, /order by pt\.player_uuid, gr\.id, \(gr\.winner_team_id = pt\.team_ref\) desc/i);
+  }
+});
+
+test('error counting keeps the legacy opponent_error branch', () => {
+  // statistics.ts conta erro por point_type='error' E, no legado (point_type nulo,
+  // anterior a taxonomia de junho), por reason='opponent_error' com o time do jogador
+  // concedendo. Contar so o primeiro divergia do calculo de pontos logo acima, que ja
+  // tratava o legado.
+  for (const artifact of [careerGenerationMigration, baseSchema]) {
+    const fn = extractSqlFunction(artifact, 'regenerate_career_events_for_sessions');
+    assert.ok(fn);
+    assert.match(fn, /pe\.reason = 'opponent_error'/i);
+    assert.match(fn, /pe\.conceding_team_id in \(/i);
+  }
+});

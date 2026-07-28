@@ -51,13 +51,21 @@ begin
       from team_ref tr
       join player_ref pr on pr.owner_id = tr.owner_id and pr.ref = any(tr.player_ids)
   ),
+  -- distinct on (jogador, jogo): um jogador pode aparecer em MAIS DE UM time da mesma
+  -- sessao (rebalanceamento no meio). Sem isso o join casa o mesmo jogo uma vez por
+  -- time e games_played conta em dobro, distorcendo o win rate. statistics.ts usa
+  -- filter e conta o jogo uma vez so.
   player_games as (
-    select pt.player_uuid, gr.id as game_uuid, gr.ref as game_ref, gr.session_id,
+    select distinct on (pt.player_uuid, gr.id)
+           pt.player_uuid, gr.id as game_uuid, gr.ref as game_ref, gr.session_id,
            (gr.winner_team_id is not null and gr.winner_team_id = pt.team_ref) as won
       from game_ref gr
       join player_teams pt
         on pt.session_id = gr.session_id
        and (gr.team_a_id = pt.team_ref or gr.team_b_id = pt.team_ref)
+     -- Vitoria ganha do empate na desambiguacao: se o jogador estava nos dois times,
+     -- o time vencedor e o que conta.
+     order by pt.player_uuid, gr.id, (gr.winner_team_id = pt.team_ref) desc
   ),
   -- point_events.game_id tambem e id LOCAL de jogo.
   scored as (
@@ -70,9 +78,23 @@ begin
                  end
                )
            ) as points,
+           -- O ramo legado importa: linhas anteriores a taxonomia de junho tem
+           -- point_type nulo, e statistics.ts as conta como erro via
+           -- reason = 'opponent_error' com o time do jogador concedendo o ponto.
+           -- Sem ele, o calculo de erros divergia do de pontos logo acima, que ja
+           -- tratava o legado.
            count(*) filter (
              where pe.event_kind is distinct from 'highlight'
-               and pe.point_type = 'error'
+               and (
+                 case when pe.point_type is not null then pe.point_type = 'error'
+                      else pe.reason = 'opponent_error'
+                        and pe.conceding_team_id in (
+                          select pt2.team_ref from player_teams pt2
+                           where pt2.player_uuid = pg.player_uuid
+                             and pt2.session_id = pg.session_id
+                        )
+                 end
+               )
            ) as errors,
            count(*) filter (where pe.event_kind = 'highlight') as highlights
       from player_games pg

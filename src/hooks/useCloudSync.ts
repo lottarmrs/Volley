@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   downloadCloudDataQuery,
   repairDuplicateCloudDataCommand,
@@ -90,6 +90,31 @@ export type CloudSyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 
 const LAST_SYNCED_AT_KEY = 'vpg_last_synced_at';
 
+const SYNC_TTL_MS = 5 * 60 * 1000;
+function inflightKey(userId: string): string {
+  return `vpg_sync_inflight_${userId}`;
+}
+function isInflight(userId: string | null): boolean {
+  if (!userId) return false;
+  const raw = localStorage.getItem(inflightKey(userId));
+  if (!raw) return false;
+  try {
+    const guard = JSON.parse(raw) as { startedAt: string; ttlMs: number };
+    return Date.now() - new Date(guard.startedAt).getTime() < guard.ttlMs;
+  } catch {
+    return false;
+  }
+}
+function setInflight(userId: string): void {
+  localStorage.setItem(
+    inflightKey(userId),
+    JSON.stringify({ startedAt: new Date().toISOString(), ttlMs: SYNC_TTL_MS }),
+  );
+}
+function clearInflight(userId: string): void {
+  localStorage.removeItem(inflightKey(userId));
+}
+
 /**
  * Centralizes the three cloud operations (upload, download, two-way sync) that
  * previously lived as triplicated handlers in App.tsx. Each operation builds the
@@ -145,7 +170,8 @@ export function useCloudSync(deps: CloudSyncDeps) {
   // Trava de reentrância: o auto-sync no login e um clique manual podem disparar
   // operações concorrentes. Sem isso, dois uploads em paralelo reconciliam sobre
   // estados intermediários (corrida que pode apagar vínculos / duplicar escrita).
-  const inFlight = useRef(false);
+  // Persistida em localStorage com TTL para sobreviver remounts e recuperação
+  // após crash do navegador.
 
   const run = async (
     label: string,
@@ -156,11 +182,11 @@ export function useCloudSync(deps: CloudSyncDeps) {
     ) => Promise<LocalSyncPayload>,
   ) => {
     if (!deps.userId) throw new Error('Usuário não autenticado.');
-    if (inFlight.current) {
+    if (isInflight(deps.userId)) {
       deps.onToast?.('Uma sincronização já está em andamento.', 'error');
       return;
     }
-    inFlight.current = true;
+    setInflight(deps.userId);
     setSyncLoading(true);
     setStatus('syncing');
     setError(null);
@@ -213,7 +239,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
       deps.onToast?.(`${label} falhou: ${message}`, 'error');
       throw e;
     } finally {
-      inFlight.current = false;
+      clearInflight(deps.userId);
       setSyncLoading(false);
     }
   };

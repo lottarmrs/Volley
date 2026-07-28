@@ -154,6 +154,10 @@ const communityProfilePrivacyMigration = readFixture(
   ),
 );
 
+const outboxEntriesMigration = readFixture(
+  new URL('../../../supabase/migrations/20260727100000_outbox_entries.sql', import.meta.url),
+);
+
 const careerEventsMigration = readFixture(
   new URL('../../../supabase/migrations/20260727100000_career_events.sql', import.meta.url),
 );
@@ -2549,4 +2553,48 @@ test('error counting keeps the legacy opponent_error branch', () => {
     assert.match(fn, /pe\.reason = 'opponent_error'/i);
     assert.match(fn, /pe\.conceding_team_id in \(/i);
   }
+});
+
+test('outbox_entries table exists with idempotency key and RLS', () => {
+  assert.match(outboxEntriesMigration, /create table if not exists public\.outbox_entries/i);
+  assert.match(outboxEntriesMigration, /id uuid primary key default gen_random_uuid\(\)/i);
+  assert.match(outboxEntriesMigration, /auth_user_id uuid not null references auth\.users\(id\) on delete cascade/i);
+  assert.match(outboxEntriesMigration, /operation text not null/i);
+  assert.match(outboxEntriesMigration, /payload jsonb not null/i);
+  assert.match(outboxEntriesMigration, /idempotency_key text not null unique/i);
+  assert.match(
+    outboxEntriesMigration,
+    /status text not null default 'pending_upload'[\s\S]*check \(status in/i,
+  );
+  assert.match(
+    outboxEntriesMigration,
+    /alter table public\.outbox_entries enable row level security/i,
+  );
+  assert.match(
+    outboxEntriesMigration,
+    /revoke all on table public\.outbox_entries from public, anon, authenticated/i,
+  );
+  assert.match(
+    outboxEntriesMigration,
+    /grant select, insert, update, delete on public\.outbox_entries to authenticated/i,
+  );
+});
+
+test('outbox_entries RLS restricts rows to the owning auth user', () => {
+  assert.match(
+    outboxEntriesMigration,
+    /create policy "outbox_entries_owned_by_user" on public\.outbox_entries[\s\S]*auth_user_id = \(select auth\.uid\(\)\)/i,
+  );
+});
+
+test('outbox_entries has a partial index for pending consumption', () => {
+  assert.match(
+    outboxEntriesMigration,
+    /create index outbox_entries_pending_idx on public\.outbox_entries \(auth_user_id, status\) where status in \('pending_upload', 'syncing'\)/i,
+  );
+});
+
+test('consolidated schema includes outbox_entries with RLS', () => {
+  assert.match(baseSchema, /create table if not exists public\.outbox_entries/i);
+  assert.match(baseSchema, /alter table public\.outbox_entries enable row level security/i);
 });

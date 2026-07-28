@@ -195,6 +195,10 @@ const communityJoinSystemMigration = readFixture(
   new URL('../../../supabase/migrations/20260624204113_community_join_system.sql', import.meta.url),
 );
 
+const approveByCapabilityMigration = readFixture(
+  new URL('../../../supabase/migrations/20260728100000_approve_by_capability.sql', import.meta.url),
+);
+
 const communityDiscoveryMigration = readFixture(
   new URL('../../../supabase/migrations/20260625192530_community_discovery.sql', import.meta.url),
 );
@@ -2029,8 +2033,8 @@ test('consolidated schema carries every community join/discovery RPC verbatim', 
     ['disable_join_code', communityJoinSystemMigration],
     ['find_community_by_code', communityJoinSystemMigration],
     ['request_to_join_community', communityJoinSystemMigration],
-    ['approve_join_request', communityJoinSystemMigration],
-    ['reject_join_request', communityJoinSystemMigration],
+    ['approve_join_request', approveByCapabilityMigration],
+    ['reject_join_request', approveByCapabilityMigration],
     ['leave_community', communityJoinSystemMigration],
     ['set_community_visibility', communityDiscoveryMigration],
     ['search_public_communities', communityDiscoveryMigration],

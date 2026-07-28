@@ -3065,11 +3065,11 @@ declare
 begin
   select community_id into v_comm from public.community_members where id = p_member_id;
   if v_comm is null then
-    raise exception 'Solicitação não encontrada' using errcode = '22023';
+    raise exception 'Solicitacao nao encontrada' using errcode = '22023';
   end if;
   if not (public.is_superadmin()
-          or public.current_user_has_community_role(v_comm, array['owner', 'admin'])) then
-    raise exception 'Apenas dono/admin podem aprovar solicitações' using errcode = '42501';
+          or public.community_has_capability(v_comm, 'approve_members')) then
+    raise exception 'Apenas quem tem approve_members pode aprovar solicitacoes' using errcode = '42501';
   end if;
 
   update public.community_members
@@ -3094,11 +3094,11 @@ declare
 begin
   select community_id into v_comm from public.community_members where id = p_member_id;
   if v_comm is null then
-    raise exception 'Solicitação não encontrada' using errcode = '22023';
+    raise exception 'Solicitacao nao encontrada' using errcode = '22023';
   end if;
   if not (public.is_superadmin()
-          or public.current_user_has_community_role(v_comm, array['owner', 'admin'])) then
-    raise exception 'Apenas dono/admin podem rejeitar solicitações' using errcode = '42501';
+          or public.community_has_capability(v_comm, 'approve_members')) then
+    raise exception 'Apenas quem tem approve_members pode rejeitar solicitacoes' using errcode = '42501';
   end if;
 
   update public.community_members

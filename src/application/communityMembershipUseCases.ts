@@ -202,12 +202,12 @@ export async function approveCommunityJoinRequestCommand(
   },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ memberId: string }>> {
-  const managerResult = ensureManagingCurrentMember(
+  const approverResult = ensureApprovingCurrentMember(
     input.members,
     input.currentUserId,
     input.globalRole,
   );
-  if (managerResult.ok === false) return managerResult;
+  if (approverResult.ok === false) return approverResult;
 
   const targetResult = findTargetMember(input.members, input.memberId);
   if (targetResult.ok === false) return targetResult;
@@ -229,12 +229,12 @@ export async function rejectCommunityJoinRequestCommand(
   },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ memberId: string }>> {
-  const managerResult = ensureManagingCurrentMember(
+  const approverResult = ensureApprovingCurrentMember(
     input.members,
     input.currentUserId,
     input.globalRole,
   );
-  if (managerResult.ok === false) return managerResult;
+  if (approverResult.ok === false) return approverResult;
 
   const targetResult = findTargetMember(input.members, input.memberId);
   if (targetResult.ok === false) return targetResult;
@@ -435,6 +435,47 @@ function ensureManagingCurrentMember(
     return productError(
       'permission_denied',
       'Voce nao tem permissao para gerenciar membros desta comunidade.',
+    );
+  }
+  return appOk({});
+}
+
+function ensureApprovingCurrentMember(
+  members: CommunityMember[],
+  currentUserId: string | null,
+  globalRole?: AuthRole | null,
+): AppResult<Record<string, never>> {
+  if (!currentUserId) {
+    return productError('not_authenticated', 'Entre na sua conta para avaliar pedidos.');
+  }
+  if (globalRole === 'programmer') {
+    return productError(
+      'permission_denied',
+      'Voce nao tem permissao para avaliar pedidos desta comunidade.',
+    );
+  }
+  if (globalRole === 'master') return appOk({});
+
+  const currentMemberResult = findCurrentMember(members, currentUserId);
+  if (currentMemberResult.ok === false) return currentMemberResult;
+
+  const currentMember = currentMemberResult.value.member;
+  if ((currentMember.status ?? 'active') !== 'active') {
+    return productError(
+      'permission_denied',
+      'Sua participacao ainda nao permite avaliar pedidos.',
+    );
+  }
+  // owner / admin / moderator podem avaliar pedidos. Outras roles (member, organizador)
+  // continuam barradas, alinhado com a capability 'approve_members' do banco.
+  if (
+    currentMember.role !== 'owner' &&
+    currentMember.role !== 'admin' &&
+    currentMember.role !== 'moderator'
+  ) {
+    return productError(
+      'permission_denied',
+      'Voce nao tem permissao para avaliar pedidos desta comunidade.',
     );
   }
   return appOk({});

@@ -162,24 +162,6 @@ const managerCommandCases: {
       ),
   },
   {
-    name: 'approve request',
-    expectedCall: 'approve:pending-member',
-    run: (members, currentUserId, calls, globalRole) =>
-      approveCommunityJoinRequestCommand(
-        { members, currentUserId, globalRole, memberId: 'pending-member' },
-        membershipGateway(calls),
-      ),
-  },
-  {
-    name: 'reject request',
-    expectedCall: 'reject:pending-member',
-    run: (members, currentUserId, calls, globalRole) =>
-      rejectCommunityJoinRequestCommand(
-        { members, currentUserId, globalRole, memberId: 'pending-member' },
-        membershipGateway(calls),
-      ),
-  },
-  {
     name: 'generate join code',
     expectedCall: 'generate:community-cloud',
     run: (members, currentUserId, calls, globalRole) =>
@@ -194,6 +176,36 @@ const managerCommandCases: {
     run: (members, currentUserId, calls, globalRole) =>
       disableCommunityJoinCodeCommand(
         { communityCloudId: 'community-cloud', members, currentUserId, globalRole },
+        membershipGateway(calls),
+      ),
+  },
+];
+
+const approverCommandCases: {
+  name: string;
+  expectedCall: string;
+  run: (
+    members: CommunityMember[],
+    currentUserId: string | null,
+    calls: string[],
+    globalRole?: AuthRole | null,
+  ) => Promise<AppResult<unknown>>;
+}[] = [
+  {
+    name: 'approve request',
+    expectedCall: 'approve:pending-member',
+    run: (members, currentUserId, calls, globalRole) =>
+      approveCommunityJoinRequestCommand(
+        { members, currentUserId, globalRole, memberId: 'pending-member' },
+        membershipGateway(calls),
+      ),
+  },
+  {
+    name: 'reject request',
+    expectedCall: 'reject:pending-member',
+    run: (members, currentUserId, calls, globalRole) =>
+      rejectCommunityJoinRequestCommand(
+        { members, currentUserId, globalRole, memberId: 'pending-member' },
         membershipGateway(calls),
       ),
   },
@@ -233,6 +245,12 @@ test('manager-only commands do not call gateways when current user cannot manage
     {
       name: 'moderator current member',
       members: manageableMembers({ role: 'moderator' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+    {
+      name: 'organizador current member',
+      members: manageableMembers({ role: 'organizador' }),
       currentUserId: 'manager-user',
       code: 'permission_denied',
     },
@@ -298,6 +316,98 @@ test('manager-only commands require an authenticated user before global role byp
 
     assertProductError(result, 'not_authenticated');
     assert.deepEqual(calls, [], `${command.name} called gateway without current user`);
+  }
+});
+
+test('approver-only commands do not call gateways when current user cannot approve', async () => {
+  const scenarios: {
+    name: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    code: string;
+  }[] = [
+    {
+      name: 'no current user',
+      members: manageableMembers(),
+      currentUserId: null,
+      code: 'not_authenticated',
+    },
+    {
+      name: 'no matching member',
+      members: manageableMembers(),
+      currentUserId: 'missing-user',
+      code: 'not_found',
+    },
+    {
+      name: 'pending current member',
+      members: manageableMembers({ status: 'pending' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+    {
+      name: 'regular current member',
+      members: manageableMembers({ role: 'member' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+    {
+      name: 'organizador current member',
+      members: manageableMembers({ role: 'organizador' }),
+      currentUserId: 'manager-user',
+      code: 'permission_denied',
+    },
+  ];
+
+  for (const command of approverCommandCases) {
+    for (const scenario of scenarios) {
+      const calls: string[] = [];
+      const result = await command.run(scenario.members, scenario.currentUserId, calls);
+
+      assertProductError(result, scenario.code);
+      assert.deepEqual(calls, [], `${command.name} called gateway for ${scenario.name}`);
+    }
+  }
+});
+
+test('approver-only commands call gateways for active owner admin and moderator', async () => {
+  for (const role of ['owner', 'admin', 'moderator'] as const) {
+    for (const command of approverCommandCases) {
+      const calls: string[] = [];
+      const result = await command.run(manageableMembers({ role }), 'manager-user', calls);
+
+      assert.equal(result.ok, true, `${command.name} rejected active ${role}`);
+      assert.deepEqual(calls, [command.expectedCall]);
+    }
+  }
+});
+
+test('approver-only commands allow signed-in master without community membership', async () => {
+  for (const command of approverCommandCases) {
+    const calls: string[] = [];
+    const result = await command.run(
+      manageableMembers().filter((candidate) => candidate.userId !== 'master-user'),
+      'master-user',
+      calls,
+      'master',
+    );
+
+    assert.equal(result.ok, true, `${command.name} rejected signed-in master`);
+    assert.deepEqual(calls, [command.expectedCall]);
+  }
+});
+
+test('approver-only commands do not let programmer bypass approver checks', async () => {
+  for (const command of approverCommandCases) {
+    const calls: string[] = [];
+    const result = await command.run(
+      manageableMembers({ role: 'admin' }),
+      'manager-user',
+      calls,
+      'programmer',
+    );
+
+    assertProductError(result, 'permission_denied');
+    assert.deepEqual(calls, [], `${command.name} called gateway for programmer`);
   }
 });
 

@@ -23,6 +23,7 @@ begin
      and t.session_id is not null;
 
   perform public.regenerate_career_events_for_sessions(affected);
+  perform public.regenerate_player_milestones(p_player_id);
 end;
 $$;
 

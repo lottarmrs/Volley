@@ -2463,6 +2463,7 @@ test('recalculate_player_career resolves local team ids scoped by owner', () => 
   assert.match(fn, /p\.owner_id = t\.owner_id/i);
   assert.match(fn, /coalesce\(p\.local_id, p\.id::text\) = any\(t\.player_ids\)/i);
   assert.match(fn, /perform public\.regenerate_career_events_for_sessions\(affected\)/i);
+  assert.match(fn, /perform public\.regenerate_player_milestones\(p_player_id\)/i);
 });
 
 const MILESTONE_SLUGS = [

@@ -1266,6 +1266,7 @@ begin
      and t.session_id is not null;
 
   perform public.regenerate_career_events_for_sessions(affected);
+  perform public.regenerate_player_milestones(p_player_id);
 end;
 $$;
 
@@ -1375,6 +1376,7 @@ set search_path = public
 as $$
 declare
   affected uuid[];
+  affected_players uuid[];
   affected_player uuid;
 begin
   select array_agg(distinct session_id) into affected
@@ -1382,14 +1384,22 @@ begin
       select session_id from touched_rows where session_id is not null
     ) s;
 
+  -- Captura os jogadores afetados ANTES de deletar/recriar os resumos de sessao.
+  select array_agg(distinct player_id) into affected_players
+    from public.career_events
+   where session_id = any(affected) and type = 'session_played';
+
   perform public.regenerate_career_events_for_sessions(affected);
 
-  -- Marcos dependem dos totais acumulados, entao rodam depois que os resumos de sessao
-  -- ja estao gravados.
+  -- Recalcula marcos para quem tinha eventos ou passou a ter eventos nessas sessoes.
   for affected_player in
-    select distinct player_id
-      from public.career_events
-     where session_id = any(affected) and type = 'session_played'
+    select distinct player_id from (
+      select unnest(affected_players) as player_id
+      union
+      select player_id
+        from public.career_events
+       where session_id = any(affected) and type = 'session_played'
+    ) combined where player_id is not null
   loop
     perform public.regenerate_player_milestones(affected_player);
   end loop;

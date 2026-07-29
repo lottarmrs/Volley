@@ -27,6 +27,10 @@ export interface CommunityMembersViewModel {
   pendingRequests: CommunityMemberRowViewModel[];
   currentMember: CommunityMember | null;
   canManage: boolean;
+  /** Avaliar pedidos de entrada e uma permissao MAIS AMPLA que canManage: inclui
+   *  moderador. Sem expor isto separado, o painel gateava os pedidos por canManage e o
+   *  moderador nunca via os botoes — mesmo o banco e o caso de uso ja permitindo. */
+  canApprove: boolean;
   canLeave: boolean;
   blockedMessage: string | null;
 }
@@ -110,6 +114,7 @@ export function buildCommunityMembersViewModel(
       : 'community_not_synced';
 
   const canManage = state === 'ready' && permissions.canManageMembers;
+  const canApprove = state === 'ready' && permissions.canApproveMembers;
   const athleteByUserId = new Map(
     players
       .filter((player) => player.userId && !player.deletedAt)
@@ -161,6 +166,7 @@ export function buildCommunityMembersViewModel(
     pendingRequests,
     currentMember,
     canManage,
+    canApprove,
     canLeave: state === 'ready' && currentMember !== null && currentMember.role !== 'owner',
     blockedMessage:
       state === 'cloud_disabled'

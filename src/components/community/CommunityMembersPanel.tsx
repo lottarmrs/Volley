@@ -76,6 +76,7 @@ export function CommunityMembersPanel({
   const activeMembers = vm.activeMembers;
   const pendingRequests = vm.pendingRequests;
   const canManage = vm.canManage;
+  const canApprove = vm.canApprove;
   const canLeave = vm.canLeave;
 
   const [inviteEmail, setInviteEmail] = useState('');
@@ -229,8 +230,10 @@ export function CommunityMembersPanel({
         </div>
       )}
 
-      {/* ── Pedidos pendentes (dono/admin) ─────────────────────────────────── */}
-      {canManage && pendingRequests.length > 0 && (
+      {/* ── Pedidos pendentes (dono/admin/moderador) ───────────────────────── */}
+      {/* canApprove, nao canManage: avaliar pedido e permissao mais ampla e inclui
+          moderador, alinhado com a capability approve_members do banco. */}
+      {canApprove && pendingRequests.length > 0 && (
         <div className="bg-surface p-4 rounded-xl border border-warning/40 space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
             <Clock className="w-4 h-4 text-warning" /> Pedidos para entrar

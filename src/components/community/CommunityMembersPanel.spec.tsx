@@ -118,4 +118,58 @@ describe('CommunityMembersPanel', () => {
 
     expect(screen.getByText('bruno@example.com')).toBeTruthy();
   });
+
+  it('lets a moderator see and act on pending join requests', () => {
+    // O banco (capability approve_members) e o caso de uso
+    // (ensureApprovingCurrentMember) ja liberavam moderador, mas o painel gateava a
+    // secao por canManage (owner/admin), entao o moderador nunca via os botoes — o
+    // recurso ficava inalcancavel justamente para o papel para o qual foi feito.
+    mockUseCommunityMembers([
+      member({ id: 'mod-row', userId: 'mod-1', role: 'moderator', name: 'Carla' }),
+      member({
+        id: 'pending-row',
+        userId: 'user-9',
+        role: 'member',
+        status: 'pending',
+        name: 'Diego',
+      }),
+    ]);
+
+    render(
+      <CommunityMembersPanel
+        community={community}
+        currentUserId="mod-1"
+        isSupabaseConfigured={true}
+        globalRole="user"
+      />,
+    );
+
+    expect(screen.getByText(/pedidos para entrar/i)).toBeTruthy();
+    expect(screen.getByText('Diego')).toBeTruthy();
+  });
+
+  it('does not show pending join requests to an ordinary member', () => {
+    // approve_members nao e concedida a 'member', entao a secao nao deve aparecer.
+    mockUseCommunityMembers([
+      member({ id: 'me-row', userId: 'plain-1', role: 'member', name: 'Elisa' }),
+      member({
+        id: 'pending-row',
+        userId: 'user-9',
+        role: 'member',
+        status: 'pending',
+        name: 'Diego',
+      }),
+    ]);
+
+    render(
+      <CommunityMembersPanel
+        community={community}
+        currentUserId="plain-1"
+        isSupabaseConfigured={true}
+        globalRole="user"
+      />,
+    );
+
+    expect(screen.queryByText(/pedidos para entrar/i)).toBeNull();
+  });
 });

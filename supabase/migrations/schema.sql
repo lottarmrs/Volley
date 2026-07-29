@@ -495,6 +495,50 @@ $$;
 revoke execute on function public.require_aal2() from public, anon;
 grant execute on function public.require_aal2() to authenticated;
 
+-- Scaffold de reset de produção. Não é chamado por nenhuma aplicação neste plano;
+-- existe para uso manual futuro (Plano 5). Requer AAL2 + capability reset_product_data.
+
+insert into public.global_role_capabilities (role, capability)
+values ('master', 'reset_product_data'), ('programmer', 'reset_product_data')
+on conflict (role, capability) do nothing;
+
+create or replace function public.reset_product_data(target_account_uuid text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.has_capability('reset_product_data') then
+    raise exception 'Not authorized: missing reset_product_data capability';
+  end if;
+  perform public.require_aal2();
+
+  -- Children-first referential order
+  delete from public.point_events;
+  delete from public.games;
+  delete from public.teams;
+  delete from public.sessions;
+  delete from public.championship_rounds;
+  delete from public.championship_teams;
+  delete from public.championships;
+  delete from public.player_achievements;
+  delete from public.career_events;
+  delete from public.player_evaluations;
+  delete from public.self_evaluations;
+  delete from public.community_players;
+  delete from public.whatsapp_list_drafts;
+  delete from public.community_presence;
+  delete from public.game_reports;
+  delete from public.session_reports;
+  delete from public.outbox_entries;
+  delete from public.players where owner_id = target_account_uuid::uuid;
+  delete from public.communities where owner_id = target_account_uuid::uuid;
+end;
+$$;
+
+revoke all on function public.reset_product_data(text) from public, anon, authenticated;
+grant execute on function public.reset_product_data(text) to authenticated;
+
 -- Member-management RPCs, capability-gated. The "target_member.role = 'owner' ->
 -- reject" guard is what makes these two unable to ever touch an owner, for anyone,
 -- including programmer/master.
@@ -3379,3 +3423,40 @@ $$;
 
 revoke execute on function public.reject_player_avatar(uuid) from public, anon;
 grant execute on function public.reject_player_avatar(uuid) to authenticated;
+
+-- ============================================================================
+-- Sync foundation: outbox idempotente.
+--
+-- Cada operação de domínio enfileirada pelo client vira uma linha aqui; o sync
+-- worker consome em sucesso (linha é DELETADA — nuvem autoritativa + chave de
+-- idempotência impedem duplicação futura) ou, em falha recoverable, volta a
+-- entrada para 'pending_upload' com attempts++. Falha estrutural fica visível
+-- em 'recoverable_error'. Linha pessoal do auth.uid(): RLS isola por dono.
+-- ============================================================================
+
+create table if not exists public.outbox_entries (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid not null references auth.users(id) on delete cascade,
+  community_id uuid references public.communities(id) on delete set null,
+  operation text not null,
+  payload jsonb not null,
+  idempotency_key text not null unique,
+  status text not null default 'pending_upload'
+    check (status in ('pending_upload', 'syncing', 'cloud_confirmed',
+                      'recoverable_error')),
+  attempts int not null default 0,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.outbox_entries enable row level security;
+
+create policy "outbox_entries_owned_by_user" on public.outbox_entries for all
+  using (auth_user_id = (select auth.uid()))
+  with check (auth_user_id = (select auth.uid()));
+
+create index outbox_entries_pending_idx on public.outbox_entries (auth_user_id, status) where status in ('pending_upload', 'syncing');
+
+revoke all on table public.outbox_entries from public, anon, authenticated;
+grant select, insert, update, delete on public.outbox_entries to authenticated;

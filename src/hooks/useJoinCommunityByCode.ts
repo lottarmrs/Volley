@@ -18,7 +18,7 @@ function causeMessage(cause: unknown): string | null {
 
 function messageForAppError(error: AppError, fallback: string): string {
   if (error.kind === 'technical') return causeMessage(error.cause) ?? fallback;
-  if (error.code === 'not_found') return INVALID_CODE_MESSAGE;
+  if (error.kind === 'product' && error.code === 'not_found') return INVALID_CODE_MESSAGE;
   return error.message;
 }
 

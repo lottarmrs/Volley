@@ -30,7 +30,7 @@ test('searchPlayerByUsernameQuery rejects empty usernames', async () => {
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, 'invalid_input');
+  assert.equal((result.error as any).code, 'invalid_input');
 });
 
 test('linkCommunityPlayerByUsernameCommand links cloud player and returns local community membership', async () => {
@@ -86,5 +86,5 @@ test('linkCommunityPlayerByUsernameCommand rejects anonymous users', async () =>
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, 'not_authenticated');
+  assert.equal((result.error as any).code, 'not_authenticated');
 });

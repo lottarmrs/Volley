@@ -37,7 +37,7 @@ test('submitSelfEvaluation rejects a blank player id without calling the gateway
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, 'invalid_input');
+  assert.equal((result.error as any).code, 'invalid_input');
 });
 
 test('submitSelfEvaluation wraps gateway failures as a technical error', async () => {

@@ -154,6 +154,10 @@ const communityProfilePrivacyMigration = readFixture(
   ),
 );
 
+const outboxEntriesMigration = readFixture(
+  new URL('../../../supabase/migrations/20260727100000_outbox_entries.sql', import.meta.url),
+);
+
 const careerEventsMigration = readFixture(
   new URL('../../../supabase/migrations/20260727100000_career_events.sql', import.meta.url),
 );
@@ -197,6 +201,10 @@ const communityJoinSystemMigration = readFixture(
 
 const approveByCapabilityMigration = readFixture(
   new URL('../../../supabase/migrations/20260728100000_approve_by_capability.sql', import.meta.url),
+);
+
+const resetScaffoldMigration = readFixture(
+  new URL('../../../supabase/migrations/20260728110000_reset_scaffold.sql', import.meta.url),
 );
 
 const communityDiscoveryMigration = readFixture(
@@ -2549,4 +2557,75 @@ test('error counting keeps the legacy opponent_error branch', () => {
     assert.match(fn, /pe\.reason = 'opponent_error'/i);
     assert.match(fn, /pe\.conceding_team_id in \(/i);
   }
+});
+
+test('outbox_entries table exists with idempotency key and RLS', () => {
+  assert.match(outboxEntriesMigration, /create table if not exists public\.outbox_entries/i);
+  assert.match(outboxEntriesMigration, /id uuid primary key default gen_random_uuid\(\)/i);
+  assert.match(outboxEntriesMigration, /auth_user_id uuid not null references auth\.users\(id\) on delete cascade/i);
+  assert.match(outboxEntriesMigration, /operation text not null/i);
+  assert.match(outboxEntriesMigration, /payload jsonb not null/i);
+  assert.match(outboxEntriesMigration, /idempotency_key text not null unique/i);
+  assert.match(
+    outboxEntriesMigration,
+    /status text not null default 'pending_upload'[\s\S]*check \(status in/i,
+  );
+  assert.match(
+    outboxEntriesMigration,
+    /alter table public\.outbox_entries enable row level security/i,
+  );
+  assert.match(
+    outboxEntriesMigration,
+    /revoke all on table public\.outbox_entries from public, anon, authenticated/i,
+  );
+  assert.match(
+    outboxEntriesMigration,
+    /grant select, insert, update, delete on public\.outbox_entries to authenticated/i,
+  );
+});
+
+test('outbox_entries RLS restricts rows to the owning auth user', () => {
+  assert.match(
+    outboxEntriesMigration,
+    /create policy "outbox_entries_owned_by_user" on public\.outbox_entries[\s\S]*auth_user_id = \(select auth\.uid\(\)\)/i,
+  );
+});
+
+test('outbox_entries has a partial index for pending consumption', () => {
+  assert.match(
+    outboxEntriesMigration,
+    /create index outbox_entries_pending_idx on public\.outbox_entries \(auth_user_id, status\) where status in \('pending_upload', 'syncing'\)/i,
+  );
+});
+
+test('consolidated schema includes outbox_entries with RLS', () => {
+  assert.match(baseSchema, /create table if not exists public\.outbox_entries/i);
+  assert.match(baseSchema, /alter table public\.outbox_entries enable row level security/i);
+});
+
+test('reset_product_data RPC exists as security definer with search_path pinned', () => {
+  assert.match(
+    resetScaffoldMigration,
+    /create or replace function public\.reset_product_data\(target_account_uuid text\)/i,
+  );
+  assert.match(resetScaffoldMigration, /security definer set search_path = public/i);
+});
+
+test('reset_product_data requires reset_product_data capability and AAL2', () => {
+  assert.match(resetScaffoldMigration, /public\.has_capability\('reset_product_data'\)/i);
+  assert.match(resetScaffoldMigration, /aal2|require_aal2/i);
+});
+
+test('reset_product_data drops in referential order and preserves auth.users', () => {
+  // first deletes children, never touches auth.users
+  assert.match(resetScaffoldMigration, /delete from public\.point_events/i);
+  assert.match(resetScaffoldMigration, /delete from public\.sessions/i);
+  assert.doesNotMatch(resetScaffoldMigration, /delete from auth\.users/i);
+});
+
+test('reset_product_data revokes public execute', () => {
+  assert.match(
+    resetScaffoldMigration,
+    /revoke all on function public\.reset_product_data\([^)]*\) from public, anon/i,
+  );
 });

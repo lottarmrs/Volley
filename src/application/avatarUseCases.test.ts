@@ -53,7 +53,7 @@ test('proposePlayerAvatarCommand rejects missing cloud player ids', async () => 
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, 'invalid_input');
+  assert.equal((result.error as any).code, 'invalid_input');
 });
 
 test('listAvatarApprovalQueueQuery returns queue items', async () => {
@@ -101,5 +101,5 @@ test('reviewPlayerAvatarCommand rejects missing proposal ids', async () => {
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, 'invalid_input');
+  assert.equal((result.error as any).code, 'invalid_input');
 });

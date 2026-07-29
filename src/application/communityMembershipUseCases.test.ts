@@ -611,9 +611,9 @@ test('inviteCommunityMemberCommand rejects empty email and owner role', async ()
   );
 
   assert.equal(emptyEmail.ok, false);
-  assert.equal(emptyEmail.error.code, 'invalid_input');
+  assert.equal((emptyEmail.error as any).code, 'invalid_input');
   assert.equal(ownerRole.ok, false);
-  assert.equal(ownerRole.error.code, 'permission_denied');
+  assert.equal((ownerRole.error as any).code, 'permission_denied');
   assert.deepEqual(calls, []);
 });
 
@@ -660,11 +660,11 @@ test('changeCommunityMemberRoleCommand blocks owner target, self target, and ass
   );
 
   assert.equal(ownerTarget.ok, false);
-  assert.equal(ownerTarget.error.code, 'permission_denied');
+  assert.equal((ownerTarget.error as any).code, 'permission_denied');
   assert.equal(selfTarget.ok, false);
-  assert.equal(selfTarget.error.code, 'permission_denied');
+  assert.equal((selfTarget.error as any).code, 'permission_denied');
   assert.equal(assignOwner.ok, false);
-  assert.equal(assignOwner.error.code, 'permission_denied');
+  assert.equal((assignOwner.error as any).code, 'permission_denied');
   assert.deepEqual(calls, []);
 });
 
@@ -738,9 +738,9 @@ test('removeCommunityMemberCommand blocks owner and self', async () => {
   );
 
   assert.equal(ownerTarget.ok, false);
-  assert.equal(ownerTarget.error.code, 'permission_denied');
+  assert.equal((ownerTarget.error as any).code, 'permission_denied');
   assert.equal(selfTarget.ok, false);
-  assert.equal(selfTarget.error.code, 'permission_denied');
+  assert.equal((selfTarget.error as any).code, 'permission_denied');
   assert.deepEqual(calls, []);
 });
 
@@ -873,7 +873,7 @@ test('generateCommunityJoinCodeCommand requires cloud id, generate and disable c
   );
 
   assert.equal(missing.ok, false);
-  assert.equal(missing.error.code, 'cloud_unavailable');
+  assert.equal((missing.error as any).code, 'cloud_unavailable');
   assert.equal(generated.ok, true);
   assert.equal(generated.value.joinCode, 'ABCD1234');
   assert.equal(disabled.ok, true);
@@ -920,7 +920,7 @@ test('leaveCommunityCommand blocks owner and calls gateway for non-owner', async
   );
 
   assert.equal(owner.ok, false);
-  assert.equal(owner.error.code, 'permission_denied');
+  assert.equal((owner.error as any).code, 'permission_denied');
   assert.equal(left.ok, true);
   assert.deepEqual(calls, ['leave:community-cloud']);
 });

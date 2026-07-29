@@ -91,8 +91,12 @@ describe('CommunityMembersPanel', () => {
       />,
     );
 
-    expect(screen.getByText('Bruno')).toBeTruthy();
-    expect(screen.queryByText(/@/)).toBeNull();
+    // Escopado na LINHA do membro, nao na tela toda: o /@/ global casava com qualquer
+    // '@' da pagina — inclusive o texto de ajuda do campo "e-mail ou @username" — e
+    // portanto nunca provou que o e-mail do Bruno estava escondido.
+    const row = screen.getByText('Bruno').closest('li, tr, div') as HTMLElement;
+    expect(row).toBeTruthy();
+    expect(within(row).queryByText(/@/)).toBeNull();
   });
 
   it('renders the email line for a member whose email is visible', () => {

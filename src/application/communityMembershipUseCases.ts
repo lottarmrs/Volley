@@ -22,9 +22,10 @@ export interface CommunityMembershipGateway {
     communityCloudId: string,
     communityLocalId?: string,
   ) => Promise<CommunityMember[]>;
-  addMemberByEmail: (
+  /** `identifier` e e-mail ou username — o servidor distingue pela presenca de '@'. */
+  addMemberByIdentifier: (
     communityCloudId: string,
-    email: string,
+    identifier: string,
     role: CommunityMemberRole,
     communityLocalId?: string,
   ) => Promise<CommunityMember>;
@@ -47,8 +48,8 @@ export interface CommunityDiscoveryGateway {
 export const supabaseCommunityMembershipGateway: CommunityMembershipGateway = {
   fetchByCommunity: (communityCloudId, communityLocalId) =>
     membershipCloudService.fetchByCommunity(communityCloudId, communityLocalId),
-  addMemberByEmail: (communityCloudId, email, role, communityLocalId) =>
-    membershipCloudService.addOrganizerByEmail(communityCloudId, email, role, communityLocalId),
+  addMemberByIdentifier: (communityCloudId, email, role, communityLocalId) =>
+    membershipCloudService.addMemberByIdentifier(communityCloudId, email, role, communityLocalId),
   updateRole: (memberId, role) => membershipCloudService.updateRole(memberId, role),
   removeMember: (memberId) => membershipCloudService.removeMember(memberId),
   approveRequest: (memberId) => membershipCloudService.approveRequest(memberId),
@@ -94,7 +95,8 @@ export async function inviteCommunityMemberCommand(
     members: CommunityMember[];
     currentUserId: string | null;
     globalRole?: AuthRole | null;
-    email: string;
+    /** E-mail ou username. */
+    identifier: string;
     role: CommunityMemberRole;
   },
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
@@ -102,8 +104,10 @@ export async function inviteCommunityMemberCommand(
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
   if (cloudIdResult.ok === false) return cloudIdResult;
 
-  const email = input.email.trim().toLowerCase();
-  if (!email) return productError('invalid_input', 'Informe um e-mail para convidar.');
+  const identifier = input.identifier.trim().toLowerCase();
+  if (!identifier) {
+    return productError('invalid_input', 'Informe um e-mail ou username para adicionar.');
+  }
   if (input.role === 'owner') {
     return productError('permission_denied', 'O papel de dono nao pode ser atribuido por convite.');
   }
@@ -116,15 +120,15 @@ export async function inviteCommunityMemberCommand(
   if (managerResult.ok === false) return managerResult;
 
   try {
-    const member = await gateway.addMemberByEmail(
+    const member = await gateway.addMemberByIdentifier(
       cloudIdResult.value.communityCloudId,
-      email,
+      identifier,
       input.role,
       input.communityLocalId,
     );
     return appOk({ member });
   } catch (error) {
-    return technicalError('Nao foi possivel convidar o membro.', error);
+    return technicalError('Nao foi possivel adicionar o membro.', error);
   }
 }
 

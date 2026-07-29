@@ -115,15 +115,19 @@ export const membershipCloudService = {
     return mapMembersWithProfiles(data || [], communityLocalId);
   },
 
-  async addOrganizerByEmail(
+  /** Aceita e-mail OU username. Username nao pode conter '@' nem ponto
+   *  (is_valid_account_username), entao o servidor distingue os dois sem ambiguidade.
+   *  Entra como 'member' por padrao: o cargo se ajusta no card do membro, onde ja
+   *  existe seletor — convidar alguem ja como moderador e privilegio por omissao. */
+  async addMemberByIdentifier(
     communityCloudId: string,
-    email: string,
-    role: CommunityMemberRole = 'moderator',
+    identifier: string,
+    role: CommunityMemberRole = 'member',
     communityLocalId?: string,
   ): Promise<CommunityMember> {
-    const { data, error } = await supabase.rpc('add_community_member_by_email', {
+    const { data, error } = await supabase.rpc('add_community_member_by_identifier', {
       target_community_id: communityCloudId,
-      target_email: email.trim().toLowerCase(),
+      target_identifier: identifier.trim().toLowerCase(),
       target_role: role,
     });
 

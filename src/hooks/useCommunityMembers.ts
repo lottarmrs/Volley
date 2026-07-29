@@ -82,15 +82,17 @@ export function useCommunityMembers({
   const activeMembers = members.filter((m) => (m.status ?? 'active') === 'active');
   const pendingRequests = members.filter((m) => m.status === 'pending');
 
+  /** `identifier` e e-mail ou username. O papel padrao e 'member': o cargo se ajusta
+   *  no card do membro, onde ja existe seletor. */
   const invite = useCallback(
-    async (email: string, role: CommunityMemberRole) => {
+    async (identifier: string, role: CommunityMemberRole = 'member') => {
       const result = await inviteCommunityMemberCommand({
         communityCloudId,
         communityLocalId,
         members,
         currentUserId,
         globalRole,
-        email,
+        identifier,
         role,
       });
       if (result.ok === false) throw new Error(result.error.message);

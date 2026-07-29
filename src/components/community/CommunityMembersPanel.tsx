@@ -80,7 +80,6 @@ export function CommunityMembersPanel({
   const canLeave = vm.canLeave;
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<CommunityMemberRole>('moderator');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [joinCode, setJoinCode] = useState<string | null>(community.joinCode ?? null);
@@ -113,10 +112,10 @@ export function CommunityMembersPanel({
     event.preventDefault();
     const email = inviteEmail.trim();
     if (!email) return;
-    const ok = await runAction(() => invite(email, inviteRole), 'Não foi possível convidar.');
+    // Sem papel: entra como 'member' (default do use case) e o cargo se define no card.
+    const ok = await runAction(() => invite(email), 'Não foi possível adicionar.');
     if (ok) {
       setInviteEmail('');
-      setInviteRole('moderator');
     }
   };
 
@@ -291,33 +290,25 @@ export function CommunityMembersPanel({
           className="bg-surface p-4 rounded-xl border border-border space-y-3"
         >
           <p className="text-sm font-semibold flex items-center gap-2">
-            <UserPlus className="w-4 h-4" /> Adicionar por e-mail
+            <UserPlus className="w-4 h-4" /> Adicionar membro
           </p>
           <p className="text-xs text-text-muted">
-            O convidado precisa já ter uma conta com este e-mail (entra direto, sem aprovação).
+            Informe o e-mail ou o @username. A pessoa precisa já ter conta (entra direto, sem
+            aprovação) e passa a fazer parte como membro — o cargo você ajusta no card dela.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
+            {/* type="text", nao "email": o campo tambem aceita username, e type="email"
+                faria o navegador barrar um username valido antes do submit. */}
             <input
-              type="email"
+              type="text"
               required
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="email@exemplo.com"
+              placeholder="email@exemplo.com ou @username"
+              aria-label="E-mail ou username"
               className="input input-bordered flex-1"
               disabled={busy}
             />
-            <select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as CommunityMemberRole)}
-              className="select select-bordered"
-              disabled={busy}
-            >
-              {ASSIGNABLE_COMMUNITY_MEMBER_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {COMMUNITY_ROLE_LABELS[role]}
-                </option>
-              ))}
-            </select>
             <button
               type="submit"
               className="btn btn-primary"

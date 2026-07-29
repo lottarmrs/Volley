@@ -41,7 +41,7 @@ function membershipGateway(calls: string[]): CommunityMembershipGateway {
       calls.push(`fetch:${communityCloudId}:${communityLocalId ?? ''}`);
       return [member({ id: 'member-fetched' })];
     },
-    async addMemberByEmail(communityCloudId, email, role, communityLocalId) {
+    async addMemberByIdentifier(communityCloudId, email, role, communityLocalId) {
       calls.push(`invite:${communityCloudId}:${email}:${role}:${communityLocalId ?? ''}`);
       return member({ id: 'member-invited', email, role });
     },
@@ -464,7 +464,7 @@ test('inviteCommunityMemberCommand normalizes email and calls gateway', async ()
       communityLocalId: 'community-local',
       members: manageableMembers(),
       currentUserId: 'manager-user',
-      email: '  ANA@EXAMPLE.COM ',
+      identifier: '  ANA@EXAMPLE.COM ',
       role: 'moderator',
     },
     membershipGateway(calls),
@@ -509,7 +509,7 @@ test('inviteCommunityMemberCommand authorizes active owner admin and signed-in m
         members: scenario.members,
         currentUserId: scenario.currentUserId,
         globalRole: scenario.globalRole,
-        email: `${scenario.name}@example.com`,
+        identifier: `${scenario.name}@example.com`,
         role: 'member',
       },
       membershipGateway(calls),
@@ -558,7 +558,7 @@ test('inviteCommunityMemberCommand authorizes active owner admin and signed-in m
         members: scenario.members,
         currentUserId: scenario.currentUserId,
         globalRole: scenario.globalRole,
-        email: 'ana@example.com',
+        identifier: 'ana@example.com',
         role: 'member',
       },
       membershipGateway(calls),
@@ -575,7 +575,7 @@ test('inviteCommunityMemberCommand rejects missing cloud id', async () => {
     {
       members: manageableMembers(),
       currentUserId: 'manager-user',
-      email: 'ana@example.com',
+      identifier: 'ana@example.com',
       role: 'member',
     },
     membershipGateway(calls),
@@ -594,7 +594,7 @@ test('inviteCommunityMemberCommand rejects empty email and owner role', async ()
       communityCloudId: 'community-cloud',
       members: manageableMembers(),
       currentUserId: 'manager-user',
-      email: ' ',
+      identifier: ' ',
       role: 'member',
     },
     gateway,
@@ -604,7 +604,7 @@ test('inviteCommunityMemberCommand rejects empty email and owner role', async ()
       communityCloudId: 'community-cloud',
       members: manageableMembers(),
       currentUserId: 'manager-user',
-      email: 'ana@example.com',
+      identifier: 'ana@example.com',
       role: 'owner',
     },
     gateway,
@@ -619,7 +619,7 @@ test('inviteCommunityMemberCommand rejects empty email and owner role', async ()
 
 test('inviteCommunityMemberCommand returns technical error when gateway throws', async () => {
   const gateway = membershipGateway([]);
-  gateway.addMemberByEmail = async () => {
+  gateway.addMemberByIdentifier = async () => {
     throw new Error('invite failed');
   };
 
@@ -628,7 +628,7 @@ test('inviteCommunityMemberCommand returns technical error when gateway throws',
       communityCloudId: 'community-cloud',
       members: manageableMembers(),
       currentUserId: 'manager-user',
-      email: 'ana@example.com',
+      identifier: 'ana@example.com',
       role: 'member',
     },
     gateway,

@@ -8,7 +8,19 @@
 - [ ] CAPTCHA esta ativo em cadastro, login e recovery.
 - [ ] Rate limits foram revisados no dashboard.
 - [ ] TOTP esta habilitado; SMS continua desabilitado.
-- [ ] Service role nao existe em variavel `VITE_*`.
+- [x] Service role nao existe em variavel `VITE_*`. **Verificado em 2026-07-29**, no
+      historico inteiro e nao so no estado atual — o repositorio e publico, entao um
+      commit antigo continuaria exposto mesmo apos remocao.
+      - Unicas `VITE_*`: `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+      - `.env` nunca foi versionado; so `.env.example`, com placeholders.
+      - `git log --all -S"eyJhbGciOiJIUzI1NiIs"` (JWT) e `-S"sb_secret_"` (formato novo)
+        nao retornam nenhum commit.
+      - As ocorrencias de `service_role` em `29a1733`/`2e06d2a` sao a documentacao das
+        skills do Supabase discutindo o conceito, nao chave.
+      - `GEMINI_API_KEY` nao tem prefixo `VITE_`, entao nao entra no bundle. Renomear
+        para `VITE_*` vazaria a chave.
+      - Para repetir: `git log --all -S"<padrao>" --oneline`. Buscar no working tree
+        nao basta.
 - [ ] `ensure_account_ready` nao executa para `anon`.
 - [ ] Usuario autenticado le apenas perfil/jogador permitidos por RLS.
 - [ ] Logs nao incluem access token, refresh token, secret TOTP ou senha.

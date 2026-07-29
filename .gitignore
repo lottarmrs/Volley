@@ -17,3 +17,7 @@ audit-output/
 graphify-out/
 developer-roadmap/
 tmp/
+
+# Config local de MCP: aponta o project_ref e e por-maquina (a auth e OAuth,
+# nao fica no arquivo). Fora do versionamento por opcao — repo publico.
+.mcp.json

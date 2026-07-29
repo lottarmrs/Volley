@@ -276,3 +276,68 @@ describe('useCloudSync persistent reentrancy guard', () => {
     });
   });
 });
+
+describe('useCloudSync cross-account leak guard', () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalSyncNow = syncService.syncNow;
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-29T12:00:00.000Z'));
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.syncNow = originalSyncNow;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.syncNow = originalSyncNow;
+  });
+
+  it('discards a download result stamped for a different owner', async () => {
+    localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+
+    const setPlayersSpy = vi.fn();
+    const baseDeps = deps({
+      userId: 'user-a',
+      players: [],
+      setPlayers: setPlayersSpy,
+      communities: [],
+      setCommunities: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useCloudSync(baseDeps));
+
+    await act(async () => {
+      await result.current.downloadFromCloud();
+    });
+
+    expect(setPlayersSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
+  });
+
+  it('discards a sync result stamped for a different owner', async () => {
+    localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    syncService.syncNow = async () => emptyPayload();
+
+    const setCommunitiesSpy = vi.fn();
+    const baseDeps = deps({
+      userId: 'user-a',
+      communities: [],
+      setCommunities: setCommunitiesSpy,
+    });
+
+    const { result } = renderHook(() => useCloudSync(baseDeps));
+
+    await act(async () => {
+      await result.current.sync();
+    });
+
+    expect(setCommunitiesSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
+  });
+});

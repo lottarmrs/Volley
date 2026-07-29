@@ -203,6 +203,10 @@ const approveByCapabilityMigration = readFixture(
   new URL('../../../supabase/migrations/20260728100000_approve_by_capability.sql', import.meta.url),
 );
 
+const resetScaffoldMigration = readFixture(
+  new URL('../../../supabase/migrations/20260728110000_reset_scaffold.sql', import.meta.url),
+);
+
 const communityDiscoveryMigration = readFixture(
   new URL('../../../supabase/migrations/20260625192530_community_discovery.sql', import.meta.url),
 );
@@ -2597,4 +2601,31 @@ test('outbox_entries has a partial index for pending consumption', () => {
 test('consolidated schema includes outbox_entries with RLS', () => {
   assert.match(baseSchema, /create table if not exists public\.outbox_entries/i);
   assert.match(baseSchema, /alter table public\.outbox_entries enable row level security/i);
+});
+
+test('reset_product_data RPC exists as security definer with search_path pinned', () => {
+  assert.match(
+    resetScaffoldMigration,
+    /create or replace function public\.reset_product_data\(target_account_uuid text\)/i,
+  );
+  assert.match(resetScaffoldMigration, /security definer set search_path = public/i);
+});
+
+test('reset_product_data requires reset_product_data capability and AAL2', () => {
+  assert.match(resetScaffoldMigration, /public\.has_capability\('reset_product_data'\)/i);
+  assert.match(resetScaffoldMigration, /aal2|require_aal2/i);
+});
+
+test('reset_product_data drops in referential order and preserves auth.users', () => {
+  // first deletes children, never touches auth.users
+  assert.match(resetScaffoldMigration, /delete from public\.point_events/i);
+  assert.match(resetScaffoldMigration, /delete from public\.sessions/i);
+  assert.doesNotMatch(resetScaffoldMigration, /delete from auth\.users/i);
+});
+
+test('reset_product_data revokes public execute', () => {
+  assert.match(
+    resetScaffoldMigration,
+    /revoke all on function public\.reset_product_data\([^)]*\) from public, anon/i,
+  );
 });

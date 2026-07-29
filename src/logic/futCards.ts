@@ -147,9 +147,14 @@ export const VUT_CONSTANTS = {
 
 /** Convert an attribute (0–10) to FUT scale (1–99) with calibration curve. */
 export function toFut(v: number): number {
+  // Jogador criado junto com a conta nasce com atributos {} (default jsonb do banco),
+  // entao atributos.ataque e undefined e a conta virava NaN — que vazava direto para o
+  // DOM como texto da carta. Guardar aqui cobre as seis macro-stats de uma vez, em vez
+  // de repetir a checagem em cada chamada.
+  const safe = Number.isFinite(v) ? v : 0;
   return Math.max(
     1,
-    Math.min(99, Math.round(VUT_CONSTANTS.curveOffset + v * VUT_CONSTANTS.curveScale)),
+    Math.min(99, Math.round(VUT_CONSTANTS.curveOffset + safe * VUT_CONSTANTS.curveScale)),
   );
 }
 

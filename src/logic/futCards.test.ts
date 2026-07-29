@@ -56,6 +56,43 @@ test('toFut maps attribute ranges to FUT scale 1-99', () => {
   assert.equal(toFut(10), 99); // max out at 99 (20 + 80 = 100 -> clamped to 99)
 });
 
+test('toFut never returns NaN for a player with no attributes', () => {
+  // Jogador criado junto com a conta tem atributos {} (default jsonb), entao
+  // atributos.ataque chega undefined e o NaN vazava para o DOM como texto da carta.
+  // As seis macro-stats passam por aqui, entao a guarda cobre todas.
+  assert.equal(toFut(undefined as unknown as number), 20);
+  assert.equal(toFut(NaN), 20);
+  assert.ok(Number.isFinite(toFut((undefined as unknown as number) + 1)));
+  // Valores reais seguem intactos.
+  assert.equal(toFut(5), 60);
+});
+
+test('generateFutStats produces finite stats for an account-created player', () => {
+  // Exatamente o que chega do banco: ensure_account_ready insere so
+  // owner_id/user_id/name/username, entao attributes/forma_atual ficam '{}'::jsonb e
+  // primary_position nulo, e o mapper repassa como esta.
+  const player = {
+    id: 'p-empty',
+    nome: 'TESTEADM',
+    apelido: '',
+    ativo: true,
+    posicaoPrincipal: null,
+    posicoesSecundarias: [],
+    atributos: {},
+    perfil: {},
+    formaAtual: {},
+    status: {},
+  } as unknown as Player;
+
+  const stats = generateFutStats(player);
+
+  for (const [key, value] of Object.entries(stats)) {
+    if (typeof value === 'number') {
+      assert.ok(Number.isFinite(value), `${key} veio ${value}`);
+    }
+  }
+});
+
 test('tierFromOvr maps OVR to correct VUT tier', () => {
   assert.equal(tierFromOvr(59), 'bronze');
   assert.equal(tierFromOvr(60), 'silver');

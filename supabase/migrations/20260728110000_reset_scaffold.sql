@@ -25,7 +25,6 @@ begin
   delete from public.championship_teams;
   delete from public.championships;
   delete from public.player_achievements;
-  delete from public.player_career_snapshots;
   delete from public.career_events;
   delete from public.player_evaluations;
   delete from public.self_evaluations;
@@ -35,8 +34,8 @@ begin
   delete from public.game_reports;
   delete from public.session_reports;
   delete from public.outbox_entries;
-  delete from public.players where cloud_owner_id = target_account_uuid::uuid;
-  delete from public.communities where cloud_owner_id = target_account_uuid::uuid;
+  delete from public.players where owner_id = target_account_uuid::uuid;
+  delete from public.communities where owner_id = target_account_uuid::uuid;
 end;
 $$;
 

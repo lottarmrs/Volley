@@ -499,7 +499,7 @@ grant execute on function public.require_aal2() to authenticated;
 -- existe para uso manual futuro (Plano 5). Requer AAL2 + capability reset_product_data.
 
 insert into public.global_role_capabilities (role, capability)
-values ('master', 'reset_product_data'), ('programmer', 'reset_product_data')
+values ('master', 'reset_product_data')
 on conflict (role, capability) do nothing;
 
 create or replace function public.reset_product_data(target_account_uuid text)

@@ -637,6 +637,55 @@ test('inviteCommunityMemberCommand returns technical error when gateway throws',
   assertTechnicalError(result);
 });
 
+test('inviteCommunityMemberCommand surfaces the server message for a 22023 error', async () => {
+  // O PostgrestError e um objeto simples, NAO uma instancia de Error — verificado no
+  // app rodando. Testar por instanceof descartava toda mensagem do servidor e a tela
+  // mostrava so o generico, escondendo "Ja e membro da comunidade" e a orientacao
+  // sobre o codigo de claim.
+  const gateway = membershipGateway([]);
+  gateway.addMemberByIdentifier = async () => {
+    throw { code: '22023', message: 'Ja e membro da comunidade', details: null, hint: null };
+  };
+
+  const result = await inviteCommunityMemberCommand(
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+      identifier: 'testedev',
+      role: 'member',
+    },
+    gateway,
+  );
+
+  assert.equal(result.ok, false);
+  if (result.ok === false) {
+    assert.equal(result.error.kind, 'product');
+    assert.equal(result.error.message, 'Ja e membro da comunidade');
+  }
+});
+
+test('inviteCommunityMemberCommand keeps the generic message for a non-22023 failure', async () => {
+  // Erro tecnico (rede, permissao) nao deve vazar texto cru do servidor para a tela.
+  const gateway = membershipGateway([]);
+  gateway.addMemberByIdentifier = async () => {
+    throw { code: '42501', message: 'permission denied for function', details: null, hint: null };
+  };
+
+  const result = await inviteCommunityMemberCommand(
+    {
+      communityCloudId: 'community-cloud',
+      members: manageableMembers(),
+      currentUserId: 'manager-user',
+      identifier: 'ana@example.com',
+      role: 'member',
+    },
+    gateway,
+  );
+
+  assertTechnicalError(result);
+});
+
 test('changeCommunityMemberRoleCommand blocks owner target, self target, and assigning owner role', async () => {
   const calls: string[] = [];
   const gateway = membershipGateway(calls);

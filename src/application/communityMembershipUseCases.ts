@@ -128,6 +128,17 @@ export async function inviteCommunityMemberCommand(
     );
     return appOk({ member });
   } catch (error) {
+    // O RPC distingue "nenhum atleta com esse username" de "atleta existe mas sem
+    // conta vinculada, use o codigo de claim" — e essa diferenca so ajuda se chegar na
+    // tela. Engolir tudo numa mensagem generica manda o admin procurar um cadastro que
+    // esta bem ali. Erros 22023 sao de dado informado pelo usuario, nao falha tecnica.
+    // O PostgrestError e um objeto simples, NAO uma instancia de Error — verificado no
+    // app: `error instanceof Error` e false, mas `code` e `message` estao presentes.
+    // Testar por instanceof descartaria silenciosamente toda mensagem do servidor.
+    const pgError = error as { code?: string; message?: string } | null;
+    if (pgError?.code === '22023' && pgError.message?.trim()) {
+      return productError('invalid_input', pgError.message.trim());
+    }
     return technicalError('Nao foi possivel adicionar o membro.', error);
   }
 }

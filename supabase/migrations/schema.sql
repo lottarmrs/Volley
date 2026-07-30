@@ -1264,7 +1264,10 @@ begin
       from player_games pg
       join player_ref pr on pr.player_uuid = pg.player_uuid
       join public.point_events pe
-        on pe.game_id = pg.game_ref
+        -- Sem este owner_id os ids LOCAIS casam entre contas: local_id so e unico
+        -- em (owner_id, local_id).
+        on pe.owner_id = pr.owner_id
+       and pe.game_id = pg.game_ref
        and pe.player_id = pr.ref
        and pe.deleted_at is null
      group by pg.player_uuid, pg.session_id

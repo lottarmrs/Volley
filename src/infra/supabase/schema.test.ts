@@ -2435,6 +2435,19 @@ test('career regeneration resolves local ids scoped by owner', () => {
   assert.ok(fn, 'missing regenerate_career_events_for_sessions');
   assert.match(fn, /coalesce\(p\.local_id, p\.id::text\)/i);
   assert.match(fn, /pr\.owner_id = tr\.owner_id/i);
+
+  // O join de point_events tambem resolve ids locais e ficou de fora daqui ate
+  // 2026-07-30, quando o vazamento foi reproduzido contra producao: os 5 pontos de
+  // uma conta entravam na carreira de outra que usava os mesmos ids locais. Este
+  // trecho le o schema consolidado porque a correcao veio em migration posterior
+  // (20260730120000) — a fixture acima e o texto historico de 20260727110000.
+  const consolidated = extractSqlFunction(baseSchema, 'regenerate_career_events_for_sessions');
+  assert.ok(consolidated, 'missing regenerate_career_events_for_sessions in schema.sql');
+  assert.match(
+    consolidated,
+    /join public\.point_events pe[\s\S]{0,400}?on pe\.owner_id = pr\.owner_id/i,
+    'point_events join must be scoped by owner_id',
+  );
   // Apagar-e-inserir e o que torna a regeneracao idempotente.
   assert.match(fn, /delete from public\.career_events/i);
   assert.match(fn, /and session_id = any\(target_sessions\)/i);

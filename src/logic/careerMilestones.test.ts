@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { MILESTONE_PRESENTATION, describeMilestone } from './careerMilestones';
 
+// Lidos da migration, nao copiados dela: uma lista transcrita a mao passa a valer
+// para sempre, entao um slug novo no SQL nunca derrubaria o teste — que e exatamente
+// o que ele deveria pegar.
+const MIGRATION = readFileSync(
+  new URL('../../supabase/migrations/20260727150000_career_milestones.sql', import.meta.url),
+  'utf8',
+);
+
 const SLUGS_FROM_SQL = [
-  'first_session', 'first_win',
-  'games_10', 'games_50', 'games_100',
-  'points_100', 'points_500', 'points_1000',
-  'streak_3', 'streak_5',
-];
+  ...MIGRATION.matchAll(/select '([a-z0-9_]+)'(?: as slug)?, min\(occurred_at\)/g),
+].map((m) => m[1]);
 
 test('presentation covers every slug the database can emit', () => {
   // Os limiares vivem no SQL; aqui so existe apresentacao. Este teste e o que impede as

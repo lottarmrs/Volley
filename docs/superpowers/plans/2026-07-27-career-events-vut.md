@@ -1494,17 +1494,45 @@ git commit -m "feat(career): add milestone timeline (deliberate UI-freeze except
 
 ## Completion Gate
 
-- [ ] `career_events` existe em produção com `authenticated` tendo **apenas** `select`,
+Verificado em 2026-07-30 contra o projeto real. Os itens comportamentais foram exercitados
+com dados sintéticos dentro de `begin … rollback` (produção estava vazia: 0 sessões, 0
+jogos, 0 eventos), e a limpeza foi confirmada depois de cada rodada.
+
+- [x] `career_events` existe em produção com `authenticated` tendo **apenas** `select`,
       verificado por `has_table_privilege`, e o teste de grants foi mutation-testado.
-- [ ] Os seis triggers são de **statement** com transition table; nenhum `for each row`.
-- [ ] Regenerar a mesma sessão duas vezes produz o mesmo conjunto de linhas
-      (idempotência verificada, não apenas ausência de erro).
-- [ ] Apagar um jogo remove os eventos daquela sessão em vez de deixá-los órfãos.
-- [ ] `career_totals` é `is_updatable = 'NO'` e não expõe `community_id`.
-- [ ] Toda resolução de id local no SQL é escopada por `owner_id`.
-- [ ] Os dez slugs de marco existem no SQL e todos têm apresentação no TypeScript, com
-      teste ligando as duas listas.
-- [ ] `futCards.test.ts` continua passando sem alteração — as 79 conquistas não mudaram.
-- [ ] Suíte verde (`npm test`), typecheck limpo (`npx tsc --noEmit`), lint limpo nos
-      arquivos alterados.
-- [ ] `get_advisors` sem advertência nova além do conjunto pré-existente conhecido.
+      Medido: `select=true insert=false update=false delete=false`; `anon` sem nada.
+- [x] Os seis triggers são de **statement** com transition table; nenhum `for each row`.
+      Medido em `pg_trigger`: 6 statement, 0 row-level.
+- [x] Regenerar a mesma sessão duas vezes produz o mesmo conjunto de linhas.
+      Medido por hash de `source_key||payload`: idêntico antes e depois, 1 linha.
+- [x] Apagar um jogo remove os eventos daquela sessão em vez de deixá-los órfãos.
+      Medido: payload caiu de `games_played 2 / games_won 2` para `1 / 1`.
+- [x] `career_totals` é `is_updatable = 'NO'` e não expõe `community_id`.
+- [x] Toda resolução de id local no SQL é escopada por `owner_id`.
+      **Falhou na primeira verificação.** O join de `point_events` no CTE `scored` casava
+      por `(game_id, player_id)` sem dono, e esses campos guardam ids LOCAIS — únicos só
+      em `(owner_id, local_id)`. Reproduzido: a sessão da conta A saltou de 0 para 5
+      pontos assim que a conta B inseriu 5 `point_events` com os mesmos ids locais.
+      Corrigido em `20260730120000`; reteste dá 0 (vazamento fechado) e 3 (pontos
+      próprios ainda contam). O teste que já se chamava "resolves local ids scoped by
+      owner" cobria apenas o join de `teams` — por isso o defeito sobreviveu; agora
+      cobre os dois e foi mutation-testado.
+- [x] Os dez slugs de marco existem no SQL e todos têm apresentação no TypeScript, com
+      teste ligando as duas listas. A lista no teste era uma **cópia** transcrita do SQL,
+      então um slug novo nunca a quebraria; passou a ser lida da migration e
+      mutation-testada com um slug fictício.
+- [x] `futCards.test.ts` continua passando sem alteração — as 79 conquistas não mudaram.
+- [x] Suíte verde, typecheck limpo, build limpo.
+- [x] `get_advisors` sem advertência nova. As duas não-óbvias do conjunto pré-existente
+      foram investigadas e são benignas: `rls_auto_enable` é função de event trigger
+      (falha fora desse contexto, `search_path` fixado) e
+      `sync_community_player_active_status` é trigger de linha em SECURITY INVOKER.
+
+### Achado fora do gate
+
+`reset_product_data` referenciava `public.player_achievements`, tabela que nunca foi
+criada — o desenho consolidou os marcos em `career_events` com `type = 'milestone'`.
+Corpo plpgsql só resolve nomes em execução, então a função passava em toda verificação
+estrutural e quebraria apenas na primeira chamada real, que por desenho é o cutover do
+Plano 5. Corrigido em `20260730110000`, depois de conferir as 18 tabelas que a função
+referencia (era a única inexistente).

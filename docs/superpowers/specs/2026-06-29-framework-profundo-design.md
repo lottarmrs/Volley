@@ -479,8 +479,8 @@ Mitigacao:
 ## Fontes e referencias
 
 - Auditoria local: `audit-output/2026-06-28-full-audit/REPORT.md`.
-- Roadmap de backend fornecido pelo usuario: `C:/Users/Matheus Silva/Downloads/backend.pdf`.
-- Roadmap de system design fornecido pelo usuario: `C:/Users/Matheus Silva/Downloads/system-design.pdf`.
+- Roadmap de backend fornecido pelo usuario: `<caminho local>/backend.pdf`.
+- Roadmap de system design fornecido pelo usuario: `<caminho local>/system-design.pdf`.
 - Supabase changelog oficial: https://supabase.com/changelog.md.
 - Supabase security/RLS guidance: skill local `supabase`.
 - Supabase Postgres best practices: skill local `supabase-postgres-best-practices`.

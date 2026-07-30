@@ -21,3 +21,6 @@ tmp/
 # Config local de MCP: aponta o project_ref e e por-maquina (a auth e OAuth,
 # nao fica no arquivo). Fora do versionamento por opcao — repo publico.
 .mcp.json
+
+# Config local do OpenCode: aponta um caminho de plugin especifico da maquina.
+.opencode/

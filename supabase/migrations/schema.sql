@@ -521,7 +521,7 @@ begin
   delete from public.championship_rounds;
   delete from public.championship_teams;
   delete from public.championships;
-  delete from public.player_achievements;
+  -- Marcos vivem em career_events com type = 'milestone'; nao ha tabela separada.
   delete from public.career_events;
   delete from public.player_evaluations;
   delete from public.self_evaluations;
@@ -2598,6 +2598,9 @@ begin
 
       if found then
         delete from public.player_claim_codes where player_id = v_claimed_player_id;
+        -- Claim traz uma carreira ja jogada: os eventos precisam ser refeitos
+        -- para o jogador recem-vinculado. Veio de 20260727140000.
+        perform public.recalculate_player_career(v_claimed_player_id);
       else
         v_claimed_player_id := null;
       end if;
@@ -3517,3 +3520,47 @@ $$;
 revoke execute on function public.reject_player_avatar(uuid) from public, anon;
 grant execute on function public.reject_player_avatar(uuid) to authenticated;
 
+
+-- ============================================================================
+-- Rede de seguranca de RLS: liga row level security automaticamente em toda
+-- tabela criada no schema public.
+--
+-- Existe em producao desde antes deste arquivo e nunca havia sido versionada —
+-- nem a funcao nem o event trigger. Sem ela, um banco reconstruido a partir
+-- daqui perde a protecao: uma tabela nova nasceria sem RLS e sem ninguem notar.
+-- Reproduzida literalmente do projeto real em 2026-07-30.
+-- ============================================================================
+
+create or replace function public.rls_auto_enable()
+returns event_trigger
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+DECLARE
+  cmd record;
+BEGIN
+  FOR cmd IN
+    SELECT *
+    FROM pg_event_trigger_ddl_commands()
+    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      AND object_type IN ('table','partitioned table')
+  LOOP
+     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN
+      BEGIN
+        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);
+        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
+      END;
+     ELSE
+        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;
+     END IF;
+  END LOOP;
+END;
+$$;
+
+drop event trigger if exists ensure_rls;
+create event trigger ensure_rls on ddl_command_end
+  execute function public.rls_auto_enable();

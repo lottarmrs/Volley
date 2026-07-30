@@ -2595,3 +2595,42 @@ test('reset_product_data revokes public execute', () => {
     /revoke all on function public\.reset_product_data\([^)]*\) from public, anon/i,
   );
 });
+
+// Os tres testes abaixo nasceram de uma conferencia funcao-a-funcao entre o
+// schema.sql e o projeto real (2026-07-30). Das 56 funcoes em producao, 53 ja
+// batiam; estas cobrem exatamente as tres que nao batiam. Um arquivo consolidado
+// que diverge do banco e pior que nenhum: quem reconstroi confia nele.
+
+test('consolidated schema recalculates the career when a claim links a player', () => {
+  // Producao chama recalculate_player_career dentro do ramo de claim desde
+  // 20260727140000; o schema.sql tinha ficado para tras. Sem esta linha, um banco
+  // reconstruido a partir daqui vincula o jogador e nao refaz a carreira dele.
+  const fn = extractSqlFunction(baseSchema, 'handle_new_user');
+  assert.ok(fn, 'missing handle_new_user in schema.sql');
+  assert.match(
+    fn,
+    /delete from public\.player_claim_codes[\s\S]{0,220}?perform public\.recalculate_player_career\(v_claimed_player_id\)/i,
+    'claim branch must recalculate the career',
+  );
+});
+
+test('consolidated schema ships the RLS auto-enable safety net', () => {
+  // Funcao e event trigger existiam so em producao — nunca versionados. Uma tabela
+  // nova nasceria sem RLS num banco reconstruido, sem nada denunciar.
+  assert.match(baseSchema, /create or replace function public\.rls_auto_enable\(\)/i);
+  assert.match(baseSchema, /returns event_trigger/i);
+  assert.match(
+    baseSchema,
+    /create event trigger ensure_rls on ddl_command_end\s+execute function public\.rls_auto_enable\(\)/i,
+  );
+});
+
+test('consolidated schema reset_product_data only deletes tables that exist', () => {
+  // player_achievements nunca foi criada: os marcos ficam em career_events com
+  // type = 'milestone'. Corpo plpgsql so resolve nomes em execucao, entao a unica
+  // barreira contra esse tipo de erro e um teste como este.
+  const fn = extractSqlFunction(baseSchema, 'reset_product_data');
+  assert.ok(fn, 'missing reset_product_data in schema.sql');
+  assert.doesNotMatch(fn, /public\.player_achievements/i);
+  assert.match(fn, /delete from public\.career_events;/i);
+});

@@ -530,7 +530,6 @@ begin
   delete from public.community_presence;
   delete from public.game_reports;
   delete from public.session_reports;
-  delete from public.outbox_entries;
   delete from public.players where owner_id = target_account_uuid::uuid;
   delete from public.communities where owner_id = target_account_uuid::uuid;
 end;
@@ -3515,39 +3514,3 @@ $$;
 revoke execute on function public.reject_player_avatar(uuid) from public, anon;
 grant execute on function public.reject_player_avatar(uuid) to authenticated;
 
--- ============================================================================
--- Sync foundation: outbox idempotente.
---
--- Cada operação de domínio enfileirada pelo client vira uma linha aqui; o sync
--- worker consome em sucesso (linha é DELETADA — nuvem autoritativa + chave de
--- idempotência impedem duplicação futura) ou, em falha recoverable, volta a
--- entrada para 'pending_upload' com attempts++. Falha estrutural fica visível
--- em 'recoverable_error'. Linha pessoal do auth.uid(): RLS isola por dono.
--- ============================================================================
-
-create table if not exists public.outbox_entries (
-  id uuid primary key default gen_random_uuid(),
-  auth_user_id uuid not null references auth.users(id) on delete cascade,
-  community_id uuid references public.communities(id) on delete set null,
-  operation text not null,
-  payload jsonb not null,
-  idempotency_key text not null unique,
-  status text not null default 'pending_upload'
-    check (status in ('pending_upload', 'syncing', 'cloud_confirmed',
-                      'recoverable_error')),
-  attempts int not null default 0,
-  last_error text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.outbox_entries enable row level security;
-
-create policy "outbox_entries_owned_by_user" on public.outbox_entries for all
-  using (auth_user_id = (select auth.uid()))
-  with check (auth_user_id = (select auth.uid()));
-
-create index outbox_entries_pending_idx on public.outbox_entries (auth_user_id, status) where status in ('pending_upload', 'syncing');
-
-revoke all on table public.outbox_entries from public, anon, authenticated;
-grant select, insert, update, delete on public.outbox_entries to authenticated;

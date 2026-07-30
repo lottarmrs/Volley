@@ -9,8 +9,8 @@ depois que o anterior estiver integrado e seus gates estiverem verdes.
 | --- | --- | --- | --- |
 | 1 | Account Identity & Auth Foundation | Toda sessao valida converge para perfil + jogador 1:1; auth possui estados tipados, onboarding, recovery, Google e MFA shell | **Concluido** (`main`) |
 | 2 | Player Claim, Communities & Evaluations | Claim por codigo preserva jogador da conta (mais simples que o design original — sem aprovacao de comunidade); RBAC/comunidades ja existiam; avaliacao oficial por comunidade consolidada (sem agregacao ponderada, adiada) | **Concluido** (`main`) — ver notas abaixo |
-| 3 | Career Events, Global VUT & Achievements **(escopo expandido)** | Eventos confirmados geram VUT e conquistas globais deterministicas e recalculaveis; **inclui outbox idempotente, cache particionado, reentrância persistente, erros tipados e scaffold de reset** — ver nota de desvio abaixo | **Em implementação** (`main`) — spec `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achievements-design.md` |
-| 4 | Cloud-first Operational Offline **(escopo reduzido)** | Owner/device da sessao e pacote offline especifico — outbox e cache particionado implementados no Plano 3 | A escrever apos plano 3 |
+| 3 | Career Events, Global VUT & Achievements **(escopo expandido)** | Eventos confirmados geram VUT e conquistas globais deterministicas e recalculaveis; inclui reentrância persistente, erros tipados, scaffold de reset e protecao de troca de conta — **outbox e particao por comunidade sairam, ver nota de fechamento** | **Concluido** (`main`, 2026-07-30) — spec `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achievements-design.md` |
+| 4 | Cloud-first Operational Offline **(escopo restaurado)** | Owner/device da sessao, pacote offline especifico **e o outbox**, agora escrito contra requisitos offline reais | A escrever apos plano 3 |
 | 5 | Screen Contracts, Reset & Cutover **(escopo reduzido)** | UI atual usa contratos de aplicacao; reset aplicado em producao; ensaio, rollback e corte fecham Produto escalavel — scaffold de reset implementado no Plano 3 | A escrever apos plano 4 |
 
 ### Notas sobre o Plano 2 (divergencias do design original)
@@ -53,6 +53,33 @@ Estrutura do Plano 3: três blocos sequenciais com gates próprios —
 **Retrofit UI** (mantém UI congelada, retrofit dos componentes existentes via adapter).
 
 Spec completo: `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achievements-design.md`.
+
+### Nota de fechamento do Plano 3 (2026-07-30)
+
+Uma auditoria do que o plano de fato entregou encontrou duas peças do bloco Sync
+Foundation construídas, testadas e **sem nenhum consumidor em produção**. O plano nunca
+escreveu a tarefa que as ligaria: a Task 2 dizia que "Task 5 (sync integration)"
+consumiria o outbox, mas a Task 5 é o guard de reentrância; a Task 4 produziu
+`resolveCacheKey` e não tinha passo que o usasse. Defeito de planejamento, não de
+execução. Resolução, decidida com o usuário:
+
+- **Outbox removido** (módulo, tabela e testes; migration `20260730100000`). Ele modelava
+  uma escrita por operação de domínio que o app não tem — o sync é reconciliação de
+  payload inteiro, e repetir uma reconciliação já é idempotente por construção. As quatro
+  operações que validava não tinham ponto de escrita para interceptar. O cliente também
+  nunca funcionaria: importava `node:crypto` (quebra o build do browser, verificado) e
+  montava updates com chaves camelCase contra colunas snake_case. Volta no Plano 4, onde
+  existe o modo offline que justifica uma fila.
+- **Partição por comunidade removida** (`resolveCacheKey`). Não há chave correta: ela
+  assume um `communityId` por entidade, mas `Player.communityIds` é lista — um jogador
+  pertence a várias, então não existe fatia do cache local por comunidade. Se o Plano 4
+  quiser isso, precisa antes definir quais entidades são de fato escopadas por comunidade.
+- **Um defeito real foi corrigido no lugar delas.** O guard da Task 4 descartava o
+  resultado da nuvem na divergência de dono — justamente o download corretivo que
+  `planStartupCloudDownload` dispara na troca de conta. A conta B iniciava com os
+  jogadores e sessões da conta A, carimbados como dela, e o upload seguinte os escrevia
+  na conta B. Agora a divergência limpa o cache local e aplica a nuvem, e operações de
+  escrita são barradas enquanto o cache for de outro dono.
 
 ## Regras do programa
 

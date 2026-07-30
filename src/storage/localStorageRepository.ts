@@ -81,11 +81,27 @@ export function removeFromStorage(key: string) {
   }
 }
 
-export function resolveCacheKey(userId: string, communityId: string, entityKind: string): string {
-  return `vpg_cache_${userId}_${communityId}_${entityKind}`;
-}
-
 export function validateCacheOwner(currentUserId: string, cacheOwnerId: string | null): boolean {
   if (!cacheOwnerId) return true;
   return cacheOwnerId === currentUserId;
+}
+
+/**
+ * Apaga todo o cache de dominio da conta anterior. Chamado quando o dono do cache
+ * nao e o usuario atual: a nuvem e autoritativa, entao o local vai fora antes de
+ * aplicar o resultado baixado.
+ *
+ * `vpg_players_schema_version` e preservado de proposito — os dados que chegam da
+ * nuvem ja estao na versao corrente, e apagar a marca faria `usePlayers` re-rodar
+ * as migracoes de escala sobre dados que nao precisam delas.
+ */
+export function clearLocalDomainCache() {
+  try {
+    for (const key of Object.values(STORAGE_KEYS)) {
+      localStorage.removeItem(key);
+    }
+    localStorage.removeItem('vpg_last_synced_at');
+  } catch (err) {
+    console.error('Error clearing local domain cache:', err);
+  }
 }

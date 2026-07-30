@@ -20,6 +20,7 @@ import {
   type SyncIssueEntry,
 } from '../logic/syncIssueLedger';
 import {
+  clearLocalDomainCache,
   getLocalCacheOwnerId,
   loadFromStorage,
   markLocalCacheOwner,
@@ -139,9 +140,12 @@ export function useCloudSync(deps: CloudSyncDeps) {
     });
 
   const applyResult = (result: LocalSyncPayload) => {
+    // Cache de outra conta: a nuvem e autoritativa (o result foi buscado com a
+    // sessao DESTE usuario), entao apagamos o local e aplicamos. Descartar o
+    // result aqui — como se fazia antes — deixava os dados da conta anterior na
+    // tela e no localStorage, e o proximo upload os enviava para esta conta.
     if (!validateCacheOwner(deps.userId ?? '', getLocalCacheOwnerId())) {
-      markLocalCacheOwner(deps.userId);
-      return;
+      clearLocalDomainCache();
     }
     const normalized = normalizeCloudSyncResultPayload(result);
 
@@ -180,8 +184,19 @@ export function useCloudSync(deps: CloudSyncDeps) {
       userId: string,
       onIssue: (context: string, error: unknown) => void,
     ) => Promise<LocalSyncPayload>,
+    options: { writes: boolean } = { writes: true },
   ) => {
     if (!deps.userId) throw new Error('Usuário não autenticado.');
+    // Enquanto o cache local for de outra conta, qualquer operacao que ESCREVE
+    // enviaria os dados da conta anterior para esta. So o download passa — e e
+    // ele que limpa o local e desfaz a divergencia.
+    if (options.writes && !validateCacheOwner(deps.userId, getLocalCacheOwnerId())) {
+      deps.onToast?.(
+        'O acervo local ainda é de outra conta. Baixe da nuvem antes de enviar.',
+        'error',
+      );
+      return;
+    }
     if (isInflight(deps.userId)) {
       deps.onToast?.('Uma sincronização já está em andamento.', 'error');
       return;
@@ -250,7 +265,9 @@ export function useCloudSync(deps: CloudSyncDeps) {
     );
 
   const downloadFromCloud = () =>
-    run('Download da nuvem', () => downloadCloudDataQuery({ userId: deps.userId ?? undefined }));
+    run('Download da nuvem', () => downloadCloudDataQuery({ userId: deps.userId ?? undefined }), {
+      writes: false,
+    });
 
   const sync = () =>
     run('Sincronização', (payload, userId, onIssue) =>

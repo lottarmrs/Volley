@@ -297,8 +297,14 @@ describe('useCloudSync cross-account leak guard', () => {
     syncService.syncNow = originalSyncNow;
   });
 
-  it('discards a download result stamped for a different owner', async () => {
+  // O suspeito na troca de conta e o CACHE LOCAL, nao o resultado da nuvem: o
+  // download foi buscado com a sessao do usuario atual, entao e dele. Descartar o
+  // download deixava os dados da conta anterior na tela e no localStorage — e o
+  // proximo upload os enviava para esta conta.
+  it('wipes the previous account cache and applies the cloud result on a download', async () => {
     localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    localStorage.setItem('vpg_players', JSON.stringify([{ id: 'p-b', nome: 'Jogador da conta B' }]));
+    localStorage.setItem('vpg_sessions', JSON.stringify([{ id: 's-b' }]));
     syncService.downloadCloudDataToLocal = async () => emptyPayload();
 
     const setPlayersSpy = vi.fn();
@@ -316,28 +322,46 @@ describe('useCloudSync cross-account leak guard', () => {
       await result.current.downloadFromCloud();
     });
 
-    expect(setPlayersSpy).not.toHaveBeenCalled();
+    expect(setPlayersSpy).toHaveBeenCalledWith([]);
+    expect(localStorage.getItem('vpg_players')).toBeNull();
+    expect(localStorage.getItem('vpg_sessions')).toBeNull();
     expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
   });
 
-  it('discards a sync result stamped for a different owner', async () => {
+  it('refuses to upload while the local cache still belongs to another account', async () => {
     localStorage.setItem('vpg_cache_owner_id', 'user-b');
-    syncService.syncNow = async () => emptyPayload();
+    let uploaded = false;
+    syncService.uploadLocalDataToCloud = async () => {
+      uploaded = true;
+      return emptyPayload();
+    };
 
-    const setCommunitiesSpy = vi.fn();
-    const baseDeps = deps({
-      userId: 'user-a',
-      communities: [],
-      setCommunities: setCommunitiesSpy,
+    const onToast = vi.fn();
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a', onToast })));
+
+    await act(async () => {
+      await result.current.uploadToCloud();
     });
 
-    const { result } = renderHook(() => useCloudSync(baseDeps));
+    expect(uploaded).toBe(false);
+    expect(onToast).toHaveBeenCalledWith(expect.stringContaining('outra conta'), 'error');
+  });
+
+  it('refuses a two-way sync while the local cache still belongs to another account', async () => {
+    localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    let synced = false;
+    syncService.syncNow = async () => {
+      synced = true;
+      return emptyPayload();
+    };
+
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a' })));
 
     await act(async () => {
       await result.current.sync();
     });
 
-    expect(setCommunitiesSpy).not.toHaveBeenCalled();
-    expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
+    expect(synced).toBe(false);
   });
+
 });

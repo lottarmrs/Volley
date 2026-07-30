@@ -5,7 +5,8 @@ import {
   loadFromStorage,
   markLocalCacheOwner,
   removeFromStorage,
-  resolveCacheKey,
+  clearLocalDomainCache,
+  STORAGE_KEYS,
   saveToStorage,
   validateCacheOwner,
 } from './localStorageRepository';
@@ -46,9 +47,23 @@ describe('localStorageRepository', () => {
   });
 
   describe('cache partition', () => {
-    it('resolveCacheKey produz vpg_cache_<userId>_<communityId>_<entityKind>', () => {
-      expect(resolveCacheKey('user-a', 'comm-1', 'sessions')).toBe('vpg_cache_user-a_comm-1_sessions');
-      expect(resolveCacheKey('user-a', '', 'players')).toBe('vpg_cache_user-a__players');
+    it('clearLocalDomainCache apaga todo o dominio e preserva a versao de schema', () => {
+      localStorage.setItem(STORAGE_KEYS.players, JSON.stringify([{ id: 'p1' }]));
+      localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify([{ id: 's1' }]));
+      localStorage.setItem('vpg_last_synced_at', '"2026-07-30T00:00:00Z"');
+      localStorage.setItem('vpg_players_schema_version', '2');
+      markLocalCacheOwner('user-a');
+
+      clearLocalDomainCache();
+
+      for (const key of Object.values(STORAGE_KEYS)) {
+        expect(localStorage.getItem(key)).toBeNull();
+      }
+      expect(localStorage.getItem('vpg_last_synced_at')).toBeNull();
+      // Preservados: os dados que chegam da nuvem ja estao na versao corrente, e
+      // apagar a marca faria usePlayers re-migrar a escala de forma fisica.
+      expect(localStorage.getItem('vpg_players_schema_version')).toBe('2');
+      expect(getLocalCacheOwnerId()).toBe('user-a');
     });
 
     it('validateCacheOwner rejeita resultado de outro userId', () => {

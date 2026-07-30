@@ -722,10 +722,10 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           {
             label: 'Ultima nota',
             value: currentRating?.toFixed(1) ?? '-',
-            desc: previousRating !== null ? `antes ${previousRating.toFixed(1)}` : 'sem historico',
+            desc: previousRating !== null ? `antes ${previousRating.toFixed(1)}` : 'sem histórico',
           },
           {
-            label: 'Forma media',
+            label: 'Forma média',
             value: currentAvg?.toFixed(1) ?? '-',
             desc: formDelta !== null ? `${formDelta >= 0 ? '+' : ''}${formDelta}` : 'sem delta',
           },
@@ -792,7 +792,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { label: 'Jogos', value: stats.gamesPlayed },
-                { label: 'Vitorias', value: stats.wins },
+                { label: 'Vitórias', value: stats.wins },
                 { label: 'Aproveitamento', value: `${stats.winRate}%` },
                 { label: 'Pontos', value: stats.totalPoints },
               ].map((item) => (

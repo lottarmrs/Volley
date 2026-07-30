@@ -47,7 +47,7 @@ export async function fetchProfilesByUserIds(
   const { data, error } = await client.from('profiles').select(PROFILE_COLUMNS).in('id', ids);
 
   if (error) {
-    console.warn('[membership] NÃ£o foi possÃ­vel carregar perfis dos membros.', error);
+    console.warn('[membership] Não foi possível carregar perfis dos membros.', error);
     return new Map();
   }
 
@@ -69,7 +69,7 @@ export async function fetchProfilesByUserIds(
 
     if (summaryError) {
       console.warn(
-        '[membership] NÃ£o foi possÃ­vel carregar perfis resumidos dos membros.',
+        '[membership] Não foi possível carregar perfis resumidos dos membros.',
         summaryError,
       );
     } else {

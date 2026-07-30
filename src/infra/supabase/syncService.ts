@@ -1,3 +1,4 @@
+import { foldForComparison } from '../../logic/textNormalization';
 import { communityCloudService } from './communityCloudService';
 import { playerCloudService } from './playerCloudService';
 import { communityPlayerCloudService, CommunityPlayerDb } from './communityPlayerCloudService';
@@ -89,34 +90,26 @@ function reportIssue(onIssue: SyncOptions['onIssue'], context: string, error: un
   if (onIssue) onIssue(context, error);
 }
 
-function normalizeSemanticText(value: unknown): string {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
 
 export function communitySemanticKey(community: Pick<Community, 'name'>): string | undefined {
-  const name = normalizeSemanticText(community.name);
+  const name = foldForComparison(community.name);
   return name ? `community:${name}` : undefined;
 }
 
 export function playerSemanticKey(
   player: Pick<Player, 'username' | 'nome' | 'genero' | 'posicaoPrincipal' | 'alturaCm'>,
 ): string | undefined {
-  const username = normalizeSemanticText(player.username);
+  const username = foldForComparison(player.username);
   if (username) return `player:username:${username}`;
 
-  const name = normalizeSemanticText(player.nome);
+  const name = foldForComparison(player.nome);
   if (!name) return undefined;
 
   return [
     'player:profile',
     name,
-    normalizeSemanticText(player.genero),
-    normalizeSemanticText(player.posicaoPrincipal),
+    foldForComparison(player.genero),
+    foldForComparison(player.posicaoPrincipal),
     player.alturaCm ?? '',
   ].join(':');
 }
@@ -451,13 +444,13 @@ function mergePresenceRecords(records: CommunityPresence[]): CommunityPresence[]
     for (const item of current.items || []) {
       const itemKey = item.playerId
         ? `player:${normalizeIdValue(item.playerId)}`
-        : `guest:${normalizeSemanticText(item.temporaryName)}`;
+        : `guest:${foldForComparison(item.temporaryName)}`;
       items.set(itemKey, item);
     }
     for (const item of record.items || []) {
       const itemKey = item.playerId
         ? `player:${normalizeIdValue(item.playerId)}`
-        : `guest:${normalizeSemanticText(item.temporaryName)}`;
+        : `guest:${foldForComparison(item.temporaryName)}`;
       items.set(itemKey, item);
     }
 

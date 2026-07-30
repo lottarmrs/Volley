@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { CareerTimeline } from './CareerTimeline';
+import { describeMilestone } from '../../logic/careerMilestones';
 import type { CareerEvent } from '../../shared/types/career';
 
 function milestone(slug: string, at: string): CareerEvent {
@@ -27,9 +28,11 @@ describe('CareerTimeline', () => {
       />,
     );
 
+    // A afirmacao aqui e a ORDEM, nao a cópia. Lendo os rotulos da mesma fonte que o
+    // componente usa, ajustar texto de marco deixa de quebrar um teste de ordenacao.
     const items = screen.getAllByRole('listitem');
-    expect(items[0].textContent).toMatch(/primeira vitoria/i);
-    expect(items[1].textContent).toMatch(/primeira sessao/i);
+    expect(items[0].textContent).toContain(describeMilestone('first_win').label);
+    expect(items[1].textContent).toContain(describeMilestone('first_session').label);
   });
 
   it('renders an empty state instead of crashing with no career', () => {

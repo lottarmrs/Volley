@@ -3302,6 +3302,9 @@ $$;
 revoke execute on function public.set_community_visibility(uuid, text) from public, anon;
 grant execute on function public.set_community_visibility(uuid, text) to authenticated;
 
+-- unaccent: busca de comunidade ignora acento (ver 20260730130000).
+create extension if not exists unaccent with schema extensions;
+
 create or replace function public.search_public_communities(p_query text)
 returns table (
   id uuid,
@@ -3313,7 +3316,7 @@ returns table (
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
   select
     c.id,
@@ -3327,7 +3330,7 @@ as $$
     and c.deleted_at is null
     and (
       coalesce(trim(p_query), '') = ''
-      or c.name ilike '%' || trim(p_query) || '%'
+      or unaccent(c.name) ilike '%' || unaccent(trim(p_query)) || '%'
     )
   order by c.name
   limit 30;

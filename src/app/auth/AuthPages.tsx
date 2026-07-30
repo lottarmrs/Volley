@@ -32,7 +32,7 @@ function TotpEnrollmentForm({
       <p>Escaneie o QR code no seu aplicativo autenticador.</p>
       <img src={enrollment.qrCode} alt="QR code para configurar autenticacao em duas etapas" />
       <p>Ou insira o codigo manualmente: {enrollment.secret}</p>
-      <label htmlFor="totp-code">Codigo de 6 digitos</label>
+      <label htmlFor="totp-code">Código de 6 dígitos</label>
       <input
         id="totp-code"
         inputMode="numeric"
@@ -232,7 +232,7 @@ export function RecoverableSessionPage() {
   const message = state.kind === 'recoverable_error' ? state.message : null;
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
-      <h2 className="text-xl font-black uppercase tracking-wider">Nao foi possivel continuar</h2>
+      <h2 className="text-xl font-black uppercase tracking-wider">Não foi possível continuar</h2>
       {message ? <p className="text-xs text-base-content/60 max-w-md">{message}</p> : null}
       <button type="button" className="btn btn-primary btn-sm" onClick={() => void retry()}>
         Tentar novamente
@@ -420,7 +420,7 @@ export function MfaChallengePage() {
     <div className="flex flex-col items-center justify-center py-20 gap-4 text-center px-4">
       <h2 className="text-xl font-black uppercase tracking-wider">Confirme sua identidade</h2>
       <form onSubmit={(event) => void handleChallengeSubmit(event)}>
-        <label htmlFor="challenge-code">Codigo de 6 digitos</label>
+        <label htmlFor="challenge-code">Código de 6 dígitos</label>
         <input
           id="challenge-code"
           inputMode="numeric"

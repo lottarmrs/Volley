@@ -4,6 +4,7 @@ import { Player, Community, Game, PointEvent, Team, Session } from '../../types'
 import { PlayerItem } from './PlayerComponents';
 import { GuestPlayerModal } from './GuestPlayerModal';
 import { FutCardModal } from './FutCardModal';
+import { matchesSearch } from '../../logic/textNormalization';
 
 interface PlayersViewProps {
   players: Player[];
@@ -44,13 +45,10 @@ export const PlayersView = ({
         ? true
         : (player.communityIds ?? []).includes(selectedCommunityId),
     )
-    .filter((player) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        player.nome.toLowerCase().includes(query) ||
-        (player.apelido ?? '').toLowerCase().includes(query)
-      );
-    });
+    .filter(
+      (player) =>
+        matchesSearch(player.nome, searchQuery) || matchesSearch(player.apelido, searchQuery),
+    );
 
   return (
     <div className="space-y-6">

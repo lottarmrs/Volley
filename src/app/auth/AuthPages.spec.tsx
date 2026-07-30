@@ -197,7 +197,7 @@ describe('MfaSetupPage', () => {
         'data:image/png;base64,qr',
       ),
     );
-    fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '123456' } });
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '123456' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
     await waitFor(() =>
       expect(authClientMock.verifyTotp).toHaveBeenCalledWith('123456', 'factor-1'),
@@ -244,7 +244,7 @@ describe('MfaSetupPage', () => {
       <MfaSetupPage />,
     );
     await waitFor(() => expect(screen.getByAltText(/QR code/i)).toBeTruthy());
-    fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '000000' } });
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '000000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Codigo invalido.'));
   });
@@ -265,7 +265,7 @@ describe('MfaChallengePage', () => {
       { from: { pathname: '/comunidades' } },
       <MfaChallengePage />,
     );
-    fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '654321' } });
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '654321' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => expect(authClientMock.verifyTotp).toHaveBeenCalledWith('654321'));
     await waitFor(() => expect(retry).toHaveBeenCalled());
@@ -281,11 +281,11 @@ describe('MfaChallengePage', () => {
       undefined,
       <MfaChallengePage />,
     );
-    fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '000000' } });
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '000000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Codigo invalido.'));
     expect(retry).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Codigo de 6 digitos')).toBeTruthy();
+    expect(screen.getByLabelText('Código de 6 dígitos')).toBeTruthy();
   });
 
   it('offers enrollment when there is no verified factor yet, then completes and returns to route', async () => {
@@ -304,7 +304,7 @@ describe('MfaChallengePage', () => {
       { from: { pathname: '/comunidades' } },
       <MfaChallengePage />,
     );
-    fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '111111' } });
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '111111' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
     await waitFor(() => expect(authClientMock.enrollTotp).toHaveBeenCalled());
     await waitFor(() =>
@@ -312,7 +312,7 @@ describe('MfaChallengePage', () => {
         'data:image/png;base64,qr',
       ),
     );
-    fireEvent.change(screen.getByLabelText('Codigo de 6 digitos'), { target: { value: '222222' } });
+    fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '222222' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
     await waitFor(() =>
       expect(authClientMock.verifyTotp).toHaveBeenLastCalledWith('222222', 'factor-1'),

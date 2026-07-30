@@ -208,6 +208,13 @@ const communityDiscoveryMigration = readFixture(
   new URL('../../../supabase/migrations/20260625192530_community_discovery.sql', import.meta.url),
 );
 
+const searchCommunitiesUnaccentMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260730130000_search_public_communities_ignore_accents.sql',
+    import.meta.url,
+  ),
+);
+
 const communityModelV2Migration = readFixture(
   new URL('../../../supabase/migrations/20260624203424_community_model_v2.sql', import.meta.url),
 );
@@ -2042,7 +2049,9 @@ test('consolidated schema carries every community join/discovery RPC verbatim', 
     ['reject_join_request', approveByCapabilityMigration],
     ['leave_community', communityJoinSystemMigration],
     ['set_community_visibility', communityDiscoveryMigration],
-    ['search_public_communities', communityDiscoveryMigration],
+    // Superseded por 20260730130000, que dobra acento na busca — sem isso "Sao Goncalo"
+    // nao achava "Vôlei São Gonçalo". A definicao de 20260625192530 nao manda mais.
+    ['search_public_communities', searchCommunitiesUnaccentMigration],
     ['request_to_join_public', communityDiscoveryMigration],
     // Superseded twice; 20260624203424 holds the authoritative definition.
     ['add_community_member_by_email', communityModelV2Migration],

@@ -82,18 +82,18 @@ export function getModuleNavigationItems(input: {
     { id: 'torneios', label: 'Torneios', icon: 'tournament' },
     { id: 'players', label: 'Jogadores', icon: 'players' },
     { id: 'ranking', label: 'Ranking', icon: 'ranking' },
-    { id: 'historico', label: 'HistÃ³rico', icon: 'history' },
+    { id: 'historico', label: 'Histórico', icon: 'history' },
     {
       id: 'conta',
       label: 'Nuvem & Conta',
       icon: 'cloud',
       badge: input.pendingChanges,
     },
-    { id: 'configuracoes', label: 'ConfiguraÃ§Ãµes', icon: 'settings' },
+    { id: 'configuracoes', label: 'Configurações', icon: 'settings' },
   ];
 
   if (input.isStaff) {
-    items.push({ id: 'gestao', label: 'GestÃ£o', icon: 'admin' });
+    items.push({ id: 'gestao', label: 'Gestão', icon: 'admin' });
   }
 
   return items;

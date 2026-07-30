@@ -21,6 +21,7 @@ import {
   Users,
   Volleyball,
 } from 'lucide-react';
+import { matchesSearch } from '../../logic/textNormalization';
 import {
   AuthRole,
   Championship,
@@ -184,7 +185,7 @@ const TAB_ITEMS: Array<{ id: CommunityTab; label: string }> = [
   { id: 'players', label: 'Atletas' },
   { id: 'presence', label: 'Presenca' },
   { id: 'whatsapp', label: 'Lista WhatsApp' },
-  { id: 'sessions', label: 'Sessoes' },
+  { id: 'sessions', label: 'Sessões' },
   { id: 'championships', label: 'Ligas' },
   { id: 'ranking', label: 'Ranking' },
   { id: 'members', label: 'Membros' },
@@ -525,15 +526,15 @@ function CommunityCard({
 
         <div className="stats stats-vertical sm:stats-horizontal bg-base-100">
           <div className="stat">
-            <div className="stat-title">Sessoes</div>
+            <div className="stat-title">Sessões</div>
             <div className="stat-value text-lg">{summary.totalSessions}</div>
           </div>
           <div className="stat">
-            <div className="stat-title">Ultima sessao</div>
+            <div className="stat-title">Última sessão</div>
             <div className="stat-value text-lg">{formatDate(summary.lastSession?.date)}</div>
           </div>
           <div className="stat">
-            <div className="stat-title">Ultimo MVP</div>
+            <div className="stat-title">Último MVP</div>
             <div className="stat-value text-sm">{summary.lastMvpName || '-'}</div>
           </div>
         </div>
@@ -911,7 +912,7 @@ function CommunitySummaryTab({
           <div className="stat-desc">{summary.activeAthletes} ativos</div>
         </div>
         <div className="stat">
-          <div className="stat-title">Sessoes</div>
+          <div className="stat-title">Sessões</div>
           <div className="stat-value">{summary.totalSessions}</div>
           <div className="stat-desc">{summary.totalMatches} partidas</div>
         </div>
@@ -924,16 +925,16 @@ function CommunitySummaryTab({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InfoCard
-          title="Ultima sessao"
+          title="Última sessão"
           value={
             summary.lastSession
               ? `${summary.lastSession.name} - ${formatDate(summary.lastSession.date)}`
-              : 'Sem sessoes'
+              : 'Sem sessões'
           }
           icon={<Calendar className="w-4 h-4" />}
         />
         <InfoCard
-          title="Ultimo MVP"
+          title="Último MVP"
           value={summary.lastMvpName || 'Sem MVP'}
           icon={<Trophy className="w-4 h-4" />}
         />
@@ -1762,11 +1763,8 @@ function CommunityPlayersTab({
     return players
       .filter((player) => {
         const isMember = selectedIds.has(player.id);
-        const matchesSearch =
-          !search ||
-          player.nome.toLowerCase().includes(search.toLowerCase()) ||
-          (player.apelido || '').toLowerCase().includes(search.toLowerCase());
-        if (!matchesSearch) return false;
+        const found = matchesSearch(player.nome, search) || matchesSearch(player.apelido, search);
+        if (!found) return false;
         if (filter === 'active') return isMember && player.ativo;
         if (filter === 'inactive') return isMember && !player.ativo;
         if (filter === 'frequent') return isMember && player.status.presencaFrequente;
@@ -2245,7 +2243,7 @@ function CommunityWhatsAppListTab({
               />
             </label>
             <label className="form-control">
-              <span className="label-text">Titulo</span>
+              <span className="label-text">Título</span>
               <input
                 className="input input-bordered"
                 value={draft.title}
@@ -2312,7 +2310,7 @@ function CommunityWhatsAppListTab({
               />
             </label>
             <label className="form-control">
-              <span className="label-text">Responsavel Pix</span>
+              <span className="label-text">Responsável Pix</span>
               <input
                 className="input input-bordered"
                 value={draft.pixHolder || ''}
@@ -2596,7 +2594,7 @@ function CommunitySessionsTab({
         })}
       </div>
       {communitySessions.length === 0 && (
-        <div className="alert alert-info">Nenhuma sessao vinculada a esta comunidade.</div>
+        <div className="alert alert-info">Nenhuma sessão vinculada a esta comunidade.</div>
       )}
     </div>
   );
@@ -3116,7 +3114,7 @@ function CommunityDataTab({
       {confirm && (
         <div className="modal modal-open">
           <div className="modal-box">
-            <h3 className="font-bold text-lg">Confirmar acao</h3>
+            <h3 className="font-bold text-lg">Confirmar ação</h3>
             <p className="py-4">
               {confirm === 'delete'
                 ? 'Essa acao excluira a comunidade deste dispositivo. Os atletas podem ser mantidos no elenco geral.'

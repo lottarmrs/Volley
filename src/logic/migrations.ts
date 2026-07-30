@@ -1,3 +1,4 @@
+import { foldForComparison } from './textNormalization';
 import { Community, FreePlayConfig, Game, Session, TournamentConfig } from '../types';
 import { generateUUID } from './uuid';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
@@ -167,33 +168,25 @@ export function sanitizeImportedBackup(val: any): any {
   return val;
 }
 
-function normalizeImportText(value: unknown): string {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
 
 function playerImportKey(player: any): string | undefined {
-  const username = normalizeImportText(player?.username);
+  const username = foldForComparison(player?.username);
   if (username) return `username:${username}`;
 
-  const name = normalizeImportText(player?.nome);
+  const name = foldForComparison(player?.nome);
   if (!name) return undefined;
 
   return [
     'profile',
     name,
-    normalizeImportText(player?.genero),
-    normalizeImportText(player?.posicaoPrincipal),
+    foldForComparison(player?.genero),
+    foldForComparison(player?.posicaoPrincipal),
     player?.alturaCm ?? '',
   ].join(':');
 }
 
 function communityImportKey(community: any): string | undefined {
-  const name = normalizeImportText(community?.name);
+  const name = foldForComparison(community?.name);
   return name ? `community:${name}` : undefined;
 }
 

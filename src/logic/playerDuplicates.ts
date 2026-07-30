@@ -1,24 +1,16 @@
 import type { Player } from '../types';
-
-function normalizeDuplicateText(value: unknown): string {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
+import { foldForComparison } from './textNormalization';
 
 export function duplicatePlayerProfileKey(
   player: Pick<Player, 'nome' | 'genero' | 'posicaoPrincipal' | 'alturaCm'>,
 ) {
-  const name = normalizeDuplicateText(player.nome);
+  const name = foldForComparison(player.nome);
   if (!name) return undefined;
 
   return [
     name,
-    normalizeDuplicateText(player.genero),
-    normalizeDuplicateText(player.posicaoPrincipal),
+    foldForComparison(player.genero),
+    foldForComparison(player.posicaoPrincipal),
     player.alturaCm ?? '',
   ].join(':');
 }

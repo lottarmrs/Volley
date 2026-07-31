@@ -108,6 +108,7 @@ import {
   materializeRound,
 } from './application/championshipUseCases';
 import { appOk, productError } from './application/appResult';
+import { buildPendingDeliveryNotice } from '@app/appShellViewModel';
 
 const Dashboard = lazy(() =>
   import('./components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
@@ -279,6 +280,12 @@ export default function App() {
     championships.rawChampionshipTeams,
     championships.rawChampionshipRounds,
   ]);
+
+  const pendingDeliveryNotice = buildPendingDeliveryNotice({
+    pendingChanges,
+    connectivity: cloudSync.connectivity,
+    hasOpenFailure: (cloudSync.syncIssueSummary?.openCount ?? 0) > 0,
+  });
 
   // ── Auto-sync on login (download-first) ───────────────────────────────────
   // Na entrada, ADOTAMOS o estado da nuvem (fonte da verdade) baixando-o — isso
@@ -1374,6 +1381,15 @@ export default function App() {
       <input id="sidebar-drawer" type="checkbox" className="drawer-toggle" />
 
       <div className="drawer-content flex flex-col min-h-screen min-w-0 bg-base-100 text-base-content">
+        {pendingDeliveryNotice && (
+          <button
+            type="button"
+            onClick={() => handleNav('conta')}
+            className="w-full bg-warning/20 text-warning-content text-xs font-bold px-4 py-2 text-left"
+          >
+            {pendingDeliveryNotice.message} Toque para ver os detalhes.
+          </button>
+        )}
         {/* Top Header */}
         <header className="h-[72px] bg-base-200 border-b border-base-300 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-20">
           <div className="flex items-center gap-4">

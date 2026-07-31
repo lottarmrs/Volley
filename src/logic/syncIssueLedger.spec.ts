@@ -3,9 +3,9 @@ import { STORAGE_KEYS } from '../storage/localStorageRepository';
 import {
   loadSyncIssueLedger,
   recordStoredSyncIssue,
+  recordSyncIssue,
   resolveStoredSyncIssuesForOperation,
 } from './syncIssueLedger';
-import { recordSyncIssue } from './syncIssueLedger';
 import type { SyncIssueEntry } from './syncIssueLedger';
 
 describe('syncIssueLedger storage', () => {

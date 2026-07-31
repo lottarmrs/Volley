@@ -47,12 +47,3 @@ export function detectSessionConflicts(input: {
   return conflitos;
 }
 
-/**
- * Sessoes cujos eventos NAO devem subir agora, por estarem em conflito.
- *
- * Devolve um Set para o caminho de upload filtrar barato. A entrega das demais sessoes
- * segue normal: um conflito localizado nao pode travar o resto.
- */
-export function conflictedSessionIds(conflicts: SessionConflict[]): Set<string> {
-  return new Set(conflicts.map((c) => c.sessionId));
-}

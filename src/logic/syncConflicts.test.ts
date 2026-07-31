@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conflictedSessionIds, detectSessionConflicts } from './syncConflicts';
+import { detectSessionConflicts } from './syncConflicts';
 
 const evento = (sessionId: string, syncStatus: string) => ({ sessionId, syncStatus });
 
@@ -62,5 +62,8 @@ test('uma sessao em conflito nao contamina as outras', () => {
   });
   assert.equal(conflitos.length, 1);
   assert.equal(conflitos[0].sessionId, 's-1');
-  assert.equal(conflictedSessionIds(conflitos).has('s-2'), false);
+  assert.equal(
+    conflitos.some((c) => c.sessionId === 's-2'),
+    false,
+  );
 });

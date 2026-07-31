@@ -2029,7 +2029,7 @@ Crie `src/logic/syncConflicts.test.ts`:
 ```ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conflictedSessionIds, detectSessionConflicts } from './syncConflicts';
+import { detectSessionConflicts } from './syncConflicts';
 
 const evento = (sessionId: string, syncStatus: string) => ({ sessionId, syncStatus });
 
@@ -2091,7 +2091,10 @@ test('uma sessao em conflito nao contamina as outras', () => {
   });
   assert.equal(conflitos.length, 1);
   assert.equal(conflitos[0].sessionId, 's-1');
-  assert.equal(conflictedSessionIds(conflitos).has('s-2'), false);
+  assert.equal(
+    conflitos.some((c) => c.sessionId === 's-2'),
+    false,
+  );
 });
 ```
 
@@ -2157,15 +2160,6 @@ export function detectSessionConflicts(input: {
   return conflitos;
 }
 
-/**
- * Sessoes cujos eventos NAO devem subir agora, por estarem em conflito.
- *
- * Devolve um Set para o caminho de upload filtrar barato. A entrega das demais sessoes
- * segue normal: um conflito localizado nao pode travar o resto.
- */
-export function conflictedSessionIds(conflicts: SessionConflict[]): Set<string> {
-  return new Set(conflicts.map((c) => c.sessionId));
-}
 ```
 
 - [ ] **Passo 4: rodar e ver passar**
@@ -2354,7 +2348,7 @@ Três ligações, todas obrigatórias:
 **Interfaces:**
 - Consome: `resolveSessionControl`, `claimSessionControlCommand`,
   `transferSessionControlCommand` (Tarefa 8); `SessionOwnershipNotice` (Tarefa 9);
-  `detectSessionConflicts`, `conflictedSessionIds` (Tarefa 11).
+  `detectSessionConflicts` (Tarefa 11).
 - Produz: `resolveConflictKeepingMine(input)` e `resolveConflictKeepingTheirs(input)`,
   ambos devolvendo a lista de `PointEvent` já ajustada.
 

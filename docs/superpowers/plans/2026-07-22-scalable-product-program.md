@@ -10,7 +10,7 @@ depois que o anterior estiver integrado e seus gates estiverem verdes.
 | 1 | Account Identity & Auth Foundation | Toda sessao valida converge para perfil + jogador 1:1; auth possui estados tipados, onboarding, recovery, Google e MFA shell | **Concluido** (`main`) |
 | 2 | Player Claim, Communities & Evaluations | Claim por codigo preserva jogador da conta (mais simples que o design original — sem aprovacao de comunidade); RBAC/comunidades ja existiam; avaliacao oficial por comunidade consolidada (sem agregacao ponderada, adiada) | **Concluido** (`main`) — ver notas abaixo |
 | 3 | Career Events, Global VUT & Achievements **(escopo expandido)** | Eventos confirmados geram VUT e conquistas globais deterministicas e recalculaveis; inclui reentrância persistente, erros tipados, scaffold de reset e protecao de troca de conta — **outbox e particao por comunidade sairam, ver nota de fechamento** | **Concluido** (`main`, 2026-07-30) — spec `docs/superpowers/specs/2026-07-27-plano-3-career-events-vut-achievements-design.md` |
-| 4 | Cloud-first Operational Offline **(escopo restaurado)** | Owner/device da sessao, pacote offline especifico **e o outbox**, agora escrito contra requisitos offline reais | A escrever apos plano 3 |
+| 4 | Cloud-first Operational Offline **(escopo restaurado)** | Owner/device da sessao, pacote offline especifico **e o outbox**, agora escrito contra requisitos offline reais | **Concluído** (`main`, 2026-07-31) |
 | 5 | Screen Contracts, Reset & Cutover **(escopo reduzido)** | UI atual usa contratos de aplicacao; reset aplicado em producao; ensaio, rollback e corte fecham Produto escalavel — scaffold de reset implementado no Plano 3 | A escrever apos plano 4 |
 
 ### Notas sobre o Plano 2 (divergencias do design original)
@@ -89,6 +89,12 @@ execução. Resolução, decidida com o usuário:
     existentes, sem navegacao nova. Registrada aqui para que a regra nao apareca
     violada sem explicacao; ver
     `docs/superpowers/specs/2026-07-27-career-events-vut-design.md`, secao 3B.
+  - **Exceção aberta no Plano 4 (decisão do usuário, 2026-07-30):** três acréscimos,
+    sem item novo na barra lateral — aviso de posse na tela de sessão, seção de
+    conflitos dentro de "Nuvem & Conta", e faixa clicável de trabalho não entregue.
+    A navegação definitiva de sincronização é decisão do Plano 5, junto da arquitetura
+    de informação centrada em comunidade. Ver
+    `docs/superpowers/specs/2026-07-30-plano-4-offline-operacional-design.md`, seção 9.
 - Nenhum reset de producao ocorre antes do ensaio completo do plano 5.
 - Cada plano usa TDD, revisao por tarefa e commits pequenos.
 - Migrations sao aplicadas primeiro no Supabase local e depois no projeto real.

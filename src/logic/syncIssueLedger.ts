@@ -1,5 +1,6 @@
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
 import type { AppError } from '../application/appResult';
+import { classifySyncError, computeNextAttemptAt } from './syncBackoff';
 
 const MAX_SYNC_ISSUE_ENTRIES = 50;
 
@@ -16,6 +17,11 @@ export interface SyncIssueEntry {
   lastSeenAt: string;
   resolvedAt?: string;
   kind?: AppError['kind'];
+  /**
+   * Quando tentar de novo. Ausente significa "nao tente automaticamente" — o que
+   * acontece com erro estrutural, que nao se conserta com o tempo.
+   */
+  nextAttemptAt?: string;
 }
 
 export interface SyncIssueInput {
@@ -54,6 +60,8 @@ export function recordSyncIssue(ledger: SyncIssueEntry[], input: SyncIssueInput)
   const message = formatSyncIssueError(input.error);
   const id = buildSyncIssueId(input.operation, input.context, message);
   const existing = ledger.find((issue) => issue.id === id);
+  // A natureza do erro vem do proprio erro quando o chamador nao informa.
+  const kind = input.kind ?? classifySyncError(input.error);
 
   if (!existing) {
     return limitSyncIssueLedger([
@@ -66,21 +74,25 @@ export function recordSyncIssue(ledger: SyncIssueEntry[], input: SyncIssueInput)
         count: 1,
         firstSeenAt: input.occurredAt,
         lastSeenAt: input.occurredAt,
-        kind: input.kind ?? 'unexpected',
+        kind,
+        nextAttemptAt: computeNextAttemptAt({ count: 1, lastSeenAt: input.occurredAt, kind }),
       },
       ...ledger,
     ]);
   }
 
+  const count = existing.count + 1;
   return limitSyncIssueLedger(
     ledger.map((issue) =>
       issue.id === id
         ? {
             ...issue,
             status: 'open',
-            count: issue.count + 1,
+            count,
             lastSeenAt: input.occurredAt,
             resolvedAt: undefined,
+            kind,
+            nextAttemptAt: computeNextAttemptAt({ count, lastSeenAt: input.occurredAt, kind }),
           }
         : issue,
     ),
@@ -104,6 +116,22 @@ export function resolveSyncIssuesForOperation(
 
 export function clearResolvedSyncIssues(ledger: SyncIssueEntry[]): SyncIssueEntry[] {
   return ledger.filter((issue) => issue.status !== 'resolved');
+}
+
+/**
+ * Issues abertas cuja hora de tentar de novo ja passou.
+ *
+ * Issue resolvida nunca vence: `status` manda mais que `nextAttemptAt`, senao uma
+ * falha ja corrigida voltaria a disparar reenvio para sempre.
+ */
+export function dueSyncIssues(ledger: SyncIssueEntry[], now: string): SyncIssueEntry[] {
+  const agora = new Date(now).getTime();
+  return ledger.filter(
+    (issue) =>
+      issue.status === 'open' &&
+      issue.nextAttemptAt !== undefined &&
+      new Date(issue.nextAttemptAt).getTime() <= agora,
+  );
 }
 
 export function buildSyncIssueSummary(ledger: SyncIssueEntry[]): SyncIssueSummary {

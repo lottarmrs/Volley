@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { buildCloudHealthViewModel } from '../../application/cloudHealthViewModel';
 import type { RecoverableSyncActions, SyncIssueSummary } from '../../logic/syncIssueLedger';
+import { SyncConflictSection, type SyncConflictItem } from './SyncConflictSection';
 
 interface AccountSyncViewProps {
   user: any;
@@ -36,6 +37,9 @@ interface AccountSyncViewProps {
   syncIssueSummary?: SyncIssueSummary;
   onRetryPrimarySyncAction?: () => Promise<void> | void;
   onClearResolvedSyncIssues?: () => Promise<void> | void;
+  syncConflicts?: SyncConflictItem[];
+  onKeepMineConflict?: (sessionId: string) => void;
+  onKeepTheirsConflict?: (sessionId: string) => void;
 }
 
 export function AccountSyncView({
@@ -54,6 +58,9 @@ export function AccountSyncView({
   syncIssueSummary,
   onRetryPrimarySyncAction,
   onClearResolvedSyncIssues,
+  syncConflicts,
+  onKeepMineConflict,
+  onKeepTheirsConflict,
 }: AccountSyncViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -309,6 +316,12 @@ export function AccountSyncView({
                 </>
               )}
             </button>
+
+            <SyncConflictSection
+              conflicts={syncConflicts ?? []}
+              onKeepMine={onKeepMineConflict ?? (() => {})}
+              onKeepTheirs={onKeepTheirsConflict ?? (() => {})}
+            />
 
             {recentOpenSyncIssues.length ? (
               <div className="bg-base-100 border border-base-300 rounded-xl p-4 space-y-3">

@@ -119,14 +119,34 @@ nada quebra: apenas o aviso de aparelho deixa de aparecer.
 
 ### 5.2 Expiração
 
-A posse expira por **inatividade medida no último evento da sessão**, não desde a
-reivindicação: 30 minutos sem `point_event` novo liberam a sessão para reivindicação
-simples.
+A posse expira por **inatividade**, não desde a reivindicação: 10 minutos sem sinal de
+vida liberam a sessão para reivindicação simples.
 
 Medir desde a reivindicação criaria o pior cenário — o celular de quem está tocando a
 sessão morre e ninguém mais marca ponto até o prazo acabar. Medir pela atividade
 mantém a garantia enquanto alguém joga e devolve a sessão sozinha quando o aparelho
 some.
+
+### Corrigido em 2026-08-01: o sinal de vida é o heartbeat, não o `point_event`
+
+A versão original media 30 minutos lendo `max(occurred_at)` de `public.point_events` —
+a tabela da **nuvem**. Mas o registro de ponto neste app é puramente local e não existe
+sync periódico durante a sessão. Enquanto ninguém sincroniza a nuvem não vê ponto
+nenhum, o `coalesce` cai em `control_claimed_at`, e a posse expirava **por cronômetro**
+mesmo com alguém marcando placar sem parar.
+
+Com o ritmo real informado pelo operador — jogo de 10 a 15 minutos, próximo começando
+em 1 a 2 — uma sessão de três jogos passa de 45 minutos. A posse expirava no meio, toda
+vez.
+
+O cliente agora bate um heartbeat a cada 2 minutos chamando `claim_session_ownership`,
+que já atualiza `control_claimed_at`. A batida vira o sinal de vida real, independente
+de sync. Dez minutos são cinco batidas perdidas: folga contra oscilação de rede, e um
+aparelho que morreu devolve a quadra em menos de um jogo.
+
+A regra de quando bater mora em `shouldHeartbeatSessionControl`, no use case, e não
+dentro do efeito — para o teste exercitar o que o componente executa, em vez de uma
+cópia que diverge sem ninguém notar.
 
 **Sessão sem nenhum evento ainda.** Uma sessão recém-criada não tem `point_event`, e
 "último evento" seria nulo. Nesse caso a referência é `control_claimed_at`. Formalmente,

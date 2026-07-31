@@ -3590,7 +3590,12 @@ alter table public.sessions
   add column if not exists control_claimed_at timestamptz,
   add column if not exists control_device_id text;
 
--- 30 minutos SEM PONTO NOVO liberam a sessao.
+-- 10 minutos SEM SINAL DE VIDA liberam a sessao (ver 20260801100000).
+--
+-- Le point_events da NUVEM, mas o registro de ponto e local e nao ha sync periodico.
+-- Por isso o cliente bate um heartbeat a cada 2 min chamando claim_session_ownership,
+-- que atualiza control_claimed_at. Sem o heartbeat isto expirava por cronometro no
+-- meio de uma sessao real.
 --
 -- Medir desde a reivindicacao criaria o pior cenario: o celular de quem esta tocando
 -- a sessao morre e ninguem mais marca ponto ate o prazo acabar. Medindo pela
@@ -3610,7 +3615,7 @@ as $$
     (select max(pe.occurred_at) from public.point_events pe
       where pe.session_id = p_session.id and pe.deleted_at is null),
     p_session.control_claimed_at
-  ) < now() - interval '30 minutes';
+  ) < now() - interval '10 minutes';
 $$;
 
 revoke execute on function public.session_control_is_expired(public.sessions) from public, anon;

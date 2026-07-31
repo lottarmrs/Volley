@@ -43,6 +43,8 @@ import {
   resolveSessionControl,
   claimSessionControlCommand,
   transferSessionControlCommand,
+  SESSION_CONTROL_HEARTBEAT_MS,
+  shouldHeartbeatSessionControl,
   type SessionControlView,
 } from '@app/sessionOwnershipUseCases';
 import { getOrCreateDeviceId } from '@storage/localStorageRepository';
@@ -156,6 +158,31 @@ export const SessionActiveView = ({
       }
     });
   }, [activeSession?.cloudId, auth.user?.id]);
+
+  // Heartbeat da posse.
+  //
+  // `session_control_is_expired` mede atividade lendo `public.point_events`, que e a
+  // tabela da NUVEM — mas o registro de ponto aqui e puramente local e nao ha sync
+  // periodico. Sem este heartbeat a nuvem nao ve atividade nenhuma, cai no
+  // `control_claimed_at` e a posse expira por cronometro no meio de uma sessao real:
+  // jogo de 10 a 15 minutos, proximo em 1 a 2, tres jogos passam de 45 minutos.
+  //
+  // Reivindicar de novo atualiza `control_claimed_at`, entao a batida VIRA o sinal de
+  // vida. A janela de expiracao e de 10 minutos: cinco batidas perdidas.
+  useEffect(() => {
+    const deveBater = shouldHeartbeatSessionControl({
+      sessionCloudId: activeSession?.cloudId,
+      sessionStatus: activeSession?.status ?? '',
+      canScore: control.canScore,
+    });
+    if (!deveBater) return;
+
+    const id = setInterval(
+      () => void claimSessionControlCommand(activeSession.cloudId!),
+      SESSION_CONTROL_HEARTBEAT_MS,
+    );
+    return () => clearInterval(id);
+  }, [activeSession?.cloudId, activeSession?.status, control.canScore]);
 
   // Notas ao vivo do jogo corrente (aparecem no card do time, inclusive p/ facilitadores).
   const liveRatings = useMemo(() => {

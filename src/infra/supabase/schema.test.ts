@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { SESSION_CONTROL_HEARTBEAT_MS } from '../../application/sessionOwnershipUseCases';
 
 function readFixture(path: URL): string {
   try {
@@ -2684,4 +2685,27 @@ test('consolidated schema carries the ownership columns and RPCs', () => {
   assert.match(baseSchema, /controlled_by_user_id uuid references auth\.users\(id\) on delete set null/i);
   assert.match(baseSchema, /create or replace function public\.claim_session_ownership/i);
   assert.match(baseSchema, /create or replace function public\.transfer_session_ownership/i);
+});
+
+const sessionHeartbeatMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260801100000_session_control_heartbeat_10min.sql',
+    import.meta.url,
+  ),
+);
+
+test('session control expiry window stays in step with the client heartbeat', () => {
+  // A janela do banco e o intervalo do cliente sao um par: 10 minutos valem cinco
+  // batidas de 2. Mexer num sem o outro reabre o defeito que motivou a correcao —
+  // a posse expirando por cronometro no meio de uma sessao real.
+  const fn = extractSqlFunction(sessionHeartbeatMigration, 'session_control_is_expired');
+  assert.ok(fn, 'missing session_control_is_expired');
+  assert.match(fn, /interval '10 minutes'/i);
+  assert.equal(SESSION_CONTROL_HEARTBEAT_MS * 5, 10 * 60 * 1000);
+
+  // E o schema consolidado tem de contar a mesma historia que a migration.
+  const consolidada = extractSqlFunction(baseSchema, 'session_control_is_expired');
+  assert.ok(consolidada, 'missing session_control_is_expired in schema.sql');
+  assert.match(consolidada, /interval '10 minutes'/i);
+  assert.doesNotMatch(consolidada, /interval '30 minutes'/i);
 });

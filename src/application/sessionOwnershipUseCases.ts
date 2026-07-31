@@ -3,6 +3,34 @@ import { classifySyncError } from '../logic/syncBackoff';
 import { getOrCreateDeviceId } from '../storage/localStorageRepository';
 import { sessionOwnershipCloudService } from '@infra/supabase/sessionOwnershipCloudService';
 
+/**
+ * Intervalo entre batidas do heartbeat de posse.
+ *
+ * A janela de expiracao no banco e de 10 minutos, entao 2 minutos dao cinco batidas
+ * de folga antes de a posse soltar. Encurtar isso nao compra nada; alongar come a
+ * margem contra oscilacao de rede.
+ */
+export const SESSION_CONTROL_HEARTBEAT_MS = 2 * 60 * 1000;
+
+/**
+ * Se esta tela deve renovar a posse periodicamente.
+ *
+ * Mora aqui, e nao dentro do efeito no componente, para o teste exercitar a REGRA de
+ * verdade em vez de uma copia dela — copia diverge do original sem ninguem notar.
+ */
+export function shouldHeartbeatSessionControl(input: {
+  sessionCloudId: string | null | undefined;
+  sessionStatus: string;
+  canScore: boolean;
+}): boolean {
+  if (!input.sessionCloudId) return false;
+  // Sessao encerrada nao tem placar a marcar.
+  if (input.sessionStatus === 'finished') return false;
+  // Se outra pessoa detem o controle, nao ha posse minha para renovar — e insistir
+  // seria tomar o controle sem a confirmacao explicita que a tela exige.
+  return input.canScore;
+}
+
 export type SessionControlReason =
   | 'free'
   | 'mine'

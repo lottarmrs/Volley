@@ -164,21 +164,38 @@ export function useCloudSync(deps: CloudSyncDeps) {
     // Deteccao de conflito: e o momento em que se conhece o estado de controle
     // da nuvem. Os eventos locais pendentes cuja sessao esta controlada por
     // outra pessoa sao carimbados para o upload segurar ate alguem decidir.
+    // A chave e o id LOCAL da sessao, nao o cloudId.
+    //
+    // `mapDbToSession` devolve `id: db.local_id || db.id` e `cloudId: db.id`, e
+    // `PointEvent.sessionId` referencia o id LOCAL. Indexar por cloudId fazia o
+    // lookup falhar em toda sessao criada no app — que sao todas, porque toda
+    // sessao criada aqui grava `local_id`. O conflito nunca era detectado, e o
+    // teste unitario de `detectSessionConflicts` passava porque usa chaves
+    // consistentes dos dois lados.
     const cloudSessionControl: Record<string, SessionControlRow> = {};
-    const cloudEventCounts: Record<string, number> = {};
     for (const session of normalized.sessions) {
-      if (session.cloudId) {
-        cloudSessionControl[session.cloudId] = {
-          controlled_by_user_id: session.controlledByUserId ?? null,
-          control_claimed_at: session.controlClaimedAt ?? null,
-          control_device_id: session.controlDeviceId ?? null,
-        };
-      }
+      cloudSessionControl[session.id] = {
+        controlled_by_user_id: session.controlledByUserId ?? null,
+        control_claimed_at: session.controlClaimedAt ?? null,
+        control_device_id: session.controlDeviceId ?? null,
+      };
     }
+
+    // Conta so o que JA ESTA na nuvem, que e o placar da outra pessoa. Contar o
+    // payload inteiro somaria os meus eventos junto e a tela de conflito mostraria
+    // o total onde deveria mostrar o dela. `cloudId` presente e o que distingue:
+    // evento baixado tem, evento meu ainda nao enviado nao tem.
+    const cloudEventCounts: Record<string, number> = {};
     for (const ev of normalized.pointEvents) {
-      const sid = ev.cloudId ? ev.sessionId : undefined;
-      const key = sid ?? ev.sessionId;
-      cloudEventCounts[key] = (cloudEventCounts[key] ?? 0) + 1;
+      if (!ev.cloudId) continue;
+      cloudEventCounts[ev.sessionId] = (cloudEventCounts[ev.sessionId] ?? 0) + 1;
+    }
+
+    // Sem nome, a tela cai em "Outra pessoa" — perdendo justamente o que motivou
+    // a posse ser por usuario e nao por aparelho: poder dizer com quem falar.
+    const holderNames: Record<string, string> = {};
+    for (const player of deps.players) {
+      if (player.userId) holderNames[player.userId] = player.apelido || player.nome;
     }
 
     const conflicts = detectSessionConflicts({
@@ -186,7 +203,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
       localPointEvents: deps.pointEvents,
       cloudSessionControl,
       cloudEventCounts,
-      holderNames: {},
+      holderNames,
     });
 
     const resolvedPointEvents = conflicts.length > 0

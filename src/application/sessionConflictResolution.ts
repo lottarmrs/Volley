@@ -9,10 +9,24 @@ interface Entrada {
   now: string;
 }
 
-/** Minha versao vale: os eventos seguem pendentes e voltam a poder subir. */
+/**
+ * Um evento e MEU e ainda nao entregue quando nao tem `cloudId`.
+ *
+ * Essa distincao e o que impede as resolucoes de tocarem no placar da outra pessoa.
+ * Evento baixado da nuvem carrega `cloudId`; o que marquei offline, nao. Sem este
+ * filtro, "manter o da outra pessoa" apagava justamente os eventos dela — a unica
+ * versao que o usuario pediu para preservar.
+ */
+function ehMeuEPendente(evento: PointEvent, sessionId: string): boolean {
+  return (
+    evento.sessionId === sessionId && !(evento as { cloudId?: string }).cloudId
+  );
+}
+
+/** Minha versao vale: os meus eventos seguem pendentes e voltam a poder subir. */
 export function resolveConflictKeepingMine(input: Entrada): PointEvent[] {
   return input.pointEvents.map((evento) =>
-    evento.sessionId === input.sessionId
+    ehMeuEPendente(evento, input.sessionId)
       ? ({ ...evento, conflictStatus: 'resolved_keep_mine' } as PointEvent)
       : evento,
   );
@@ -21,12 +35,13 @@ export function resolveConflictKeepingMine(input: Entrada): PointEvent[] {
 /**
  * A versao da outra pessoa vale.
  *
- * Os meus eventos viram SOFT-DELETE, nunca apagados: a regra do plano e que nenhum
- * placar desaparece em silencio, e o `deletedAt` mantem a linha recuperavel.
+ * Apenas os MEUS eventos viram soft-delete, nunca apagados de fato: nenhum placar
+ * desaparece em silencio, e o `deletedAt` mantem a linha recuperavel. Os eventos da
+ * outra pessoa ficam intactos — sao a versao escolhida.
  */
 export function resolveConflictKeepingTheirs(input: Entrada): PointEvent[] {
   return input.pointEvents.map((evento) =>
-    evento.sessionId === input.sessionId
+    ehMeuEPendente(evento, input.sessionId)
       ? ({
           ...evento,
           deletedAt: input.now,
@@ -52,6 +67,7 @@ export function markConflictedEvents(
   if (emConflito.size === 0) return pointEvents;
   return pointEvents.map((evento) =>
     emConflito.has(evento.sessionId) &&
+    !(evento as { cloudId?: string }).cloudId &&
     (evento as { conflictStatus?: string }).conflictStatus === undefined
       ? ({ ...evento, conflictStatus: 'pending_decision' } as PointEvent)
       : evento,

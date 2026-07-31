@@ -444,3 +444,69 @@ describe('reenvio automatico', () => {
     expect(chamadas).toBe(0);
   });
 });
+
+describe('deteccao de conflito no caminho real do sync', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    syncService.downloadCloudDataToLocal = originalDownload;
+  });
+
+  const originalDownload = syncService.downloadCloudDataToLocal;
+
+  // Teste de INTEGRACAO, nao de funcao pura. A deteccao de conflito tem teste
+  // unitario verde em syncConflicts.test.ts e mesmo assim nunca dispara no app,
+  // porque o unitario usa chaves consistentes e o caminho real mistura id LOCAL
+  // com id de NUVEM. So um teste que atravessa applyResult pega isso.
+  it('marca os eventos locais quando a sessao esta controlada por outra pessoa', async () => {
+    // Sessao criada no app: id local != cloudId. E o caso normal, nao a excecao.
+    const sessaoDaNuvem = {
+      id: 'sess-local-1',
+      cloudId: '11111111-1111-1111-1111-111111111111',
+      name: 'Terça 19h',
+      controlledByUserId: 'user-ana',
+      controlClaimedAt: '2026-07-31T12:00:00.000Z',
+      controlDeviceId: 'dev-ana',
+    } as any;
+
+    // Um evento que ja veio da nuvem (tem cloudId) = placar da Ana.
+    const eventoDaAna = {
+      id: 'ev-ana', cloudId: 'cloud-ev-ana', sessionId: 'sess-local-1', syncStatus: 'synced',
+    } as any;
+    // E o meu, marcado offline, ainda nao enviado.
+    const meuEvento = {
+      id: 'ev-meu', sessionId: 'sess-local-1', syncStatus: 'pending',
+    } as any;
+
+    syncService.downloadCloudDataToLocal = async () => ({
+      ...emptyPayload(),
+      sessions: [sessaoDaNuvem],
+      pointEvents: [eventoDaAna, meuEvento],
+    });
+
+    const setPointEvents = vi.fn();
+    const { result } = renderHook(() =>
+      useCloudSync(
+        deps({
+          userId: 'user-eu',
+          pointEvents: [meuEvento],
+          setPointEvents,
+          players: [{ id: 'p-ana', userId: 'user-ana', nome: 'Ana' }] as any,
+        }),
+      ),
+    );
+
+    await act(async () => {
+      await result.current.downloadFromCloud();
+    });
+
+    const aplicados = setPointEvents.mock.calls.at(-1)?.[0] ?? [];
+    const meuAplicado = aplicados.find((e: any) => e.id === 'ev-meu');
+    expect(meuAplicado?.conflictStatus).toBe('pending_decision');
+    // O evento da Ana nao e meu conflito: nao pode ser carimbado.
+    expect(aplicados.find((e: any) => e.id === 'ev-ana')?.conflictStatus).toBeUndefined();
+  });
+});

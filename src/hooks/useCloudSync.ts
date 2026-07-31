@@ -47,6 +47,13 @@ import {
 } from '../types';
 import { useConnectivity } from './useConnectivity';
 import { classifySyncError } from '../logic/syncBackoff';
+import { detectSessionConflicts } from '../logic/syncConflicts';
+import type { SessionControlRow } from '@infra/supabase/sessionOwnershipCloudService';
+import {
+  markConflictedEvents,
+  resolveConflictKeepingMine,
+  resolveConflictKeepingTheirs,
+} from '../application/sessionConflictResolution';
 
 /**
  * Everything {@link useCloudSync} needs to build the upload payload and apply a
@@ -154,6 +161,38 @@ export function useCloudSync(deps: CloudSyncDeps) {
     }
     const normalized = normalizeCloudSyncResultPayload(result);
 
+    // Deteccao de conflito: e o momento em que se conhece o estado de controle
+    // da nuvem. Os eventos locais pendentes cuja sessao esta controlada por
+    // outra pessoa sao carimbados para o upload segurar ate alguem decidir.
+    const cloudSessionControl: Record<string, SessionControlRow> = {};
+    const cloudEventCounts: Record<string, number> = {};
+    for (const session of normalized.sessions) {
+      if (session.cloudId) {
+        cloudSessionControl[session.cloudId] = {
+          controlled_by_user_id: session.controlledByUserId ?? null,
+          control_claimed_at: session.controlClaimedAt ?? null,
+          control_device_id: session.controlDeviceId ?? null,
+        };
+      }
+    }
+    for (const ev of normalized.pointEvents) {
+      const sid = ev.cloudId ? ev.sessionId : undefined;
+      const key = sid ?? ev.sessionId;
+      cloudEventCounts[key] = (cloudEventCounts[key] ?? 0) + 1;
+    }
+
+    const conflicts = detectSessionConflicts({
+      currentUserId: deps.userId,
+      localPointEvents: deps.pointEvents,
+      cloudSessionControl,
+      cloudEventCounts,
+      holderNames: {},
+    });
+
+    const resolvedPointEvents = conflicts.length > 0
+      ? markConflictedEvents(normalized.pointEvents, conflicts)
+      : normalized.pointEvents;
+
     deps.setCommunities(normalized.communities);
     deps.setPlayers(normalized.players);
     deps.setRules(normalized.rules);
@@ -161,7 +200,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     deps.setSessions(normalized.sessions);
     deps.setTeams(normalized.teams);
     deps.setGames(normalized.games);
-    deps.setPointEvents(normalized.pointEvents);
+    deps.setPointEvents(resolvedPointEvents);
     deps.setGameReports(normalized.gameReports);
     deps.setSessionReports(normalized.sessionReports);
     deps.setPresenceRecords(normalized.presenceRecords);
@@ -325,6 +364,34 @@ export function useCloudSync(deps: CloudSyncDeps) {
       repairDuplicateCloudDataCommand({ userId, onIssue }),
     );
 
+  /**
+   * Resolve um conflito de placar mantendo o placar local: os eventos da sessao
+   * seguem pendentes e poderao subir no proximo upload.
+   */
+  const resolveConflictKeepingMineAction = (sessionId: string) => {
+    const now = new Date().toISOString();
+    const next = resolveConflictKeepingMine({
+      pointEvents: deps.pointEvents,
+      sessionId,
+      now,
+    });
+    deps.setPointEvents(next);
+  };
+
+  /**
+   * Resolve um conflito de placar assumindo a versao da outra pessoa: os eventos
+   * locais da sessao viram soft-delete e nunca mais sobem.
+   */
+  const resolveConflictKeepingTheirsAction = (sessionId: string) => {
+    const now = new Date().toISOString();
+    const next = resolveConflictKeepingTheirs({
+      pointEvents: deps.pointEvents,
+      sessionId,
+      now,
+    });
+    deps.setPointEvents(next);
+  };
+
   return {
     uploadToCloud,
     downloadFromCloud,
@@ -339,6 +406,8 @@ export function useCloudSync(deps: CloudSyncDeps) {
     recoverableSyncActions,
     retryPrimarySyncAction,
     clearResolvedSyncIssues,
+    resolveConflictKeepingMine: resolveConflictKeepingMineAction,
+    resolveConflictKeepingTheirs: resolveConflictKeepingTheirsAction,
     connectivity: connectivity.state,
   };
 }

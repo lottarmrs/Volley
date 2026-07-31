@@ -2643,3 +2643,45 @@ test('consolidated schema reset_product_data only deletes tables that exist', ()
   assert.doesNotMatch(fn, /public\.player_achievements/i);
   assert.match(fn, /delete from public\.career_events;/i);
 });
+
+const sessionOwnershipMigration = readFixture(
+  new URL('../../../supabase/migrations/20260731100000_session_ownership.sql', import.meta.url),
+);
+
+test('session ownership is by user, never by device', () => {
+  // O device_id existe para um aviso informativo. Se algum dia ele aparecer numa
+  // comparacao que decide permissao, este teste quebra de proposito.
+  const fn = extractSqlFunction(sessionOwnershipMigration, 'claim_session_ownership');
+  assert.ok(fn, 'missing claim_session_ownership');
+  assert.match(fn, /controlled_by_user_id <> v_uid/i);
+  assert.doesNotMatch(fn, /control_device_id\s*<>\s*p_device_id/i);
+});
+
+test('session control expiry measures activity, not claim time', () => {
+  // Medir desde a reivindicacao travaria a quadra quando o celular do organizador
+  // morresse. O coalesce cobre a sessao sem nenhum ponto ainda.
+  const fn = extractSqlFunction(sessionOwnershipMigration, 'session_control_is_expired');
+  assert.ok(fn, 'missing session_control_is_expired');
+  assert.match(fn, /max\(pe\.occurred_at\)/i);
+  assert.match(fn, /coalesce\(/i);
+  assert.match(fn, /p_session\.control_claimed_at/i);
+});
+
+test('ownership RPCs revoke from anon before granting', () => {
+  for (const nome of ['claim_session_ownership', 'transfer_session_ownership']) {
+    assert.match(
+      sessionOwnershipMigration,
+      new RegExp(`revoke execute on function public\\.${nome}\\(uuid, text\\) from public, anon`, 'i'),
+    );
+    assert.match(
+      sessionOwnershipMigration,
+      new RegExp(`grant execute on function public\\.${nome}\\(uuid, text\\) to authenticated`, 'i'),
+    );
+  }
+});
+
+test('consolidated schema carries the ownership columns and RPCs', () => {
+  assert.match(baseSchema, /controlled_by_user_id uuid references auth\.users\(id\) on delete set null/i);
+  assert.match(baseSchema, /create or replace function public\.claim_session_ownership/i);
+  assert.match(baseSchema, /create or replace function public\.transfer_session_ownership/i);
+});

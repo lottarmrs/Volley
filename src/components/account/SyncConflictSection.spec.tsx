@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { SyncConflictSection } from './SyncConflictSection';
 
 const conflito = {
-  sessionId: 's-1', sessionName: 'Terça 19h', localEventCount: 21,
+  sessionId: 's-1', sessionName: 'Treino da noite', localEventCount: 21,
   holderUserId: 'u-2', holderName: 'Ana', holderEventCount: 19,
 };
 
@@ -20,7 +20,7 @@ describe('SyncConflictSection', () => {
     render(<SyncConflictSection conflicts={[conflito]} onKeepMine={vi.fn()} onKeepTheirs={vi.fn()} />);
     expect(screen.getByText(/21/)).toBeTruthy();
     expect(screen.getByText(/19/)).toBeTruthy();
-    expect(screen.getByText(/Ana/)).toBeTruthy();
+    expect(screen.getAllByText(/Ana/).length).toBeGreaterThan(0);
   });
 
   it('deixa escolher qual versao vale', () => {

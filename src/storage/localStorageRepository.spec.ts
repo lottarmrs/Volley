@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   LOCAL_CACHE_OWNER_KEY,
   getLocalCacheOwnerId,
+  getOrCreateDeviceId,
   loadFromStorage,
   markLocalCacheOwner,
   removeFromStorage,
@@ -75,6 +76,20 @@ describe('localStorageRepository', () => {
     it('getLocalCacheOwnerId retorna o dono marcado no storage', () => {
       localStorage.setItem('vpg_cache_owner_id', 'user-x');
       expect(getLocalCacheOwnerId()).toBe('user-x');
+    });
+
+    it('getOrCreateDeviceId cria uma vez e devolve sempre o mesmo', () => {
+      const primeiro = getOrCreateDeviceId();
+      expect(primeiro).toMatch(/[0-9a-f-]{36}/i);
+      expect(getOrCreateDeviceId()).toBe(primeiro);
+    });
+
+    it('o id do dispositivo sobrevive a troca de conta', () => {
+      // clearLocalDomainCache varre STORAGE_KEYS. O aparelho nao muda porque o
+      // usuario mudou, entao vpg_device_id NAO pode estar nessa lista.
+      const antes = getOrCreateDeviceId();
+      clearLocalDomainCache();
+      expect(getOrCreateDeviceId()).toBe(antes);
     });
   });
 });

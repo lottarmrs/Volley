@@ -93,6 +93,9 @@ export function mapDbToSession(db: DbRecord): Session {
     syncStatus: 'synced',
     lastSyncedAt: syncedAt(),
     deletedAt: db.deleted_at || undefined,
+    controlledByUserId: db.controlled_by_user_id ?? null,
+    controlClaimedAt: db.control_claimed_at ?? null,
+    controlDeviceId: db.control_device_id ?? null,
   };
 }
 

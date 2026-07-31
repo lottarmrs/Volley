@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { TournamentActiveView } from './TournamentActiveView';
 import {
@@ -38,6 +38,16 @@ import { HighlightFab } from './HighlightFab';
 import { calculateLiveGameRatings } from '../../logic/rating';
 import { openWhatsAppShare, copyToClipboard } from '../../logic/exporters';
 import { generateUUID } from '../../logic/uuid';
+import { SessionOwnershipNotice } from './SessionOwnershipNotice';
+import {
+  resolveSessionControl,
+  claimSessionControlCommand,
+  transferSessionControlCommand,
+  type SessionControlView,
+} from '@app/sessionOwnershipUseCases';
+import { getOrCreateDeviceId } from '@storage/localStorageRepository';
+import { isAppOk } from '@app/appResult';
+import { useAuth } from '../../hooks/useAuth';
 
 interface SessionActiveViewProps {
   activeSession: Session;
@@ -105,6 +115,47 @@ export const SessionActiveView = ({
   );
 
   const [preSelectedPlayerId, setPreSelectedPlayerId] = useState<string | undefined>();
+  const [control, setControl] = useState<SessionControlView>({
+    canScore: true,
+    reason: 'free',
+    message: '',
+    holderName: null,
+  });
+  const auth = useAuth();
+
+  // A ORDEM importa. Primeiro decidimos a partir do estado que veio da nuvem, DEPOIS
+  // reivindicamos — porque reivindicar grava o meu device_id, e a partir daí o caso
+  // "minha sessao em outro aparelho" some e o aviso nunca apareceria.
+  useEffect(() => {
+    if (!activeSession?.cloudId) return;
+
+    const visao = resolveSessionControl({
+      controlledByUserId: activeSession.controlledByUserId ?? null,
+      controlClaimedAt: activeSession.controlClaimedAt ?? null,
+      controlDeviceId: activeSession.controlDeviceId ?? null,
+      currentUserId: auth.user?.id ?? null,
+      currentDeviceId: getOrCreateDeviceId(),
+      holderName: activeSession.controlHolderName ?? null,
+    });
+    setControl(visao);
+
+    // Só reivindica quando já posso marcar. Se outra pessoa está com o controle, a
+    // tomada é explícita, pelo botão — nunca automática ao abrir a tela.
+    if (!visao.canScore) return;
+
+    // Sem rede a chamada falha e seguimos marcando: offline a posse só pode ser
+    // DETECTADA depois, no sync, nunca imposta aqui.
+    void claimSessionControlCommand(activeSession.cloudId).then((r) => {
+      if (!isAppOk(r)) {
+        setControl({
+          canScore: false,
+          reason: 'held_by_other',
+          message: r.error.message,
+          holderName: null,
+        });
+      }
+    });
+  }, [activeSession?.cloudId, auth.user?.id]);
 
   // Notas ao vivo do jogo corrente (aparecem no card do time, inclusive p/ facilitadores).
   const liveRatings = useMemo(() => {
@@ -396,6 +447,18 @@ export const SessionActiveView = ({
         </div>
       </div>
 
+      <SessionOwnershipNotice
+        control={control}
+        onTakeControl={() => {
+          if (!activeSession?.cloudId) return;
+          void transferSessionControlCommand(activeSession.cloudId).then((r) => {
+            if (isAppOk(r)) {
+              setControl({ canScore: true, reason: 'mine', message: '', holderName: null });
+            }
+          });
+        }}
+      />
+
       {activeSession.type === 'tournament' && (
         <div role="alert" className="alert alert-info alert-soft">
           <span className="text-xs font-bold uppercase">
@@ -440,8 +503,12 @@ export const SessionActiveView = ({
             sets={currentGame.sets}
             setTargets={currentGame.setTargets}
             isTeamA={true}
-            onRegisterPoint={() => registerPoint(currentGame.teamAId)}
+            onRegisterPoint={() => {
+              if (!control.canScore) return;
+              registerPoint(currentGame.teamAId);
+            }}
             onOpenDetailModal={(pid) => {
+              if (!control.canScore) return;
               setPointModalTeamId(currentGame.teamAId);
               setPreSelectedPlayerId(pid);
             }}
@@ -462,8 +529,12 @@ export const SessionActiveView = ({
             sets={currentGame.sets}
             setTargets={currentGame.setTargets}
             isTeamA={false}
-            onRegisterPoint={() => registerPoint(currentGame.teamBId)}
+            onRegisterPoint={() => {
+              if (!control.canScore) return;
+              registerPoint(currentGame.teamBId);
+            }}
             onOpenDetailModal={(pid) => {
+              if (!control.canScore) return;
               setPointModalTeamId(currentGame.teamBId);
               setPreSelectedPlayerId(pid);
             }}

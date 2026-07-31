@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   downloadCloudDataQuery,
   repairDuplicateCloudDataCommand,
@@ -14,6 +14,7 @@ import {
   buildRecoverableSyncActions,
   buildSyncIssueSummary,
   clearStoredResolvedSyncIssues,
+  dueSyncIssues,
   loadSyncIssueLedger,
   recordStoredSyncIssue,
   resolveStoredSyncIssuesForOperation,
@@ -44,6 +45,15 @@ import {
   WhatsAppListDraft,
   WhatsAppListTemplate,
 } from '../types';
+import { useConnectivity } from './useConnectivity';
+import { classifySyncError } from '../logic/syncBackoff';
+import { detectSessionConflicts } from '../logic/syncConflicts';
+import type { SessionControlRow } from '@infra/supabase/sessionOwnershipCloudService';
+import {
+  markConflictedEvents,
+  resolveConflictKeepingMine,
+  resolveConflictKeepingTheirs,
+} from '../application/sessionConflictResolution';
 
 /**
  * Everything {@link useCloudSync} needs to build the upload payload and apply a
@@ -131,6 +141,8 @@ export function useCloudSync(deps: CloudSyncDeps) {
     loadFromStorage<string | null>(LAST_SYNCED_AT_KEY, null),
   );
 
+  const connectivity = useConnectivity();
+
   const buildPayload = (): LocalSyncPayload =>
     buildLocalSyncPayload({
       ...deps,
@@ -149,6 +161,55 @@ export function useCloudSync(deps: CloudSyncDeps) {
     }
     const normalized = normalizeCloudSyncResultPayload(result);
 
+    // Deteccao de conflito: e o momento em que se conhece o estado de controle
+    // da nuvem. Os eventos locais pendentes cuja sessao esta controlada por
+    // outra pessoa sao carimbados para o upload segurar ate alguem decidir.
+    // A chave e o id LOCAL da sessao, nao o cloudId.
+    //
+    // `mapDbToSession` devolve `id: db.local_id || db.id` e `cloudId: db.id`, e
+    // `PointEvent.sessionId` referencia o id LOCAL. Indexar por cloudId fazia o
+    // lookup falhar em toda sessao criada no app — que sao todas, porque toda
+    // sessao criada aqui grava `local_id`. O conflito nunca era detectado, e o
+    // teste unitario de `detectSessionConflicts` passava porque usa chaves
+    // consistentes dos dois lados.
+    const cloudSessionControl: Record<string, SessionControlRow> = {};
+    for (const session of normalized.sessions) {
+      cloudSessionControl[session.id] = {
+        controlled_by_user_id: session.controlledByUserId ?? null,
+        control_claimed_at: session.controlClaimedAt ?? null,
+        control_device_id: session.controlDeviceId ?? null,
+      };
+    }
+
+    // Conta so o que JA ESTA na nuvem, que e o placar da outra pessoa. Contar o
+    // payload inteiro somaria os meus eventos junto e a tela de conflito mostraria
+    // o total onde deveria mostrar o dela. `cloudId` presente e o que distingue:
+    // evento baixado tem, evento meu ainda nao enviado nao tem.
+    const cloudEventCounts: Record<string, number> = {};
+    for (const ev of normalized.pointEvents) {
+      if (!ev.cloudId) continue;
+      cloudEventCounts[ev.sessionId] = (cloudEventCounts[ev.sessionId] ?? 0) + 1;
+    }
+
+    // Sem nome, a tela cai em "Outra pessoa" — perdendo justamente o que motivou
+    // a posse ser por usuario e nao por aparelho: poder dizer com quem falar.
+    const holderNames: Record<string, string> = {};
+    for (const player of deps.players) {
+      if (player.userId) holderNames[player.userId] = player.apelido || player.nome;
+    }
+
+    const conflicts = detectSessionConflicts({
+      currentUserId: deps.userId,
+      localPointEvents: deps.pointEvents,
+      cloudSessionControl,
+      cloudEventCounts,
+      holderNames,
+    });
+
+    const resolvedPointEvents = conflicts.length > 0
+      ? markConflictedEvents(normalized.pointEvents, conflicts)
+      : normalized.pointEvents;
+
     deps.setCommunities(normalized.communities);
     deps.setPlayers(normalized.players);
     deps.setRules(normalized.rules);
@@ -156,7 +217,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     deps.setSessions(normalized.sessions);
     deps.setTeams(normalized.teams);
     deps.setGames(normalized.games);
-    deps.setPointEvents(normalized.pointEvents);
+    deps.setPointEvents(resolvedPointEvents);
     deps.setGameReports(normalized.gameReports);
     deps.setSessionReports(normalized.sessionReports);
     deps.setPresenceRecords(normalized.presenceRecords);
@@ -223,6 +284,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     try {
       const result = await operation(buildPayload(), deps.userId, onIssue);
       applyResult(result);
+      connectivity.reportOutcome('success');
       if (issues.length > 0) {
         // O que deu certo foi aplicado; sinalizamos as falhas parciais.
         setStatus('error');
@@ -241,6 +303,10 @@ export function useCloudSync(deps: CloudSyncDeps) {
         deps.onToast?.(`${label} concluído.`, 'success');
       }
     } catch (e) {
+      // A requisicao real manda mais que o navigator.onLine.
+      connectivity.reportOutcome(
+        classifySyncError(e) === 'offline_unavailable' ? 'network_failure' : 'success',
+      );
       const message = e instanceof Error ? e.message : 'Falha na sincronização';
       const nextIssues = recordStoredSyncIssue({
         operation: label,
@@ -274,6 +340,29 @@ export function useCloudSync(deps: CloudSyncDeps) {
       syncCloudDataCommand({ payload, userId, onIssue }),
     );
 
+  // O evento `online` do browser chega ANTES da rede estar utilizavel de verdade.
+  // Sem esta espera, a primeira tentativa quase sempre falha de novo.
+  const DEBOUNCE_RECONEXAO_MS = 2000;
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+
+  useEffect(() => {
+    if (connectivity.state !== 'online') return;
+    if (!deps.userId) return;
+
+    const timer = setTimeout(() => {
+      // So reenvia se houver falha aberta E vencida. `dueSyncIssues` ja ignora
+      // resolvidas e erros estruturais, que nao tem nextAttemptAt.
+      if (dueSyncIssues(loadSyncIssueLedger(), new Date().toISOString()).length === 0) return;
+      void syncRef.current().catch(() => {
+        // O erro ja foi registrado no ledger dentro do `run`; aqui so evitamos
+        // uma promise rejeitada sem tratamento.
+      });
+    }, DEBOUNCE_RECONEXAO_MS);
+
+    return () => clearTimeout(timer);
+  }, [connectivity.state, connectivity.onlineAt, deps.userId]);
+
   const recoverableSyncActions = buildRecoverableSyncActions(syncIssues);
 
   const retryPrimarySyncAction = async () => {
@@ -292,6 +381,34 @@ export function useCloudSync(deps: CloudSyncDeps) {
       repairDuplicateCloudDataCommand({ userId, onIssue }),
     );
 
+  /**
+   * Resolve um conflito de placar mantendo o placar local: os eventos da sessao
+   * seguem pendentes e poderao subir no proximo upload.
+   */
+  const resolveConflictKeepingMineAction = (sessionId: string) => {
+    const now = new Date().toISOString();
+    const next = resolveConflictKeepingMine({
+      pointEvents: deps.pointEvents,
+      sessionId,
+      now,
+    });
+    deps.setPointEvents(next);
+  };
+
+  /**
+   * Resolve um conflito de placar assumindo a versao da outra pessoa: os eventos
+   * locais da sessao viram soft-delete e nunca mais sobem.
+   */
+  const resolveConflictKeepingTheirsAction = (sessionId: string) => {
+    const now = new Date().toISOString();
+    const next = resolveConflictKeepingTheirs({
+      pointEvents: deps.pointEvents,
+      sessionId,
+      now,
+    });
+    deps.setPointEvents(next);
+  };
+
   return {
     uploadToCloud,
     downloadFromCloud,
@@ -306,5 +423,8 @@ export function useCloudSync(deps: CloudSyncDeps) {
     recoverableSyncActions,
     retryPrimarySyncAction,
     clearResolvedSyncIssues,
+    resolveConflictKeepingMine: resolveConflictKeepingMineAction,
+    resolveConflictKeepingTheirs: resolveConflictKeepingTheirsAction,
+    connectivity: connectivity.state,
   };
 }

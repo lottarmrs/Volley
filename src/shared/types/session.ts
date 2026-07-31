@@ -293,6 +293,12 @@ export interface Session {
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
+  /** Quem está com o controle desta sessão. Preenchido pelo download. */
+  controlledByUserId?: string | null;
+  controlClaimedAt?: string | null;
+  controlDeviceId?: string | null;
+  /** Nome de exibição de quem controla, resolvido no download para a tela poder nomear. */
+  controlHolderName?: string | null;
 }
 
 export type GameStatus = 'scheduled' | 'active' | 'paused' | 'finished' | 'cancelled' | 'walkover';
@@ -493,6 +499,8 @@ export interface PointEvent {
   lastSyncedAt?: string;
   deletedAt?: string;
   updatedAt?: string;
+  /** Marca de conflito de placar concorrente. Ausente = sem conflito. */
+  conflictStatus?: 'pending_decision' | 'resolved_keep_mine' | 'resolved_keep_theirs';
 }
 
 export interface BalanceWeights {

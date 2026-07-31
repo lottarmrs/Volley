@@ -1276,8 +1276,17 @@ export const syncService = {
       options,
     );
 
+    // Eventos de sessao em conflito nao sobem ate alguem decidir qual versao vale.
+    // O filtro e POR SESSAO de proposito: as demais continuam subindo normalmente.
+    const emConflito = new Set(
+      local.pointEvents
+        .filter((e) => (e as { conflictStatus?: string }).conflictStatus === 'pending_decision')
+        .map((e) => e.sessionId),
+    );
+    const pointEventsParaSubir = local.pointEvents.filter((e) => !emConflito.has(e.sessionId));
+
     const updatedPointEvents = await bulkUploadSessionChildren<PointEvent>(
-      local.pointEvents,
+      pointEventsParaSubir,
       sessionsById,
       'point_events',
       (items) => operationalCloudService.bulkUpsertPointEvents(items, ownerId, sessionsById),

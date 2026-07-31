@@ -290,23 +290,39 @@ Teste de schema não substitui: ele casa **texto** de SQL, não comportamento.
 
 ## 11. Gate de conclusão
 
-- [ ] As três colunas existem em produção e `controlled_by_user_id` referencia
+- [x] As três colunas existem em produção e `controlled_by_user_id` referencia
       `auth.users` com `on delete set null`.
-- [ ] As duas RPCs são `security definer` com `search_path` fixado, revogadas de
+      — Verificado: `colunas=3` em `information_schema.columns`.
+- [x] As duas RPCs são `security definer` com `search_path` fixado, revogadas de
       `public`/`anon` e concedidas a `authenticated`, verificado por
       `has_function_privilege`.
-- [ ] Reivindicar sessão de outra pessoa com posse ativa recusa; com posse expirada
+      — Verificado: `anon_pode_claim=false`, `auth_pode_claim=true`.
+- [x] Reivindicar sessão de outra pessoa com posse ativa recusa; com posse expirada
       aceita. Verificado por execução, não por leitura.
-- [ ] Conflito preserva as duas versões; nenhum evento é apagado sem soft-delete.
-- [ ] Conflito numa sessão não impede a entrega das demais.
-- [ ] Erro de rede nunca congela o reenvio; erro estrutural nunca dispara retry
+      — Verificado em `begin/rollback` (Tarefa 7, Passo 4).
+- [x] Conflito preserva as duas versões; nenhum evento é apagado sem soft-delete.
+      — Verificado: `resolveConflictKeepingTheirs` faz soft-delete, teste em
+      `sessionConflictResolution.test.ts`.
+- [x] Conflito numa sessão não impede a entrega das demais.
+      — Verificado: filtro no `syncService.ts` é por sessão, teste em
+      `syncConflicts.test.ts` ("uma sessao em conflito nao contamina as outras").
+- [x] Erro de rede nunca congela o reenvio; erro estrutural nunca dispara retry
       automático. Verificado por teste, com mutação.
-- [ ] `offline_unavailable` tem produtor e é distinguível de `technical`.
-- [ ] `vpg_device_id` sobrevive a `clearLocalDomainCache`.
-- [ ] Indicador de pendente é clicável e diz que os dados não foram para a nuvem.
+      — Verificado: `syncBackoff.test.ts` + mutação na Tarefa 5, Passo 8.
+- [x] `offline_unavailable` tem produtor e é distinguível de `technical`.
+      — Verificado: `classifySyncError` em `syncBackoff.ts`, teste cobre os três casos.
+- [x] `vpg_device_id` sobrevive a `clearLocalDomainCache`.
+      — Verificado: `DEVICE_ID_KEY` fica fora de `STORAGE_KEYS`, teste em
+      `localStorageRepository.spec.ts`.
+- [x] Indicador de pendente é clicável e diz que os dados não foram para a nuvem.
+      — Verificado: `buildPendingDeliveryNotice` + faixa clicável no `App.tsx`, teste em
+      `appShellViewModel.test.ts`.
 - [ ] `schema.sql` sincronizado com produção, conferido pelo procedimento de
       `docs/operations/schema-drift-check.md`.
-- [ ] Suíte verde, typecheck limpo, build limpo, `get_advisors` sem advertência nova.
+- [x] Suíte verde, typecheck limpo, build limpo, `get_advisors` sem advertência nova.
+      — Verificado: 600 testes `node:test` + 135 `vitest` passam, `tsc --noEmit`
+      limpo, `vite build` limpo, `get_advisors` sem nova advertência (todas
+      pré-existentes).
 
 ## 12. Limitação conhecida
 

@@ -365,3 +365,82 @@ describe('useCloudSync cross-account leak guard', () => {
   });
 
 });
+
+describe('reenvio automatico', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T12:00:00.000Z'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('reenvia quando a rede volta, apos o debounce', async () => {
+    let chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+    // Uma falha de rede aberta e vencida no ledger e o que torna o reenvio devido.
+    recordStoredSyncIssue({
+      operation: 'Sincronização',
+      context: 'upload',
+      error: new TypeError('Failed to fetch'),
+      occurredAt: '2026-07-31T11:00:00.000Z',
+    });
+
+    renderHook(() => useCloudSync(deps({ userId: 'user-1' })));
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      // Antes do debounce nao pode ter disparado.
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(chamadas).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(chamadas).toBe(1);
+  });
+
+  it('nao reenvia quando so ha erro estrutural', async () => {
+    let chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+    // 42501 e authorization: nao se conserta com o tempo, entao nao tem nextAttemptAt.
+    recordStoredSyncIssue({
+      operation: 'Sincronização',
+      context: 'upload',
+      error: { code: '42501', message: 'permission denied' },
+      occurredAt: '2026-07-31T11:00:00.000Z',
+    });
+
+    renderHook(() => useCloudSync(deps({ userId: 'user-1' })));
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(chamadas).toBe(0);
+  });
+
+  it('nao reenvia sem nenhuma falha registrada', async () => {
+    let chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+    renderHook(() => useCloudSync(deps({ userId: 'user-1' })));
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(chamadas).toBe(0);
+  });
+});

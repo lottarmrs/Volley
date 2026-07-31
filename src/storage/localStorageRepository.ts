@@ -1,3 +1,5 @@
+import { generateUUID } from '../logic/uuid';
+
 export const STORAGE_KEYS = {
   players: 'vpg_players',
   sessions: 'vpg_sessions',
@@ -24,6 +26,19 @@ export const STORAGE_KEYS = {
 };
 
 export const LOCAL_CACHE_OWNER_KEY = 'vpg_cache_owner_id';
+
+/**
+ * Identidade do APARELHO, nao do usuario.
+ *
+ * Fica de proposito FORA de STORAGE_KEYS: `clearLocalDomainCache` varre aquela lista
+ * na troca de conta, e o aparelho nao muda porque a pessoa mudou. Mesmo tratamento de
+ * LOCAL_CACHE_OWNER_KEY.
+ *
+ * Serve apenas para um aviso informativo ("voce esta com esta sessao aberta em outro
+ * aparelho"). NUNCA bloqueia nada — se o id se perder na limpeza do navegador, o pior
+ * que acontece e o aviso deixar de aparecer.
+ */
+export const DEVICE_ID_KEY = 'vpg_device_id';
 
 export const STORAGE_METADATA_KEYS = [
   LOCAL_CACHE_OWNER_KEY,
@@ -103,5 +118,20 @@ export function clearLocalDomainCache() {
     localStorage.removeItem('vpg_last_synced_at');
   } catch (err) {
     console.error('Error clearing local domain cache:', err);
+  }
+}
+
+export function getOrCreateDeviceId(): string {
+  try {
+    const existente = localStorage.getItem(DEVICE_ID_KEY);
+    if (existente) return existente;
+    const novo = generateUUID();
+    localStorage.setItem(DEVICE_ID_KEY, novo);
+    return novo;
+  } catch (err) {
+    console.error('Error resolving device id:', err);
+    // Sem storage, devolve um id efemero: o aviso de aparelho para de funcionar,
+    // nada mais quebra.
+    return generateUUID();
   }
 }

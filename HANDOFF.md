@@ -8,7 +8,34 @@
 - Branch local: `main`, alinhado com `origin/main` após os commits enviados.
 - Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
 - Prioridade atual do framework: Produto Escalável, depois Experiência.
-- Foco imediato: Produto Escalável, com saneamento de toolchain já iniciado e registrado.
+- Foco imediato: Plano 5 — Fase 2 (Screen Contracts). Fase 1 (reset + cutover) concluída em 2026-08-03 (ver seção Pós-Cutover abaixo).
+
+## Pós-Cutover Plano 5 (Fase 1)
+
+Reset de produção ensaiado num projeto Supabase isolado e executado em produção
+em **2026-08-03**. Conta-alvo: `<master-account-uuid>` (`testeadm`,
+role `master`) — a única com comunidade. Detalhes completos em
+`docs/operations/reset-cutover-runbook.md`.
+
+- **Data do cutover:** 2026-08-03.
+- **Account UUID resetado:** `<master-account-uuid>`.
+- **Contagens pré → pós-reset (produção):** communities 1→0, community_players
+  2→0, community_members 2→0, players 2→2 (canônicos preservados), auth_users
+  2→2 (fora do reset), modification_logs 8→8 (preservados), fk_count 62→62.
+- **Advisors:** sem regressão — mesmos ERRORs pré-existentes em views
+  `security_definer_view` (`community_profile_summary`, `career_totals`),
+  nenhum novo referente ao reset.
+- **Defeitos corrigidos durante a operação:** 3 fatais descobertos no ensaio
+  (player canônico apagado; guard de último owner no cascade; trigger de
+  auditoria quebrando FK) + 1 durante o cutover (defeito 7: bypass BEFORE
+  DELETE retornava `new`=NULL e cancelava o cascade). Todos na migration
+  `20260801120000_reset_product_data_preserve_canonical.sql`, aplicada em
+  produção.
+- **Rollback:** snapshot de usernames + backup lógico em
+  `docs/operations/snapshots/2026-08-03-*`; `handle_new_user` é idempotente
+  (re-login recria o player canônico se preciso).
+- **Estado:** produção estável. Fase 1 fechada; Fase 2 (Screen Contracts) é o
+  próximo passo.
 
 ## Supabase
 

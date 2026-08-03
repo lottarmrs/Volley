@@ -7,20 +7,12 @@ import { lazy, Suspense, useState, useEffect, useMemo, useRef, type ReactNode } 
 import { AnimatePresence, motion } from 'motion/react';
 import {
   LayoutDashboard,
-  Activity,
   Trophy,
   Users,
-  Shield,
   Medal,
   BarChart3,
   Settings,
   ShieldCheck,
-  Plus,
-  ArrowRight,
-  Download,
-  Upload,
-  Search,
-  UserCheck,
   Cloud,
 } from 'lucide-react';
 
@@ -42,7 +34,7 @@ import { ToastViewport } from '@ui/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
-import { Community, CommunityRules, Game, Player, Team } from './types';
+import { Community, CommunityRules, Game, Player, SessionConfig, Team } from './types';
 import { migrateLocalDbToUuids } from './logic/migrations';
 import {
   STORAGE_KEYS,
@@ -73,6 +65,7 @@ import {
   selectSessionTeams,
 } from './application/sessionLifecycleUseCases';
 import {
+  buildPendingDeliveryNotice,
   getAccountDisplay,
   getCommunitiesNavigationTarget,
   getCurrentPageTitle,
@@ -87,19 +80,13 @@ import {
   type ModuleNavigationItem,
   type Page,
   type ShellNavigationTarget,
-} from './application/appShellViewModel';
+} from '@app/appShellViewModel';
 import {
   buildBackupFileName,
   buildBackupPayload,
   buildImportedBackupPersistencePlan,
   prepareImportedBackup,
 } from './application/backupUseCases';
-import {
-  buildRankingViewModel,
-  getRankDisplay,
-  rankingPositionLabels,
-} from './application/rankingViewModel';
-import { buildTournamentListViewModel } from './application/tournamentViewModel';
 import { buildVutRevealItems } from './application/vutRevealUseCases';
 import { getPlayerEditActionErrorMessage } from './application/playerEditActionUseCases';
 import { planStartupCloudDownload } from './application/cloudSyncStartupUseCases';
@@ -107,8 +94,7 @@ import {
   detachChampionshipTeamBridges,
   materializeRound,
 } from './application/championshipUseCases';
-import { appOk, productError } from './application/appResult';
-import { buildPendingDeliveryNotice } from '@app/appShellViewModel';
+import { appOk, productError } from '@app/appResult';
 
 const Dashboard = lazy(() =>
   import('./components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
@@ -147,6 +133,21 @@ const AccountSyncView = lazy(() =>
 const GestaoView = lazy(() =>
   import('./components/admin/GestaoView').then((module) => ({ default: module.GestaoView })),
 );
+const SettingsModule = lazy(() =>
+  import('./components/settings/SettingsModule').then((module) => ({
+    default: module.SettingsModule,
+  })),
+);
+const RankingModule = lazy(() =>
+  import('./components/ranking/RankingModule').then((module) => ({
+    default: module.RankingModule,
+  })),
+);
+const TournamentsModule = lazy(() =>
+  import('./components/tournaments/TournamentsModule').then((module) => ({
+    default: module.TournamentsModule,
+  })),
+);
 
 // Execute UUID migration on startup before any state/hook initializes
 migrateLocalDbToUuids();
@@ -161,14 +162,6 @@ export default function App() {
   // Auth state
   const auth = useAuth();
   const toasts = useToasts();
-
-  // Search & Filters for custom sub-views
-  const [matchesSearch, setMatchesSearch] = useState('');
-  const [matchesFilter, setMatchesFilter] = useState<'all' | 'active' | 'finished' | 'scheduled'>(
-    'all',
-  );
-  const [rankingSearch, setRankingSearch] = useState('');
-  const [rankingSort, setRankingSort] = useState<'overall' | 'winRate' | 'points'>('overall');
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
 
@@ -333,7 +326,10 @@ export default function App() {
         STORAGE_KEYS.lastSelectedPlayerIds,
         null,
       ),
-      lastSessionConfig: loadFromStorage<any | null>(STORAGE_KEYS.lastSessionConfig, null),
+      lastSessionConfig: loadFromStorage<SessionConfig | null>(
+        STORAGE_KEYS.lastSessionConfig,
+        null,
+      ),
     });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -399,9 +395,10 @@ export default function App() {
         setPage('dashboard');
         setActiveModule('dashboard');
 
-        alert('Dados importados com sucesso!');
-      } catch {
-        alert('Erro ao importar: arquivo inválido.');
+        window.alert('Dados importados com sucesso!');
+      } catch (e) {
+        console.error('Erro ao importar backup:', e);
+        window.alert('Erro ao importar: arquivo inválido.');
       }
     };
     reader.readAsText(file);
@@ -925,10 +922,44 @@ export default function App() {
         );
 
       case 'torneios':
-        return renderTournamentsModule();
+        return (
+          <TournamentsModule
+            sessions={sess.sessions}
+            games={sess.games}
+            teams={sess.teams}
+            sessionReports={sess.sessionReports}
+            onNewTournament={() => {
+              const result = buildManualSessionStartResult({
+                type: 'tournament',
+                now: new Date(),
+                createId: generateUUID,
+              });
+              sess.setActiveSession(result.session);
+              wizard.setWizardStep(result.nextWizardStep);
+              setPage('session-wizard');
+              setActiveModule('dashboard');
+            }}
+            onOpenTournament={(tournament, shouldOpenLive) => {
+              if (shouldOpenLive) {
+                sess.setActiveSession(tournament);
+                applyShellNavigationTarget(getLiveSessionNavigationTarget());
+              } else {
+                applyShellNavigationTarget(getHistorySessionNavigationTarget(tournament.id));
+              }
+            }}
+          />
+        );
 
       case 'ranking':
-        return renderRankingModule();
+        return (
+          <RankingModule
+            players={play.players}
+            games={sess.games}
+            pointEvents={sess.pointEvents}
+            teams={sess.teams}
+            sessions={sess.sessions}
+          />
+        );
 
       case 'historico':
         return (
@@ -954,7 +985,13 @@ export default function App() {
         );
 
       case 'configuracoes':
-        return renderSettingsModule();
+        return (
+          <SettingsModule
+            onExportBackup={handleExportBackup}
+            onImportBackup={handleImportBackup}
+            onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
+          />
+        );
 
       case 'gestao':
         return auth.isStaff ? (
@@ -993,370 +1030,6 @@ export default function App() {
   };
 
   // ── Sub-view Renderers ───────────────────────────────────────────────────
-
-  const renderTournamentsModule = () => {
-    const tournamentCards = buildTournamentListViewModel({
-      sessions: sess.sessions,
-      games: sess.games,
-      teams: sess.teams,
-      sessionReports: sess.sessionReports,
-    });
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center bg-surface p-4 rounded-xl border border-border">
-          <span className="text-xs font-bold text-text-muted uppercase">Torneios Registrados</span>
-          <button
-            onClick={() => {
-              const result = buildManualSessionStartResult({
-                type: 'tournament',
-                now: new Date(),
-                createId: generateUUID,
-              });
-              sess.setActiveSession(result.session);
-              wizard.setWizardStep(result.nextWizardStep);
-              setPage('session-wizard');
-              setActiveModule('dashboard');
-            }}
-            className="btn btn-primary rounded-full uppercase tracking-wider text-xs"
-          >
-            <Plus className="w-4 h-4" /> Novo Torneio
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tournamentCards.map((card) => {
-            const t = card.tournament;
-            return (
-              <div
-                key={t.id}
-                className="card card-border bg-base-200 p-6 rounded-2xl flex flex-col justify-between gap-4"
-              >
-                <div>
-                  <div className="flex justify-between items-start">
-                    <span className="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-[9px] font-bold text-primary uppercase">
-                      Torneio
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${card.status.className}`}
-                    >
-                      {card.status.label}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-lg text-base-content uppercase mt-3 tracking-tight">
-                    {t.name}
-                  </h3>
-                  <p className="text-[10px] text-text-subtle font-mono uppercase mt-1">
-                    Data: {card.dateLabel}
-                  </p>
-                </div>
-
-                <div className="bg-surface-muted p-3.5 rounded-xl border border-border space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-text-muted">Partidas Realizadas:</span>
-                    <span className="font-bold font-mono text-base-content">
-                      {card.finishedGames}
-                    </span>
-                  </div>
-                  {t.status === 'finished' && (
-                    <div className="flex justify-between items-center text-xs border-t border-border pt-2 mt-2">
-                      <span className="text-text-muted flex items-center gap-1.5">
-                        <Trophy className="w-3.5 h-3.5 text-accent" /> Campeão:
-                      </span>
-                      <span className="font-black text-accent uppercase">{card.winnerName}</span>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (card.shouldOpenLive) {
-                      sess.setActiveSession(t);
-                      applyShellNavigationTarget(getLiveSessionNavigationTarget());
-                    } else {
-                      applyShellNavigationTarget(getHistorySessionNavigationTarget(t.id));
-                    }
-                  }}
-                  className="btn btn-secondary rounded-full w-full uppercase tracking-wider text-xs"
-                >
-                  Ver Detalhes
-                </button>
-              </div>
-            );
-          })}
-          {tournamentCards.length === 0 && (
-            <div className="col-span-full py-20 card card-border border-dashed bg-base-200 text-center">
-              <p className="text-base-content/60 uppercase text-xs font-bold italic">
-                Nenhum torneio cadastrado.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderRankingModule = () => {
-    const sortedRankings = buildRankingViewModel({
-      players: play.players,
-      games: sess.games,
-      pointEvents: sess.pointEvents,
-      teams: sess.teams,
-      sessions: sess.sessions,
-      search: rankingSearch,
-      sort: rankingSort,
-    });
-
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-surface p-4 rounded-xl border border-border">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-subtle" />
-            <input
-              type="text"
-              placeholder="Buscar por jogador..."
-              value={rankingSearch}
-              onChange={(e) => setRankingSearch(e.target.value)}
-              className="pl-10 w-full"
-            />
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            {(['overall', 'winRate', 'points'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setRankingSort(s)}
-                className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2 text-[10px] sm:text-xs font-bold uppercase rounded-lg border transition-all ${
-                  rankingSort === s
-                    ? 'bg-primary border-primary text-primary-content'
-                    : 'bg-surface-muted border-border text-text-muted hover:text-base-content'
-                }`}
-              >
-                {s === 'overall' ? 'Rating' : s === 'winRate' ? '% Vitória' : 'Pontos'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── MOBILE: Card-based ranking ─── */}
-        <div className="lg:hidden space-y-2.5">
-          {sortedRankings.map((p, index) => {
-            return (
-              <div
-                key={p.player.id}
-                className={`bg-base-200 border rounded-xl p-3.5 ${
-                  index < 3 ? 'border-accent/30' : 'border-base-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-sm font-black font-mono text-base-content/60 w-7 shrink-0 text-center">
-                      {getRankDisplay(index)}
-                    </span>
-                    <div className="min-w-0">
-                      <span className="font-bold text-sm text-base-content truncate block">
-                        {p.player.apelido || p.player.nome}
-                      </span>
-                      <span className="text-[10px] font-semibold text-base-content/50 uppercase">
-                        {p.player.posicaoPrincipal
-                          ? rankingPositionLabels[p.player.posicaoPrincipal] ||
-                            p.player.posicaoPrincipal
-                          : '--'}
-                        {p.player.status.lesionado && (
-                          <span className="ml-1.5 px-1 py-0.5 bg-error/15 text-error text-[8px] rounded uppercase font-bold">
-                            Lesionado
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="font-mono font-black text-accent bg-accent/10 border border-accent/20 px-2.5 py-1 rounded text-sm shrink-0">
-                    {p.overall}
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
-                      Jogos
-                    </span>
-                    <span className="text-xs font-black font-mono text-base-content/80">
-                      {p.stats.gamesPlayed}
-                    </span>
-                  </div>
-                  <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
-                      Win%
-                    </span>
-                    <span className="text-xs font-black font-mono text-success">
-                      {p.stats.winRate.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
-                      Pontos
-                    </span>
-                    <span className="text-xs font-black font-mono text-accent">
-                      {p.stats.totalPoints}
-                    </span>
-                  </div>
-                  <div className="bg-base-300/50 rounded-lg p-1.5">
-                    <span className="text-[8px] font-bold text-base-content/40 uppercase block">
-                      Bloq
-                    </span>
-                    <span className="text-xs font-black font-mono text-base-content/70">
-                      {p.stats.blocks}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {sortedRankings.length === 0 && (
-            <div className="py-16 text-center card bg-base-200 border border-base-300 border-dashed">
-              <p className="text-base-content/50 uppercase text-xs font-bold italic">
-                Nenhum atleta encontrado.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* ─── DESKTOP: Original table ─── */}
-        <div className="hidden lg:block card card-border bg-base-200 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="table table-zebra table-sm w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-base-300 font-bold text-base-content/60">
-                  <th className="p-4 w-16">Rank</th>
-                  <th className="p-4">Atleta</th>
-                  <th className="p-4">Posição</th>
-                  <th className="p-4 text-center">Jogos</th>
-                  <th className="p-4 text-center">Vitórias</th>
-                  <th className="p-4 text-center">% Vitórias</th>
-                  <th className="p-4 text-center">Aces</th>
-                  <th className="p-4 text-center">Bloqueios</th>
-                  <th className="p-4 text-center">Pontos Totais</th>
-                  <th className="p-4 text-center">Rating</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedRankings.map((p, index) => (
-                  <tr key={p.player.id}>
-                    <td className="p-4 font-mono font-black text-base-content/70 text-sm">
-                      {getRankDisplay(index)}
-                    </td>
-                    <td className="p-4 font-bold text-base-content">
-                      {p.player.apelido || p.player.nome}
-                      {p.player.status.lesionado && (
-                        <span className="ml-2 px-1.5 py-0.5 bg-error/15 text-error text-[8px] rounded uppercase font-bold">
-                          Lesionado
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 font-semibold text-base-content/60 uppercase text-[10px]">
-                      {p.player.posicaoPrincipal
-                        ? rankingPositionLabels[p.player.posicaoPrincipal] ||
-                          p.player.posicaoPrincipal
-                        : '--'}
-                    </td>
-                    <td className="p-4 text-center font-mono font-bold text-base-content/70">
-                      {p.stats.gamesPlayed}
-                    </td>
-                    <td className="p-4 text-center font-mono font-bold text-success">
-                      {p.stats.wins}
-                    </td>
-                    <td className="p-4 text-center font-mono font-bold text-base-content">
-                      {p.stats.winRate.toFixed(1)}%
-                    </td>
-                    <td className="p-4 text-center font-mono text-base-content/60">
-                      {p.stats.aces}
-                    </td>
-                    <td className="p-4 text-center font-mono text-base-content/60">
-                      {p.stats.blocks}
-                    </td>
-                    <td className="p-4 text-center font-mono font-black text-accent text-sm">
-                      {p.stats.totalPoints}
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="font-mono font-black text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded text-xs">
-                        {p.overall}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderSettingsModule = () => {
-    return (
-      <div className="space-y-6">
-        <div className="card card-border bg-base-200 p-6 rounded-2xl">
-          <h3 className="text-base font-bold uppercase text-base-content tracking-wider mb-4">
-            Dados & Backup
-          </h3>
-          <p className="text-xs text-text-muted leading-relaxed mb-6">
-            Exporte ou importe a base de dados de atletas, partidas, sessões e históricos para
-            compartilhar ou salvar como backup.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              onClick={handleExportBackup}
-              className="flex items-center justify-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-xl text-xs font-bold uppercase text-primary hover:bg-primary/20 transition-all cursor-pointer"
-            >
-              <Download className="w-5 h-5" /> Exportar Backup (JSON)
-            </button>
-
-            <div className="relative">
-              <input
-                type="file"
-                accept=".json"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImportBackup(file);
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
-              <div className="flex items-center justify-center gap-3 p-4 bg-surface-strong border border-border rounded-xl text-xs font-bold uppercase text-base-content hover:bg-surface-strong/80 transition-all">
-                <Upload className="w-5 h-5 text-accent" /> Importar Backup (JSON)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card card-border border-border bg-surface-strong/40 p-6 rounded-2xl">
-          <h3 className="text-base font-bold uppercase text-base-content tracking-wider mb-4">
-            Dados de Exemplo
-          </h3>
-          <p className="text-xs text-text-muted leading-relaxed mb-6">
-            Carregue o elenco original de atletas de exemplo. Esta ação é aditiva e preserva seus
-            dados atuais. (A redefinição completa do banco foi removida do aplicativo — use o painel
-            do Supabase, se necessário.)
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button
-              onClick={() => {
-                if (
-                  confirm(
-                    'Deseja carregar a lista de atletas de exemplo? Isto preservará seus dados atuais, mas adicionará novos atletas se não existirem.',
-                  )
-                ) {
-                  play.handleRestoreDemoPlayers();
-                  alert('Atletas de exemplo restaurados!');
-                }
-              }}
-              className="btn btn-secondary rounded-full uppercase tracking-wider text-xs"
-            >
-              <UserCheck className="w-4 h-4" /> Restaurar Atletas de Exemplo
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const navigationIconByKey: Record<ModuleNavigationItem['icon'], ReactNode> = {
     dashboard: <LayoutDashboard className="w-5 h-5" />,

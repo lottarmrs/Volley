@@ -24,3 +24,14 @@ tmp/
 
 # Config local do OpenCode: aponta um caminho de plugin especifico da maquina.
 .opencode/
+
+# Cache local da CLI do Supabase (linked project refs, versões) — por maquina.
+supabase/.temp/
+
+# Lixo do Windows: redirecionamento `> NUL` no bash cria um arquivo "nul".
+nul
+
+# Snapshots/backup pre-reset de producao — artefatos operacionais locais do
+# master (UUIDs e rows de contas reais). So ficam na maquina do operador, nunca
+# no repo (publico).
+docs/operations/snapshots/

@@ -63,6 +63,7 @@ import {
   buildSessionFromCommunity,
   selectSessionTeams,
 } from './application/sessionLifecycleUseCases';
+import { buildSessionWizardContract } from './application/screens/sessionWizard/sessionWizardContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -610,53 +611,27 @@ export default function App() {
     switch (activeModule) {
       case 'dashboard':
         if (page === 'session-wizard') {
-          return (
-            <SessionWizard
-              activeSession={sess.activeSession}
-              players={play.players}
-              communities={comm.communities}
-              wizardStep={wizard.wizardStep}
-              validationErrors={wizard.validationErrors}
-              bestDivisions={wizard.bestDivisions}
-              setBestDivisions={wizard.setBestDivisions}
-              selectedDivisionIndex={wizard.selectedDivisionIndex}
-              partnershipMatrix={wizard.partnershipMatrix}
-              onNext={() => {
-                if (wizard.validateCurrentStep()) wizard.nextStep();
-              }}
-              onPrev={wizard.prevStep}
-              onCancel={wizard.cancelWizard}
-              onUpdateSession={wizard.updateSession}
-              onTogglePlayer={wizard.togglePlayer}
-              onSelectAllActive={wizard.selectAllActivePlayers}
-              onClearSelection={wizard.clearSelectedPlayers}
-              onUseLastSelection={wizard.useLastSelection}
-              onGenerateDivisions={wizard.generateDivisions}
-              onCancelGeneration={wizard.cancelGeneration}
-              isGenerating={wizard.isGenerating}
-              generationProgress={wizard.progress}
-              onConfirmDivision={wizard.confirmDivision}
-              onStartGeneratedTournament={wizard.startGeneratedTournament}
-              setSelectedDivisionIndex={wizard.setSelectedDivisionIndex}
-              togglePlayerLock={wizard.togglePlayerLock}
-              addPairConstraint={wizard.addPairConstraint}
-              removePairConstraint={wizard.removePairConstraint}
-              onAddGuestPlayer={(newPlayer, editDetails) => {
-                const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
-                play.setPlayers(result.players);
-                if (sess.activeSession) {
-                  const nextSelected = [
-                    ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),
-                  ];
-                  wizard.updateSession({ selectedPlayerIds: nextSelected });
-                }
-                if (editDetails) {
-                  play.setEditingPlayer(result.selectedPlayer);
-                  setPage('player-edit');
-                }
-              }}
-            />
-          );
+          const wizardContract = buildSessionWizardContract({
+            activeSession: sess.activeSession,
+            players: play.players,
+            communities: comm.communities,
+            hookApi: wizard,
+            applyGuestPlayer: (newPlayer, editDetails) => {
+              const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+              play.setPlayers(result.players);
+              if (sess.activeSession) {
+                const nextSelected = [
+                  ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),
+                ];
+                wizard.updateSession({ selectedPlayerIds: nextSelected });
+              }
+              if (editDetails) {
+                play.setEditingPlayer(result.selectedPlayer);
+                setPage('player-edit');
+              }
+            },
+          });
+          return <SessionWizard contract={wizardContract} />;
         }
         if (page === 'player-edit') {
           return (

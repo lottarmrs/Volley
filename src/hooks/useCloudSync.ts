@@ -206,9 +206,10 @@ export function useCloudSync(deps: CloudSyncDeps) {
       holderNames,
     });
 
-    const resolvedPointEvents = conflicts.length > 0
-      ? markConflictedEvents(normalized.pointEvents, conflicts)
-      : normalized.pointEvents;
+    const resolvedPointEvents =
+      conflicts.length > 0
+        ? markConflictedEvents(normalized.pointEvents, conflicts)
+        : normalized.pointEvents;
 
     deps.setCommunities(normalized.communities);
     deps.setPlayers(normalized.players);
@@ -344,7 +345,9 @@ export function useCloudSync(deps: CloudSyncDeps) {
   // Sem esta espera, a primeira tentativa quase sempre falha de novo.
   const DEBOUNCE_RECONEXAO_MS = 2000;
   const syncRef = useRef(sync);
-  syncRef.current = sync;
+  useEffect(() => {
+    syncRef.current = sync;
+  });
 
   useEffect(() => {
     if (connectivity.state !== 'online') return;

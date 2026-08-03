@@ -35,7 +35,6 @@ import { ToastViewport } from '@ui/common/ToastViewport';
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
 import { Community, CommunityRules, Game, Player, SessionConfig, Team } from './types';
-import { migrateLocalDbToUuids } from './logic/migrations';
 import {
   STORAGE_KEYS,
   getLocalCacheOwnerId,
@@ -148,9 +147,6 @@ const TournamentsModule = lazy(() =>
     default: module.TournamentsModule,
   })),
 );
-
-// Execute UUID migration on startup before any state/hook initializes
-migrateLocalDbToUuids();
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');

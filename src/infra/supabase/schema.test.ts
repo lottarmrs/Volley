@@ -155,13 +155,15 @@ const communityProfilePrivacyMigration = readFixture(
   ),
 );
 
-
 const careerEventsMigration = readFixture(
   new URL('../../../supabase/migrations/20260727100000_career_events.sql', import.meta.url),
 );
 
 const careerGenerationMigration = readFixture(
-  new URL('../../../supabase/migrations/20260727110000_career_events_generation.sql', import.meta.url),
+  new URL(
+    '../../../supabase/migrations/20260727110000_career_events_generation.sql',
+    import.meta.url,
+  ),
 );
 
 const careerTotalsMigration = readFixture(
@@ -2375,7 +2377,7 @@ test('member managers can read a pending requester profile', () => {
   assert.doesNotMatch(
     policy,
     /target\.status/i,
-    "target status must not be filtered, or pending requesters become unreadable",
+    'target status must not be filtered, or pending requesters become unreadable',
   );
 });
 
@@ -2429,7 +2431,8 @@ test('community_profile_summary is read-only for authenticated, not just anon', 
 test('career regeneration uses statement triggers, not row triggers', () => {
   // point_events chega em lote no sync; um trigger de linha recomputaria o mesmo
   // resumo uma vez por ponto.
-  const triggers = careerGenerationMigration.match(/create trigger regenerate_career_after_[\s\S]*?;/gi) ?? [];
+  const triggers =
+    careerGenerationMigration.match(/create trigger regenerate_career_after_[\s\S]*?;/gi) ?? [];
   assert.equal(triggers.length, 6, 'expected 6 triggers (ins/upd/del on point_events and games)');
   for (const trigger of triggers) {
     assert.match(trigger, /for each statement/i, 'trigger must be statement-level');
@@ -2499,10 +2502,16 @@ test('recalculate_player_career resolves local team ids scoped by owner', () => 
 });
 
 const MILESTONE_SLUGS = [
-  'first_session', 'first_win',
-  'games_10', 'games_50', 'games_100',
-  'points_100', 'points_500', 'points_1000',
-  'streak_3', 'streak_5',
+  'first_session',
+  'first_win',
+  'games_10',
+  'games_50',
+  'games_100',
+  'points_100',
+  'points_500',
+  'points_1000',
+  'streak_3',
+  'streak_5',
 ];
 
 test('milestone generation covers exactly the ten agreed slugs', () => {
@@ -2551,7 +2560,10 @@ test('a player in two teams of one session counts the game once', () => {
     assert.ok(fn, 'missing regenerate_career_events_for_sessions');
     assert.match(fn, /select distinct on \(pt\.player_uuid, gr\.id\)/i);
     // A desambiguacao precisa preferir o time vencedor.
-    assert.match(fn, /order by pt\.player_uuid, gr\.id, \(gr\.winner_team_id = pt\.team_ref\) desc/i);
+    assert.match(
+      fn,
+      /order by pt\.player_uuid, gr\.id, \(gr\.winner_team_id = pt\.team_ref\) desc/i,
+    );
   }
 });
 
@@ -2672,17 +2684,26 @@ test('ownership RPCs revoke from anon before granting', () => {
   for (const nome of ['claim_session_ownership', 'transfer_session_ownership']) {
     assert.match(
       sessionOwnershipMigration,
-      new RegExp(`revoke execute on function public\\.${nome}\\(uuid, text\\) from public, anon`, 'i'),
+      new RegExp(
+        `revoke execute on function public\\.${nome}\\(uuid, text\\) from public, anon`,
+        'i',
+      ),
     );
     assert.match(
       sessionOwnershipMigration,
-      new RegExp(`grant execute on function public\\.${nome}\\(uuid, text\\) to authenticated`, 'i'),
+      new RegExp(
+        `grant execute on function public\\.${nome}\\(uuid, text\\) to authenticated`,
+        'i',
+      ),
     );
   }
 });
 
 test('consolidated schema carries the ownership columns and RPCs', () => {
-  assert.match(baseSchema, /controlled_by_user_id uuid references auth\.users\(id\) on delete set null/i);
+  assert.match(
+    baseSchema,
+    /controlled_by_user_id uuid references auth\.users\(id\) on delete set null/i,
+  );
   assert.match(baseSchema, /create or replace function public\.claim_session_ownership/i);
   assert.match(baseSchema, /create or replace function public\.transfer_session_ownership/i);
 });

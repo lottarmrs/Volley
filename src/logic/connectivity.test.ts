@@ -14,7 +14,11 @@ test('uma requisicao bem-sucedida manda mais que o navigator.onLine', () => {
 test('falha de rede vence o navigator.onLine otimista', () => {
   // Wi-fi de ginasio sem link: onLine=true, mas nada sai.
   assert.equal(
-    nextConnectivityState({ current: 'online', browserOnline: true, lastOutcome: 'network_failure' }),
+    nextConnectivityState({
+      current: 'online',
+      browserOnline: true,
+      lastOutcome: 'network_failure',
+    }),
     'offline',
   );
 });

@@ -198,7 +198,9 @@ describe('useCloudSync persistent reentrancy guard', () => {
     const uploadPromise = act(async () => {
       await result.current.uploadToCloud();
     });
-    const inflightDuringRun = JSON.parse(localStorage.getItem('vpg_sync_inflight_user-a') || 'null');
+    const inflightDuringRun = JSON.parse(
+      localStorage.getItem('vpg_sync_inflight_user-a') || 'null',
+    );
     await uploadPromise;
     expect(calls).toEqual(['upload']);
     expect(localStorage.getItem('vpg_sync_inflight_user-a')).toBeNull();
@@ -213,7 +215,12 @@ describe('useCloudSync persistent reentrancy guard', () => {
       });
     const toasts: Array<{ message: string; variant: 'success' | 'error' }> = [];
     const { result } = renderHook(() =>
-      useCloudSync(deps({ userId: 'user-a', onToast: (message, variant) => toasts.push({ message, variant }) })),
+      useCloudSync(
+        deps({
+          userId: 'user-a',
+          onToast: (message, variant) => toasts.push({ message, variant }),
+        }),
+      ),
     );
 
     let first: Promise<unknown>;
@@ -250,7 +257,8 @@ describe('useCloudSync persistent reentrancy guard', () => {
         resolveUpload = () => resolve(emptyPayload());
       });
     const toasts: Array<{ message: string; variant: 'success' | 'error' }> = [];
-    const depsA = () => deps({ userId: 'user-a', onToast: (m, v) => toasts.push({ message: m, variant: v }) });
+    const depsA = () =>
+      deps({ userId: 'user-a', onToast: (m, v) => toasts.push({ message: m, variant: v }) });
 
     const first = renderHook(() => useCloudSync(depsA()));
     let firstPromise: Promise<unknown> = Promise.resolve();
@@ -263,12 +271,19 @@ describe('useCloudSync persistent reentrancy guard', () => {
     first.unmount();
     const toastsAfterRemount: Array<{ message: string; variant: 'success' | 'error' }> = [];
     const second = renderHook(() =>
-      useCloudSync(deps({ userId: 'user-a', onToast: (m, v) => toastsAfterRemount.push({ message: m, variant: v }) })),
+      useCloudSync(
+        deps({
+          userId: 'user-a',
+          onToast: (m, v) => toastsAfterRemount.push({ message: m, variant: v }),
+        }),
+      ),
     );
     await act(async () => {
       await second.result.current.uploadToCloud();
     });
-    expect(toastsAfterRemount.some((t) => t.message === 'Uma sincronização já está em andamento.')).toBe(true);
+    expect(
+      toastsAfterRemount.some((t) => t.message === 'Uma sincronização já está em andamento.'),
+    ).toBe(true);
 
     await act(async () => {
       resolveUpload();
@@ -303,7 +318,10 @@ describe('useCloudSync cross-account leak guard', () => {
   // proximo upload os enviava para esta conta.
   it('wipes the previous account cache and applies the cloud result on a download', async () => {
     localStorage.setItem('vpg_cache_owner_id', 'user-b');
-    localStorage.setItem('vpg_players', JSON.stringify([{ id: 'p-b', nome: 'Jogador da conta B' }]));
+    localStorage.setItem(
+      'vpg_players',
+      JSON.stringify([{ id: 'p-b', nome: 'Jogador da conta B' }]),
+    );
     localStorage.setItem('vpg_sessions', JSON.stringify([{ id: 's-b' }]));
     syncService.downloadCloudDataToLocal = async () => emptyPayload();
 
@@ -363,7 +381,6 @@ describe('useCloudSync cross-account leak guard', () => {
 
     expect(synced).toBe(false);
   });
-
 });
 
 describe('reenvio automatico', () => {
@@ -474,11 +491,16 @@ describe('deteccao de conflito no caminho real do sync', () => {
 
     // Um evento que ja veio da nuvem (tem cloudId) = placar da Ana.
     const eventoDaAna = {
-      id: 'ev-ana', cloudId: 'cloud-ev-ana', sessionId: 'sess-local-1', syncStatus: 'synced',
+      id: 'ev-ana',
+      cloudId: 'cloud-ev-ana',
+      sessionId: 'sess-local-1',
+      syncStatus: 'synced',
     } as any;
     // E o meu, marcado offline, ainda nao enviado.
     const meuEvento = {
-      id: 'ev-meu', sessionId: 'sess-local-1', syncStatus: 'pending',
+      id: 'ev-meu',
+      sessionId: 'sess-local-1',
+      syncStatus: 'pending',
     } as any;
 
     syncService.downloadCloudDataToLocal = async () => ({

@@ -56,6 +56,7 @@ export type {
   PointType,
   PositionWeights,
   Session,
+  SessionConfig,
   SessionReport,
   SessionStatus,
   SessionType,

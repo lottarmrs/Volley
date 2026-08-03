@@ -29,8 +29,8 @@ export function SyncConflictSection({
     <section className="card bg-base-200 border border-warning p-4 space-y-4">
       <h3 className="font-bold uppercase text-sm">Placares em conflito</h3>
       <p className="text-xs">
-        Estas sessões foram marcadas em dois aparelhos ao mesmo tempo. Escolha qual versão
-        vale. A outra não é apagada e pode ser recuperada depois.
+        Estas sessões foram marcadas em dois aparelhos ao mesmo tempo. Escolha qual versão vale. A
+        outra não é apagada e pode ser recuperada depois.
       </p>
 
       {conflicts.map((c) => {
@@ -46,7 +46,11 @@ export function SyncConflictSection({
               <button type="button" className="btn btn-sm" onClick={() => onKeepMine(c.sessionId)}>
                 Manter o meu
               </button>
-              <button type="button" className="btn btn-sm" onClick={() => onKeepTheirs(c.sessionId)}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => onKeepTheirs(c.sessionId)}
+              >
                 Manter o de {quem}
               </button>
             </div>

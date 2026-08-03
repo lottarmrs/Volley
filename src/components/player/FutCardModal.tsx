@@ -778,8 +778,8 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
 
         {naoSincronizado ? (
           <p className="text-xs text-base-content/60">
-            Este atleta ainda nao foi sincronizado com a nuvem, entao nao ha carreira
-            confirmada. Os numeros do card seguem valendo como progresso provisorio.
+            Este atleta ainda nao foi sincronizado com a nuvem, entao nao ha carreira confirmada. Os
+            numeros do card seguem valendo como progresso provisorio.
           </p>
         ) : career.loading ? (
           <p className="text-xs text-base-content/60">Carregando carreira...</p>
@@ -1101,7 +1101,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
             {(mobileTab === 'card' || mobileTab === 'evolution') && renderEvolution()}
             {mobileTab === 'album' && renderAchievements()}
             {mobileTab === 'carreira' && renderCareer()}
-          {mobileTab === 'collection' && renderCollection()}
+            {mobileTab === 'collection' && renderCollection()}
             {mobileTab === 'export' && renderExportConfig()}
           </div>
         </div>

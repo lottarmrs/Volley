@@ -79,14 +79,21 @@ test('appOk and productError still work unchanged', () => {
 
 test('AppError union is exhaustively kind-discriminated', () => {
   const errors: AppError[] = [
-    validationError('a','b').error as any,
-    authorizationError('aal2','b').error as any,
-    conflictError('r','b').error as any,
+    validationError('a', 'b').error as any,
+    authorizationError('aal2', 'b').error as any,
+    conflictError('r', 'b').error as any,
     offlineError('b').error as any,
     technicalError('b').error as any,
     unexpectedError('b').error as any,
   ];
   const kinds = errors.map((e) => e.kind);
-  const expected = ['validation','authorization','conflict','offline_unavailable','technical','unexpected'];
+  const expected = [
+    'validation',
+    'authorization',
+    'conflict',
+    'offline_unavailable',
+    'technical',
+    'unexpected',
+  ];
   assert.deepEqual(kinds.sort(), expected.sort());
 });

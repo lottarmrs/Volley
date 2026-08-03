@@ -5,7 +5,9 @@ import { detectSessionConflicts } from './syncConflicts';
 const evento = (sessionId: string, syncStatus: string) => ({ sessionId, syncStatus });
 
 const controle = (userId: string) => ({
-  controlled_by_user_id: userId, control_claimed_at: 'x', control_device_id: 'd',
+  controlled_by_user_id: userId,
+  control_claimed_at: 'x',
+  control_device_id: 'd',
 });
 
 test('detecta conflito quando marquei em sessao controlada por outra pessoa', () => {

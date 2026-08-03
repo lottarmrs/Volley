@@ -13,7 +13,12 @@ describe('SessionOwnershipNotice', () => {
   it('nomeia quem esta com a sessao e oferece assumir', () => {
     render(
       <SessionOwnershipNotice
-        control={{ canScore: false, reason: 'held_by_other', message: 'Ana está com o controle desta sessão.', holderName: 'Ana' }}
+        control={{
+          canScore: false,
+          reason: 'held_by_other',
+          message: 'Ana está com o controle desta sessão.',
+          holderName: 'Ana',
+        }}
         onTakeControl={vi.fn()}
       />,
     );
@@ -26,7 +31,12 @@ describe('SessionOwnershipNotice', () => {
     const onTakeControl = vi.fn();
     render(
       <SessionOwnershipNotice
-        control={{ canScore: false, reason: 'held_by_other', message: 'Ana está com o controle desta sessão.', holderName: 'Ana' }}
+        control={{
+          canScore: false,
+          reason: 'held_by_other',
+          message: 'Ana está com o controle desta sessão.',
+          holderName: 'Ana',
+        }}
         onTakeControl={onTakeControl}
       />,
     );
@@ -40,7 +50,12 @@ describe('SessionOwnershipNotice', () => {
     // Ja e minha: nao ha o que assumir, so avisar.
     render(
       <SessionOwnershipNotice
-        control={{ canScore: true, reason: 'mine_other_device', message: 'Você está com esta sessão aberta em outro aparelho.', holderName: 'Eu' }}
+        control={{
+          canScore: true,
+          reason: 'mine_other_device',
+          message: 'Você está com esta sessão aberta em outro aparelho.',
+          holderName: 'Eu',
+        }}
         onTakeControl={vi.fn()}
       />,
     );

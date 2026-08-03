@@ -33,8 +33,8 @@ export function SessionOwnershipNotice({
       {podeAssumir && confirmando && (
         <div className="flex flex-col gap-2">
           <span className="text-xs">
-            {control.holderName ?? 'A outra pessoa'} perde o controle e passa a ver a sessão
-            em modo leitura. O placar já marcado não é perdido.
+            {control.holderName ?? 'A outra pessoa'} perde o controle e passa a ver a sessão em modo
+            leitura. O placar já marcado não é perdido.
           </span>
           <div className="flex gap-2">
             <button
@@ -47,7 +47,11 @@ export function SessionOwnershipNotice({
             >
               Confirmar
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirmando(false)}>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setConfirmando(false)}
+            >
               Cancelar
             </button>
           </div>

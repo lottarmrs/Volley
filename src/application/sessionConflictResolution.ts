@@ -18,9 +18,7 @@ interface Entrada {
  * versao que o usuario pediu para preservar.
  */
 function ehMeuEPendente(evento: PointEvent, sessionId: string): boolean {
-  return (
-    evento.sessionId === sessionId && !(evento as { cloudId?: string }).cloudId
-  );
+  return evento.sessionId === sessionId && !(evento as { cloudId?: string }).cloudId;
 }
 
 /** Minha versao vale: os meus eventos seguem pendentes e voltam a poder subir. */

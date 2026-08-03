@@ -21,14 +21,7 @@ export interface ModuleNavigationItem {
   id: Module;
   label: string;
   icon:
-    | 'dashboard'
-    | 'tournament'
-    | 'players'
-    | 'ranking'
-    | 'history'
-    | 'cloud'
-    | 'settings'
-    | 'admin';
+    'dashboard' | 'tournament' | 'players' | 'ranking' | 'history' | 'cloud' | 'settings' | 'admin';
   badge?: number;
 }
 
@@ -170,7 +163,8 @@ export function buildPendingDeliveryNotice(input: {
   if (input.pendingChanges <= 0) return null;
   if (input.connectivity === 'online' && !input.hasOpenFailure) return null;
 
-  const plural = input.pendingChanges === 1 ? 'alteração ainda não foi' : 'alterações ainda não foram';
+  const plural =
+    input.pendingChanges === 1 ? 'alteração ainda não foi' : 'alterações ainda não foram';
   return {
     visible: true,
     message: `${input.pendingChanges} ${plural} para a nuvem.`,

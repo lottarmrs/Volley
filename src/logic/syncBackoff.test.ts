@@ -5,7 +5,10 @@ import { classifySyncError, computeNextAttemptAt, RETRY_INTERVALS_MS } from './s
 test('classifica falha de fetch como offline_unavailable', () => {
   // Chrome/Firefox usam "Failed to fetch"; Safari usa "Load failed".
   assert.equal(classifySyncError(new TypeError('Failed to fetch')), 'offline_unavailable');
-  assert.equal(classifySyncError(new TypeError('NetworkError when attempting to fetch')), 'offline_unavailable');
+  assert.equal(
+    classifySyncError(new TypeError('NetworkError when attempting to fetch')),
+    'offline_unavailable',
+  );
   assert.equal(classifySyncError(new TypeError('Load failed')), 'offline_unavailable');
 });
 
@@ -26,12 +29,19 @@ test('o que nao reconhece vira technical, nao offline', () => {
   // Chutar "offline" para erro desconhecido faria o app insistir para sempre num
   // erro que nunca vai passar.
   assert.equal(classifySyncError(new Error('boom')), 'technical');
-  assert.equal(classifySyncError({ code: '42P01', message: 'relation does not exist' }), 'technical');
+  assert.equal(
+    classifySyncError({ code: '42P01', message: 'relation does not exist' }),
+    'technical',
+  );
 });
 
 test('erro de rede sempre tem proxima tentativa, mesmo depois de muitas falhas', () => {
   const base = '2026-07-31T12:00:00.000Z';
-  const depoisDe50 = computeNextAttemptAt({ count: 50, lastSeenAt: base, kind: 'offline_unavailable' });
+  const depoisDe50 = computeNextAttemptAt({
+    count: 50,
+    lastSeenAt: base,
+    kind: 'offline_unavailable',
+  });
   assert.ok(depoisDe50, 'erro de rede nunca pode congelar');
   // Depois do teto, o intervalo para de crescer e fica no ultimo.
   const teto = RETRY_INTERVALS_MS[RETRY_INTERVALS_MS.length - 1];

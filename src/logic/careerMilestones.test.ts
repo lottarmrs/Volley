@@ -19,7 +19,10 @@ test('presentation covers every slug the database can emit', () => {
   // Os limiares vivem no SQL; aqui so existe apresentacao. Este teste e o que impede as
   // duas listas de divergirem.
   for (const slug of SLUGS_FROM_SQL) {
-    assert.ok(MILESTONE_PRESENTATION[slug as keyof typeof MILESTONE_PRESENTATION], `missing ${slug}`);
+    assert.ok(
+      MILESTONE_PRESENTATION[slug as keyof typeof MILESTONE_PRESENTATION],
+      `missing ${slug}`,
+    );
   }
   assert.equal(Object.keys(MILESTONE_PRESENTATION).length, SLUGS_FROM_SQL.length);
 });

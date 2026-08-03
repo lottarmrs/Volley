@@ -27,7 +27,7 @@ import { useChampionships } from './hooks/useChampionships';
 import { useAuth } from './hooks/useAuth';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useCloudSync } from './hooks/useCloudSync';
-import { useToasts } from './hooks/useToasts';
+import { useToast } from './ui/common/ToastProvider';
 import { useCommunityPermissions } from './hooks/useCommunityPermissions';
 
 import { ToastViewport } from '@ui/common/ToastViewport';
@@ -157,7 +157,7 @@ export default function App() {
 
   // Auth state
   const auth = useAuth();
-  const toasts = useToasts();
+  const toasts = useToast();
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
 

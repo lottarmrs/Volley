@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { AppRouter } from './app/AppRouter';
 import { AuthSessionProvider } from './app/auth/AuthSessionProvider';
+import { ToastProvider } from './ui/common/ToastProvider';
 import { migrateLocalDbToUuids } from './logic/migrations';
 import './index.css';
 
@@ -14,7 +15,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthSessionProvider>
-        <AppRouter />
+        <ToastProvider>
+          <AppRouter />
+        </ToastProvider>
       </AuthSessionProvider>
     </BrowserRouter>
   </StrictMode>,

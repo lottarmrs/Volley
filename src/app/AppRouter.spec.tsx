@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
 import type { AuthSessionContextValue } from './auth/useAuthSession';
+import { ToastProvider } from '@ui/common/ToastProvider';
 
 const { authSessionMock } = vi.hoisted(() => ({
   authSessionMock: { current: null as unknown as AuthSessionContextValue },
@@ -25,7 +26,9 @@ function renderRouter(path: string, state: AuthSessionState) {
   };
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <AppRouter />
+      <ToastProvider>
+        <AppRouter />
+      </ToastProvider>
     </MemoryRouter>,
   );
 }
@@ -70,7 +73,9 @@ describe('AppRouter', () => {
     authSessionMock.current = { ...authSessionMock.current, state: { kind: 'anonymous' } };
     rerender(
       <MemoryRouter initialEntries={['/auth/loading']}>
-        <AppRouter />
+        <ToastProvider>
+          <AppRouter />
+        </ToastProvider>
       </MemoryRouter>,
     );
 

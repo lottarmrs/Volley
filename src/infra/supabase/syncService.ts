@@ -90,7 +90,6 @@ function reportIssue(onIssue: SyncOptions['onIssue'], context: string, error: un
   if (onIssue) onIssue(context, error);
 }
 
-
 export function communitySemanticKey(community: Pick<Community, 'name'>): string | undefined {
   const name = foldForComparison(community.name);
   return name ? `community:${name}` : undefined;

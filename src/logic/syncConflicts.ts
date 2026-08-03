@@ -46,4 +46,3 @@ export function detectSessionConflicts(input: {
   }
   return conflitos;
 }
-

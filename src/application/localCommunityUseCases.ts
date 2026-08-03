@@ -9,8 +9,7 @@ import type {
 
 export type LocalCommunityValidationErrors = Record<string, string>;
 export type LocalCommunityUpdateResult =
-  | { ok: true; communities: Community[] }
-  | { ok: false; errors: LocalCommunityValidationErrors };
+  { ok: true; communities: Community[] } | { ok: false; errors: LocalCommunityValidationErrors };
 
 function normalizeCommunityName(value: unknown): string {
   return String(value ?? '')

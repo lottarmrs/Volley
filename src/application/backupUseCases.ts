@@ -95,9 +95,7 @@ export function prepareImportedBackup(rawData: unknown) {
 }
 
 type ImportPersistenceAction<T> =
-  | { kind: 'ignore' }
-  | { kind: 'save'; value: T }
-  | { kind: 'clear' };
+  { kind: 'ignore' } | { kind: 'save'; value: T } | { kind: 'clear' };
 
 export function buildImportedBackupPersistencePlan(input: {
   sessionDraft?: SessionDraft | null;

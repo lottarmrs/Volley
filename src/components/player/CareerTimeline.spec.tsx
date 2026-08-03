@@ -42,9 +42,14 @@ describe('CareerTimeline', () => {
 
   it('ignores session rollups, showing only milestones', () => {
     const rollup: CareerEvent = {
-      id: 'e-s1', playerId: 'p1', communityId: null, sessionId: 's1',
-      type: 'session_played', occurredAt: '2026-03-01T00:00:00Z',
-      payload: { points: 10 }, contractVersion: 1,
+      id: 'e-s1',
+      playerId: 'p1',
+      communityId: null,
+      sessionId: 's1',
+      type: 'session_played',
+      occurredAt: '2026-03-01T00:00:00Z',
+      payload: { points: 10 },
+      contractVersion: 1,
     };
     render(<CareerTimeline events={[rollup, milestone('first_win', '2026-02-01T00:00:00Z')]} />);
     expect(screen.getAllByRole('listitem')).toHaveLength(1);

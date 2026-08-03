@@ -46,7 +46,15 @@ test('resolver uma sessao nao mexe nas outras', () => {
 test('marca so os eventos das sessoes em conflito', () => {
   const saida = markConflictedEvents(
     [ev('e-1', 's-1'), ev('e-2', 's-2')],
-    [{ sessionId: 's-1', localEventCount: 1, holderEventCount: 2, holderUserId: 'u-2', holderName: 'Ana' }],
+    [
+      {
+        sessionId: 's-1',
+        localEventCount: 1,
+        holderEventCount: 2,
+        holderUserId: 'u-2',
+        holderName: 'Ana',
+      },
+    ],
   );
   assert.equal((saida[0] as any).conflictStatus, 'pending_decision');
   assert.equal((saida[1] as any).conflictStatus, undefined);
@@ -56,7 +64,15 @@ test('nao sobrescreve uma decisao ja tomada', () => {
   // Se a pessoa ja decidiu, redetectar o conflito nao pode reabrir a decisao.
   const saida = markConflictedEvents(
     [ev('e-1', 's-1', { conflictStatus: 'resolved_keep_mine' })],
-    [{ sessionId: 's-1', localEventCount: 1, holderEventCount: 2, holderUserId: 'u-2', holderName: 'Ana' }],
+    [
+      {
+        sessionId: 's-1',
+        localEventCount: 1,
+        holderEventCount: 2,
+        holderUserId: 'u-2',
+        holderName: 'Ana',
+      },
+    ],
   );
   assert.equal((saida[0] as any).conflictStatus, 'resolved_keep_mine');
 });
@@ -64,8 +80,7 @@ test('nao sobrescreve uma decisao ja tomada', () => {
 // Os tres testes abaixo separam MEUS eventos dos que vieram da nuvem. Sem essa
 // distincao, "manter o da outra pessoa" apagava os eventos DELA — a unica versao
 // que o usuario pediu para preservar.
-const meu = (id: string, sessionId: string) =>
-  ({ id, sessionId, syncStatus: 'pending' }) as any;
+const meu = (id: string, sessionId: string) => ({ id, sessionId, syncStatus: 'pending' }) as any;
 const daNuvem = (id: string, sessionId: string) =>
   ({ id, sessionId, cloudId: 'cloud-' + id, syncStatus: 'synced' }) as any;
 
@@ -96,7 +111,15 @@ test('manter o meu nao carimba os eventos do outro', () => {
 test('markConflictedEvents so carimba os meus', () => {
   const saida = markConflictedEvents(
     [meu('e-meu', 's-1'), daNuvem('e-dela', 's-1')],
-    [{ sessionId: 's-1', localEventCount: 1, holderEventCount: 1, holderUserId: 'u-2', holderName: 'Ana' }],
+    [
+      {
+        sessionId: 's-1',
+        localEventCount: 1,
+        holderEventCount: 1,
+        holderUserId: 'u-2',
+        holderName: 'Ana',
+      },
+    ],
   );
   assert.equal((saida.find((e) => e.id === 'e-meu') as any).conflictStatus, 'pending_decision');
   assert.equal((saida.find((e) => e.id === 'e-dela') as any).conflictStatus, undefined);

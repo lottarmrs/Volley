@@ -168,7 +168,6 @@ export function sanitizeImportedBackup(val: any): any {
   return val;
 }
 
-
 function playerImportKey(player: any): string | undefined {
   const username = foldForComparison(player?.username);
   if (username) return `username:${username}`;

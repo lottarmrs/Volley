@@ -32,11 +32,7 @@ export function shouldHeartbeatSessionControl(input: {
 }
 
 export type SessionControlReason =
-  | 'free'
-  | 'mine'
-  | 'mine_other_device'
-  | 'held_by_other'
-  | 'not_authenticated';
+  'free' | 'mine' | 'mine_other_device' | 'held_by_other' | 'not_authenticated';
 
 export interface SessionControlView {
   canScore: boolean;

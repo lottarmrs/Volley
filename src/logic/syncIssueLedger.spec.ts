@@ -80,14 +80,28 @@ describe('proxima tentativa', () => {
   it('dueSyncIssues devolve so o que ja venceu', () => {
     const ledger: SyncIssueEntry[] = [
       {
-        id: 'a', operation: 'op', context: 'ctx', message: 'm', status: 'open', count: 1,
-        firstSeenAt: '2026-07-31T12:00:00.000Z', lastSeenAt: '2026-07-31T12:00:00.000Z',
-        kind: 'offline_unavailable', nextAttemptAt: '2026-07-31T12:00:30.000Z',
+        id: 'a',
+        operation: 'op',
+        context: 'ctx',
+        message: 'm',
+        status: 'open',
+        count: 1,
+        firstSeenAt: '2026-07-31T12:00:00.000Z',
+        lastSeenAt: '2026-07-31T12:00:00.000Z',
+        kind: 'offline_unavailable',
+        nextAttemptAt: '2026-07-31T12:00:30.000Z',
       },
       {
-        id: 'b', operation: 'op', context: 'ctx', message: 'm2', status: 'open', count: 1,
-        firstSeenAt: '2026-07-31T12:00:00.000Z', lastSeenAt: '2026-07-31T12:00:00.000Z',
-        kind: 'offline_unavailable', nextAttemptAt: '2026-07-31T13:00:00.000Z',
+        id: 'b',
+        operation: 'op',
+        context: 'ctx',
+        message: 'm2',
+        status: 'open',
+        count: 1,
+        firstSeenAt: '2026-07-31T12:00:00.000Z',
+        lastSeenAt: '2026-07-31T12:00:00.000Z',
+        kind: 'offline_unavailable',
+        nextAttemptAt: '2026-07-31T13:00:00.000Z',
       },
     ];
     const vencidos = dueSyncIssues(ledger, '2026-07-31T12:00:31.000Z');
@@ -97,9 +111,16 @@ describe('proxima tentativa', () => {
   it('issue resolvida nunca vence, mesmo com horario passado', () => {
     const ledger: SyncIssueEntry[] = [
       {
-        id: 'a', operation: 'op', context: 'ctx', message: 'm', status: 'resolved', count: 1,
-        firstSeenAt: '2026-07-31T12:00:00.000Z', lastSeenAt: '2026-07-31T12:00:00.000Z',
-        kind: 'offline_unavailable', nextAttemptAt: '2026-07-31T12:00:30.000Z',
+        id: 'a',
+        operation: 'op',
+        context: 'ctx',
+        message: 'm',
+        status: 'resolved',
+        count: 1,
+        firstSeenAt: '2026-07-31T12:00:00.000Z',
+        lastSeenAt: '2026-07-31T12:00:00.000Z',
+        kind: 'offline_unavailable',
+        nextAttemptAt: '2026-07-31T12:00:30.000Z',
       },
     ];
     expect(dueSyncIssues(ledger, '2026-07-31T23:00:00.000Z')).toEqual([]);

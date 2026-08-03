@@ -43,7 +43,8 @@ export const calculatePositionOverall = (player: Player, position: Position | nu
   Object.entries(weights).forEach(([metric, weight]) => {
     if (!weight) return;
 
-    const value = metric === 'altura' ? heightScore : (atributos?.[metric as keyof Attributes] ?? 0);
+    const value =
+      metric === 'altura' ? heightScore : (atributos?.[metric as keyof Attributes] ?? 0);
 
     overall += value * weight;
   });

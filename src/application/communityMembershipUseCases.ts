@@ -476,10 +476,7 @@ function ensureApprovingCurrentMember(
 
   const currentMember = currentMemberResult.value.member;
   if ((currentMember.status ?? 'active') !== 'active') {
-    return productError(
-      'permission_denied',
-      'Sua participacao ainda nao permite avaliar pedidos.',
-    );
+    return productError('permission_denied', 'Sua participacao ainda nao permite avaliar pedidos.');
   }
   // owner / admin / moderator podem avaliar pedidos. Outras roles (member, organizador)
   // continuam barradas, alinhado com a capability 'approve_members' do banco.

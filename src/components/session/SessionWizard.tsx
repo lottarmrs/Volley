@@ -2029,7 +2029,9 @@ export function SessionWizard({
                                   title={
                                     overridden
                                       ? `Função nesta sessão · cadastro: ${
-                                          p.posicaoPrincipal ? POSITION_LABELS[p.posicaoPrincipal] : '--'
+                                          p.posicaoPrincipal
+                                            ? POSITION_LABELS[p.posicaoPrincipal]
+                                            : '--'
                                         }`
                                       : undefined
                                   }

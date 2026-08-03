@@ -1752,7 +1752,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                   Voltar às Regras
                 </button>
                 <button
-                  onClick={dispatch({ kind: 'generateDivisions' })}
+                  onClick={() => dispatch({ kind: 'generateDivisions' })}
                   className="btn btn-accent flex-[2] group"
                 >
                   Gerar Times Equilibrados{' '}

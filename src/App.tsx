@@ -66,6 +66,7 @@ import {
 } from './application/sessionLifecycleUseCases';
 import { buildSessionWizardContract } from './application/screens/sessionWizard/sessionWizardContract';
 import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
+import { buildPlayerEditViewContract } from './application/screens/playerEditView/playerEditViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -644,36 +645,38 @@ export default function App() {
         if (page === 'player-edit') {
           return (
             <PlayerEditView
-              editingPlayer={play.editingPlayer!}
-              setEditingPlayer={play.setEditingPlayer}
-              players={play.players}
-              games={sess.games}
-              pointEvents={sess.pointEvents}
-              teams={sess.teams}
-              communities={comm.communities}
-              sessions={sess.sessions}
-              onBack={() => setPage('session-wizard')}
-              onSave={() => {
-                try {
-                  if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+              contract={buildPlayerEditViewContract({
+                editingPlayer: play.editingPlayer!,
+                setEditingPlayer: play.setEditingPlayer,
+                players: play.players,
+                games: sess.games,
+                pointEvents: sess.pointEvents,
+                teams: sess.teams,
+                communities: comm.communities,
+                sessions: sess.sessions,
+                validationErrors: play.validationErrors,
+                showDeleteConfirm: play.showDeleteConfirm,
+                setShowDeleteConfirm: play.setShowDeleteConfirm,
+                permissions: playerPermissions,
+                currentUserId: auth.user?.id ?? null,
+                onBack: () => setPage('session-wizard'),
+                onSave: () => {
+                  try {
+                    if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+                      setPage('session-wizard');
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+                onDelete: () => {
+                  try {
+                    play.handleDeletePlayer(playerPermissions);
                     setPage('session-wizard');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              onDelete={() => {
-                try {
-                  play.handleDeletePlayer(playerPermissions);
-                  setPage('session-wizard');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              validationErrors={play.validationErrors}
-              showDeleteConfirm={play.showDeleteConfirm}
-              setShowDeleteConfirm={play.setShowDeleteConfirm}
-              permissions={playerPermissions}
-              currentUserId={auth.user?.id ?? null}
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+              })}
             />
           );
         }
@@ -762,36 +765,38 @@ export default function App() {
         if (page === 'player-edit') {
           return (
             <PlayerEditView
-              editingPlayer={play.editingPlayer!}
-              setEditingPlayer={play.setEditingPlayer}
-              players={play.players}
-              games={sess.games}
-              pointEvents={sess.pointEvents}
-              teams={sess.teams}
-              communities={comm.communities}
-              sessions={sess.sessions}
-              onBack={() => setPage('players')}
-              onSave={() => {
-                try {
-                  if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+              contract={buildPlayerEditViewContract({
+                editingPlayer: play.editingPlayer!,
+                setEditingPlayer: play.setEditingPlayer,
+                players: play.players,
+                games: sess.games,
+                pointEvents: sess.pointEvents,
+                teams: sess.teams,
+                communities: comm.communities,
+                sessions: sess.sessions,
+                validationErrors: play.validationErrors,
+                showDeleteConfirm: play.showDeleteConfirm,
+                setShowDeleteConfirm: play.setShowDeleteConfirm,
+                permissions: playerPermissions,
+                currentUserId: auth.user?.id ?? null,
+                onBack: () => setPage('players'),
+                onSave: () => {
+                  try {
+                    if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+                      setPage('players');
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+                onDelete: () => {
+                  try {
+                    play.handleDeletePlayer(playerPermissions);
                     setPage('players');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              onDelete={() => {
-                try {
-                  play.handleDeletePlayer(playerPermissions);
-                  setPage('players');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              validationErrors={play.validationErrors}
-              showDeleteConfirm={play.showDeleteConfirm}
-              setShowDeleteConfirm={play.setShowDeleteConfirm}
-              permissions={playerPermissions}
-              currentUserId={auth.user?.id ?? null}
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+              })}
             />
           );
         }

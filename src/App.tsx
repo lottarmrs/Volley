@@ -68,6 +68,7 @@ import { buildSessionWizardContract } from './application/screens/sessionWizard/
 import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
 import { buildPlayerEditViewContract } from './application/screens/playerEditView/playerEditViewContract';
 import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
+import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -879,32 +880,34 @@ export default function App() {
         }
         return (
           <PlayersView
-            players={play.players}
-            communities={comm.communities}
-            games={sess.games}
-            pointEvents={sess.pointEvents}
-            teams={sess.teams}
-            sessions={sess.sessions}
-            onBack={() => {
-              applyShellNavigationTarget(getDashboardNavigationTarget());
-            }}
-            onAddPlayer={() => {
-              play.handleAddPlayer();
-              setPage('player-edit');
-            }}
-            onEditPlayer={(p) => {
-              play.handleEditPlayer(p);
-              setPage('player-edit');
-            }}
-            onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
-            onAddGuestPlayer={(newPlayer, editDetails) => {
-              const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
-              play.setPlayers(result.players);
-              if (editDetails) {
-                play.setEditingPlayer(result.selectedPlayer);
+            contract={buildPlayersViewContract({
+              players: play.players,
+              communities: comm.communities,
+              games: sess.games,
+              pointEvents: sess.pointEvents,
+              teams: sess.teams,
+              sessions: sess.sessions,
+              onBack: () => {
+                applyShellNavigationTarget(getDashboardNavigationTarget());
+              },
+              onAddPlayer: () => {
+                play.handleAddPlayer();
                 setPage('player-edit');
-              }
-            }}
+              },
+              onEditPlayer: (p) => {
+                play.handleEditPlayer(p);
+                setPage('player-edit');
+              },
+              onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
+              onAddGuestPlayer: (newPlayer, editDetails) => {
+                const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+                play.setPlayers(result.players);
+                if (editDetails) {
+                  play.setEditingPlayer(result.selectedPlayer);
+                  setPage('player-edit');
+                }
+              },
+            })}
           />
         );
 

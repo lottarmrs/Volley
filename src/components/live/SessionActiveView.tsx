@@ -6,25 +6,13 @@ import {
   Copy,
   Activity,
   RotateCcw,
-  Plus,
-  RotateCw,
   Trophy,
   Zap,
   ChevronUp,
   ChevronDown,
   Trash2,
 } from 'lucide-react';
-import {
-  Session,
-  Game,
-  PointEvent,
-  Team,
-  Player,
-  FreePlayConfig,
-  PointReason,
-  GameReport,
-  SessionReport,
-} from '../../types';
+import { Game, FreePlayConfig, PointReason } from '../../types';
 import { useLiveSession } from '../../hooks/useLiveSession';
 import {
   getPointLabel,
@@ -337,10 +325,16 @@ export const SessionActiveView = ({
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => dispatch({ kind: 'exit' })} className="btn btn-xs btn-error btn-soft">
+            <button
+              onClick={() => dispatch({ kind: 'exit' })}
+              className="btn btn-xs btn-error btn-soft"
+            >
               Voltar
             </button>
-            <button onClick={() => dispatch({ kind: 'finishSession' })} className="btn btn-xs btn-accent btn-soft font-bold">
+            <button
+              onClick={() => dispatch({ kind: 'finishSession' })}
+              className="btn btn-xs btn-accent btn-soft font-bold"
+            >
               Encerrar Sessão
             </button>
           </div>
@@ -421,7 +415,10 @@ export const SessionActiveView = ({
               a sessão.
             </p>
           </div>
-          <button onClick={() => dispatch({ kind: 'exit' })} className="btn btn-error btn-soft w-full">
+          <button
+            onClick={() => dispatch({ kind: 'exit' })}
+            className="btn btn-error btn-soft w-full"
+          >
             Voltar ao Menu
           </button>
         </div>
@@ -451,10 +448,16 @@ export const SessionActiveView = ({
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={() => dispatch({ kind: 'exit' })} className="btn btn-xs btn-error btn-soft">
+          <button
+            onClick={() => dispatch({ kind: 'exit' })}
+            className="btn btn-xs btn-error btn-soft"
+          >
             Voltar
           </button>
-          <button onClick={() => dispatch({ kind: 'finishSession' })} className="btn btn-xs btn-accent btn-soft font-bold">
+          <button
+            onClick={() => dispatch({ kind: 'finishSession' })}
+            className="btn btn-xs btn-accent btn-soft font-bold"
+          >
             Encerrar Sessão
           </button>
         </div>

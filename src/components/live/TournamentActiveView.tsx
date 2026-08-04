@@ -18,7 +18,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import { Session, Game, PointEvent, Team, Player, GameReport, TournamentConfig } from '../../types';
+import { Session, Game, PointEvent, Team, Player } from '../../types';
 import {
   TournamentStanding,
   TournamentMVP,
@@ -45,7 +45,7 @@ import { calculateLiveGameRatings } from '../../logic/rating';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { PointModal } from './PointModal';
 import { HighlightFab } from './HighlightFab';
-import { POINT_REASON_LABELS, getPointLabel } from '../../logic/match';
+import { getPointLabel } from '../../logic/match';
 import { PointReason, PointType, Skill, Fault } from '../../types';
 
 interface Props {
@@ -182,7 +182,6 @@ export const TournamentActiveView = ({
   const teamA = currentGame ? sessionTeams.find((t) => t.id === currentGame.teamAId) : null;
   const teamB = currentGame ? sessionTeams.find((t) => t.id === currentGame.teamBId) : null;
 
-  const getRank = (teamId: string) => standings.findIndex((s) => s.teamId === teamId) + 1;
   const getTeamColor = (teamId: string) => {
     const idx = sessionTeams.findIndex((t) => t.id === teamId);
     return TEAM_COLORS[idx % TEAM_COLORS.length];

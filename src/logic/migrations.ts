@@ -384,7 +384,7 @@ function filterPairs(pairs: any, allowedIds: Set<string>): any {
 
 function pruneSlotPlayerId(slot: any, allowedPlayerIds: Set<string>) {
   if (!slot?.playerId || allowedPlayerIds.has(slot.playerId)) return slot;
-  const { playerId, ...rest } = slot;
+  const { playerId: _playerId, ...rest } = slot;
   return rest;
 }
 

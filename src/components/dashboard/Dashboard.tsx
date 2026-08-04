@@ -1,16 +1,5 @@
 import React from 'react';
-import {
-  Plus,
-  Users,
-  History as HistoryIcon,
-  Play,
-  ChevronRight,
-  Sword,
-  RotateCcw,
-  Globe,
-  Trophy,
-  Activity,
-} from 'lucide-react';
+import { Plus, History as HistoryIcon, Play, RotateCcw } from 'lucide-react';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { DashboardModel } from '@app/screens/dashboard/dashboardModel';
 import type { DashboardIntent } from '@app/screens/dashboard/dashboardIntents';

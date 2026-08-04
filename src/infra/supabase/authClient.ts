@@ -1,4 +1,3 @@
-import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 
 import type { AuthClient, MfaEnrollment } from '@app/authClient';

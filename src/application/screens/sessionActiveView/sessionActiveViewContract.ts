@@ -1,5 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { FreePlayConfig, Game, GameReport, Player, PointEvent, Session, Team } from '@shared/types';
+import type {
+  FreePlayConfig,
+  Game,
+  GameReport,
+  Player,
+  PointEvent,
+  Session,
+  Team,
+} from '@shared/types';
 import type { ScreenContract } from '../screenContract';
 import type { SessionActiveViewModel } from './sessionActiveViewModel';
 import type { SessionActiveViewIntent } from './sessionActiveViewIntents';

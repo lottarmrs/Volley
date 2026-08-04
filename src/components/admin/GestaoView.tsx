@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { ShieldCheck, UserCog, Loader2 } from 'lucide-react';
-import { AuthRole, UserProfile } from '../../types';
+import { AuthRole } from '../../types';
 import { useProfilesAdmin } from '../../hooks/useProfilesAdmin';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { GestaoViewModel } from '@app/screens/gestaoView/gestaoViewModel';
@@ -26,12 +26,6 @@ export const GestaoView = ({
   const { model, dispatch } = contract;
   const { currentUserId, isMaster } = model;
   const { profiles, loading, error, savingId, changeRole } = useProfilesAdmin(true);
-
-  const profileById = useMemo(() => {
-    const map = new Map<string, UserProfile>();
-    for (const p of profiles) map.set(p.id, p);
-    return map;
-  }, [profiles]);
 
   const handleChangeRole = useCallback(
     async (userId: string, role: AuthRole) => {

@@ -16,7 +16,6 @@ import {
 import { AuthRole, Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
-  ASSIGNABLE_COMMUNITY_MEMBER_ROLES,
   buildCommunityMembersViewModel,
   COMMUNITY_ROLE_LABELS,
 } from '../../application/communityMembersViewModel';

@@ -10,7 +10,6 @@ import {
   Trophy,
   Zap,
   BarChart3,
-  Users,
   Trash2,
 } from 'lucide-react';
 import {

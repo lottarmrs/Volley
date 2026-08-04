@@ -1,4 +1,4 @@
-import { FreePlayConfig, Game, PointEvent, GameWinner } from '../types';
+import { GameWinner } from '../types';
 
 export const getGameWinner = (
   scoreA: number,
@@ -119,7 +119,6 @@ export interface RotateOutput {
 
 export const rotateTeams = (input: RotateInput): RotateOutput => {
   const {
-    courtTeams,
     queue = [],
     winnerId,
     loserId,
@@ -137,7 +136,6 @@ export const rotateTeams = (input: RotateInput): RotateOutput => {
     rotationSystem === 'max_consecutive_games' &&
     !!maxConsecutiveGames &&
     winnerConsecutive >= maxConsecutiveGames;
-  const loserMustLeave = true; // Traditionally losers always leave in winner_stays
 
   if (winnerMustLeave) {
     // Winner leaves because of limit, loser stays

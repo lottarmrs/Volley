@@ -3,7 +3,6 @@ import { Info, Trophy } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Player, Attributes } from '../../types';
 import {
-  calculateGeneralOverall,
   getBalancingRole,
   calculatePositionOverall,
   getAutoSpecialty,

@@ -1,11 +1,4 @@
-import {
-  Player,
-  Attributes,
-  Position,
-  TeamStrengthSnapshot,
-  PositionWeights,
-  OverallMetric,
-} from '../types';
+import { Player, Attributes, Position, TeamStrengthSnapshot } from '../types';
 import { POSITION_WEIGHTS } from '../constants';
 
 export function clamp(value: number, min: number, max: number) {

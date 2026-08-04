@@ -3,10 +3,6 @@ import {
   ChevronLeft,
   Trash2,
   Search,
-  Save,
-  Trophy,
-  Scale,
-  Users,
   Info,
   Plus,
   Minus,
@@ -27,23 +23,12 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts';
-import {
-  Player,
-  Attributes,
-  Position,
-  Game,
-  PointEvent,
-  Team,
-  Community,
-  Session,
-} from '../../types';
+import { Attributes, Position } from '../../types';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { PlayerEditViewModel } from '@app/screens/playerEditView/playerEditViewModel';
 import type { PlayerEditViewIntent } from '@app/screens/playerEditView/playerEditViewIntents';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
-  getBalancingRole,
-  calculateGeneralOverall,
   calculatePositionOverall,
   getAutoSpecialty,
   getAutoWeakness,
@@ -329,7 +314,9 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
               return (
                 <div
                   key={p.id}
-                  onClick={() => dispatch({ kind: 'setEditingPlayer', player: JSON.parse(JSON.stringify(p)) })}
+                  onClick={() =>
+                    dispatch({ kind: 'setEditingPlayer', player: JSON.parse(JSON.stringify(p)) })
+                  }
                   className={`p-3 rounded-xl cursor-pointer transition-all border flex items-center justify-between ${
                     isEditing
                       ? 'bg-primary/10 border-primary text-primary shadow-inner font-bold'
@@ -403,7 +390,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                   editingPlayer.nome ? editingPlayer.nome.substring(0, 2).toUpperCase() : 'AT'
                 }
                 onApplied={(newUrl) =>
-                  dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, avatarUrl: newUrl } })
+                  dispatch({
+                    kind: 'setEditingPlayer',
+                    player: { ...editingPlayer, avatarUrl: newUrl },
+                  })
                 }
                 disabled={!permissions.canEditPlayerProfile}
               />
@@ -415,7 +405,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                       type="text"
                       value={editingPlayer.nome}
                       onChange={(e) =>
-                        dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, nome: e.target.value } })
+                        dispatch({
+                          kind: 'setEditingPlayer',
+                          player: { ...editingPlayer, nome: e.target.value },
+                        })
                       }
                       placeholder="Nome Completo"
                       disabled={!permissions.canEditPlayerProfile}
@@ -432,7 +425,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                       type="text"
                       value={editingPlayer.apelido || ''}
                       onChange={(e) =>
-                        dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, apelido: e.target.value } })
+                        dispatch({
+                          kind: 'setEditingPlayer',
+                          player: { ...editingPlayer, apelido: e.target.value },
+                        })
                       }
                       placeholder="Apelido"
                       disabled={!permissions.canEditPlayerProfile}
@@ -537,7 +533,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                             const updated = e.target.checked
                               ? [...editingPlayer.posicoesSecundarias, pos]
                               : editingPlayer.posicoesSecundarias.filter((p) => p !== pos);
-                            dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, posicoesSecundarias: updated } });
+                            dispatch({
+                              kind: 'setEditingPlayer',
+                              player: { ...editingPlayer, posicoesSecundarias: updated },
+                            });
                           }}
                           className="hidden"
                         />
@@ -563,7 +562,12 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                 {permissions.canEditPlayerProfile && (
                   <button
                     type="button"
-                    onClick={() => dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, isGuest: false } })}
+                    onClick={() =>
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: { ...editingPlayer, isGuest: false },
+                      })
+                    }
                     className="btn btn-primary btn-xs uppercase font-bold text-[9px] tracking-wide px-3"
                   >
                     Promover a Atleta Fixo
@@ -586,7 +590,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                   <select
                     value={editingPlayer.genero}
                     onChange={(e) =>
-                      dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, genero: e.target.value as any } })
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: { ...editingPlayer, genero: e.target.value as any },
+                      })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
                     disabled={!permissions.canEditPlayerProfile}
@@ -630,7 +637,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                   <select
                     value={editingPlayer.maoDominante}
                     onChange={(e) =>
-                      dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, maoDominante: e.target.value as any } })
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: { ...editingPlayer, maoDominante: e.target.value as any },
+                      })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
                     disabled={!permissions.canEditPlayerProfile}
@@ -647,7 +657,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
                   <select
                     value={editingPlayer.ativo ? 'ativo' : 'inativo'}
                     onChange={(e) =>
-                      dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, ativo: e.target.value === 'ativo' } })
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: { ...editingPlayer, ativo: e.target.value === 'ativo' },
+                      })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
                     disabled={!permissions.canEditPlayerProfile}

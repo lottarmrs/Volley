@@ -1,9 +1,4 @@
-import type {
-  Championship,
-  Community,
-  CommunityRules,
-  Player,
-} from '@shared/types';
+import type { Championship, Community, CommunityRules, Player } from '@shared/types';
 import type { CreateChampionshipInput } from '@app/championshipUseCases';
 
 export type CommunitiesViewIntent =

@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  Settings,
   ShieldAlert,
   Trash2,
   Trophy,
@@ -50,7 +49,6 @@ import type { AwardWinner } from '../../logic/tournament';
 import { calculateGeneralOverall } from '../../logic/calculations';
 import {
   getCommunityFrequency,
-  getCommunityGames,
   getCommunityPlayers,
   getCommunityRanking,
   getCommunitySessions,
@@ -85,7 +83,6 @@ import {
   formatCommunitySessionsText,
   formatCommunitySummaryText,
 } from '../../logic/shareFormatters';
-import { createDefaultCommunityRules } from '../../hooks/useCommunityRules';
 import { ShareActions } from '../share/ShareActions';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
 import { JoinCommunityByCode } from './JoinCommunityByCode';

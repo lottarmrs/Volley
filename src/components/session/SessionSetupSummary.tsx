@@ -1,6 +1,6 @@
 import React from 'react';
 import { Player, Session } from '../../types';
-import { Users, Calendar, MapPin, Trophy, Clock, Target, RotateCw } from 'lucide-react';
+import { Users, Calendar, MapPin, Trophy, Clock } from 'lucide-react';
 
 interface SessionSetupSummaryProps {
   session: Session;

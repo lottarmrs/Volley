@@ -7,10 +7,8 @@ import {
   generateFutStats,
   resolvePlayerEdition,
   playerChemistry,
-  resolveAchievements,
   resolveCardFrame,
   buildVutCard,
-  ACHIEVEMENT_CATALOG,
   EditionContext,
   BuildVutCardContext,
 } from './futCards';

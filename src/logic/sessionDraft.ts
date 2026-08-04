@@ -1,10 +1,5 @@
 import { Session, Division } from '../types';
-import {
-  STORAGE_KEYS,
-  saveToStorage,
-  loadFromStorage,
-  removeFromStorage,
-} from '../storage/localStorageRepository';
+import { STORAGE_KEYS, saveToStorage, loadFromStorage } from '../storage/localStorageRepository';
 import { normalizeSessionDraft } from './migrations';
 
 export interface SessionDraft {

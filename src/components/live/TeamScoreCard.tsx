@@ -1,6 +1,5 @@
-import { motion } from 'motion/react';
 import { Plus, RotateCw, Trophy as ChampIcon, Zap } from 'lucide-react';
-import { Player, Team, TeamStrengthSnapshot, Game } from '../../types';
+import { Player, Team } from '../../types';
 
 interface TeamScoreCardProps {
   team: Team;

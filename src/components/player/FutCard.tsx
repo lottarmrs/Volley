@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { VutCard } from '../../logic/futCards';
-import { Star } from 'lucide-react';
 
 interface FutCardProps {
   card: VutCard;

@@ -17,7 +17,6 @@ import {
   Position,
 } from '../types';
 import {
-  calculateTeamStrength,
   calculateGenderDistribution,
   calculateTeamSizes,
   calculateGeneralOverall,
@@ -110,17 +109,6 @@ const MODE_WEIGHTS: Record<'balanced' | 'competitive' | 'social' | 'mixed', Bala
 
 // Piso de gênero: o equilíbrio de gênero é critério permanente em todos os perfis (Fase B).
 export const GENDER_WEIGHT_FLOOR = 0.6;
-
-const SPEED_CONFIG: Record<
-  'fast' | 'normal' | 'advanced',
-  { maxIterations: number; timeLimitMillis: number }
-> = {
-  fast: { maxIterations: 3000, timeLimitMillis: 500 },
-  normal: { maxIterations: 8000, timeLimitMillis: 1500 },
-  // O cálculo roda em um Web Worker, então a UI não congela: cobrimos mais
-  // possibilidades sem prejudicar a responsividade.
-  advanced: { maxIterations: 40000, timeLimitMillis: 5000 },
-};
 
 // ─── Player Mapping & Technical Vectors ──────────────────────────────────────
 
@@ -968,7 +956,7 @@ function buildBalanceDiagnostics(
   totalMales: number,
   totalInjured: number,
   numTeams: number,
-  constraints: BalanceConstraints | undefined,
+  _constraints: BalanceConstraints | undefined,
 ): BalanceDiagnostics {
   const metrics = solution.teams.map((t, idx) => calculateTeamMetrics(idx, t));
   const getSpread = (values: number[]) => {
@@ -1457,9 +1445,6 @@ export const balanceTeams = (
 
     // Map AthleteVector[][] back to Team[]
     const divisionTeams: Team[] = solution.teams.map((teamAthletes, i) => {
-      // Re-map back to actual Player object references
-      const originalTeamPlayers = players.filter((p) => teamAthletes.some((ta) => ta.id === p.id));
-
       const teamMetrics = calculateTeamMetrics(i, teamAthletes);
       const strengthSnapshot = buildTeamStrengthSnapshot(teamMetrics);
 

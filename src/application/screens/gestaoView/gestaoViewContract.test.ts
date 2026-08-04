@@ -22,9 +22,7 @@ function makeInput(overrides: Partial<GestaoViewContractInput> = {}): GestaoView
 }
 
 test('buildModel projeta currentUserId e isMaster', () => {
-  const c = buildGestaoViewContract(
-    makeInput({ currentUserId: 'u1', isMaster: true }),
-  );
+  const c = buildGestaoViewContract(makeInput({ currentUserId: 'u1', isMaster: true }));
   assert.equal(c.model.currentUserId, 'u1');
   assert.equal(c.model.isMaster, true);
 });

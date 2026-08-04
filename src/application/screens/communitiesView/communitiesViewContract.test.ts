@@ -2,12 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCommunitiesViewContract } from './communitiesViewContract';
 import type { CommunitiesViewContractInput } from './communitiesViewContract';
-import type {
-  Championship,
-  Community,
-  CommunityRules,
-  Player,
-} from '@shared/types';
+import type { Championship, Community, CommunityRules, Player } from '@shared/types';
 
 function spy() {
   const calls: unknown[][] = [];
@@ -37,7 +32,7 @@ const noopWhatsAppApi = {
 } as CommunitiesViewContractInput['whatsAppApi'];
 
 const noopRulesApi = {
-  getRules: (_c: Community) => ({ communityId: 'x' } as CommunityRules),
+  getRules: (_c: Community) => ({ communityId: 'x' }) as CommunityRules,
   saveRules: () => {},
   removeRules: () => {},
 } as CommunitiesViewContractInput['rulesApi'];
@@ -197,9 +192,7 @@ test('updateCommunity repassa communityId, patch e allowed opcional', async () =
 
 test('createPlayer repassa name e communityId', async () => {
   const onCreatePlayer = spy() as unknown as Spy;
-  const c = buildCommunitiesViewContract(
-    makeInput({ onCreatePlayer: onCreatePlayer.fn as never }),
-  );
+  const c = buildCommunitiesViewContract(makeInput({ onCreatePlayer: onCreatePlayer.fn as never }));
   await c.dispatch({ kind: 'createPlayer', name: 'A', communityId: 'c1' });
   assert.deepEqual(onCreatePlayer.calls[0], ['A', 'c1']);
 });
@@ -245,7 +238,11 @@ test('linkedCloudPlayer (opcional) chama callback quando presente', async () => 
 
 test('linkedCloudPlayer (opcional) nao lanca quando ausente', async () => {
   const c = buildCommunitiesViewContract(makeInput({ onLinkedCloudPlayer: undefined }));
-  await c.dispatch({ kind: 'linkedCloudPlayer', player: { id: 'p1' } as Player, communityId: 'c1' });
+  await c.dispatch({
+    kind: 'linkedCloudPlayer',
+    player: { id: 'p1' } as Player,
+    communityId: 'c1',
+  });
 });
 
 test('deleteChampionship repassa championshipId', async () => {

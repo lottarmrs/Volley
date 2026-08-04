@@ -1,11 +1,6 @@
 import { Player, PointEvent, Game, Team, Attributes } from '../types';
 import { RATING, CONSISTENCY } from './balancingConstants';
-import {
-  POSITION_CRITICAL,
-  SKILL_TO_ATTRIBUTE,
-  FAULT_TO_ATTRIBUTE,
-  getConsistencyAttrs,
-} from './progression';
+import { POSITION_CRITICAL, FAULT_TO_ATTRIBUTE, getConsistencyAttrs } from './progression';
 
 const isHighlight = (p: PointEvent) => p.eventKind === 'highlight';
 const isCriticalFor = (pos: string, attr: keyof Attributes) =>

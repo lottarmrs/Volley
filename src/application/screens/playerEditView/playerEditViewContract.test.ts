@@ -50,7 +50,9 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
   } as Player;
 }
 
-function makeInput(overrides: Partial<PlayerEditViewContractInput> = {}): PlayerEditViewContractInput {
+function makeInput(
+  overrides: Partial<PlayerEditViewContractInput> = {},
+): PlayerEditViewContractInput {
   return {
     editingPlayer: makePlayer(),
     setEditingPlayer: () => {},

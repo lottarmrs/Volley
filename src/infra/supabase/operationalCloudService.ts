@@ -49,7 +49,14 @@ function isCardinalityViolation(error: any): boolean {
 }
 
 function withoutCloudMeta<T extends DbRecord>(entity: T) {
-  const { cloudId, syncStatus, lastSyncedAt, deletedAt, updatedAt, ...rest } = entity;
+  const {
+    cloudId: _cloudId,
+    syncStatus: _syncStatus,
+    lastSyncedAt: _lastSyncedAt,
+    deletedAt: _deletedAt,
+    updatedAt: _updatedAt,
+    ...rest
+  } = entity;
   return rest;
 }
 

@@ -12,7 +12,6 @@ import {
   offlineError,
   unexpectedError,
   type AppError,
-  type AppResult,
 } from './appResult';
 
 test('appOk carries a value and optional recoverable issues', () => {

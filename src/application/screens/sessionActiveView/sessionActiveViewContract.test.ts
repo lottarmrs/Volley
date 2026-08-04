@@ -36,12 +36,14 @@ function makeSession(overrides: Partial<Session> = {}): Session {
   } as Session;
 }
 
-function makeInput(overrides: Partial<{
-  activeSession: Session;
-  onExit: (...a: never[]) => void;
-  onFinishSession: (...a: never[]) => void;
-  setActiveSession: (...a: never[]) => void;
-}> = {}) {
+function makeInput(
+  overrides: Partial<{
+    activeSession: Session;
+    onExit: (...a: never[]) => void;
+    onFinishSession: (...a: never[]) => void;
+    setActiveSession: (...a: never[]) => void;
+  }> = {},
+) {
   const setActiveSession = overrides.setActiveSession ?? (() => {});
   const onExit = overrides.onExit ?? (() => {});
   const onFinishSession = overrides.onFinishSession ?? (() => {});
@@ -64,9 +66,7 @@ function makeInput(overrides: Partial<{
 }
 
 test('buildModel projeta os 7 campos de dados (incl. currentDeviceId)', () => {
-  const c = buildSessionActiveViewContract(
-    makeInput({ activeSession: makeSession({ id: 'sX' }) }),
-  );
+  const c = buildSessionActiveViewContract(makeInput({ activeSession: makeSession({ id: 'sX' }) }));
   assert.equal(c.model.activeSession.id, 'sX');
   assert.equal(c.model.games.length, 0);
   assert.equal(c.model.pointEvents.length, 0);

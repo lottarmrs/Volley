@@ -3,15 +3,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft,
   Search,
-  Filter,
   Users,
   Trash2,
-  History,
   Trophy,
   Clock,
   Target,
   Zap,
-  Info,
   AlertTriangle,
   RotateCcw,
   Sparkles,
@@ -26,14 +23,7 @@ import {
   Share2,
   Copy,
 } from 'lucide-react';
-import {
-  Player,
-  Team,
-  Position,
-  Game,
-  RotationType,
-  TournamentFormat,
-} from '../../types';
+import { Player, Team, Position, Game, RotationType, TournamentFormat } from '../../types';
 import {
   resolveComposition,
   mapPlayerToAthleteVector,
@@ -47,11 +37,7 @@ import { getSessionSetupWarnings } from '../../logic/setupWarnings';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { SessionWizardModel } from '@app/screens/sessionWizard/sessionWizardModel';
 import type { SessionWizardIntent } from '@app/screens/sessionWizard/sessionWizardIntents';
-import {
-  calculateGeneralOverall,
-  calculateTeamStrength,
-  calculatePositionOverall,
-} from '../../logic/calculations';
+import { calculateGeneralOverall, calculatePositionOverall } from '../../logic/calculations';
 import { generateTournamentSchedule, getTeamDisplayName } from '../../logic/tournament';
 import { openWhatsAppShare, copyToClipboard, formatDrawForWhatsApp } from '../../logic/exporters';
 import { GuestPlayerModal } from '../player/GuestPlayerModal';
@@ -256,7 +242,6 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     // Respeita as posições ajustadas para a sessão na prévia da composição.
     const vectors = selectedPlayers.map((p) => mapPlayerToAthleteVector(p, playerPositions[p.id]));
     return resolveComposition(vectors, teamCount);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationType, activeSession?.config?.teamCount, selectedPlayers, playerPositions]);
 
   const updateGeneratedTeam = (divisionIndex: number, teamId: string, patch: Partial<Team>) => {

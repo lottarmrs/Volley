@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Check, Heart } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Player, Community } from '../../../types';
 import { calculateGeneralOverall, getBalancingRole } from '../../../logic/calculations';
 

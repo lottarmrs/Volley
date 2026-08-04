@@ -27,14 +27,14 @@ import { useChampionships } from './hooks/useChampionships';
 import { useAuth } from './hooks/useAuth';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useCloudSync } from './hooks/useCloudSync';
-import { useToast } from './ui/common/ToastProvider';
+import { useToast } from './ui/common/useToast';
 import { useCommunityPermissions } from './hooks/useCommunityPermissions';
 
 import { ToastViewport } from '@ui/common/ToastViewport';
 
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
-import { Community, CommunityRules, Game, Player, SessionConfig, Team } from './types';
+import { Community, CommunityRules, SessionConfig } from './types';
 import {
   STORAGE_KEYS,
   getLocalCacheOwnerId,
@@ -180,10 +180,7 @@ export default function App() {
   const championships = useChampionships();
 
   // Mount-memo: device id é idempotente e stable per-install; 1× por mount.
-  const currentDeviceIdRef = useRef<string | null>(null);
-  if (currentDeviceIdRef.current === null) {
-    currentDeviceIdRef.current = getOrCreateDeviceId();
-  }
+  const [currentDeviceId] = useState(getOrCreateDeviceId);
 
   const editingPlayerCommunity = useMemo(() => {
     if (
@@ -696,7 +693,7 @@ export default function App() {
                 players: play.players,
                 sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
                 gameReports: sess.gameReports,
-                currentDeviceId: currentDeviceIdRef.current,
+                currentDeviceId: currentDeviceId,
                 setGames: sess.setGames,
                 setPointEvents: sess.setPointEvents,
                 setGameReports: sess.setGameReports,

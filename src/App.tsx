@@ -70,6 +70,7 @@ import { buildPlayerEditViewContract } from './application/screens/playerEditVie
 import { buildDashboardContract } from './application/screens/dashboard/dashboardContract';
 import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
 import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
+import { buildHistoryViewContract } from './application/screens/historyView/historyViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -957,23 +958,25 @@ export default function App() {
       case 'historico':
         return (
           <HistoryView
-            sessions={sess.sessions}
-            games={sess.games}
-            pointEvents={sess.pointEvents}
-            teams={sess.teams}
-            players={play.players}
-            sessionReports={sess.sessionReports}
-            selectedHistorySessionId={selectedHistorySessionId}
-            setSelectedHistorySessionId={setSelectedHistorySessionId}
-            onDeleteSession={(sessionId) => {
-              sess.deleteSession(sessionId);
-              setSelectedHistorySessionId(null);
-            }}
-            onBackToDashboard={() => {
-              applyShellNavigationTarget(getDashboardNavigationTarget());
-            }}
-            initialTab="sessions"
-            hideTabs={false}
+            contract={buildHistoryViewContract({
+              sessions: sess.sessions,
+              games: sess.games,
+              pointEvents: sess.pointEvents,
+              teams: sess.teams,
+              players: play.players,
+              sessionReports: sess.sessionReports,
+              selectedHistorySessionId,
+              setSelectedHistorySessionId,
+              onDeleteSession: (sessionId) => {
+                sess.deleteSession(sessionId);
+                setSelectedHistorySessionId(null);
+              },
+              onBackToDashboard: () => {
+                applyShellNavigationTarget(getDashboardNavigationTarget());
+              },
+              initialTab: 'sessions',
+              hideTabs: false,
+            })}
           />
         );
 

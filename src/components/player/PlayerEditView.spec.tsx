@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerEditView } from './PlayerEditView';
+import { buildPlayerEditViewContract } from '../../application/screens/playerEditView/playerEditViewContract';
+import type { PlayerEditViewContractInput } from '../../application/screens/playerEditView/playerEditViewContract';
 import { submitSelfEvaluation } from '../../application/selfEvaluationUseCases';
 import { makePlayer } from '../../test/fixtures';
 import type { Community, Player } from '../../types';
@@ -22,31 +24,30 @@ function makeCommunity(overrides: Partial<Community> = {}): Community {
 }
 
 function renderPlayerEditView(
-  overrides: Partial<Parameters<typeof PlayerEditView>[0]> = {},
+  overrides: Partial<PlayerEditViewContractInput> = {},
   player?: Player,
 ) {
   const editingPlayer = player ?? makePlayer('p1');
-  return render(
-    <PlayerEditView
-      editingPlayer={editingPlayer}
-      setEditingPlayer={vi.fn()}
-      players={[editingPlayer]}
-      games={[]}
-      pointEvents={[]}
-      teams={[]}
-      communities={[]}
-      sessions={[]}
-      onBack={vi.fn()}
-      onSave={vi.fn()}
-      onDelete={vi.fn()}
-      validationErrors={{}}
-      showDeleteConfirm={false}
-      setShowDeleteConfirm={vi.fn()}
-      permissions={{ canEditPlayerProfile: true, canEvaluatePlayer: true }}
-      currentUserId={null}
-      {...overrides}
-    />,
-  );
+  const defaults: PlayerEditViewContractInput = {
+    editingPlayer,
+    setEditingPlayer: vi.fn(),
+    players: [editingPlayer],
+    games: [],
+    pointEvents: [],
+    teams: [],
+    communities: [],
+    sessions: [],
+    onBack: vi.fn(),
+    onSave: vi.fn(),
+    onDelete: vi.fn(),
+    validationErrors: {},
+    showDeleteConfirm: false,
+    setShowDeleteConfirm: vi.fn(),
+    permissions: { canEditPlayerProfile: true, canEvaluatePlayer: true },
+    currentUserId: null,
+  };
+  const contract = buildPlayerEditViewContract({ ...defaults, ...overrides });
+  return render(<PlayerEditView contract={contract} />);
 }
 
 describe('PlayerEditView evaluation community gate', () => {

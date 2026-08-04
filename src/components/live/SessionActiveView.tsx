@@ -47,39 +47,31 @@ import {
   shouldHeartbeatSessionControl,
   type SessionControlView,
 } from '@app/sessionOwnershipUseCases';
-import { getOrCreateDeviceId } from '@storage/localStorageRepository';
 import { isAppOk } from '@app/appResult';
 import { useAuth } from '../../hooks/useAuth';
-
-interface SessionActiveViewProps {
-  activeSession: Session;
-  games: Game[];
-  setGames: React.Dispatch<React.SetStateAction<Game[]>>;
-  pointEvents: PointEvent[];
-  setPointEvents: React.Dispatch<React.SetStateAction<PointEvent[]>>;
-  players: Player[];
-  sessionTeams: Team[];
-  gameReports: GameReport[];
-  setGameReports: React.Dispatch<React.SetStateAction<GameReport[]>>;
-  setActiveSession: (s: Session) => void;
-  onExit: () => void;
-  onFinishSession: () => void;
-}
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { SessionActiveViewModel } from '@app/screens/sessionActiveView/sessionActiveViewModel';
+import type { SessionActiveViewIntent } from '@app/screens/sessionActiveView/sessionActiveViewIntents';
 
 export const SessionActiveView = ({
-  activeSession,
-  games,
-  setGames,
-  pointEvents,
-  setPointEvents,
-  players,
-  sessionTeams,
-  gameReports,
-  setGameReports,
-  setActiveSession,
-  onExit,
-  onFinishSession,
-}: SessionActiveViewProps) => {
+  contract,
+}: {
+  contract: ScreenContract<SessionActiveViewModel, SessionActiveViewIntent>;
+}) => {
+  const { model, dispatch } = contract;
+  const {
+    activeSession,
+    games,
+    pointEvents,
+    players,
+    sessionTeams,
+    gameReports,
+    currentDeviceId,
+    setGames,
+    setPointEvents,
+    setGameReports,
+    setActiveSession,
+  } = model;
   const {
     currentGame,
     sessionGames,
@@ -136,7 +128,7 @@ export const SessionActiveView = ({
       controlClaimedAt: activeSession.controlClaimedAt ?? null,
       controlDeviceId: activeSession.controlDeviceId ?? null,
       currentUserId: auth.user?.id ?? null,
-      currentDeviceId: getOrCreateDeviceId(),
+      currentDeviceId: currentDeviceId,
       holderName: activeSession.controlHolderName ?? null,
     });
     setControl(visao);
@@ -269,8 +261,8 @@ export const SessionActiveView = ({
         cancelGame={cancelGame}
         updateFinalScore={updateFinalScore}
         reorderScheduledGame={reorderScheduledGame}
-        onFinishSession={onFinishSession}
-        onExit={onExit}
+        onFinishSession={() => dispatch({ kind: 'finishSession' })}
+        onExit={() => dispatch({ kind: 'exit' })}
         setActiveSession={setActiveSession}
         shareGameToWhatsApp={shareGameToWhatsApp}
         copyGameToClipboard={copyGameToClipboard}
@@ -303,13 +295,7 @@ export const SessionActiveView = ({
 
   const updateQueue = (newQueue: string[]) => {
     if (activeSession.type !== 'free_play') return;
-    setActiveSession({
-      ...activeSession,
-      config: {
-        ...(activeSession.config as FreePlayConfig),
-        initialQueue: newQueue,
-      },
-    });
+    void dispatch({ kind: 'updateFreePlayQueue', newQueue });
   };
 
   const moveTeamInQueue = (idx: number, direction: 'up' | 'down') => {
@@ -351,10 +337,10 @@ export const SessionActiveView = ({
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={onExit} className="btn btn-xs btn-error btn-soft">
+            <button onClick={() => dispatch({ kind: 'exit' })} className="btn btn-xs btn-error btn-soft">
               Voltar
             </button>
-            <button onClick={onFinishSession} className="btn btn-xs btn-accent btn-soft font-bold">
+            <button onClick={() => dispatch({ kind: 'finishSession' })} className="btn btn-xs btn-accent btn-soft font-bold">
               Encerrar Sessão
             </button>
           </div>
@@ -435,7 +421,7 @@ export const SessionActiveView = ({
               a sessão.
             </p>
           </div>
-          <button onClick={onExit} className="btn btn-error btn-soft w-full">
+          <button onClick={() => dispatch({ kind: 'exit' })} className="btn btn-error btn-soft w-full">
             Voltar ao Menu
           </button>
         </div>
@@ -465,10 +451,10 @@ export const SessionActiveView = ({
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={onExit} className="btn btn-xs btn-error btn-soft">
+          <button onClick={() => dispatch({ kind: 'exit' })} className="btn btn-xs btn-error btn-soft">
             Voltar
           </button>
-          <button onClick={onFinishSession} className="btn btn-xs btn-accent btn-soft font-bold">
+          <button onClick={() => dispatch({ kind: 'finishSession' })} className="btn btn-xs btn-accent btn-soft font-bold">
             Encerrar Sessão
           </button>
         </div>

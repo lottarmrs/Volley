@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountSyncView } from './AccountSyncView';
+import { buildAccountSyncViewContract } from '@app/screens/accountSyncView/accountSyncViewContract';
+import type { AccountSyncViewContractInput } from '@app/screens/accountSyncView/accountSyncViewContract';
 import type {
   RecoverableSyncActions,
   SyncIssueEntry,
@@ -47,34 +49,35 @@ function openIssue(overrides: Partial<SyncIssueEntry> = {}): SyncIssueEntry {
   };
 }
 
-function renderAccount(overrides: Partial<Parameters<typeof AccountSyncView>[0]> = {}) {
+function renderAccount(overrides: Partial<AccountSyncViewContractInput> = {}) {
+  const defaults: AccountSyncViewContractInput = {
+    user: { id: 'user-1', email: 'ana@example.com' },
+    profile: {
+      id: 'user-1',
+      name: 'Ana',
+      email: 'ana@example.com',
+      role: 'user',
+      createdAt: '2026-07-07T12:00:00.000Z',
+      updatedAt: '2026-07-07T12:00:00.000Z',
+    },
+    loading: false,
+    isSupabaseConfigured: true,
+    onSignOut: vi.fn(),
+    onLinkGoogleIdentity: vi.fn(),
+    onSync: vi.fn(),
+    onRepairDuplicates: vi.fn(),
+    lastSyncedAt: null,
+    syncLoading: false,
+    players: [],
+    recoverableSyncActions: recoverableActions(),
+    syncIssueSummary: issueSummary(),
+    onRetryPrimarySyncAction: vi.fn(),
+    onClearResolvedSyncIssues: vi.fn(),
+  };
+  const contract = buildAccountSyncViewContract({ ...defaults, ...overrides });
   return render(
     <MemoryRouter>
-      <AccountSyncView
-        user={{ id: 'user-1', email: 'ana@example.com' }}
-        profile={{
-          id: 'user-1',
-          name: 'Ana',
-          email: 'ana@example.com',
-          role: 'user',
-          createdAt: '2026-07-07T12:00:00.000Z',
-          updatedAt: '2026-07-07T12:00:00.000Z',
-        }}
-        loading={false}
-        isSupabaseConfigured={true}
-        onSignOut={vi.fn()}
-        onLinkGoogleIdentity={vi.fn()}
-        onSync={vi.fn()}
-        onRepairDuplicates={vi.fn()}
-        lastSyncedAt={null}
-        syncLoading={false}
-        players={[]}
-        recoverableSyncActions={recoverableActions()}
-        syncIssueSummary={issueSummary()}
-        onRetryPrimarySyncAction={vi.fn()}
-        onClearResolvedSyncIssues={vi.fn()}
-        {...overrides}
-      />
+      <AccountSyncView contract={contract} />
     </MemoryRouter>,
   );
 }

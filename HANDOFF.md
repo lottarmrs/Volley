@@ -1,14 +1,41 @@
 # HANDOFF - Panelinha App
 
-> Documento operacional atualizado em 2026-07-17.
+> Documento operacional atualizado em 2026-08-04.
 > Este arquivo substitui o handoff histórico de 2026-06-24, que continha estado de working tree e pendências já superadas.
 
 ## Estado Atual
 
-- Branch local: `main`, alinhado com `origin/main` após os commits enviados.
+- Branch local: `main`, alinhado com `origin/main` após os commits enviados (trabalho da Fase 2 em `worktree-plano-5-pre-fase-2`, a ser mergeado).
 - Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
 - Prioridade atual do framework: Produto Escalável, depois Experiência.
-- Foco imediato: Plano 5 — Fase 2 (Screen Contracts). Fase 1 (reset + cutover) concluída em 2026-08-03 (ver seção Pós-Cutover abaixo).
+- Foco imediato: Plano 5 — **Fase 3 (Nova Navegação)**. Fase 2 (Screen Contracts) concluída em 2026-08-04 (ver seção pós-Fase-2 abaixo). Fase 1 (reset + cutover) concluída em 2026-08-03 (ver seção Pós-Cutover abaixo).
+
+## Pós-Fase 2 (Plano 5 — Screen Contracts)
+
+Nove telas migradas para `ScreenContract<Model, Intent>` em `src/application/screens/<screen>/`
+(Model, Intents, Contract, Contract.test por tela), com a view (`.tsx`) recebendo `{ contract }`
+em vez de dezenas de props individuais. Navegação/roteador **não mudaram** — `App.tsx`
+continua shell; só a forma de passar props mudou.
+
+- **Telas migradas:** SessionWizard, SessionActiveView, PlayerEditView, CommunitiesView,
+  PlayersView, Dashboard, HistoryView, AccountSyncView, GestaoView (9/9).
+- **Gate de infra verde:** `grep -rn "from '@infra/\|from '@storage/" src/components/ src/app/`
+  → **vazio** (zero views importam infra/storage; a camada auth foi decouplada de @infra via
+  porta de domínio `@app/authClient` + context na Task 2.5).
+- **Padrão estabelecido:** Model = dados prontos p/ render (read-only); Intent = união
+  discriminada de ações; `dispatch` (async) roteia Intents → callbacks do input contract.
+  Callbacks com retorno síncrono consumido na view (ex.: `addCommunity` lê `.id`, championship
+  `AppResult` lê `.ok`/`.error`) ficam no Model como function refs em vez de rotear pelo async
+  `dispatch` (que engoliria o return). Hook interno forte (ex.: `useLiveSession` em
+  SessionActiveView, `useProfilesAdmin` em GestaoView) permanece interno — o contract envolve
+  só os props externos + navegação.
+- **Verificação:** `npm run lint` (tsc) verde, `npm run test:unit` 699 testes passam,
+  `npm run test:ui` 136 testes (27 files) passam, `npm run build` verde. `npm run lint:eslint`
+  reporta 2 errors **pré-existentes** (`App.tsx:1129` ref-access no `renderActiveContent`,
+  `usePlayerCareer.ts` `only-export-components`) e 363 warnings — ambos anteriores à Fase 2
+  (confirma via git blame, commits de 2026-06~07); não introduzidos nem agravados pela migração.
+- **Estado:** gate de Fase 2 fechado. Próxima ação: Fase 3 (Nova Navegação) — invocar
+  skill `impeccable` critique antes, conforme spec do Plano 5 seção 6.9.
 
 ## Pós-Cutover Plano 5 (Fase 1)
 

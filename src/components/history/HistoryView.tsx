@@ -26,6 +26,9 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { HistoryViewModel, HistoryTab } from '@app/screens/historyView/historyViewModel';
+import type { HistoryViewIntent } from '@app/screens/historyView/historyViewIntents';
 import {
   Session,
   Game,
@@ -60,21 +63,8 @@ import { TournamentBracket } from '../tournament/TournamentBracket';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface HistoryViewProps {
-  sessions: Session[];
-  games: Game[];
-  pointEvents: PointEvent[];
-  teams: Team[];
-  players: Player[];
-  sessionReports: SessionReport[];
-  selectedHistorySessionId: string | null;
-  setSelectedHistorySessionId: (id: string | null) => void;
-  onDeleteSession: (id: string) => void;
-  onBackToDashboard: () => void;
-  initialTab?: HistoryTab;
-  hideTabs?: boolean;
+  contract: ScreenContract<HistoryViewModel, HistoryViewIntent>;
 }
-
-type HistoryTab = 'sessions' | 'stats';
 
 // ─── Tooltip shared style ─────────────────────────────────────────────────────
 
@@ -94,36 +84,24 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export const HistoryView = ({
-  sessions,
-  games,
-  pointEvents,
-  teams,
-  players,
-  sessionReports,
-  selectedHistorySessionId,
-  setSelectedHistorySessionId,
-  onDeleteSession,
-  onBackToDashboard,
-  initialTab,
-  hideTabs,
-}: HistoryViewProps) => {
-  const [tab, setTab] = useState<HistoryTab>(initialTab || 'sessions');
-  const selectedSession = selectedHistorySessionId
-    ? sessions.find((s) => s.id === selectedHistorySessionId)
+export const HistoryView = ({ contract }: HistoryViewProps) => {
+  const { model, dispatch } = contract;
+  const [tab, setTab] = useState<HistoryTab>(model.initialTab || 'sessions');
+  const selectedSession = model.selectedHistorySessionId
+    ? model.sessions.find((s) => s.id === model.selectedHistorySessionId)
     : null;
 
   if (selectedSession) {
     return (
       <SessionDetailView
         session={selectedSession}
-        games={games}
-        pointEvents={pointEvents}
-        teams={teams}
-        players={players}
-        sessionReports={sessionReports}
-        onDeleteSession={onDeleteSession}
-        onBack={() => setSelectedHistorySessionId(null)}
+        games={model.games}
+        pointEvents={model.pointEvents}
+        teams={model.teams}
+        players={model.players}
+        sessionReports={model.sessionReports}
+        onDeleteSession={(id) => dispatch({ kind: 'deleteSession', id })}
+        onBack={() => dispatch({ kind: 'setSelectedSessionId', id: null })}
       />
     );
   }
@@ -131,13 +109,11 @@ export const HistoryView = ({
   return (
     <div className="space-y-6">
       {/* Header - only show if tabs are not hidden (meaning it's not a standalone page) */}
-      {!hideTabs && (
+      {!model.hideTabs && (
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => {
-              onBackToDashboard();
-            }}
+            onClick={() => dispatch({ kind: 'backToDashboard' })}
             className="flex items-center gap-2 text-text-muted hover:text-white transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -149,7 +125,7 @@ export const HistoryView = ({
       )}
 
       {/* Tabs */}
-      {!hideTabs && (
+      {!model.hideTabs && (
         <div className="flex gap-1 p-1 bg-surface-muted rounded-xl border border-border">
           {(
             [
@@ -170,14 +146,18 @@ export const HistoryView = ({
       )}
 
       {tab === 'sessions' ? (
-        <SessionList sessions={sessions} games={games} onSelect={setSelectedHistorySessionId} />
+        <SessionList
+          sessions={model.sessions}
+          games={model.games}
+          onSelect={(id) => dispatch({ kind: 'setSelectedSessionId', id })}
+        />
       ) : (
         <GlobalStats
-          sessions={sessions}
-          games={games}
-          pointEvents={pointEvents}
-          teams={teams}
-          players={players}
+          sessions={model.sessions}
+          games={model.games}
+          pointEvents={model.pointEvents}
+          teams={model.teams}
+          players={model.players}
         />
       )}
     </div>

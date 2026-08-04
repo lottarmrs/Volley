@@ -1,37 +1,21 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Plus, Search } from 'lucide-react';
-import { Player, Community, Game, PointEvent, Team, Session } from '../../types';
+import type { Player } from '@shared/types';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { PlayersViewModel } from '@app/screens/playersView/playersViewModel';
+import type { PlayersViewIntent } from '@app/screens/playersView/playersViewIntents';
 import { PlayerItem } from './PlayerComponents';
 import { GuestPlayerModal } from './GuestPlayerModal';
 import { FutCardModal } from './FutCardModal';
 import { matchesSearch } from '../../logic/textNormalization';
 
-interface PlayersViewProps {
-  players: Player[];
-  communities: Community[];
-  games: Game[];
-  pointEvents: PointEvent[];
-  teams: Team[];
-  sessions: Session[];
-  onBack: () => void;
-  onAddPlayer: () => void;
-  onEditPlayer: (player: Player) => void;
-  onRestoreDemoPlayers: () => void;
-  onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
-}
-
 export const PlayersView = ({
-  players,
-  communities,
-  games,
-  pointEvents,
-  teams,
-  sessions,
-  onBack,
-  onAddPlayer,
-  onEditPlayer,
-  onAddGuestPlayer,
-}: PlayersViewProps) => {
+  contract,
+}: {
+  contract: ScreenContract<PlayersViewModel, PlayersViewIntent>;
+}) => {
+  const { model, dispatch } = contract;
+  const { players, communities, games, pointEvents, teams, sessions } = model;
   const [showInactive, setShowInactive] = useState(false);
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +41,7 @@ export const PlayersView = ({
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={onBack}
+            onClick={() => dispatch({ kind: 'back' })}
             className="btn btn-ghost btn-sm gap-1 sm:gap-2 text-xs font-bold uppercase tracking-wider"
           >
             <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Voltar</span>
@@ -79,7 +63,7 @@ export const PlayersView = ({
             <Plus className="w-4 h-4" /> Convidado
           </button>
           <button
-            onClick={onAddPlayer}
+            onClick={() => dispatch({ kind: 'addPlayer' })}
             className="btn btn-primary btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
           >
             <Plus className="w-4 h-4" /> Cadastrar
@@ -127,7 +111,7 @@ export const PlayersView = ({
           <PlayerItem
             key={player.id}
             player={player}
-            onToggle={() => onEditPlayer(player)}
+            onToggle={() => dispatch({ kind: 'editPlayer', player })}
             onViewVutCard={(p) => setSelectedVutPlayer(p)}
           />
         ))}
@@ -145,7 +129,9 @@ export const PlayersView = ({
         isOpen={showGuestModal}
         onClose={() => setShowGuestModal(false)}
         players={players}
-        onAddGuestPlayer={onAddGuestPlayer}
+        onAddGuestPlayer={(p, editDetails) =>
+          dispatch({ kind: 'addGuestPlayer', player: p, editDetails })
+        }
         defaultCommunityId={selectedCommunityId !== 'all' ? selectedCommunityId : null}
       />
 

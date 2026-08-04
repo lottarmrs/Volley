@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Session } from '@supabase/supabase-js';
 import { AuthSessionProvider } from './AuthSessionProvider';
 import { useAuthSession } from './useAuthSession';
-import type { AuthClient } from '@infra/supabase/authClient';
+import type { AuthClient } from '@app/authClient';
 import type { UserProfile } from '@shared/types';
 
 function profile(id: string): UserProfile {

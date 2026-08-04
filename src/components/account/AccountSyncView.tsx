@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
-import { UserProfile, Player } from '../../types';
 import {
-  CloudUpload,
-  CloudDownload,
   RefreshCw,
   LogOut,
-  User,
   Shield,
   Calendar,
   CheckCircle,
@@ -15,77 +11,39 @@ import {
   History,
 } from 'lucide-react';
 import { buildCloudHealthViewModel } from '../../application/cloudHealthViewModel';
-import type { RecoverableSyncActions, SyncIssueSummary } from '../../logic/syncIssueLedger';
-import { SyncConflictSection, type SyncConflictItem } from './SyncConflictSection';
-
-interface AccountSyncViewProps {
-  user: any;
-  profile: UserProfile | null;
-  loading: boolean;
-  isSupabaseConfigured: boolean;
-  onSignOut: () => Promise<void>;
-  onLinkGoogleIdentity: () => Promise<void>;
-
-  // Sync actions
-  onSync: () => Promise<void>;
-  onRepairDuplicates: () => Promise<void>;
-  lastSyncedAt: string | null;
-  syncLoading: boolean;
-
-  players: Player[];
-  recoverableSyncActions?: RecoverableSyncActions;
-  syncIssueSummary?: SyncIssueSummary;
-  onRetryPrimarySyncAction?: () => Promise<void> | void;
-  onClearResolvedSyncIssues?: () => Promise<void> | void;
-  syncConflicts?: SyncConflictItem[];
-  onKeepMineConflict?: (sessionId: string) => void;
-  onKeepTheirsConflict?: (sessionId: string) => void;
-}
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { AccountSyncViewModel } from '@app/screens/accountSyncView/accountSyncViewModel';
+import type { AccountSyncViewIntent } from '@app/screens/accountSyncView/accountSyncViewIntents';
+import { SyncConflictSection } from './SyncConflictSection';
 
 export function AccountSyncView({
-  user,
-  profile,
-  loading,
-  isSupabaseConfigured,
-  onSignOut,
-  onLinkGoogleIdentity,
-  onSync,
-  onRepairDuplicates,
-  lastSyncedAt,
-  syncLoading,
-  players = [],
-  recoverableSyncActions,
-  syncIssueSummary,
-  onRetryPrimarySyncAction,
-  onClearResolvedSyncIssues,
-  syncConflicts,
-  onKeepMineConflict,
-  onKeepTheirsConflict,
-}: AccountSyncViewProps) {
+  contract,
+}: {
+  contract: ScreenContract<AccountSyncViewModel, AccountSyncViewIntent>;
+}) {
+  const { model, dispatch } = contract;
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const pendingSyncIssueRecovery =
-    recoverableSyncActions?.primaryAction &&
-    recoverableSyncActions.primaryActionLabel &&
-    syncIssueSummary?.openCount &&
-    onRetryPrimarySyncAction
+    model.recoverableSyncActions?.primaryAction &&
+    model.recoverableSyncActions.primaryActionLabel &&
+    model.syncIssueSummary?.openCount
       ? {
-          actionLabel: recoverableSyncActions.primaryActionLabel,
-          onRetry: onRetryPrimarySyncAction,
-          openCount: syncIssueSummary.openCount,
-          totalOpenOccurrences: syncIssueSummary.totalOpenOccurrences,
+          actionLabel: model.recoverableSyncActions.primaryActionLabel,
+          openCount: model.syncIssueSummary.openCount,
+          totalOpenOccurrences: model.syncIssueSummary.totalOpenOccurrences,
         }
       : null;
-  const recentOpenSyncIssues = syncIssueSummary?.latestOpen ?? [];
-  const resolvedSyncIssueCount = syncIssueSummary?.resolvedCount ?? 0;
+  const recentOpenSyncIssues = model.syncIssueSummary?.latestOpen ?? [];
+  const resolvedSyncIssueCount = model.syncIssueSummary?.resolvedCount ?? 0;
   const cloudHealth = buildCloudHealthViewModel({
-    isSupabaseConfigured,
-    hasUser: !!user,
-    lastSyncedAt,
-    openIssueCount: syncIssueSummary?.openCount ?? 0,
-    totalOpenOccurrences: syncIssueSummary?.totalOpenOccurrences ?? 0,
+    isSupabaseConfigured: model.isSupabaseConfigured,
+    hasUser: !!model.user,
+    lastSyncedAt: model.lastSyncedAt,
+    openIssueCount: model.syncIssueSummary?.openCount ?? 0,
+    totalOpenOccurrences: model.syncIssueSummary?.totalOpenOccurrences ?? 0,
   });
   const cloudHealthTone =
     cloudHealth.level === 'operational'
@@ -109,7 +67,7 @@ export function AccountSyncView({
     }
   };
 
-  if (!isSupabaseConfigured) {
+  if (!model.isSupabaseConfigured) {
     return (
       <div className="card card-border border-warning/20 bg-warning/5 max-w-xl mx-auto p-6 rounded-2xl">
         <div className="card-body gap-4 text-center items-center">
@@ -130,7 +88,7 @@ export function AccountSyncView({
     );
   }
 
-  if (loading) {
+  if (model.loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <span className="loading loading-spinner loading-lg text-primary"></span>
@@ -142,9 +100,9 @@ export function AccountSyncView({
   }
 
   const roleLabel =
-    profile?.role === 'master'
+    model.profile?.role === 'master'
       ? 'Master (Dono do App)'
-      : profile?.role === 'programmer'
+      : model.profile?.role === 'programmer'
         ? 'Programador / Suporte'
         : 'Usuário';
 
@@ -156,13 +114,13 @@ export function AccountSyncView({
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-base-300 pb-4">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black uppercase text-sm">
-                {profile?.name?.slice(0, 2).toUpperCase() || 'AD'}
+                {model.profile?.name?.slice(0, 2).toUpperCase() || 'AD'}
               </div>
               <div>
                 <h3 className="font-black text-lg text-base-content uppercase tracking-tight">
-                  {profile?.name || user.email.split('@')[0]}
+                  {model.profile?.name || model.user.email.split('@')[0]}
                 </h3>
-                <p className="text-[10px] text-base-content/60 font-mono">{user.email}</p>
+                <p className="text-[10px] text-base-content/60 font-mono">{model.user.email}</p>
               </div>
             </div>
 
@@ -174,7 +132,9 @@ export function AccountSyncView({
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                onClick={() => handleAction('Vincular Google', onLinkGoogleIdentity)}
+                onClick={() =>
+                  handleAction('Vincular Google', () => dispatch({ kind: 'linkGoogleIdentity' }))
+                }
                 disabled={actionLoading}
               >
                 Vincular Google
@@ -183,7 +143,7 @@ export function AccountSyncView({
                 Configurar autenticacao em duas etapas
               </Link>
               <button
-                onClick={() => handleAction('Sair da Conta', onSignOut)}
+                onClick={() => handleAction('Sair da Conta', () => dispatch({ kind: 'signOut' }))}
                 disabled={actionLoading}
                 className="btn btn-ghost btn-square btn-sm text-error"
                 title="Sair da Conta"
@@ -200,8 +160,8 @@ export function AccountSyncView({
                 Último Backup
               </div>
               <div className="stat-value text-base mt-1 text-base-content font-black">
-                {lastSyncedAt
-                  ? new Date(lastSyncedAt).toLocaleString('pt-BR')
+                {model.lastSyncedAt
+                  ? new Date(model.lastSyncedAt).toLocaleString('pt-BR')
                   : 'Nunca sincronizado'}
               </div>
               <div className="stat-desc text-[9px] font-medium text-base-content/40 flex items-center gap-1 mt-1">
@@ -267,14 +227,14 @@ export function AccountSyncView({
                 </div>
                 <button
                   onClick={() =>
-                    handleAction(pendingSyncIssueRecovery.actionLabel, async () => {
-                      await pendingSyncIssueRecovery.onRetry();
-                    })
+                    handleAction(pendingSyncIssueRecovery.actionLabel, () =>
+                      dispatch({ kind: 'retryPrimarySyncAction' }),
+                    )
                   }
-                  disabled={actionLoading || syncLoading}
+                  disabled={actionLoading || model.syncLoading}
                   className="btn btn-warning btn-sm uppercase text-[10px] font-black tracking-wider shrink-0"
                 >
-                  {actionLoading || syncLoading ? (
+                  {actionLoading || model.syncLoading ? (
                     <span className="loading loading-spinner loading-xs"></span>
                   ) : (
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -285,11 +245,11 @@ export function AccountSyncView({
             ) : null}
 
             <button
-              onClick={() => handleAction('Sincronizar agora', onSync)}
-              disabled={actionLoading || syncLoading}
+              onClick={() => handleAction('Sincronizar agora', () => dispatch({ kind: 'sync' }))}
+              disabled={actionLoading || model.syncLoading}
               className="btn btn-primary btn-block justify-center gap-3 p-4 h-auto uppercase text-xs tracking-wider font-bold"
             >
-              {actionLoading || syncLoading ? (
+              {actionLoading || model.syncLoading ? (
                 <>
                   <span className="loading loading-spinner loading-xs"></span> Processando...
                 </>
@@ -302,11 +262,15 @@ export function AccountSyncView({
             </button>
 
             <button
-              onClick={() => handleAction('Sanear duplicatas antigas', onRepairDuplicates)}
-              disabled={actionLoading || syncLoading}
+              onClick={() =>
+                handleAction('Sanear duplicatas antigas', () =>
+                  dispatch({ kind: 'repairDuplicates' }),
+                )
+              }
+              disabled={actionLoading || model.syncLoading}
               className="btn btn-outline btn-block justify-center gap-3 p-4 h-auto uppercase text-xs tracking-wider font-bold"
             >
-              {actionLoading || syncLoading ? (
+              {actionLoading || model.syncLoading ? (
                 <>
                   <span className="loading loading-spinner loading-xs"></span> Processando...
                 </>
@@ -318,9 +282,13 @@ export function AccountSyncView({
             </button>
 
             <SyncConflictSection
-              conflicts={syncConflicts ?? []}
-              onKeepMine={onKeepMineConflict ?? (() => {})}
-              onKeepTheirs={onKeepTheirsConflict ?? (() => {})}
+              conflicts={model.syncConflicts ?? []}
+              onKeepMine={(sessionId) => {
+                void dispatch({ kind: 'keepMineConflict', sessionId });
+              }}
+              onKeepTheirs={(sessionId) => {
+                void dispatch({ kind: 'keepTheirsConflict', sessionId });
+              }}
             />
 
             {recentOpenSyncIssues.length ? (
@@ -355,18 +323,18 @@ export function AccountSyncView({
               </div>
             ) : null}
 
-            {resolvedSyncIssueCount > 0 && onClearResolvedSyncIssues ? (
+            {resolvedSyncIssueCount > 0 ? (
               <div className="bg-base-100 border border-base-300 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <p className="text-[10px] font-bold text-base-content/60">
                   {resolvedSyncIssueCount} falha(s) resolvida(s) no historico local
                 </p>
                 <button
                   onClick={() =>
-                    handleAction('Limpar falhas resolvidas', async () => {
-                      await onClearResolvedSyncIssues();
-                    })
+                    handleAction('Limpar falhas resolvidas', () =>
+                      dispatch({ kind: 'clearResolvedSyncIssues' }),
+                    )
                   }
-                  disabled={actionLoading || syncLoading}
+                  disabled={actionLoading || model.syncLoading}
                   className="btn btn-ghost btn-xs uppercase text-[10px] font-black tracking-wider"
                 >
                   Limpar resolvidas

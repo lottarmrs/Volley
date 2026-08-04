@@ -27,12 +27,9 @@ import {
   Copy,
 } from 'lucide-react';
 import {
-  Session,
   Player,
   Team,
-  Division,
   Position,
-  Community,
   Game,
   RotationType,
   TournamentFormat,
@@ -42,12 +39,14 @@ import {
   mapPlayerToAthleteVector,
   recalculateDivisionDiagnostics,
 } from '../../logic/balancing';
-import { PartnershipMatrix } from '../../logic/partnershipHistory';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
 import { SelectablePlayerCard } from './cards/SelectablePlayerCard';
 import { getSessionSetupWarnings } from '../../logic/setupWarnings';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { SessionWizardModel } from '@app/screens/sessionWizard/sessionWizardModel';
+import type { SessionWizardIntent } from '@app/screens/sessionWizard/sessionWizardIntents';
 import {
   calculateGeneralOverall,
   calculateTeamStrength,
@@ -57,95 +56,27 @@ import { generateTournamentSchedule, getTeamDisplayName } from '../../logic/tour
 import { openWhatsAppShare, copyToClipboard, formatDrawForWhatsApp } from '../../logic/exporters';
 import { GuestPlayerModal } from '../player/GuestPlayerModal';
 
-const POSITION_LABELS: Record<Position, string> = {
-  levantador: 'Levantador',
-  ponteiro: 'Ponteiro',
-  oposto: 'Oposto',
-  central: 'Central',
-  libero: 'Líbero',
-  'all-rounder': 'Curinga',
-};
-
-const POSITION_ORDER: Position[] = [
-  'levantador',
-  'ponteiro',
-  'oposto',
-  'central',
-  'libero',
-  'all-rounder',
-];
-
 interface SessionWizardProps {
-  activeSession: Session | null;
-  players: Player[];
-  communities: Community[];
-  wizardStep: number;
-  validationErrors: Record<string, string>;
-  bestDivisions: Division[];
-  setBestDivisions: React.Dispatch<React.SetStateAction<Division[]>>;
-  selectedDivisionIndex: number;
-  onNext: () => void;
-  onPrev: () => void;
-  onCancel: () => void;
-  onUpdateSession: (patch: Partial<Session>) => void;
-  onTogglePlayer: (id: string) => void;
-  onSelectAllActive: () => void;
-  onClearSelection: () => void;
-  onUseLastSelection: () => void;
-  onGenerateDivisions: (advanceStep?: boolean) => void;
-  onCancelGeneration: () => void;
-  isGenerating: boolean;
-  generationProgress: number;
-  onConfirmDivision: () => void;
-  onStartGeneratedTournament: () => void;
-  setSelectedDivisionIndex: (i: number) => void;
-  togglePlayerLock: (playerId: string, teamIdx: number) => void;
-  addPairConstraint: (p1: string, p2: string, type: 'together' | 'separated') => void;
-  removePairConstraint: (p1: string, p2: string, type: 'together' | 'separated') => void;
-  onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
-  partnershipMatrix?: PartnershipMatrix;
+  contract: ScreenContract<SessionWizardModel, SessionWizardIntent>;
 }
 
-const WIZARD_STEPS = [
-  { id: 0, label: 'Sessão' },
-  { id: 1, label: 'Atletas' },
-  { id: 2, label: 'Formato' },
-  { id: 3, label: 'Regras' },
-  { id: 4, label: 'Revisão' },
-  { id: 5, label: 'Times' },
-  { id: 6, label: 'Tabela' },
-];
-
-export function SessionWizard({
-  activeSession,
-  players,
-  communities,
-  wizardStep,
-  validationErrors,
-  bestDivisions,
-  setBestDivisions,
-  selectedDivisionIndex,
-  onNext,
-  onPrev,
-  onCancel,
-  onUpdateSession,
-  onTogglePlayer,
-  onSelectAllActive,
-  onClearSelection,
-  onUseLastSelection,
-  onGenerateDivisions,
-  onCancelGeneration,
-  isGenerating,
-  generationProgress,
-  onConfirmDivision,
-  onStartGeneratedTournament,
-  setSelectedDivisionIndex,
-  togglePlayerLock,
-  addPairConstraint,
-  removePairConstraint,
-  onAddGuestPlayer,
-  partnershipMatrix,
-}: SessionWizardProps) {
+export function SessionWizard({ contract }: SessionWizardProps) {
+  const { model, dispatch } = contract;
+  const {
+    activeSession,
+    players,
+    communities,
+    wizardStep,
+    validationErrors,
+    bestDivisions,
+    selectedDivisionIndex,
+    isGenerating,
+    generationProgress,
+    partnershipMatrix,
+    stepLabels,
+    positionLabels,
+    positionOrder,
+  } = model;
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [playerSearch, setPlayerSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'M' | 'F'>('all');
@@ -307,10 +238,13 @@ export function SessionWizard({
 
   const setPlayerPosition = (playerId: string, pos: Position) => {
     if (!activeSession?.config) return;
-    onUpdateSession({
-      config: {
-        ...activeSession.config,
-        playerPositions: { ...playerPositions, [playerId]: pos },
+    dispatch({
+      kind: 'updateSession',
+      patch: {
+        config: {
+          ...activeSession.config,
+          playerPositions: { ...playerPositions, [playerId]: pos },
+        },
       },
     });
   };
@@ -326,22 +260,21 @@ export function SessionWizard({
   }, [rotationType, activeSession?.config?.teamCount, selectedPlayers, playerPositions]);
 
   const updateGeneratedTeam = (divisionIndex: number, teamId: string, patch: Partial<Team>) => {
-    setBestDivisions((prev) =>
-      prev.map((division, idx) => {
-        if (idx !== divisionIndex) return division;
-        const updatedTeams = division.teams.map((team) => {
-          if (team.id !== teamId) return team;
-          return { ...team, ...patch };
-        });
-        const updatedDivision = { ...division, teams: updatedTeams };
-        return recalculateDivisionDiagnostics(
-          updatedDivision,
-          selectedPlayers,
-          activeSession?.config,
-          partnershipMatrix,
-        );
-      }),
-    );
+    const next = bestDivisions.map((division, idx) => {
+      if (idx !== divisionIndex) return division;
+      const updatedTeams = division.teams.map((team) => {
+        if (team.id !== teamId) return team;
+        return { ...team, ...patch };
+      });
+      const updatedDivision = { ...division, teams: updatedTeams };
+      return recalculateDivisionDiagnostics(
+        updatedDivision,
+        selectedPlayers,
+        activeSession?.config,
+        partnershipMatrix,
+      );
+    });
+    dispatch({ kind: 'setBestDivisions', divisions: next });
   };
 
   const movePlayerBetweenGeneratedTeams = (
@@ -349,25 +282,24 @@ export function SessionWizard({
     playerId: string,
     targetTeamId: string,
   ) => {
-    setBestDivisions((prev) =>
-      prev.map((division, idx) => {
-        if (idx !== divisionIndex) return division;
-        const nextTeams = division.teams.map((team) => ({
-          ...team,
-          playerIds:
-            team.id === targetTeamId
-              ? Array.from(new Set([...team.playerIds, playerId]))
-              : team.playerIds.filter((id) => id !== playerId),
-        }));
-        const updatedDivision = { ...division, teams: nextTeams };
-        return recalculateDivisionDiagnostics(
-          updatedDivision,
-          selectedPlayers,
-          activeSession?.config,
-          partnershipMatrix,
-        );
-      }),
-    );
+    const next = bestDivisions.map((division, idx) => {
+      if (idx !== divisionIndex) return division;
+      const nextTeams = division.teams.map((team) => ({
+        ...team,
+        playerIds:
+          team.id === targetTeamId
+            ? Array.from(new Set([...team.playerIds, playerId]))
+            : team.playerIds.filter((id) => id !== playerId),
+      }));
+      const updatedDivision = { ...division, teams: nextTeams };
+      return recalculateDivisionDiagnostics(
+        updatedDivision,
+        selectedPlayers,
+        activeSession?.config,
+        partnershipMatrix,
+      );
+    });
+    dispatch({ kind: 'setBestDivisions', divisions: next });
   };
 
   const swapPlayersBetweenGeneratedTeams = (
@@ -377,30 +309,29 @@ export function SessionWizard({
     team1Id: string,
     team2Id: string,
   ) => {
-    setBestDivisions((prev) =>
-      prev.map((division, idx) => {
-        if (idx !== divisionIndex) return division;
-        const nextTeams = division.teams.map((team) => {
-          let nextPlayerIds = [...team.playerIds];
-          if (team.id === team1Id) {
-            nextPlayerIds = nextPlayerIds.map((id) => (id === player1Id ? player2Id : id));
-          } else if (team.id === team2Id) {
-            nextPlayerIds = nextPlayerIds.map((id) => (id === player2Id ? player1Id : id));
-          }
-          return {
-            ...team,
-            playerIds: nextPlayerIds,
-          };
-        });
-        const updatedDivision = { ...division, teams: nextTeams };
-        return recalculateDivisionDiagnostics(
-          updatedDivision,
-          selectedPlayers,
-          activeSession?.config,
-          partnershipMatrix,
-        );
-      }),
-    );
+    const next = bestDivisions.map((division, idx) => {
+      if (idx !== divisionIndex) return division;
+      const nextTeams = division.teams.map((team) => {
+        let nextPlayerIds = [...team.playerIds];
+        if (team.id === team1Id) {
+          nextPlayerIds = nextPlayerIds.map((id) => (id === player1Id ? player2Id : id));
+        } else if (team.id === team2Id) {
+          nextPlayerIds = nextPlayerIds.map((id) => (id === player2Id ? player1Id : id));
+        }
+        return {
+          ...team,
+          playerIds: nextPlayerIds,
+        };
+      });
+      const updatedDivision = { ...division, teams: nextTeams };
+      return recalculateDivisionDiagnostics(
+        updatedDivision,
+        selectedPlayers,
+        activeSession?.config,
+        partnershipMatrix,
+      );
+    });
+    dispatch({ kind: 'setBestDivisions', divisions: next });
   };
 
   const handleSelectPlayerForMove = (
@@ -497,7 +428,9 @@ export function SessionWizard({
                     <input
                       type="text"
                       value={activeSession.name}
-                      onChange={(e) => onUpdateSession({ name: e.target.value })}
+                      onChange={(e) =>
+                        dispatch({ kind: 'updateSession', patch: { name: e.target.value } })
+                      }
                       className={`input input-bordered w-full ${validationErrors.name ? 'input-error' : ''}`}
                       placeholder="Ex: Vôlei de Domingo"
                     />
@@ -516,7 +449,9 @@ export function SessionWizard({
                       <input
                         type="date"
                         value={activeSession.date}
-                        onChange={(e) => onUpdateSession({ date: e.target.value })}
+                        onChange={(e) =>
+                          dispatch({ kind: 'updateSession', patch: { date: e.target.value } })
+                        }
                         className={`input input-bordered w-full font-mono ${validationErrors.date ? 'input-error' : ''}`}
                       />
                     </div>
@@ -527,7 +462,9 @@ export function SessionWizard({
                       <input
                         type="text"
                         value={activeSession.location ?? ''}
-                        onChange={(e) => onUpdateSession({ location: e.target.value })}
+                        onChange={(e) =>
+                          dispatch({ kind: 'updateSession', patch: { location: e.target.value } })
+                        }
                         className="input input-bordered w-full"
                         placeholder="Ex: Arena Pro"
                       />
@@ -540,7 +477,9 @@ export function SessionWizard({
                     </label>
                     <textarea
                       value={activeSession.notes ?? ''}
-                      onChange={(e) => onUpdateSession({ notes: e.target.value })}
+                      onChange={(e) =>
+                        dispatch({ kind: 'updateSession', patch: { notes: e.target.value } })
+                      }
                       className="textarea textarea-bordered w-full min-h-[100px] resize-none"
                       placeholder="Detalhes sobre a reserva, convidados, etc."
                     />
@@ -552,13 +491,17 @@ export function SessionWizard({
               <button
                 type="button"
                 onClick={() => {
-                  onCancel();
+                  dispatch({ kind: 'cancel' });
                 }}
                 className="btn btn-ghost flex-1"
               >
                 Cancelar
               </button>
-              <button type="button" onClick={onNext} className="btn btn-primary flex-[3]">
+              <button
+                type="button"
+                onClick={() => dispatch({ kind: 'next' })}
+                className="btn btn-primary flex-[3]"
+              >
                 Escolher Atletas
               </button>
             </div>
@@ -747,7 +690,10 @@ export function SessionWizard({
                         const healthyActiveFilteredIds = filteredPlayers
                           .filter((p) => p.ativo && !p.status.lesionado)
                           .map((p) => p.id);
-                        onUpdateSession({ selectedPlayerIds: healthyActiveFilteredIds });
+                        dispatch({
+                          kind: 'updateSession',
+                          patch: { selectedPlayerIds: healthyActiveFilteredIds },
+                        });
                       }}
                       className="btn btn-xs btn-outline"
                     >
@@ -755,14 +701,14 @@ export function SessionWizard({
                     </button>
                     <button
                       type="button"
-                      onClick={onUseLastSelection}
+                      onClick={() => dispatch({ kind: 'useLastSelection' })}
                       className="btn btn-xs btn-outline btn-accent text-accent"
                     >
                       Última Lista
                     </button>
                     <button
                       type="button"
-                      onClick={onClearSelection}
+                      onClick={() => dispatch({ kind: 'clearSelection' })}
                       className="btn btn-xs btn-outline btn-error text-error"
                     >
                       Limpar
@@ -779,7 +725,7 @@ export function SessionWizard({
                   key={p.id}
                   player={p}
                   isSelected={activeSession.selectedPlayerIds.includes(p.id)}
-                  onToggle={() => onTogglePlayer(p.id)}
+                  onToggle={() => dispatch({ kind: 'togglePlayer', id: p.id })}
                   communities={communities}
                 />
               ))}
@@ -805,13 +751,16 @@ export function SessionWizard({
               <button
                 type="button"
                 onClick={() => {
-                  onPrev();
+                  dispatch({ kind: 'prev' });
                 }}
                 className="btn btn-ghost flex-1"
               >
                 Dados Básicos
               </button>
-              <button onClick={onNext} className="btn btn-primary flex-[2]">
+              <button
+                onClick={() => dispatch({ kind: 'next' })}
+                className="btn btn-primary flex-[2]"
+              >
                 Continuar
               </button>
             </div>
@@ -834,22 +783,25 @@ export function SessionWizard({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <button
                 onClick={() => {
-                  onUpdateSession({
-                    type: 'free_play',
-                    config: {
+                  dispatch({
+                    kind: 'updateSession',
+                    patch: {
                       type: 'free_play',
-                      teamCount: 3,
-                      maxPoints: 15,
-                      tieBreakMethod: 'direct_3',
-                      rotationSystem: 'winner_stays',
-                      maxConsecutiveGames: 3,
-                      initialCourtTeams: ['', ''],
-                      initialQueue: [],
-                      queuePolicy: 'fifo',
-                      balanceSpeed: 'advanced',
+                      config: {
+                        type: 'free_play',
+                        teamCount: 3,
+                        maxPoints: 15,
+                        tieBreakMethod: 'direct_3',
+                        rotationSystem: 'winner_stays',
+                        maxConsecutiveGames: 3,
+                        initialCourtTeams: ['', ''],
+                        initialQueue: [],
+                        queuePolicy: 'fifo',
+                        balanceSpeed: 'advanced',
+                      },
                     },
                   });
-                  onNext();
+                  dispatch({ kind: 'next' });
                 }}
                 className={`card card-border cursor-pointer text-left hover:scale-[1.02] transition-all bg-base-200 ${activeSession.type === 'free_play' ? 'border-accent bg-accent/5' : 'hover:border-accent/30'}`}
               >
@@ -876,32 +828,35 @@ export function SessionWizard({
 
               <button
                 onClick={() => {
-                  onUpdateSession({
-                    type: 'tournament',
-                    config: {
+                  dispatch({
+                    kind: 'updateSession',
+                    patch: {
                       type: 'tournament',
-                      format: 'round_robin',
-                      teamCount: 3,
-                      useGroupStage: false,
-                      roundTrip: false,
-                      maxPoints: 15,
-                      tieBreakMethod: 'direct_3',
-                      victoryRule: 'direct_3',
-                      hasFinal: false,
-                      hasThirdPlaceMatch: false,
-                      classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
-                      standingsRules: [
-                        'classificationPoints',
-                        'wins',
-                        'pointDifference',
-                        'pointsFor',
-                        'headToHead',
-                        'pointsAgainst',
-                      ],
-                      balanceSpeed: 'advanced',
+                      config: {
+                        type: 'tournament',
+                        format: 'round_robin',
+                        teamCount: 3,
+                        useGroupStage: false,
+                        roundTrip: false,
+                        maxPoints: 15,
+                        tieBreakMethod: 'direct_3',
+                        victoryRule: 'direct_3',
+                        hasFinal: false,
+                        hasThirdPlaceMatch: false,
+                        classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
+                        standingsRules: [
+                          'classificationPoints',
+                          'wins',
+                          'pointDifference',
+                          'pointsFor',
+                          'headToHead',
+                          'pointsAgainst',
+                        ],
+                        balanceSpeed: 'advanced',
+                      },
                     },
                   });
-                  onNext();
+                  dispatch({ kind: 'next' });
                 }}
                 className={`card card-border cursor-pointer text-left hover:scale-[1.02] transition-all bg-base-200 ${activeSession.type === 'tournament' ? 'border-primary bg-primary/5' : 'hover:border-primary/30'}`}
               >
@@ -928,7 +883,7 @@ export function SessionWizard({
             <button
               type="button"
               onClick={() => {
-                onPrev();
+                dispatch({ kind: 'prev' });
               }}
               className="btn btn-ghost btn-sm w-full"
             >
@@ -1011,8 +966,11 @@ export function SessionWizard({
                                 key={f.id}
                                 type="button"
                                 onClick={() =>
-                                  onUpdateSession({
-                                    config: { ...config, format: f.id as TournamentFormat },
+                                  dispatch({
+                                    kind: 'updateSession',
+                                    patch: {
+                                      config: { ...config, format: f.id as TournamentFormat },
+                                    },
                                   })
                                 }
                                 className={`card card-border cursor-pointer text-left hover:scale-[1.01] transition-all p-4 bg-base-200 border border-base-300 flex flex-row items-start gap-4 ${
@@ -1063,8 +1021,11 @@ export function SessionWizard({
                                 className="checkbox checkbox-primary checkbox-sm"
                                 checked={config.hasFinal !== false}
                                 onChange={(e) =>
-                                  onUpdateSession({
-                                    config: { ...config, hasFinal: e.target.checked },
+                                  dispatch({
+                                    kind: 'updateSession',
+                                    patch: {
+                                      config: { ...config, hasFinal: e.target.checked },
+                                    },
                                   })
                                 }
                               />
@@ -1083,10 +1044,13 @@ export function SessionWizard({
                                 className="checkbox checkbox-secondary checkbox-sm"
                                 checked={config.hasThirdPlaceMatch !== false}
                                 onChange={(e) =>
-                                  onUpdateSession({
-                                    config: {
-                                      ...config,
-                                      hasThirdPlaceMatch: e.target.checked,
+                                  dispatch({
+                                    kind: 'updateSession',
+                                    patch: {
+                                      config: {
+                                        ...config,
+                                        hasThirdPlaceMatch: e.target.checked,
+                                      },
                                     },
                                   })
                                 }
@@ -1116,13 +1080,18 @@ export function SessionWizard({
                                 className="checkbox checkbox-primary checkbox-sm"
                                 checked={config.roundRobinPlayoffs === true}
                                 onChange={(e) =>
-                                  onUpdateSession({
-                                    config: {
-                                      ...config,
-                                      roundRobinPlayoffs: e.target.checked,
-                                      hasFinal: e.target.checked,
-                                      hasThirdPlaceMatch: e.target.checked,
-                                      playoffSetTargets: e.target.checked ? [12, 12, 7] : undefined,
+                                  dispatch({
+                                    kind: 'updateSession',
+                                    patch: {
+                                      config: {
+                                        ...config,
+                                        roundRobinPlayoffs: e.target.checked,
+                                        hasFinal: e.target.checked,
+                                        hasThirdPlaceMatch: e.target.checked,
+                                        playoffSetTargets: e.target.checked
+                                          ? [12, 12, 7]
+                                          : undefined,
+                                      },
                                     },
                                   })
                                 }
@@ -1158,7 +1127,12 @@ export function SessionWizard({
                         <button
                           key={n}
                           type="button"
-                          onClick={() => onUpdateSession({ config: { ...config, teamCount: n } })}
+                          onClick={() =>
+                            dispatch({
+                              kind: 'updateSession',
+                              patch: { config: { ...config, teamCount: n } },
+                            })
+                          }
                           disabled={activeSession.type === 'free_play' && n < 3}
                           className={`btn join-item flex-1 font-mono font-bold text-sm ${config.teamCount === n ? 'btn-accent' : 'btn-neutral'}`}
                         >
@@ -1185,7 +1159,10 @@ export function SessionWizard({
                             key={pts}
                             type="button"
                             onClick={() =>
-                              onUpdateSession({ config: { ...config, maxPoints: pts } })
+                              dispatch({
+                                kind: 'updateSession',
+                                patch: { config: { ...config, maxPoints: pts } },
+                              })
                             }
                             className={`btn btn-sm ${config.maxPoints === pts ? 'btn-neutral' : 'btn-ghost btn-outline'}`}
                           >
@@ -1219,15 +1196,18 @@ export function SessionWizard({
                             key={m.id}
                             type="button"
                             onClick={() =>
-                              onUpdateSession({
-                                config:
-                                  config.type === 'tournament'
-                                    ? {
-                                        ...config,
-                                        tieBreakMethod: m.id,
-                                        victoryRule: m.id,
-                                      }
-                                    : { ...config, tieBreakMethod: m.id },
+                              dispatch({
+                                kind: 'updateSession',
+                                patch: {
+                                  config:
+                                    config.type === 'tournament'
+                                      ? {
+                                          ...config,
+                                          tieBreakMethod: m.id,
+                                          victoryRule: m.id,
+                                        }
+                                      : { ...config, tieBreakMethod: m.id },
+                                },
                               })
                             }
                             className={`btn text-left p-3 h-auto block ${config.tieBreakMethod === m.id ? 'btn-primary' : 'btn-neutral'}`}
@@ -1262,8 +1242,11 @@ export function SessionWizard({
                           <button
                             type="button"
                             onClick={() =>
-                              onUpdateSession({
-                                config: { ...config, rotationSystem: 'winner_stays' },
+                              dispatch({
+                                kind: 'updateSession',
+                                patch: {
+                                  config: { ...config, rotationSystem: 'winner_stays' },
+                                },
                               })
                             }
                             className={`btn text-left p-4 h-auto block ${config.rotationSystem === 'winner_stays' ? 'btn-success btn-soft' : 'btn-neutral'}`}
@@ -1279,10 +1262,13 @@ export function SessionWizard({
                           <button
                             type="button"
                             onClick={() =>
-                              onUpdateSession({
-                                config: {
-                                  ...config,
-                                  rotationSystem: 'max_consecutive_games',
+                              dispatch({
+                                kind: 'updateSession',
+                                patch: {
+                                  config: {
+                                    ...config,
+                                    rotationSystem: 'max_consecutive_games',
+                                  },
                                 },
                               })
                             }
@@ -1312,8 +1298,11 @@ export function SessionWizard({
                                 key={n}
                                 type="button"
                                 onClick={() =>
-                                  onUpdateSession({
-                                    config: { ...config, maxConsecutiveGames: n },
+                                  dispatch({
+                                    kind: 'updateSession',
+                                    patch: {
+                                      config: { ...config, maxConsecutiveGames: n },
+                                    },
                                   })
                                 }
                                 className={`btn join-item flex-1 font-mono font-bold text-sm ${config.maxConsecutiveGames === n ? 'btn-info' : 'btn-neutral'}`}
@@ -1344,13 +1333,16 @@ export function SessionWizard({
               <button
                 type="button"
                 onClick={() => {
-                  onPrev();
+                  dispatch({ kind: 'prev' });
                 }}
                 className="btn btn-ghost flex-1 text-xs"
               >
                 Voltar
               </button>
-              <button onClick={onNext} className="btn btn-primary flex-[2]">
+              <button
+                onClick={() => dispatch({ kind: 'next' })}
+                className="btn btn-primary flex-[2]"
+              >
                 Revisar Sessão
               </button>
             </div>
@@ -1524,8 +1516,11 @@ export function SessionWizard({
                               key={m.id}
                               type="button"
                               onClick={() =>
-                                onUpdateSession({
-                                  config: { ...activeSession.config!, balanceMode: m.id },
+                                dispatch({
+                                  kind: 'updateSession',
+                                  patch: {
+                                    config: { ...activeSession.config!, balanceMode: m.id },
+                                  },
                                 })
                               }
                               className={`btn btn-sm text-left h-auto block p-2 ${activeSession.config?.balanceMode === m.id || (!activeSession.config?.balanceMode && m.id === 'balanced') ? 'btn-accent' : 'btn-neutral'}`}
@@ -1565,10 +1560,13 @@ export function SessionWizard({
                               key={r.id}
                               type="button"
                               onClick={() =>
-                                onUpdateSession({
-                                  config: {
-                                    ...activeSession.config!,
-                                    rotationType: r.id,
+                                dispatch({
+                                  kind: 'updateSession',
+                                  patch: {
+                                    config: {
+                                      ...activeSession.config!,
+                                      rotationType: r.id,
+                                    },
                                   },
                                 })
                               }
@@ -1668,9 +1666,9 @@ export function SessionWizard({
                                     }
                                     className="select select-xs select-bordered text-[9px] font-bold uppercase max-w-[120px]"
                                   >
-                                    {POSITION_ORDER.map((pos) => (
+                                    {positionOrder.map((pos) => (
                                       <option key={pos} value={pos}>
-                                        {POSITION_LABELS[pos]}
+                                        {positionLabels[pos]}
                                       </option>
                                     ))}
                                   </select>
@@ -1736,7 +1734,7 @@ export function SessionWizard({
                 </p>
                 <button
                   type="button"
-                  onClick={onCancelGeneration}
+                  onClick={() => dispatch({ kind: 'cancelGeneration' })}
                   className="btn btn-ghost btn-sm w-full text-xs"
                 >
                   <X className="w-3.5 h-3.5" /> Cancelar
@@ -1747,13 +1745,16 @@ export function SessionWizard({
                 <button
                   type="button"
                   onClick={() => {
-                    onPrev();
+                    dispatch({ kind: 'prev' });
                   }}
                   className="btn btn-ghost flex-1 text-xs"
                 >
                   Voltar às Regras
                 </button>
-                <button onClick={onGenerateDivisions} className="btn btn-accent flex-[2] group">
+                <button
+                  onClick={() => dispatch({ kind: 'generateDivisions' })}
+                  className="btn btn-accent flex-[2] group"
+                >
                   Gerar Times Equilibrados{' '}
                   <Sparkles className="w-4 h-4 inline-block ml-2 group-hover:animate-pulse" />
                 </button>
@@ -1774,7 +1775,7 @@ export function SessionWizard({
               {bestDivisions.map((div, i) => (
                 <button
                   key={i}
-                  onClick={() => setSelectedDivisionIndex(i)}
+                  onClick={() => dispatch({ kind: 'selectDivisionIndex', index: i })}
                   className={`btn btn-sm ${selectedDivisionIndex === i ? 'btn-accent' : 'btn-ghost'}`}
                 >
                   {div.qualityLabel || `Opção ${i + 1}`}
@@ -1783,7 +1784,7 @@ export function SessionWizard({
               ))}
               <div className="divider divider-horizontal mx-1 hidden sm:flex" />
               <button
-                onClick={() => onGenerateDivisions(false)}
+                onClick={() => dispatch({ kind: 'generateDivisions', advanceStep: false })}
                 disabled={isGenerating}
                 className="btn btn-sm btn-ghost btn-circle"
                 title="Regerar equipes com as travas/restrições atuais"
@@ -2030,13 +2031,13 @@ export function SessionWizard({
                                     overridden
                                       ? `Função nesta sessão · cadastro: ${
                                           p.posicaoPrincipal
-                                            ? POSITION_LABELS[p.posicaoPrincipal]
+                                            ? positionLabels[p.posicaoPrincipal]
                                             : '--'
                                         }`
                                       : undefined
                                   }
                                 >
-                                  {effPos ? POSITION_LABELS[effPos] : '--'}
+                                  {effPos ? positionLabels[effPos] : '--'}
                                   {overridden ? ' *' : ''}
                                 </span>
                               );
@@ -2046,7 +2047,13 @@ export function SessionWizard({
                             </span>
                             <button
                               type="button"
-                              onClick={() => togglePlayerLock(p.id, tIdx)}
+                              onClick={() =>
+                                dispatch({
+                                  kind: 'togglePlayerLock',
+                                  playerId: p.id,
+                                  teamIdx: tIdx,
+                                })
+                              }
                               className={`btn btn-xs btn-ghost btn-circle ${isLocked ? 'text-accent' : 'text-base-content/30 hover:text-base-content'}`}
                               title={isLocked ? 'Desafixar atleta' : 'Fixar atleta neste time'}
                             >
@@ -2322,13 +2329,16 @@ export function SessionWizard({
               <button
                 type="button"
                 onClick={() => {
-                  onPrev();
+                  dispatch({ kind: 'prev' });
                 }}
                 className="btn btn-ghost flex-1 text-xs"
               >
                 Voltar
               </button>
-              <button onClick={onConfirmDivision} className="btn btn-primary flex-[2]">
+              <button
+                onClick={() => dispatch({ kind: 'confirmDivision' })}
+                className="btn btn-primary flex-[2]"
+              >
                 Gerar tabela
               </button>
             </div>
@@ -2473,10 +2483,17 @@ export function SessionWizard({
             </div>
 
             <div className="flex gap-4">
-              <button type="button" onClick={onPrev} className="btn btn-ghost flex-1 text-xs">
+              <button
+                type="button"
+                onClick={() => dispatch({ kind: 'prev' })}
+                className="btn btn-ghost flex-1 text-xs"
+              >
                 Voltar aos times
               </button>
-              <button onClick={onStartGeneratedTournament} className="btn btn-primary flex-[2]">
+              <button
+                onClick={() => dispatch({ kind: 'startGeneratedTournament' })}
+                className="btn btn-primary flex-[2]"
+              >
                 Iniciar torneio
               </button>
             </div>
@@ -2495,7 +2512,7 @@ export function SessionWizard({
         <button
           type="button"
           onClick={() => {
-            onCancel();
+            dispatch({ kind: 'cancel' });
           }}
           className="btn btn-ghost btn-sm"
         >
@@ -2512,7 +2529,10 @@ export function SessionWizard({
         </div>
       </div>
 
-      <SessionWizardProgress currentStep={wizardStep} steps={WIZARD_STEPS} />
+      <SessionWizardProgress
+        currentStep={wizardStep}
+        steps={stepLabels.map((label, i) => ({ id: i, label }))}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
         <motion.div
@@ -2573,10 +2593,13 @@ export function SessionWizard({
                       className="toggle toggle-primary toggle-sm"
                       checked={(activeSession.config?.repetitionWeight ?? 0.8) > 0}
                       onChange={(e) => {
-                        onUpdateSession({
-                          config: {
-                            ...activeSession.config!,
-                            repetitionWeight: e.target.checked ? 0.8 : 0,
+                        dispatch({
+                          kind: 'updateSession',
+                          patch: {
+                            config: {
+                              ...activeSession.config!,
+                              repetitionWeight: e.target.checked ? 0.8 : 0,
+                            },
                           },
                         });
                       }}
@@ -2606,10 +2629,13 @@ export function SessionWizard({
                             key={opt.label}
                             type="button"
                             onClick={() =>
-                              onUpdateSession({
-                                config: {
-                                  ...activeSession.config!,
-                                  repetitionWeight: opt.value,
+                              dispatch({
+                                kind: 'updateSession',
+                                patch: {
+                                  config: {
+                                    ...activeSession.config!,
+                                    repetitionWeight: opt.value,
+                                  },
                                 },
                               })
                             }
@@ -2702,7 +2728,12 @@ export function SessionWizard({
                         constraintPlayerB &&
                         constraintPlayerA !== constraintPlayerB
                       ) {
-                        addPairConstraint(constraintPlayerA, constraintPlayerB, constraintType);
+                        dispatch({
+                          kind: 'addPairConstraint',
+                          p1: constraintPlayerA,
+                          p2: constraintPlayerB,
+                          type: constraintType,
+                        });
                         setConstraintPlayerA('');
                         setConstraintPlayerB('');
                       }
@@ -2752,7 +2783,14 @@ export function SessionWizard({
                             </div>
                             <button
                               type="button"
-                              onClick={() => removePairConstraint(p1, p2, 'together')}
+                              onClick={() =>
+                                dispatch({
+                                  kind: 'removePairConstraint',
+                                  p1: p1,
+                                  p2: p2,
+                                  type: 'together',
+                                })
+                              }
                               className="btn btn-ghost btn-xs btn-circle text-error hover:bg-error/10"
                               title="Remover vínculo"
                             >
@@ -2788,7 +2826,14 @@ export function SessionWizard({
                             </div>
                             <button
                               type="button"
-                              onClick={() => removePairConstraint(p1, p2, 'separated')}
+                              onClick={() =>
+                                dispatch({
+                                  kind: 'removePairConstraint',
+                                  p1: p1,
+                                  p2: p2,
+                                  type: 'separated',
+                                })
+                              }
                               className="btn btn-ghost btn-xs btn-circle text-error hover:bg-error/10"
                               title="Remover vínculo"
                             >
@@ -2820,7 +2865,9 @@ export function SessionWizard({
         isOpen={showGuestModal}
         onClose={() => setShowGuestModal(false)}
         players={players}
-        onAddGuestPlayer={onAddGuestPlayer}
+        onAddGuestPlayer={(player, editDetails) =>
+          dispatch({ kind: 'addGuestPlayer', player, editDetails })
+        }
         defaultCommunityId={activeSession?.communityId}
       />
     </div>

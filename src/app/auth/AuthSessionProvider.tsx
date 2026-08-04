@@ -5,19 +5,17 @@ import type { AccountGateway, AccountSnapshot } from '@app/accountUseCases';
 import { ensureAccountReadyCommand } from '@app/accountUseCases';
 import { isAppOk } from '@app/appResult';
 import { resolveAuthSessionState, type AuthSessionState } from '@app/authSession';
-import type { AuthClient } from '@infra/supabase/authClient';
-import { accountCloudService } from '@infra/supabase/accountCloudService';
-import { supabaseAuthClient } from '@infra/supabase/authClient';
+import type { AuthClient } from '@app/authClient';
 import { AuthSessionContext, type AuthSessionContextValue } from './useAuthSession';
 
 export function AuthSessionProvider({
   children,
-  authClient = supabaseAuthClient,
-  accountGateway = accountCloudService,
+  authClient,
+  accountGateway,
 }: {
   children: ReactNode;
-  authClient?: AuthClient;
-  accountGateway?: AccountGateway;
+  authClient: AuthClient;
+  accountGateway: AccountGateway;
 }) {
   const [state, setState] = useState<AuthSessionState>({ kind: 'initializing' });
   const [session, setSession] = useState<Session | null>(null);
@@ -83,6 +81,7 @@ export function AuthSessionProvider({
       state,
       session,
       account,
+      authClient,
       retry: async () => reconcile(session),
       completeUsername: async (username) => reconcile(session, username),
       signOut: async () => {

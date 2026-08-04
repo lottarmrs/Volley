@@ -11,36 +11,17 @@ import {
   Trophy,
   Activity,
 } from 'lucide-react';
-import { Session } from '../../types';
-import { SessionDraft } from '../../logic/sessionDraft';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { DashboardModel } from '@app/screens/dashboard/dashboardModel';
+import type { DashboardIntent } from '@app/screens/dashboard/dashboardIntents';
 
 interface DashboardProps {
-  activeSession: Session | null;
-  sessionDraft: SessionDraft | null;
-  onNewSession: () => void;
-  onResumeSession: () => void;
-  onResumeDraft: (draft: SessionDraft) => void;
-  onClearDraft: () => void;
-  onClearActiveSession: () => void;
-  onPlayers: () => void;
-  onHistory: () => void;
-  onExportBackup: () => void;
-  onImportBackup: (file: File) => void;
-  onCommunities: () => void;
+  contract: ScreenContract<DashboardModel, DashboardIntent>;
 }
 
-export function Dashboard({
-  activeSession,
-  sessionDraft,
-  onNewSession,
-  onResumeSession,
-  onResumeDraft,
-  onClearDraft,
-  onClearActiveSession,
-  onPlayers,
-  onHistory,
-  onCommunities,
-}: DashboardProps) {
+export function Dashboard({ contract }: DashboardProps) {
+  const { model, dispatch } = contract;
+  const { activeSession, sessionDraft } = model;
   return (
     <div className="space-y-8">
       {/* Welcome Banner */}
@@ -54,7 +35,7 @@ export function Dashboard({
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={onNewSession} className="btn btn-primary">
+          <button onClick={() => dispatch({ kind: 'newSession' })} className="btn btn-primary">
             <Plus className="w-4 h-4" /> Nova Sessão
           </button>
         </div>
@@ -82,13 +63,13 @@ export function Dashboard({
             </div>
             <div className="flex gap-2 w-full sm:w-auto justify-end">
               <button
-                onClick={onClearActiveSession}
+                onClick={() => dispatch({ kind: 'clearActiveSession' })}
                 className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
               >
                 Descartar
               </button>
               <button
-                onClick={onResumeSession}
+                onClick={() => dispatch({ kind: 'resumeSession' })}
                 className="btn btn-success btn-sm text-black font-bold flex-1 sm:flex-initial"
               >
                 Continuar
@@ -116,13 +97,13 @@ export function Dashboard({
               </div>
               <div className="flex gap-2 w-full sm:w-auto justify-end">
                 <button
-                  onClick={onClearDraft}
+                  onClick={() => dispatch({ kind: 'clearDraft' })}
                   className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
                 >
                   Descartar
                 </button>
                 <button
-                  onClick={() => onResumeDraft(sessionDraft)}
+                  onClick={() => dispatch({ kind: 'resumeDraft', draft: sessionDraft })}
                   className="btn btn-warning btn-sm text-black font-bold flex-1 sm:flex-initial"
                 >
                   Continuar
@@ -135,7 +116,7 @@ export function Dashboard({
       {/* Main Administrative Options */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div
-          onClick={onNewSession}
+          onClick={() => dispatch({ kind: 'newSession' })}
           className="card bg-base-100 shadow-sm border border-base-300 overflow-hidden hover:border-primary hover:bg-primary/5 transition-all duration-300 hover:shadow-lg group cursor-pointer flex flex-col"
         >
           <figure className="h-40 overflow-hidden bg-base-300 relative">
@@ -158,7 +139,7 @@ export function Dashboard({
         </div>
 
         <div
-          onClick={onPlayers}
+          onClick={() => dispatch({ kind: 'players' })}
           className="card bg-base-100 shadow-sm border border-base-300 overflow-hidden hover:border-accent hover:bg-accent/5 transition-all duration-300 hover:shadow-lg group cursor-pointer flex flex-col"
         >
           <figure className="h-40 overflow-hidden bg-base-300 relative">
@@ -182,7 +163,7 @@ export function Dashboard({
         </div>
 
         <div
-          onClick={onCommunities}
+          onClick={() => dispatch({ kind: 'communities' })}
           className="card bg-base-100 shadow-sm border border-base-300 overflow-hidden hover:border-secondary hover:bg-secondary/5 transition-all duration-300 hover:shadow-lg group cursor-pointer flex flex-col"
         >
           <figure className="h-40 overflow-hidden bg-base-300 relative">
@@ -209,7 +190,7 @@ export function Dashboard({
       {/* History link card */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
-          onClick={onHistory}
+          onClick={() => dispatch({ kind: 'history' })}
           className="card bg-base-200 border border-base-300 shadow-md p-5 flex flex-row items-center gap-4 hover:bg-base-300 transition-all text-left cursor-pointer"
         >
           <HistoryIcon className="w-6 h-6 text-base-content/60" />

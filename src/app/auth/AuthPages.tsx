@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { AuthForm } from '../../components/account/AuthForm';
-import { supabaseAuthClient, type MfaEnrollment } from '@infra/supabase/authClient';
+import type { MfaEnrollment } from '@app/authClient';
 import { useAuthSession } from './useAuthSession';
 import { routeForAuthState } from './authRoutes';
 import { CaptchaField } from './CaptchaField';
@@ -51,7 +51,7 @@ function TotpEnrollmentForm({
 export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { state } = useAuthSession();
+  const { state, authClient } = useAuthSession();
   useEffect(() => {
     if (state.kind === 'initializing' || state.kind === 'anonymous') return;
     navigate(routeForAuthState(state) ?? destinationFromLocationState(location.state), {
@@ -62,9 +62,9 @@ export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
     <AuthForm
       mode={mode}
       loading={false}
-      onSignIn={supabaseAuthClient.signIn}
-      onSignUp={supabaseAuthClient.signUp}
-      onGoogle={supabaseAuthClient.signInWithGoogle}
+      onSignIn={authClient.signIn}
+      onSignUp={authClient.signUp}
+      onGoogle={authClient.signInWithGoogle}
       onForgotPassword={() => navigate('/recuperar-senha')}
     />
   );
@@ -99,7 +99,7 @@ export function UsernameOnboardingPage() {
 }
 
 export function PasswordRecoveryPage() {
-  const { session } = useAuthSession();
+  const { session, authClient } = useAuthSession();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
@@ -126,9 +126,9 @@ export function PasswordRecoveryPage() {
             return;
           }
           try {
-            await supabaseAuthClient.updatePassword(newPassword);
+            await authClient.updatePassword(newPassword);
             try {
-              await supabaseAuthClient.signOutOthers();
+              await authClient.signOutOthers();
             } catch {
               // Nao bloqueia a mensagem de sucesso: a senha ja foi trocada,
               // e invalidar as outras sessoes e um reforco de seguranca, nao
@@ -167,7 +167,7 @@ export function PasswordRecoveryPage() {
     <form
       onSubmit={async (event) => {
         event.preventDefault();
-        await supabaseAuthClient.requestPasswordRecovery(email, captchaToken);
+        await authClient.requestPasswordRecovery(email, captchaToken);
         setSent(true);
       }}
     >
@@ -244,7 +244,7 @@ export function RecoverableSessionPage() {
 export function MfaSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { retry } = useAuthSession();
+  const { retry, authClient } = useAuthSession();
   const [enrollment, setEnrollment] = useState<MfaEnrollment | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -262,7 +262,7 @@ export function MfaSetupPage() {
     // presa no spinner para sempre. Escrever estado apos desmontar e inofensivo.
     if (startedRef.current) return;
     startedRef.current = true;
-    supabaseAuthClient
+    authClient
       .enrollTotp()
       .then(setEnrollment)
       .catch((cause) => {
@@ -276,7 +276,7 @@ export function MfaSetupPage() {
     event.preventDefault();
     setError(null);
     try {
-      await supabaseAuthClient.verifyTotp(code, enrollment?.factorId);
+      await authClient.verifyTotp(code, enrollment?.factorId);
       // verifyTotp por si so nao dispara onAuthStateChange no provider (ver
       // AuthSessionProvider.spec.tsx); sem retry() o estado fica preso em
       // mfa_setup_required e o navigate abaixo seria imediatamente revertido
@@ -307,7 +307,7 @@ export function MfaSetupPage() {
           className="btn btn-primary btn-sm"
           onClick={() => {
             setError(null);
-            void supabaseAuthClient
+            void authClient
               .enrollTotp()
               .then(setEnrollment)
               .catch((cause) => {
@@ -349,7 +349,7 @@ export function MfaSetupPage() {
 const NO_VERIFIED_FACTOR_MESSAGE = 'Nenhum fator TOTP verificado.';
 
 export function MfaChallengePage() {
-  const { retry } = useAuthSession();
+  const { retry, authClient } = useAuthSession();
   const navigate = useNavigate();
   const location = useLocation();
   const [code, setCode] = useState('');
@@ -358,9 +358,9 @@ export function MfaChallengePage() {
 
   const proceed = async (factorId?: string) => {
     if (factorId) {
-      await supabaseAuthClient.verifyTotp(code, factorId);
+      await authClient.verifyTotp(code, factorId);
     } else {
-      await supabaseAuthClient.verifyTotp(code);
+      await authClient.verifyTotp(code);
     }
     await retry();
     navigate(destinationFromLocationState(location.state), { replace: true });
@@ -375,7 +375,7 @@ export function MfaChallengePage() {
       if (cause instanceof Error && cause.message === NO_VERIFIED_FACTOR_MESSAGE) {
         setCode('');
         try {
-          setEnrollment(await supabaseAuthClient.enrollTotp());
+          setEnrollment(await authClient.enrollTotp());
         } catch (enrollCause) {
           setError(
             enrollCause instanceof Error

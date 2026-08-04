@@ -37,6 +37,9 @@ import {
   Community,
   Session,
 } from '../../types';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { PlayerEditViewModel } from '@app/screens/playerEditView/playerEditViewModel';
+import type { PlayerEditViewIntent } from '@app/screens/playerEditView/playerEditViewIntents';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
   getBalancingRole,
@@ -56,48 +59,27 @@ import { FutCardModal } from './FutCardModal';
 import { submitSelfEvaluation } from '../../application/selfEvaluationUseCases';
 
 interface PlayerEditViewProps {
-  editingPlayer: Player;
-  setEditingPlayer: React.Dispatch<React.SetStateAction<Player | null>>;
-  players: Player[];
-  games: Game[];
-  pointEvents: PointEvent[];
-  teams: Team[];
-  communities: Community[];
-  sessions: Session[];
-  onBack: () => void;
-  onSave: () => void;
-  onDelete: () => void;
-  validationErrors: Record<string, string>;
-  showDeleteConfirm: boolean;
-  setShowDeleteConfirm: React.Dispatch<React.SetStateAction<boolean>>;
-  permissions?: {
-    canEditPlayerProfile: boolean;
-    canEvaluatePlayer: boolean;
-  };
-  currentUserId?: string | null;
+  contract: ScreenContract<PlayerEditViewModel, PlayerEditViewIntent>;
 }
 
-export const PlayerEditView = ({
-  editingPlayer,
-  setEditingPlayer,
-  players,
-  games,
-  pointEvents,
-  teams,
-  communities,
-  sessions,
-  onBack,
-  onSave,
-  onDelete,
-  validationErrors,
-  showDeleteConfirm,
-  setShowDeleteConfirm,
-  permissions = {
-    canEditPlayerProfile: true,
-    canEvaluatePlayer: true,
-  },
-  currentUserId = null,
-}: PlayerEditViewProps) => {
+export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
+  const { model, dispatch } = contract;
+  const {
+    editingPlayer,
+    players,
+    games,
+    pointEvents,
+    teams,
+    communities,
+    sessions,
+    validationErrors,
+    showDeleteConfirm,
+    permissions = {
+      canEditPlayerProfile: true,
+      canEvaluatePlayer: true,
+    },
+    currentUserId = null,
+  } = model;
   const [searchQuery, setSearchQuery] = useState('');
   const [showVutCard, setShowVutCard] = useState(false);
 
@@ -169,7 +151,7 @@ export const PlayerEditView = ({
 
   const handleRevert = () => {
     if (originalPlayer) {
-      setEditingPlayer(JSON.parse(JSON.stringify(originalPlayer)));
+      dispatch({ kind: 'setEditingPlayer', player: JSON.parse(JSON.stringify(originalPlayer)) });
     }
   };
 
@@ -308,7 +290,7 @@ export const PlayerEditView = ({
       <div className="flex justify-between items-center bg-base-300/40 p-4 rounded-xl border border-base-300">
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => dispatch({ kind: 'back' })}
           className="btn btn-ghost btn-sm gap-2 text-xs font-bold uppercase text-base-content/85"
         >
           <ChevronLeft className="w-4 h-4" /> Voltar ao Recrutamento
@@ -347,7 +329,7 @@ export const PlayerEditView = ({
               return (
                 <div
                   key={p.id}
-                  onClick={() => setEditingPlayer(JSON.parse(JSON.stringify(p)))}
+                  onClick={() => dispatch({ kind: 'setEditingPlayer', player: JSON.parse(JSON.stringify(p)) })}
                   className={`p-3 rounded-xl cursor-pointer transition-all border flex items-center justify-between ${
                     isEditing
                       ? 'bg-primary/10 border-primary text-primary shadow-inner font-bold'
@@ -420,7 +402,9 @@ export const PlayerEditView = ({
                 initials={
                   editingPlayer.nome ? editingPlayer.nome.substring(0, 2).toUpperCase() : 'AT'
                 }
-                onApplied={(newUrl) => setEditingPlayer({ ...editingPlayer, avatarUrl: newUrl })}
+                onApplied={(newUrl) =>
+                  dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, avatarUrl: newUrl } })
+                }
                 disabled={!permissions.canEditPlayerProfile}
               />
 
@@ -430,7 +414,9 @@ export const PlayerEditView = ({
                     <input
                       type="text"
                       value={editingPlayer.nome}
-                      onChange={(e) => setEditingPlayer({ ...editingPlayer, nome: e.target.value })}
+                      onChange={(e) =>
+                        dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, nome: e.target.value } })
+                      }
                       placeholder="Nome Completo"
                       disabled={!permissions.canEditPlayerProfile}
                       className="input input-bordered input-sm w-full font-bold text-base-content"
@@ -446,7 +432,7 @@ export const PlayerEditView = ({
                       type="text"
                       value={editingPlayer.apelido || ''}
                       onChange={(e) =>
-                        setEditingPlayer({ ...editingPlayer, apelido: e.target.value })
+                        dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, apelido: e.target.value } })
                       }
                       placeholder="Apelido"
                       disabled={!permissions.canEditPlayerProfile}
@@ -482,12 +468,15 @@ export const PlayerEditView = ({
                           disabled={!permissions.canEditPlayerProfile}
                           onChange={() => {
                             if (!permissions.canEditPlayerProfile) return;
-                            setEditingPlayer({
-                              ...editingPlayer,
-                              posicaoPrincipal: pos,
-                              posicoesSecundarias: editingPlayer.posicoesSecundarias.filter(
-                                (p) => p !== pos,
-                              ),
+                            dispatch({
+                              kind: 'setEditingPlayer',
+                              player: {
+                                ...editingPlayer,
+                                posicaoPrincipal: pos,
+                                posicoesSecundarias: editingPlayer.posicoesSecundarias.filter(
+                                  (p) => p !== pos,
+                                ),
+                              },
                             });
                           }}
                           className="hidden"
@@ -548,7 +537,7 @@ export const PlayerEditView = ({
                             const updated = e.target.checked
                               ? [...editingPlayer.posicoesSecundarias, pos]
                               : editingPlayer.posicoesSecundarias.filter((p) => p !== pos);
-                            setEditingPlayer({ ...editingPlayer, posicoesSecundarias: updated });
+                            dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, posicoesSecundarias: updated } });
                           }}
                           className="hidden"
                         />
@@ -574,7 +563,7 @@ export const PlayerEditView = ({
                 {permissions.canEditPlayerProfile && (
                   <button
                     type="button"
-                    onClick={() => setEditingPlayer({ ...editingPlayer, isGuest: false })}
+                    onClick={() => dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, isGuest: false } })}
                     className="btn btn-primary btn-xs uppercase font-bold text-[9px] tracking-wide px-3"
                   >
                     Promover a Atleta Fixo
@@ -597,7 +586,7 @@ export const PlayerEditView = ({
                   <select
                     value={editingPlayer.genero}
                     onChange={(e) =>
-                      setEditingPlayer({ ...editingPlayer, genero: e.target.value as any })
+                      dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, genero: e.target.value as any } })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
                     disabled={!permissions.canEditPlayerProfile}
@@ -615,9 +604,12 @@ export const PlayerEditView = ({
                     type="number"
                     value={editingPlayer.alturaCm || ''}
                     onChange={(e) =>
-                      setEditingPlayer({
-                        ...editingPlayer,
-                        alturaCm: e.target.value ? parseInt(e.target.value) : undefined,
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: {
+                          ...editingPlayer,
+                          alturaCm: e.target.value ? parseInt(e.target.value) : undefined,
+                        },
                       })
                     }
                     className="input input-bordered input-xs w-full uppercase font-mono font-bold"
@@ -638,7 +630,7 @@ export const PlayerEditView = ({
                   <select
                     value={editingPlayer.maoDominante}
                     onChange={(e) =>
-                      setEditingPlayer({ ...editingPlayer, maoDominante: e.target.value as any })
+                      dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, maoDominante: e.target.value as any } })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
                     disabled={!permissions.canEditPlayerProfile}
@@ -655,7 +647,7 @@ export const PlayerEditView = ({
                   <select
                     value={editingPlayer.ativo ? 'ativo' : 'inativo'}
                     onChange={(e) =>
-                      setEditingPlayer({ ...editingPlayer, ativo: e.target.value === 'ativo' })
+                      dispatch({ kind: 'setEditingPlayer', player: { ...editingPlayer, ativo: e.target.value === 'ativo' } })
                     }
                     className="select select-bordered select-xs w-full uppercase font-bold"
                     disabled={!permissions.canEditPlayerProfile}
@@ -676,9 +668,12 @@ export const PlayerEditView = ({
                     type="checkbox"
                     checked={editingPlayer.status.lesionado}
                     onChange={(e) =>
-                      setEditingPlayer({
-                        ...editingPlayer,
-                        status: { ...editingPlayer.status, lesionado: e.target.checked },
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: {
+                          ...editingPlayer,
+                          status: { ...editingPlayer.status, lesionado: e.target.checked },
+                        },
                       })
                     }
                     className="checkbox checkbox-error checkbox-sm"
@@ -693,9 +688,12 @@ export const PlayerEditView = ({
                     type="checkbox"
                     checked={editingPlayer.status.presencaFrequente}
                     onChange={(e) =>
-                      setEditingPlayer({
-                        ...editingPlayer,
-                        status: { ...editingPlayer.status, presencaFrequente: e.target.checked },
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: {
+                          ...editingPlayer,
+                          status: { ...editingPlayer.status, presencaFrequente: e.target.checked },
+                        },
                       })
                     }
                     className="checkbox checkbox-primary checkbox-sm"
@@ -714,11 +712,14 @@ export const PlayerEditView = ({
                     type="text"
                     value={editingPlayer.status.limitacaoFisica || ''}
                     onChange={(e) =>
-                      setEditingPlayer({
-                        ...editingPlayer,
-                        status: {
-                          ...editingPlayer.status,
-                          limitacaoFisica: e.target.value || null,
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: {
+                          ...editingPlayer,
+                          status: {
+                            ...editingPlayer.status,
+                            limitacaoFisica: e.target.value || null,
+                          },
                         },
                       })
                     }
@@ -875,11 +876,14 @@ export const PlayerEditView = ({
                     <button
                       type="button"
                       onClick={() =>
-                        setEditingPlayer({
-                          ...editingPlayer,
-                          formaAtual: {
-                            ...editingPlayer.formaAtual,
-                            valor: Math.max(-5, editingPlayer.formaAtual.valor - 1),
+                        dispatch({
+                          kind: 'setEditingPlayer',
+                          player: {
+                            ...editingPlayer,
+                            formaAtual: {
+                              ...editingPlayer.formaAtual,
+                              valor: Math.max(-5, editingPlayer.formaAtual.valor - 1),
+                            },
                           },
                         })
                       }
@@ -895,11 +899,14 @@ export const PlayerEditView = ({
                       step="1"
                       value={editingPlayer.formaAtual.valor}
                       onChange={(e) =>
-                        setEditingPlayer({
-                          ...editingPlayer,
-                          formaAtual: {
-                            ...editingPlayer.formaAtual,
-                            valor: parseFloat(e.target.value),
+                        dispatch({
+                          kind: 'setEditingPlayer',
+                          player: {
+                            ...editingPlayer,
+                            formaAtual: {
+                              ...editingPlayer.formaAtual,
+                              valor: parseFloat(e.target.value),
+                            },
                           },
                         })
                       }
@@ -909,11 +916,14 @@ export const PlayerEditView = ({
                     <button
                       type="button"
                       onClick={() =>
-                        setEditingPlayer({
-                          ...editingPlayer,
-                          formaAtual: {
-                            ...editingPlayer.formaAtual,
-                            valor: Math.min(5, editingPlayer.formaAtual.valor + 1),
+                        dispatch({
+                          kind: 'setEditingPlayer',
+                          player: {
+                            ...editingPlayer,
+                            formaAtual: {
+                              ...editingPlayer.formaAtual,
+                              valor: Math.min(5, editingPlayer.formaAtual.valor + 1),
+                            },
                           },
                         })
                       }
@@ -936,9 +946,12 @@ export const PlayerEditView = ({
                     type="text"
                     value={editingPlayer.formaAtual.observacao || ''}
                     onChange={(e) =>
-                      setEditingPlayer({
-                        ...editingPlayer,
-                        formaAtual: { ...editingPlayer.formaAtual, observacao: e.target.value },
+                      dispatch({
+                        kind: 'setEditingPlayer',
+                        player: {
+                          ...editingPlayer,
+                          formaAtual: { ...editingPlayer.formaAtual, observacao: e.target.value },
+                        },
                       })
                     }
                     className="input input-bordered input-xs w-full font-bold text-base-content"
@@ -1086,11 +1099,14 @@ export const PlayerEditView = ({
                       value={editingPlayer.atributos[attr.key]}
                       disabled={!canEvaluate}
                       onChange={(e) =>
-                        setEditingPlayer({
-                          ...editingPlayer,
-                          atributos: {
-                            ...editingPlayer.atributos,
-                            [attr.key]: parseFloat(e.target.value),
+                        dispatch({
+                          kind: 'setEditingPlayer',
+                          player: {
+                            ...editingPlayer,
+                            atributos: {
+                              ...editingPlayer.atributos,
+                              [attr.key]: parseFloat(e.target.value),
+                            },
                           },
                         })
                       }
@@ -1171,11 +1187,14 @@ export const PlayerEditView = ({
                         value={editingPlayer.atributos[attr.key]}
                         disabled={!canEvaluate}
                         onChange={(e) =>
-                          setEditingPlayer({
-                            ...editingPlayer,
-                            atributos: {
-                              ...editingPlayer.atributos,
-                              [attr.key]: parseFloat(e.target.value),
+                          dispatch({
+                            kind: 'setEditingPlayer',
+                            player: {
+                              ...editingPlayer,
+                              atributos: {
+                                ...editingPlayer.atributos,
+                                [attr.key]: parseFloat(e.target.value),
+                              },
                             },
                           })
                         }
@@ -1224,7 +1243,7 @@ export const PlayerEditView = ({
               {permissions.canEditPlayerProfile &&
                 (!showDeleteConfirm ? (
                   <button
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={() => dispatch({ kind: 'setShowDeleteConfirm', value: true })}
                     className="btn btn-error btn-sm"
                   >
                     <Trash2 className="w-3.5 h-3.5" /> {hasHistory ? 'Desativar' : 'Excluir'}
@@ -1233,13 +1252,13 @@ export const PlayerEditView = ({
                   <div className="flex items-center gap-2 bg-error/15 p-1 px-3 rounded-full border border-error/30 animate-fade-in">
                     <span className="text-[8px] font-bold text-error uppercase">Confirmar?</span>
                     <button
-                      onClick={onDelete}
+                      onClick={() => dispatch({ kind: 'delete' })}
                       className="px-2 py-0.5 bg-error text-error-content rounded text-[8px] font-bold uppercase"
                     >
                       Sim
                     </button>
                     <button
-                      onClick={() => setShowDeleteConfirm(false)}
+                      onClick={() => dispatch({ kind: 'setShowDeleteConfirm', value: false })}
                       className="px-2 py-0.5 bg-base-300 text-base-content rounded text-[8px] font-bold uppercase"
                     >
                       Não
@@ -1257,7 +1276,7 @@ export const PlayerEditView = ({
                 Reverter
               </button>
               <button
-                onClick={onSave}
+                onClick={() => dispatch({ kind: 'save' })}
                 disabled={!permissions.canEditPlayerProfile && !permissions.canEvaluatePlayer}
                 className="btn btn-accent btn-sm"
               >

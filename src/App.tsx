@@ -27,7 +27,7 @@ import { useChampionships } from './hooks/useChampionships';
 import { useAuth } from './hooks/useAuth';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { useCloudSync } from './hooks/useCloudSync';
-import { useToasts } from './hooks/useToasts';
+import { useToast } from './ui/common/ToastProvider';
 import { useCommunityPermissions } from './hooks/useCommunityPermissions';
 
 import { ToastViewport } from '@ui/common/ToastViewport';
@@ -35,10 +35,10 @@ import { ToastViewport } from '@ui/common/ToastViewport';
 import { loadSessionDraft, clearSessionDraft, saveSessionDraft } from './logic/sessionDraft';
 import { VutRevealModal, RevealItem } from './components/player/VutRevealModal';
 import { Community, CommunityRules, Game, Player, SessionConfig, Team } from './types';
-import { migrateLocalDbToUuids } from './logic/migrations';
 import {
   STORAGE_KEYS,
   getLocalCacheOwnerId,
+  getOrCreateDeviceId,
   loadFromStorage,
   saveToStorage,
 } from './storage/localStorageRepository';
@@ -64,6 +64,15 @@ import {
   buildSessionFromCommunity,
   selectSessionTeams,
 } from './application/sessionLifecycleUseCases';
+import { buildSessionWizardContract } from './application/screens/sessionWizard/sessionWizardContract';
+import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
+import { buildPlayerEditViewContract } from './application/screens/playerEditView/playerEditViewContract';
+import { buildDashboardContract } from './application/screens/dashboard/dashboardContract';
+import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
+import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
+import { buildHistoryViewContract } from './application/screens/historyView/historyViewContract';
+import { buildAccountSyncViewContract } from './application/screens/accountSyncView/accountSyncViewContract';
+import { buildGestaoViewContract } from './application/screens/gestaoView/gestaoViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -149,9 +158,6 @@ const TournamentsModule = lazy(() =>
   })),
 );
 
-// Execute UUID migration on startup before any state/hook initializes
-migrateLocalDbToUuids();
-
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const [activeModule, setActiveModule] = useState<Module>('dashboard');
@@ -161,7 +167,7 @@ export default function App() {
 
   // Auth state
   const auth = useAuth();
-  const toasts = useToasts();
+  const toasts = useToast();
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
 
@@ -172,6 +178,12 @@ export default function App() {
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
   const championships = useChampionships();
+
+  // Mount-memo: device id é idempotente e stable per-install; 1× por mount.
+  const currentDeviceIdRef = useRef<string | null>(null);
+  if (currentDeviceIdRef.current === null) {
+    currentDeviceIdRef.current = getOrCreateDeviceId();
+  }
 
   const editingPlayerCommunity = useMemo(() => {
     if (
@@ -614,165 +626,146 @@ export default function App() {
     switch (activeModule) {
       case 'dashboard':
         if (page === 'session-wizard') {
-          return (
-            <SessionWizard
-              activeSession={sess.activeSession}
-              players={play.players}
-              communities={comm.communities}
-              wizardStep={wizard.wizardStep}
-              validationErrors={wizard.validationErrors}
-              bestDivisions={wizard.bestDivisions}
-              setBestDivisions={wizard.setBestDivisions}
-              selectedDivisionIndex={wizard.selectedDivisionIndex}
-              partnershipMatrix={wizard.partnershipMatrix}
-              onNext={() => {
-                if (wizard.validateCurrentStep()) wizard.nextStep();
-              }}
-              onPrev={wizard.prevStep}
-              onCancel={wizard.cancelWizard}
-              onUpdateSession={wizard.updateSession}
-              onTogglePlayer={wizard.togglePlayer}
-              onSelectAllActive={wizard.selectAllActivePlayers}
-              onClearSelection={wizard.clearSelectedPlayers}
-              onUseLastSelection={wizard.useLastSelection}
-              onGenerateDivisions={wizard.generateDivisions}
-              onCancelGeneration={wizard.cancelGeneration}
-              isGenerating={wizard.isGenerating}
-              generationProgress={wizard.progress}
-              onConfirmDivision={wizard.confirmDivision}
-              onStartGeneratedTournament={wizard.startGeneratedTournament}
-              setSelectedDivisionIndex={wizard.setSelectedDivisionIndex}
-              togglePlayerLock={wizard.togglePlayerLock}
-              addPairConstraint={wizard.addPairConstraint}
-              removePairConstraint={wizard.removePairConstraint}
-              onAddGuestPlayer={(newPlayer, editDetails) => {
-                const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
-                play.setPlayers(result.players);
-                if (sess.activeSession) {
-                  const nextSelected = [
-                    ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),
-                  ];
-                  wizard.updateSession({ selectedPlayerIds: nextSelected });
-                }
-                if (editDetails) {
-                  play.setEditingPlayer(result.selectedPlayer);
-                  setPage('player-edit');
-                }
-              }}
-            />
-          );
+          const wizardContract = buildSessionWizardContract({
+            activeSession: sess.activeSession,
+            players: play.players,
+            communities: comm.communities,
+            hookApi: wizard,
+            applyGuestPlayer: (newPlayer, editDetails) => {
+              const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+              play.setPlayers(result.players);
+              if (sess.activeSession) {
+                const nextSelected = [
+                  ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),
+                ];
+                wizard.updateSession({ selectedPlayerIds: nextSelected });
+              }
+              if (editDetails) {
+                play.setEditingPlayer(result.selectedPlayer);
+                setPage('player-edit');
+              }
+            },
+          });
+          return <SessionWizard contract={wizardContract} />;
         }
         if (page === 'player-edit') {
           return (
             <PlayerEditView
-              editingPlayer={play.editingPlayer!}
-              setEditingPlayer={play.setEditingPlayer}
-              players={play.players}
-              games={sess.games}
-              pointEvents={sess.pointEvents}
-              teams={sess.teams}
-              communities={comm.communities}
-              sessions={sess.sessions}
-              onBack={() => setPage('session-wizard')}
-              onSave={() => {
-                try {
-                  if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+              contract={buildPlayerEditViewContract({
+                editingPlayer: play.editingPlayer!,
+                setEditingPlayer: play.setEditingPlayer,
+                players: play.players,
+                games: sess.games,
+                pointEvents: sess.pointEvents,
+                teams: sess.teams,
+                communities: comm.communities,
+                sessions: sess.sessions,
+                validationErrors: play.validationErrors,
+                showDeleteConfirm: play.showDeleteConfirm,
+                setShowDeleteConfirm: play.setShowDeleteConfirm,
+                permissions: playerPermissions,
+                currentUserId: auth.user?.id ?? null,
+                onBack: () => setPage('session-wizard'),
+                onSave: () => {
+                  try {
+                    if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+                      setPage('session-wizard');
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+                onDelete: () => {
+                  try {
+                    play.handleDeletePlayer(playerPermissions);
                     setPage('session-wizard');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              onDelete={() => {
-                try {
-                  play.handleDeletePlayer(playerPermissions);
-                  setPage('session-wizard');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              validationErrors={play.validationErrors}
-              showDeleteConfirm={play.showDeleteConfirm}
-              setShowDeleteConfirm={play.setShowDeleteConfirm}
-              permissions={playerPermissions}
-              currentUserId={auth.user?.id ?? null}
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+              })}
             />
           );
         }
         if (page === 'session-active') {
           return (
             <SessionActiveView
-              activeSession={sess.activeSession!}
-              games={sess.games}
-              setGames={sess.setGames}
-              pointEvents={sess.pointEvents}
-              setPointEvents={sess.setPointEvents}
-              players={play.players}
-              sessionTeams={selectSessionTeams(sess.teams, sess.activeSession?.id)}
-              gameReports={sess.gameReports}
-              setGameReports={sess.setGameReports}
-              setActiveSession={sess.updateActiveSession}
-              onExit={() => {
-                setPage('dashboard');
-                setActiveModule('dashboard');
-              }}
-              onFinishSession={handleFinishSession}
+              contract={buildSessionActiveViewContract({
+                activeSession: sess.activeSession!,
+                games: sess.games,
+                pointEvents: sess.pointEvents,
+                players: play.players,
+                sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
+                gameReports: sess.gameReports,
+                currentDeviceId: currentDeviceIdRef.current,
+                setGames: sess.setGames,
+                setPointEvents: sess.setPointEvents,
+                setGameReports: sess.setGameReports,
+                setActiveSession: sess.updateActiveSession,
+                onExit: () => {
+                  setPage('dashboard');
+                  setActiveModule('dashboard');
+                },
+                onFinishSession: handleFinishSession,
+              })}
             />
           );
         }
         return (
           <Dashboard
-            activeSession={sess.activeSession}
-            sessionDraft={sessionDraft}
-            onNewSession={() => {
-              const result = buildManualSessionStartResult({
-                now: new Date(),
-                createId: generateUUID,
-              });
-              sess.setActiveSession(result.session);
-              wizard.setWizardStep(result.nextWizardStep);
-              setPage('session-wizard');
-            }}
-            onResumeSession={() => {
-              applyShellNavigationTarget(getLiveSessionNavigationTarget());
-            }}
-            onResumeDraft={(draft) => {
-              wizard.resumeDraft(draft);
-              setPage('session-wizard');
-            }}
-            onClearDraft={() => {
-              if (window.confirm('Deseja realmente descartar o rascunho?')) {
-                const result = buildDraftClearResult();
-                clearSessionDraft();
-                setSessionDraft(result.nextSessionDraft);
-                sess.setActiveSession(result.nextActiveSession);
-              }
-            }}
-            onClearActiveSession={() => {
-              if (
-                sess.activeSession &&
-                window.confirm(
-                  'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
-                )
-              ) {
-                const result = buildActiveSessionClearResult(sess.activeSession);
-                if (!result) return;
-                sess.deleteSession(result.sessionIdToDelete);
-                sess.setActiveSession(result.nextActiveSession);
-                clearSessionDraft();
-                setSessionDraft(result.nextSessionDraft);
-              }
-            }}
-            onPlayers={() => {
-              applyShellNavigationTarget(getPlayersNavigationTarget());
-            }}
-            onHistory={() => {
-              applyShellNavigationTarget(getHistoryNavigationTarget());
-            }}
-            onExportBackup={handleExportBackup}
-            onImportBackup={handleImportBackup}
-            onCommunities={() => {
-              applyShellNavigationTarget(getCommunitiesNavigationTarget());
-            }}
+            contract={buildDashboardContract({
+              activeSession: sess.activeSession,
+              sessionDraft,
+              onNewSession: () => {
+                const result = buildManualSessionStartResult({
+                  now: new Date(),
+                  createId: generateUUID,
+                });
+                sess.setActiveSession(result.session);
+                wizard.setWizardStep(result.nextWizardStep);
+                setPage('session-wizard');
+              },
+              onResumeSession: () => {
+                applyShellNavigationTarget(getLiveSessionNavigationTarget());
+              },
+              onResumeDraft: (draft) => {
+                wizard.resumeDraft(draft);
+                setPage('session-wizard');
+              },
+              onClearDraft: () => {
+                if (window.confirm('Deseja realmente descartar o rascunho?')) {
+                  const result = buildDraftClearResult();
+                  clearSessionDraft();
+                  setSessionDraft(result.nextSessionDraft);
+                  sess.setActiveSession(result.nextActiveSession);
+                }
+              },
+              onClearActiveSession: () => {
+                if (
+                  sess.activeSession &&
+                  window.confirm(
+                    'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
+                  )
+                ) {
+                  const result = buildActiveSessionClearResult(sess.activeSession);
+                  if (!result) return;
+                  sess.deleteSession(result.sessionIdToDelete);
+                  sess.setActiveSession(result.nextActiveSession);
+                  clearSessionDraft();
+                  setSessionDraft(result.nextSessionDraft);
+                }
+              },
+              onPlayers: () => {
+                applyShellNavigationTarget(getPlayersNavigationTarget());
+              },
+              onHistory: () => {
+                applyShellNavigationTarget(getHistoryNavigationTarget());
+              },
+              onExportBackup: handleExportBackup,
+              onImportBackup: handleImportBackup,
+              onCommunities: () => {
+                applyShellNavigationTarget(getCommunitiesNavigationTarget());
+              },
+            })}
           />
         );
 
@@ -780,144 +773,147 @@ export default function App() {
         if (page === 'player-edit') {
           return (
             <PlayerEditView
-              editingPlayer={play.editingPlayer!}
-              setEditingPlayer={play.setEditingPlayer}
-              players={play.players}
-              games={sess.games}
-              pointEvents={sess.pointEvents}
-              teams={sess.teams}
-              communities={comm.communities}
-              sessions={sess.sessions}
-              onBack={() => setPage('players')}
-              onSave={() => {
-                try {
-                  if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+              contract={buildPlayerEditViewContract({
+                editingPlayer: play.editingPlayer!,
+                setEditingPlayer: play.setEditingPlayer,
+                players: play.players,
+                games: sess.games,
+                pointEvents: sess.pointEvents,
+                teams: sess.teams,
+                communities: comm.communities,
+                sessions: sess.sessions,
+                validationErrors: play.validationErrors,
+                showDeleteConfirm: play.showDeleteConfirm,
+                setShowDeleteConfirm: play.setShowDeleteConfirm,
+                permissions: playerPermissions,
+                currentUserId: auth.user?.id ?? null,
+                onBack: () => setPage('players'),
+                onSave: () => {
+                  try {
+                    if (play.handleSavePlayer(playerPermissions, editingPlayerCommunity?.id))
+                      setPage('players');
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+                onDelete: () => {
+                  try {
+                    play.handleDeletePlayer(playerPermissions);
                     setPage('players');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              onDelete={() => {
-                try {
-                  play.handleDeletePlayer(playerPermissions);
-                  setPage('players');
-                } catch (err) {
-                  handlePlayerEditActionError(err);
-                }
-              }}
-              validationErrors={play.validationErrors}
-              showDeleteConfirm={play.showDeleteConfirm}
-              setShowDeleteConfirm={play.setShowDeleteConfirm}
-              permissions={playerPermissions}
-              currentUserId={auth.user?.id ?? null}
+                  } catch (err) {
+                    handlePlayerEditActionError(err);
+                  }
+                },
+              })}
             />
           );
         }
         if (page === 'communities') {
-          return (
-            <CommunitiesView
-              communities={comm.communities}
-              players={play.players}
-              sessions={sess.sessions}
-              games={sess.games}
-              pointEvents={sess.pointEvents}
-              teams={sess.teams}
-              sessionReports={sess.sessionReports}
-              championships={championships.championships}
-              championshipTeams={championships.championshipTeams}
-              championshipRounds={championships.championshipRounds}
-              presenceApi={communityPresence}
-              whatsAppApi={whatsAppLists}
-              rulesApi={communityRules}
-              onBack={() => setPage('players')}
-              onAddCommunity={comm.addCommunity}
-              onUpdateCommunity={comm.updateCommunity}
-              onDeleteCommunity={(communityId) => {
-                if (!window.confirm('Excluir esta comunidade? Os atletas continuarao cadastrados.'))
-                  return;
-                const next = applyCommunityDeletion({
-                  communityId,
-                  communities: comm.rawCommunities,
-                  players: play.rawPlayers,
-                  presenceRecords: communityPresence.presenceRecords,
-                  templates: whatsAppLists.rawTemplates,
-                  drafts: whatsAppLists.drafts,
-                });
-                comm.setCommunities(next.communities);
-                play.setPlayers(next.players);
-                communityRules.removeRules(communityId);
-                communityPresence.setPresenceRecords(next.presenceRecords);
-                whatsAppLists.setTemplates(next.templates);
-                whatsAppLists.setDrafts(next.drafts);
-                deleteChampionshipsForCommunity(communityId);
-              }}
-              onDuplicateCommunity={(communityId, includeAthletes) => {
-                const result = comm.duplicateCommunity(communityId, includeAthletes);
-                if (result?.includeAthletes) {
-                  play.setPlayers((prev) =>
-                    applyCommunityMembershipDuplicate(prev, {
-                      sourceCommunityId: communityId,
-                      duplicateCommunityId: result.duplicate.id,
-                    }),
-                  );
-                }
-              }}
-              onUpdatePlayerCommunities={(communityId, memberPlayerIds) => {
+          const communitiesContract = buildCommunitiesViewContract({
+            communities: comm.communities,
+            players: play.players,
+            sessions: sess.sessions,
+            games: sess.games,
+            pointEvents: sess.pointEvents,
+            teams: sess.teams,
+            sessionReports: sess.sessionReports,
+            championships: championships.championships,
+            championshipTeams: championships.championshipTeams,
+            championshipRounds: championships.championshipRounds,
+            presenceApi: communityPresence,
+            whatsAppApi: whatsAppLists,
+            rulesApi: communityRules,
+            currentUserId: auth.user?.id ?? null,
+            isSupabaseConfigured: auth.isSupabaseConfigured,
+            globalRole: auth.profile?.role ?? null,
+            onBack: () => setPage('players'),
+            onAddCommunity: comm.addCommunity,
+            onUpdateCommunity: comm.updateCommunity,
+            onDeleteCommunity: (communityId) => {
+              if (!window.confirm('Excluir esta comunidade? Os atletas continuarao cadastrados.'))
+                return;
+              const next = applyCommunityDeletion({
+                communityId,
+                communities: comm.rawCommunities,
+                players: play.rawPlayers,
+                presenceRecords: communityPresence.presenceRecords,
+                templates: whatsAppLists.rawTemplates,
+                drafts: whatsAppLists.drafts,
+              });
+              comm.setCommunities(next.communities);
+              play.setPlayers(next.players);
+              communityRules.removeRules(communityId);
+              communityPresence.setPresenceRecords(next.presenceRecords);
+              whatsAppLists.setTemplates(next.templates);
+              whatsAppLists.setDrafts(next.drafts);
+              deleteChampionshipsForCommunity(communityId);
+            },
+            onDuplicateCommunity: (communityId, includeAthletes) => {
+              const result = comm.duplicateCommunity(communityId, includeAthletes);
+              if (result?.includeAthletes) {
                 play.setPlayers((prev) =>
-                  applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
+                  applyCommunityMembershipDuplicate(prev, {
+                    sourceCommunityId: communityId,
+                    duplicateCommunityId: result.duplicate.id,
+                  }),
                 );
-              }}
-              onCreatePlayer={createPlayerForCommunity}
-              onCreateSession={createSessionFromCommunity}
-              onViewSession={(sessionId) => {
-                applyShellNavigationTarget(getHistorySessionNavigationTarget(sessionId));
-              }}
-              onClearCommunityHistory={(communityId) => {
-                sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
-              }}
-              onCreateChampionship={championships.create}
-              onMaterializeRound={materializeChampionshipRound}
-              onDeleteChampionship={deleteChampionshipAggregate}
-              onRescheduleRound={championships.rescheduleRound}
-              onSetRoundSkipped={championships.setRoundSkipped}
-              onUpdateChampionshipRecurrence={championships.updateRecurrence}
-              currentUserId={auth.user?.id ?? null}
-              isSupabaseConfigured={auth.isSupabaseConfigured}
-              globalRole={auth.profile?.role ?? null}
-              onLinkedCloudPlayer={(player, communityId) => {
-                play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId));
-              }}
-            />
-          );
+              }
+            },
+            onUpdatePlayerCommunities: (communityId, memberPlayerIds) => {
+              play.setPlayers((prev) =>
+                applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
+              );
+            },
+            onCreatePlayer: createPlayerForCommunity,
+            onCreateSession: createSessionFromCommunity,
+            onViewSession: (sessionId) => {
+              applyShellNavigationTarget(getHistorySessionNavigationTarget(sessionId));
+            },
+            onClearCommunityHistory: (communityId) => {
+              sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
+            },
+            onCreateChampionship: championships.create,
+            onMaterializeRound: materializeChampionshipRound,
+            onDeleteChampionship: deleteChampionshipAggregate,
+            onRescheduleRound: championships.rescheduleRound,
+            onSetRoundSkipped: championships.setRoundSkipped,
+            onUpdateChampionshipRecurrence: championships.updateRecurrence,
+            onLinkedCloudPlayer: (player, communityId) => {
+              play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId));
+            },
+          });
+          return <CommunitiesView contract={communitiesContract} />;
         }
         return (
           <PlayersView
-            players={play.players}
-            communities={comm.communities}
-            games={sess.games}
-            pointEvents={sess.pointEvents}
-            teams={sess.teams}
-            sessions={sess.sessions}
-            onBack={() => {
-              applyShellNavigationTarget(getDashboardNavigationTarget());
-            }}
-            onAddPlayer={() => {
-              play.handleAddPlayer();
-              setPage('player-edit');
-            }}
-            onEditPlayer={(p) => {
-              play.handleEditPlayer(p);
-              setPage('player-edit');
-            }}
-            onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
-            onAddGuestPlayer={(newPlayer, editDetails) => {
-              const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
-              play.setPlayers(result.players);
-              if (editDetails) {
-                play.setEditingPlayer(result.selectedPlayer);
+            contract={buildPlayersViewContract({
+              players: play.players,
+              communities: comm.communities,
+              games: sess.games,
+              pointEvents: sess.pointEvents,
+              teams: sess.teams,
+              sessions: sess.sessions,
+              onBack: () => {
+                applyShellNavigationTarget(getDashboardNavigationTarget());
+              },
+              onAddPlayer: () => {
+                play.handleAddPlayer();
                 setPage('player-edit');
-              }
-            }}
+              },
+              onEditPlayer: (p) => {
+                play.handleEditPlayer(p);
+                setPage('player-edit');
+              },
+              onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
+              onAddGuestPlayer: (newPlayer, editDetails) => {
+                const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+                play.setPlayers(result.players);
+                if (editDetails) {
+                  play.setEditingPlayer(result.selectedPlayer);
+                  setPage('player-edit');
+                }
+              },
+            })}
           />
         );
 
@@ -964,23 +960,25 @@ export default function App() {
       case 'historico':
         return (
           <HistoryView
-            sessions={sess.sessions}
-            games={sess.games}
-            pointEvents={sess.pointEvents}
-            teams={sess.teams}
-            players={play.players}
-            sessionReports={sess.sessionReports}
-            selectedHistorySessionId={selectedHistorySessionId}
-            setSelectedHistorySessionId={setSelectedHistorySessionId}
-            onDeleteSession={(sessionId) => {
-              sess.deleteSession(sessionId);
-              setSelectedHistorySessionId(null);
-            }}
-            onBackToDashboard={() => {
-              applyShellNavigationTarget(getDashboardNavigationTarget());
-            }}
-            initialTab="sessions"
-            hideTabs={false}
+            contract={buildHistoryViewContract({
+              sessions: sess.sessions,
+              games: sess.games,
+              pointEvents: sess.pointEvents,
+              teams: sess.teams,
+              players: play.players,
+              sessionReports: sess.sessionReports,
+              selectedHistorySessionId,
+              setSelectedHistorySessionId,
+              onDeleteSession: (sessionId) => {
+                sess.deleteSession(sessionId);
+                setSelectedHistorySessionId(null);
+              },
+              onBackToDashboard: () => {
+                applyShellNavigationTarget(getDashboardNavigationTarget());
+              },
+              initialTab: 'sessions',
+              hideTabs: false,
+            })}
           />
         );
 
@@ -996,31 +994,34 @@ export default function App() {
       case 'gestao':
         return auth.isStaff ? (
           <GestaoView
-            currentUserId={auth.user?.id ?? null}
-            isMaster={auth.isMaster}
-            players={play.players}
-            onToast={toasts.push}
+            contract={buildGestaoViewContract({
+              currentUserId: auth.user?.id ?? null,
+              isMaster: auth.isMaster,
+              onToast: toasts.push,
+            })}
           />
         ) : null;
 
       case 'conta':
         return (
           <AccountSyncView
-            user={auth.user}
-            profile={auth.profile}
-            loading={auth.loading}
-            isSupabaseConfigured={auth.isSupabaseConfigured}
-            onSignOut={auth.signOut}
-            onLinkGoogleIdentity={supabaseAuthClient.linkGoogleIdentity}
-            onSync={cloudSync.sync}
-            onRepairDuplicates={cloudSync.repairDuplicateCloudData}
-            lastSyncedAt={cloudSync.lastSyncedAt}
-            syncLoading={cloudSync.syncLoading}
-            players={play.players}
-            recoverableSyncActions={cloudSync.recoverableSyncActions}
-            syncIssueSummary={cloudSync.syncIssueSummary}
-            onRetryPrimarySyncAction={cloudSync.retryPrimarySyncAction}
-            onClearResolvedSyncIssues={cloudSync.clearResolvedSyncIssues}
+            contract={buildAccountSyncViewContract({
+              user: auth.user,
+              profile: auth.profile,
+              loading: auth.loading,
+              isSupabaseConfigured: auth.isSupabaseConfigured,
+              onSignOut: auth.signOut,
+              onLinkGoogleIdentity: supabaseAuthClient.linkGoogleIdentity,
+              onSync: cloudSync.sync,
+              onRepairDuplicates: cloudSync.repairDuplicateCloudData,
+              lastSyncedAt: cloudSync.lastSyncedAt,
+              syncLoading: cloudSync.syncLoading,
+              players: play.players,
+              recoverableSyncActions: cloudSync.recoverableSyncActions,
+              syncIssueSummary: cloudSync.syncIssueSummary,
+              onRetryPrimarySyncAction: cloudSync.retryPrimarySyncAction,
+              onClearResolvedSyncIssues: cloudSync.clearResolvedSyncIssues,
+            })}
           />
         );
 

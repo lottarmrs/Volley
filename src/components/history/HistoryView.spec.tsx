@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { HistoryView } from './HistoryView';
+import { buildHistoryViewContract } from '../../application/screens/historyView/historyViewContract';
+import type { HistoryViewContractInput } from '../../application/screens/historyView/historyViewContract';
 import { Game, Player, PointEvent, Session, Team } from '../../types';
 
 vi.mock('recharts', () => {
@@ -72,24 +74,29 @@ const modernPoint: PointEvent = {
   timestamp: '2026-07-17T20:00:00.000Z',
 };
 
+function renderHistoryView(overrides: Partial<HistoryViewContractInput> = {}) {
+  const defaults: HistoryViewContractInput = {
+    sessions: [finishedSession],
+    games: [finishedGame],
+    pointEvents: [modernPoint],
+    teams,
+    players,
+    sessionReports: [],
+    selectedHistorySessionId: null,
+    setSelectedHistorySessionId: vi.fn(),
+    onDeleteSession: vi.fn(),
+    onBackToDashboard: vi.fn(),
+    initialTab: 'stats',
+    hideTabs: true,
+    ...overrides,
+  };
+  const contract = buildHistoryViewContract(defaults);
+  return render(<HistoryView contract={contract} />);
+}
+
 describe('HistoryView', () => {
   it('shows modern taxonomy winners in global top scorers', () => {
-    render(
-      <HistoryView
-        sessions={[finishedSession]}
-        games={[finishedGame]}
-        pointEvents={[modernPoint]}
-        teams={teams}
-        players={players}
-        sessionReports={[]}
-        selectedHistorySessionId={null}
-        setSelectedHistorySessionId={() => {}}
-        onDeleteSession={() => {}}
-        onBackToDashboard={() => {}}
-        initialTab="stats"
-        hideTabs
-      />,
-    );
+    renderHistoryView();
 
     expect(screen.getByText(/Top Artilheiros/i)).toBeTruthy();
   });

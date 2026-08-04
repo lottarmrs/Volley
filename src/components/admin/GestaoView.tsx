@@ -1,16 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { ShieldCheck, UserCog, Loader2 } from 'lucide-react';
-import { AuthRole, Player, UserProfile } from '../../types';
+import { AuthRole, UserProfile } from '../../types';
 import { useProfilesAdmin } from '../../hooks/useProfilesAdmin';
-
-interface GestaoViewProps {
-  currentUserId: string | null;
-  /** Apenas master pode alterar papéis; programmer enxerga em modo leitura. */
-  isMaster: boolean;
-  /** Elenco local, para resolver nomes de atletas a partir do cloudId. */
-  players: Player[];
-  onToast?: (message: string, variant: 'success' | 'error') => void;
-}
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { GestaoViewModel } from '@app/screens/gestaoView/gestaoViewModel';
+import type { GestaoViewIntent } from '@app/screens/gestaoView/gestaoViewIntents';
 
 const ROLE_LABEL: Record<AuthRole, string> = {
   master: 'Master',
@@ -24,7 +18,13 @@ const ROLE_BADGE: Record<AuthRole, string> = {
   user: 'badge-ghost',
 };
 
-export const GestaoView = ({ currentUserId, isMaster, onToast }: GestaoViewProps) => {
+export const GestaoView = ({
+  contract,
+}: {
+  contract: ScreenContract<GestaoViewModel, GestaoViewIntent>;
+}) => {
+  const { model, dispatch } = contract;
+  const { currentUserId, isMaster } = model;
   const { profiles, loading, error, savingId, changeRole } = useProfilesAdmin(true);
 
   const profileById = useMemo(() => {
@@ -36,12 +36,13 @@ export const GestaoView = ({ currentUserId, isMaster, onToast }: GestaoViewProps
   const handleChangeRole = useCallback(
     async (userId: string, role: AuthRole) => {
       const ok = await changeRole(userId, role);
-      onToast?.(
-        ok ? 'Papel atualizado.' : 'Não foi possível alterar o papel.',
-        ok ? 'success' : 'error',
-      );
+      dispatch({
+        kind: 'toast',
+        message: ok ? 'Papel atualizado.' : 'Não foi possível alterar o papel.',
+        variant: ok ? 'success' : 'error',
+      });
     },
-    [changeRole, onToast],
+    [changeRole, dispatch],
   );
 
   return (

@@ -72,6 +72,7 @@ import { buildCommunitiesViewContract } from './application/screens/communitiesV
 import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
 import { buildHistoryViewContract } from './application/screens/historyView/historyViewContract';
 import { buildAccountSyncViewContract } from './application/screens/accountSyncView/accountSyncViewContract';
+import { buildGestaoViewContract } from './application/screens/gestaoView/gestaoViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -993,10 +994,11 @@ export default function App() {
       case 'gestao':
         return auth.isStaff ? (
           <GestaoView
-            currentUserId={auth.user?.id ?? null}
-            isMaster={auth.isMaster}
-            players={play.players}
-            onToast={toasts.push}
+            contract={buildGestaoViewContract({
+              currentUserId: auth.user?.id ?? null,
+              isMaster: auth.isMaster,
+              onToast: toasts.push,
+            })}
           />
         ) : null;
 

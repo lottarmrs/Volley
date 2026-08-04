@@ -67,6 +67,7 @@ import {
 import { buildSessionWizardContract } from './application/screens/sessionWizard/sessionWizardContract';
 import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
 import { buildPlayerEditViewContract } from './application/screens/playerEditView/playerEditViewContract';
+import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -801,81 +802,80 @@ export default function App() {
           );
         }
         if (page === 'communities') {
-          return (
-            <CommunitiesView
-              communities={comm.communities}
-              players={play.players}
-              sessions={sess.sessions}
-              games={sess.games}
-              pointEvents={sess.pointEvents}
-              teams={sess.teams}
-              sessionReports={sess.sessionReports}
-              championships={championships.championships}
-              championshipTeams={championships.championshipTeams}
-              championshipRounds={championships.championshipRounds}
-              presenceApi={communityPresence}
-              whatsAppApi={whatsAppLists}
-              rulesApi={communityRules}
-              onBack={() => setPage('players')}
-              onAddCommunity={comm.addCommunity}
-              onUpdateCommunity={comm.updateCommunity}
-              onDeleteCommunity={(communityId) => {
-                if (!window.confirm('Excluir esta comunidade? Os atletas continuarao cadastrados.'))
-                  return;
-                const next = applyCommunityDeletion({
-                  communityId,
-                  communities: comm.rawCommunities,
-                  players: play.rawPlayers,
-                  presenceRecords: communityPresence.presenceRecords,
-                  templates: whatsAppLists.rawTemplates,
-                  drafts: whatsAppLists.drafts,
-                });
-                comm.setCommunities(next.communities);
-                play.setPlayers(next.players);
-                communityRules.removeRules(communityId);
-                communityPresence.setPresenceRecords(next.presenceRecords);
-                whatsAppLists.setTemplates(next.templates);
-                whatsAppLists.setDrafts(next.drafts);
-                deleteChampionshipsForCommunity(communityId);
-              }}
-              onDuplicateCommunity={(communityId, includeAthletes) => {
-                const result = comm.duplicateCommunity(communityId, includeAthletes);
-                if (result?.includeAthletes) {
-                  play.setPlayers((prev) =>
-                    applyCommunityMembershipDuplicate(prev, {
-                      sourceCommunityId: communityId,
-                      duplicateCommunityId: result.duplicate.id,
-                    }),
-                  );
-                }
-              }}
-              onUpdatePlayerCommunities={(communityId, memberPlayerIds) => {
+          const communitiesContract = buildCommunitiesViewContract({
+            communities: comm.communities,
+            players: play.players,
+            sessions: sess.sessions,
+            games: sess.games,
+            pointEvents: sess.pointEvents,
+            teams: sess.teams,
+            sessionReports: sess.sessionReports,
+            championships: championships.championships,
+            championshipTeams: championships.championshipTeams,
+            championshipRounds: championships.championshipRounds,
+            presenceApi: communityPresence,
+            whatsAppApi: whatsAppLists,
+            rulesApi: communityRules,
+            currentUserId: auth.user?.id ?? null,
+            isSupabaseConfigured: auth.isSupabaseConfigured,
+            globalRole: auth.profile?.role ?? null,
+            onBack: () => setPage('players'),
+            onAddCommunity: comm.addCommunity,
+            onUpdateCommunity: comm.updateCommunity,
+            onDeleteCommunity: (communityId) => {
+              if (!window.confirm('Excluir esta comunidade? Os atletas continuarao cadastrados.'))
+                return;
+              const next = applyCommunityDeletion({
+                communityId,
+                communities: comm.rawCommunities,
+                players: play.rawPlayers,
+                presenceRecords: communityPresence.presenceRecords,
+                templates: whatsAppLists.rawTemplates,
+                drafts: whatsAppLists.drafts,
+              });
+              comm.setCommunities(next.communities);
+              play.setPlayers(next.players);
+              communityRules.removeRules(communityId);
+              communityPresence.setPresenceRecords(next.presenceRecords);
+              whatsAppLists.setTemplates(next.templates);
+              whatsAppLists.setDrafts(next.drafts);
+              deleteChampionshipsForCommunity(communityId);
+            },
+            onDuplicateCommunity: (communityId, includeAthletes) => {
+              const result = comm.duplicateCommunity(communityId, includeAthletes);
+              if (result?.includeAthletes) {
                 play.setPlayers((prev) =>
-                  applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
+                  applyCommunityMembershipDuplicate(prev, {
+                    sourceCommunityId: communityId,
+                    duplicateCommunityId: result.duplicate.id,
+                  }),
                 );
-              }}
-              onCreatePlayer={createPlayerForCommunity}
-              onCreateSession={createSessionFromCommunity}
-              onViewSession={(sessionId) => {
-                applyShellNavigationTarget(getHistorySessionNavigationTarget(sessionId));
-              }}
-              onClearCommunityHistory={(communityId) => {
-                sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
-              }}
-              onCreateChampionship={championships.create}
-              onMaterializeRound={materializeChampionshipRound}
-              onDeleteChampionship={deleteChampionshipAggregate}
-              onRescheduleRound={championships.rescheduleRound}
-              onSetRoundSkipped={championships.setRoundSkipped}
-              onUpdateChampionshipRecurrence={championships.updateRecurrence}
-              currentUserId={auth.user?.id ?? null}
-              isSupabaseConfigured={auth.isSupabaseConfigured}
-              globalRole={auth.profile?.role ?? null}
-              onLinkedCloudPlayer={(player, communityId) => {
-                play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId));
-              }}
-            />
-          );
+              }
+            },
+            onUpdatePlayerCommunities: (communityId, memberPlayerIds) => {
+              play.setPlayers((prev) =>
+                applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
+              );
+            },
+            onCreatePlayer: createPlayerForCommunity,
+            onCreateSession: createSessionFromCommunity,
+            onViewSession: (sessionId) => {
+              applyShellNavigationTarget(getHistorySessionNavigationTarget(sessionId));
+            },
+            onClearCommunityHistory: (communityId) => {
+              sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
+            },
+            onCreateChampionship: championships.create,
+            onMaterializeRound: materializeChampionshipRound,
+            onDeleteChampionship: deleteChampionshipAggregate,
+            onRescheduleRound: championships.rescheduleRound,
+            onSetRoundSkipped: championships.setRoundSkipped,
+            onUpdateChampionshipRecurrence: championships.updateRecurrence,
+            onLinkedCloudPlayer: (player, communityId) => {
+              play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId));
+            },
+          });
+          return <CommunitiesView contract={communitiesContract} />;
         }
         return (
           <PlayersView

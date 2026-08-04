@@ -90,6 +90,9 @@ import { ShareActions } from '../share/ShareActions';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
 import { JoinCommunityByCode } from './JoinCommunityByCode';
 import { AthleteUsernameSearch } from './AthleteUsernameSearch';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { CommunitiesViewModel } from '@app/screens/communitiesView/communitiesViewModel';
+import type { CommunitiesViewIntent } from '@app/screens/communitiesView/communitiesViewIntents';
 
 type CommunityTab =
   | 'summary'
@@ -232,39 +235,36 @@ function emptyCommunityInput(): Partial<Community> {
 }
 
 export function CommunitiesView({
-  communities,
-  players,
-  sessions,
-  games,
-  pointEvents,
-  teams,
-  sessionReports,
-  championships,
-  championshipTeams,
-  championshipRounds,
-  presenceApi,
-  whatsAppApi,
-  rulesApi,
-  onBack,
-  onAddCommunity,
-  onUpdateCommunity,
-  onDeleteCommunity,
-  onDuplicateCommunity,
-  onUpdatePlayerCommunities,
-  onCreatePlayer,
-  onCreateSession,
-  onViewSession,
-  onClearCommunityHistory,
-  onCreateChampionship,
-  onMaterializeRound,
-  onDeleteChampionship,
-  onRescheduleRound,
-  onSetRoundSkipped,
-  onUpdateChampionshipRecurrence,
-  currentUserId,
-  isSupabaseConfigured,
-  globalRole,
-}: CommunitiesViewProps) {
+  contract,
+}: {
+  contract: ScreenContract<CommunitiesViewModel, CommunitiesViewIntent>;
+}) {
+  const { model, dispatch } = contract;
+  const {
+    communities,
+    players,
+    sessions,
+    games,
+    pointEvents,
+    teams,
+    sessionReports,
+    championships,
+    championshipTeams,
+    championshipRounds,
+    presenceApi,
+    whatsAppApi,
+    rulesApi,
+    currentUserId,
+    isSupabaseConfigured,
+    globalRole,
+    addCommunity,
+    updateCommunity,
+    createChampionship,
+    materializeRound,
+    rescheduleRound,
+    setRoundSkipped,
+    updateChampionshipRecurrence,
+  } = model;
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
 
   const [showArchived, setShowArchived] = useState(false);
@@ -278,7 +278,7 @@ export function CommunitiesView({
   );
 
   const handleAdd = () => {
-    const community = onAddCommunity(emptyCommunityInput());
+    const community = addCommunity(emptyCommunityInput());
     setSelectedCommunityId(community.id);
   };
 
@@ -299,23 +299,35 @@ export function CommunitiesView({
         whatsAppApi={whatsAppApi}
         rulesApi={rulesApi}
         onBack={() => setSelectedCommunityId(null)}
-        onUpdateCommunity={onUpdateCommunity}
+        onUpdateCommunity={updateCommunity}
         onDeleteCommunity={(communityId) => {
-          onDeleteCommunity(communityId);
+          void dispatch({ kind: 'deleteCommunity', communityId });
           setSelectedCommunityId(null);
         }}
-        onDuplicateCommunity={onDuplicateCommunity}
-        onUpdatePlayerCommunities={onUpdatePlayerCommunities}
-        onCreatePlayer={onCreatePlayer}
-        onCreateSession={onCreateSession}
-        onViewSession={onViewSession}
-        onClearCommunityHistory={onClearCommunityHistory}
-        onCreateChampionship={onCreateChampionship}
-        onMaterializeRound={onMaterializeRound}
-        onDeleteChampionship={onDeleteChampionship}
-        onRescheduleRound={onRescheduleRound}
-        onSetRoundSkipped={onSetRoundSkipped}
-        onUpdateChampionshipRecurrence={onUpdateChampionshipRecurrence}
+        onDuplicateCommunity={(communityId, includeAthletes) =>
+          void dispatch({ kind: 'duplicateCommunity', communityId, includeAthletes })
+        }
+        onUpdatePlayerCommunities={(communityId, playerIds) =>
+          void dispatch({ kind: 'updatePlayerCommunities', communityId, playerIds })
+        }
+        onCreatePlayer={(name, communityId) =>
+          void dispatch({ kind: 'createPlayer', name, communityId })
+        }
+        onCreateSession={(community, playerIds, rules) =>
+          void dispatch({ kind: 'createSession', community, playerIds, rules })
+        }
+        onViewSession={(sessionId) => void dispatch({ kind: 'viewSession', sessionId })}
+        onClearCommunityHistory={(communityId) =>
+          void dispatch({ kind: 'clearCommunityHistory', communityId })
+        }
+        onCreateChampionship={createChampionship}
+        onMaterializeRound={materializeRound}
+        onDeleteChampionship={(championshipId) =>
+          void dispatch({ kind: 'deleteChampionship', championshipId })
+        }
+        onRescheduleRound={rescheduleRound}
+        onSetRoundSkipped={setRoundSkipped}
+        onUpdateChampionshipRecurrence={updateChampionshipRecurrence}
         currentUserId={currentUserId}
         isSupabaseConfigured={isSupabaseConfigured}
         globalRole={globalRole}
@@ -326,7 +338,11 @@ export function CommunitiesView({
   return (
     <div className="space-y-5 pb-24">
       <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={onBack} className="btn btn-ghost btn-sm">
+        <button
+          type="button"
+          onClick={() => dispatch({ kind: 'back' })}
+          className="btn btn-ghost btn-sm"
+        >
           <ChevronLeft className="w-4 h-4" /> Voltar
         </button>
         <div className="flex items-center gap-2">
@@ -375,17 +391,22 @@ export function CommunitiesView({
               sessionReports={sessionReports}
               onOpen={() => setSelectedCommunityId(community.id)}
               onCreateSession={() =>
-                onCreateSession(
+                void dispatch({
+                  kind: 'createSession',
                   community,
-                  getCommunityPlayers(community.id, players)
+                  playerIds: getCommunityPlayers(community.id, players)
                     .filter((player) => player.ativo)
                     .map((player) => player.id),
-                  rulesApi.getRules(community),
-                )
+                  rules: rulesApi.getRules(community),
+                })
               }
-              onUpdateCommunity={onUpdateCommunity}
-              onDuplicateCommunity={onDuplicateCommunity}
-              onDeleteCommunity={onDeleteCommunity}
+              onUpdateCommunity={updateCommunity}
+              onDuplicateCommunity={(communityId, includeAthletes) =>
+                void dispatch({ kind: 'duplicateCommunity', communityId, includeAthletes })
+              }
+              onDeleteCommunity={(communityId) =>
+                void dispatch({ kind: 'deleteCommunity', communityId })
+              }
             />
           </React.Fragment>
         ))}

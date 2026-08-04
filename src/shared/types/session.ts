@@ -199,7 +199,11 @@ export type StandingRule =
   | 'pointsAgainst';
 
 export type TournamentFormat =
-  'round_robin' | 'double_round_robin' | 'knockout' | 'group_stage' | 'groups_knockout';
+  | 'round_robin'
+  | 'double_round_robin'
+  | 'knockout'
+  | 'group_stage'
+  | 'groups_knockout';
 
 export interface TournamentGroup {
   id: string;
@@ -336,12 +340,24 @@ export interface Game {
 }
 
 export type PointReason =
-  'attack' | 'block' | 'serve_ace' | 'opponent_error' | 'defense_counterattack' | 'tip' | 'unknown';
+  | 'attack'
+  | 'block'
+  | 'serve_ace'
+  | 'opponent_error'
+  | 'defense_counterattack'
+  | 'tip'
+  | 'unknown';
 
 export type PointType = 'winner' | 'error';
 
 export type Skill =
-  'saque' | 'recepcao' | 'levantamento' | 'ataque' | 'bloqueio' | 'defesa' | 'largada';
+  | 'saque'
+  | 'recepcao'
+  | 'levantamento'
+  | 'ataque'
+  | 'bloqueio'
+  | 'defesa'
+  | 'largada';
 
 export type ErrorCategory =
   | 'serve'

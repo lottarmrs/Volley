@@ -21,7 +21,14 @@ export interface ModuleNavigationItem {
   id: Module;
   label: string;
   icon:
-    'dashboard' | 'tournament' | 'players' | 'ranking' | 'history' | 'cloud' | 'settings' | 'admin';
+    | 'dashboard'
+    | 'tournament'
+    | 'players'
+    | 'ranking'
+    | 'history'
+    | 'cloud'
+    | 'settings'
+    | 'admin';
   badge?: number;
 }
 

@@ -67,6 +67,7 @@ import {
 import { buildSessionWizardContract } from './application/screens/sessionWizard/sessionWizardContract';
 import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
 import { buildPlayerEditViewContract } from './application/screens/playerEditView/playerEditViewContract';
+import { buildDashboardContract } from './application/screens/dashboard/dashboardContract';
 import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
 import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
 import {
@@ -708,58 +709,60 @@ export default function App() {
         }
         return (
           <Dashboard
-            activeSession={sess.activeSession}
-            sessionDraft={sessionDraft}
-            onNewSession={() => {
-              const result = buildManualSessionStartResult({
-                now: new Date(),
-                createId: generateUUID,
-              });
-              sess.setActiveSession(result.session);
-              wizard.setWizardStep(result.nextWizardStep);
-              setPage('session-wizard');
-            }}
-            onResumeSession={() => {
-              applyShellNavigationTarget(getLiveSessionNavigationTarget());
-            }}
-            onResumeDraft={(draft) => {
-              wizard.resumeDraft(draft);
-              setPage('session-wizard');
-            }}
-            onClearDraft={() => {
-              if (window.confirm('Deseja realmente descartar o rascunho?')) {
-                const result = buildDraftClearResult();
-                clearSessionDraft();
-                setSessionDraft(result.nextSessionDraft);
-                sess.setActiveSession(result.nextActiveSession);
-              }
-            }}
-            onClearActiveSession={() => {
-              if (
-                sess.activeSession &&
-                window.confirm(
-                  'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
-                )
-              ) {
-                const result = buildActiveSessionClearResult(sess.activeSession);
-                if (!result) return;
-                sess.deleteSession(result.sessionIdToDelete);
-                sess.setActiveSession(result.nextActiveSession);
-                clearSessionDraft();
-                setSessionDraft(result.nextSessionDraft);
-              }
-            }}
-            onPlayers={() => {
-              applyShellNavigationTarget(getPlayersNavigationTarget());
-            }}
-            onHistory={() => {
-              applyShellNavigationTarget(getHistoryNavigationTarget());
-            }}
-            onExportBackup={handleExportBackup}
-            onImportBackup={handleImportBackup}
-            onCommunities={() => {
-              applyShellNavigationTarget(getCommunitiesNavigationTarget());
-            }}
+            contract={buildDashboardContract({
+              activeSession: sess.activeSession,
+              sessionDraft,
+              onNewSession: () => {
+                const result = buildManualSessionStartResult({
+                  now: new Date(),
+                  createId: generateUUID,
+                });
+                sess.setActiveSession(result.session);
+                wizard.setWizardStep(result.nextWizardStep);
+                setPage('session-wizard');
+              },
+              onResumeSession: () => {
+                applyShellNavigationTarget(getLiveSessionNavigationTarget());
+              },
+              onResumeDraft: (draft) => {
+                wizard.resumeDraft(draft);
+                setPage('session-wizard');
+              },
+              onClearDraft: () => {
+                if (window.confirm('Deseja realmente descartar o rascunho?')) {
+                  const result = buildDraftClearResult();
+                  clearSessionDraft();
+                  setSessionDraft(result.nextSessionDraft);
+                  sess.setActiveSession(result.nextActiveSession);
+                }
+              },
+              onClearActiveSession: () => {
+                if (
+                  sess.activeSession &&
+                  window.confirm(
+                    'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
+                  )
+                ) {
+                  const result = buildActiveSessionClearResult(sess.activeSession);
+                  if (!result) return;
+                  sess.deleteSession(result.sessionIdToDelete);
+                  sess.setActiveSession(result.nextActiveSession);
+                  clearSessionDraft();
+                  setSessionDraft(result.nextSessionDraft);
+                }
+              },
+              onPlayers: () => {
+                applyShellNavigationTarget(getPlayersNavigationTarget());
+              },
+              onHistory: () => {
+                applyShellNavigationTarget(getHistoryNavigationTarget());
+              },
+              onExportBackup: handleExportBackup,
+              onImportBackup: handleImportBackup,
+              onCommunities: () => {
+                applyShellNavigationTarget(getCommunitiesNavigationTarget());
+              },
+            })}
           />
         );
 

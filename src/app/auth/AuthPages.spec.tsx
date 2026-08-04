@@ -19,16 +19,20 @@ vi.mock('./useAuthSession', () => ({
 
 const { authClientMock } = vi.hoisted(() => ({
   authClientMock: {
-    enrollTotp: vi.fn(),
-    verifyTotp: vi.fn(),
+    getSession: vi.fn(),
+    onSessionChange: vi.fn(),
+    signIn: vi.fn(),
+    signUp: vi.fn(),
+    signInWithGoogle: vi.fn(),
+    linkGoogleIdentity: vi.fn(),
     requestPasswordRecovery: vi.fn(),
     updatePassword: vi.fn(),
+    getAssuranceLevel: vi.fn(),
+    signOut: vi.fn(),
     signOutOthers: vi.fn(),
+    enrollTotp: vi.fn(),
+    verifyTotp: vi.fn(),
   },
-}));
-
-vi.mock('@infra/supabase/authClient', () => ({
-  supabaseAuthClient: authClientMock,
 }));
 
 import {
@@ -52,6 +56,7 @@ function renderAuthPage(
   authSessionMock.current = {
     session: null,
     account: null,
+    authClient: authClientMock,
     retry: vi.fn(),
     completeUsername: vi.fn(),
     signOut: vi.fn(),

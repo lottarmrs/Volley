@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
+import type { AuthClient } from '@app/authClient';
 import type { AuthSessionContextValue } from './auth/useAuthSession';
 import { ToastProvider } from '@ui/common/ToastProvider';
 
@@ -15,11 +16,28 @@ vi.mock('./auth/useAuthSession', () => ({
 
 import { AppRouter } from './AppRouter';
 
+const stubAuthClient = {
+  getSession: async () => null,
+  onSessionChange: () => () => {},
+  signIn: async () => {},
+  signUp: async () => {},
+  signInWithGoogle: async () => {},
+  linkGoogleIdentity: async () => {},
+  requestPasswordRecovery: async () => {},
+  updatePassword: async () => {},
+  getAssuranceLevel: async () => ({ current: null, next: null }),
+  signOut: async () => {},
+  signOutOthers: async () => {},
+  enrollTotp: async () => ({ factorId: '', qrCode: '', secret: '' }),
+  verifyTotp: async () => {},
+} as unknown as AuthClient;
+
 function renderRouter(path: string, state: AuthSessionState) {
   authSessionMock.current = {
     state,
     session: null,
     account: null,
+    authClient: stubAuthClient,
     retry: vi.fn(),
     completeUsername: vi.fn(),
     signOut: vi.fn(),

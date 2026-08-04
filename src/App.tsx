@@ -38,6 +38,7 @@ import { Community, CommunityRules, Game, Player, SessionConfig, Team } from './
 import {
   STORAGE_KEYS,
   getLocalCacheOwnerId,
+  getOrCreateDeviceId,
   loadFromStorage,
   saveToStorage,
 } from './storage/localStorageRepository';
@@ -64,6 +65,7 @@ import {
   selectSessionTeams,
 } from './application/sessionLifecycleUseCases';
 import { buildSessionWizardContract } from './application/screens/sessionWizard/sessionWizardContract';
+import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -169,6 +171,12 @@ export default function App() {
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
   const championships = useChampionships();
+
+  // Mount-memo: device id é idempotente e stable per-install; 1× por mount.
+  const currentDeviceIdRef = useRef<string | null>(null);
+  if (currentDeviceIdRef.current === null) {
+    currentDeviceIdRef.current = getOrCreateDeviceId();
+  }
 
   const editingPlayerCommunity = useMemo(() => {
     if (
@@ -672,21 +680,24 @@ export default function App() {
         if (page === 'session-active') {
           return (
             <SessionActiveView
-              activeSession={sess.activeSession!}
-              games={sess.games}
-              setGames={sess.setGames}
-              pointEvents={sess.pointEvents}
-              setPointEvents={sess.setPointEvents}
-              players={play.players}
-              sessionTeams={selectSessionTeams(sess.teams, sess.activeSession?.id)}
-              gameReports={sess.gameReports}
-              setGameReports={sess.setGameReports}
-              setActiveSession={sess.updateActiveSession}
-              onExit={() => {
-                setPage('dashboard');
-                setActiveModule('dashboard');
-              }}
-              onFinishSession={handleFinishSession}
+              contract={buildSessionActiveViewContract({
+                activeSession: sess.activeSession!,
+                games: sess.games,
+                pointEvents: sess.pointEvents,
+                players: play.players,
+                sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
+                gameReports: sess.gameReports,
+                currentDeviceId: currentDeviceIdRef.current,
+                setGames: sess.setGames,
+                setPointEvents: sess.setPointEvents,
+                setGameReports: sess.setGameReports,
+                setActiveSession: sess.updateActiveSession,
+                onExit: () => {
+                  setPage('dashboard');
+                  setActiveModule('dashboard');
+                },
+                onFinishSession: handleFinishSession,
+              })}
             />
           );
         }

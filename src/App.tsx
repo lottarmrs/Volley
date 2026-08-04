@@ -71,6 +71,7 @@ import { buildDashboardContract } from './application/screens/dashboard/dashboar
 import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
 import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
 import { buildHistoryViewContract } from './application/screens/historyView/historyViewContract';
+import { buildAccountSyncViewContract } from './application/screens/accountSyncView/accountSyncViewContract';
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
@@ -1002,21 +1003,23 @@ export default function App() {
       case 'conta':
         return (
           <AccountSyncView
-            user={auth.user}
-            profile={auth.profile}
-            loading={auth.loading}
-            isSupabaseConfigured={auth.isSupabaseConfigured}
-            onSignOut={auth.signOut}
-            onLinkGoogleIdentity={supabaseAuthClient.linkGoogleIdentity}
-            onSync={cloudSync.sync}
-            onRepairDuplicates={cloudSync.repairDuplicateCloudData}
-            lastSyncedAt={cloudSync.lastSyncedAt}
-            syncLoading={cloudSync.syncLoading}
-            players={play.players}
-            recoverableSyncActions={cloudSync.recoverableSyncActions}
-            syncIssueSummary={cloudSync.syncIssueSummary}
-            onRetryPrimarySyncAction={cloudSync.retryPrimarySyncAction}
-            onClearResolvedSyncIssues={cloudSync.clearResolvedSyncIssues}
+            contract={buildAccountSyncViewContract({
+              user: auth.user,
+              profile: auth.profile,
+              loading: auth.loading,
+              isSupabaseConfigured: auth.isSupabaseConfigured,
+              onSignOut: auth.signOut,
+              onLinkGoogleIdentity: supabaseAuthClient.linkGoogleIdentity,
+              onSync: cloudSync.sync,
+              onRepairDuplicates: cloudSync.repairDuplicateCloudData,
+              lastSyncedAt: cloudSync.lastSyncedAt,
+              syncLoading: cloudSync.syncLoading,
+              players: play.players,
+              recoverableSyncActions: cloudSync.recoverableSyncActions,
+              syncIssueSummary: cloudSync.syncIssueSummary,
+              onRetryPrimarySyncAction: cloudSync.retryPrimarySyncAction,
+              onClearResolvedSyncIssues: cloudSync.clearResolvedSyncIssues,
+            })}
           />
         );
 

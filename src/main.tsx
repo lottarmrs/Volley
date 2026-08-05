@@ -6,6 +6,7 @@ import { AuthSessionProvider } from './app/auth/AuthSessionProvider';
 import { supabaseAuthClient } from './infra/supabase/authClient';
 import { accountCloudService } from './infra/supabase/accountCloudService';
 import { ToastProvider } from './ui/common/ToastProvider';
+import { SessionProvider } from './ui/common/SessionProvider';
 import { migrateLocalDbToUuids } from './logic/migrations';
 import './index.css';
 
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthSessionProvider authClient={supabaseAuthClient} accountGateway={accountCloudService}>
         <ToastProvider>
-          <AppRouter />
+          <SessionProvider>
+            <AppRouter />
+          </SessionProvider>
         </ToastProvider>
       </AuthSessionProvider>
     </BrowserRouter>

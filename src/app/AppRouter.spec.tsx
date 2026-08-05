@@ -5,6 +5,7 @@ import type { AuthSessionState } from '@app/authSession';
 import type { AuthClient } from '@app/authClient';
 import type { AuthSessionContextValue } from './auth/useAuthSession';
 import { ToastProvider } from '@ui/common/ToastProvider';
+import { SessionProvider } from '@ui/common/SessionProvider';
 
 const { authSessionMock } = vi.hoisted(() => ({
   authSessionMock: { current: null as unknown as AuthSessionContextValue },
@@ -45,7 +46,9 @@ function renderRouter(path: string, state: AuthSessionState) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
-        <AppRouter />
+        <SessionProvider>
+          <AppRouter />
+        </SessionProvider>
       </ToastProvider>
     </MemoryRouter>,
   );

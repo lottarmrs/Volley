@@ -1,14 +1,42 @@
 # HANDOFF - Panelinha App
 
-> Documento operacional atualizado em 2026-08-04.
+> Documento operacional atualizado em 2026-08-05.
 > Este arquivo substitui o handoff histórico de 2026-06-24, que continha estado de working tree e pendências já superadas.
 
 ## Estado Atual
 
-- Branch local: `main`, alinhado com `origin/main` após os commits enviados (trabalho da Fase 2 em `worktree-plano-5-pre-fase-2`, a ser mergeado).
+- Branch local: `feature/session-context-raiz` (spike A1, PR a abrir). `main` alinhado com `origin/main` após Fase 2 (PR #17) e fix de formato (PR #18).
 - Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
 - Prioridade atual do framework: Produto Escalável, depois Experiência.
-- Foco imediato: Plano 5 — **Fase 3 (Nova Navegação)**. Fase 2 (Screen Contracts) concluída em 2026-08-04 (ver seção pós-Fase-2 abaixo). Fase 1 (reset + cutover) concluída em 2026-08-03 (ver seção Pós-Cutover abaixo).
+- Foco imediato: Plano 5 — **Fase 3 (Nova Navegação)**. Spike A1 (SessionContext na raiz — gate de infra da Fase 3) concluído em 2026-08-05 (ver seção Pós-Spike A1 abaixo). Fase 2 (Screen Contracts) concluída em 2026-08-04 (ver seção pós-Fase-2 abaixo). Fase 1 (reset + cutover) concluída em 2026-08-03 (ver seção Pós-Cutover abaixo).
+- Pré-Fase 3 pendente: skill `impeccable` (modo `critique`) da arquitetura de informação antes de iniciar a refatoração (spec plano-5 §6.9).
+
+## Pós-Spike A1 (Plano 5 — gate de infra da Fase 3)
+
+Pré-requisito da Fase 3 (Nova Navegação) satisfeito em **2026-08-05**. O estado da sessão
+ativa (`activeSession`/`games`/`pointEvents`/`gameReports`/`teams`/`sessions`/`sessionReports`)
+vivia em `useSessions()` chamado no `App.tsx` (ho local do shell). Hoje `App.tsx` nunca
+desmonta (`AppRouter` é `/*` catch-all), então o state sobrevive; mas na Fase 3 (rotas URL
+react-router v7) a árvore remonta ao navegar e perderia placar/sorteio/heartbeat sem um
+contexto acima de `<App/>`.
+
+- **Spike A1 (escopo completo, escolhido pelo usuário):** extrai `SessionContext` que detém o
+  state de `useSessions()` e o eleva à raiz (`main.tsx`), acima de `<AppRouter/>`. Padrão
+  espelhado em Toast (PR #16): Context + hook consumer no mesmo `use*.ts`, Provider one-liner
+  que injeta o store externo — sem reimplementar `useSessions` (já persiste/normaliza/limpa
+  órfãos/propaga knockout).
+- **Arquivos:** `src/ui/common/useSession.ts` (Context + `SessionContextValue` + `useSession()`
+  com guard PT-BR), `src/ui/common/SessionProvider.tsx` (Provider one-liner),
+  `src/main.tsx` (`<SessionProvider>` dentro de `<ToastProvider>` envolvendo `<AppRouter/>`),
+  `src/App.tsx` (`useSessions()` → `useSession()`, nome `sess` preservado, ~120 refs intocadas),
+  `src/app/AppRouter.spec.tsx` (harness envolve `<AppRouter/>` em `<SessionProvider>`).
+- **Gate de infra Fase 2 intacto:** views e o novo contexto não importam `@storage`/`@infra`.
+- **Verificação:** `lint` (tsc --noEmit) + `test:unit` (699) + `test:ui` (136) + `build` verdes.
+- **Prova do gate A1:** Provider acima de `<App/>` detém o state — desmontar/remontar `<App/>`
+  (rotas URL Fase 3, StrictMode double-mount, HMR) não destrói a sessão ativa.
+- **Não toca em rotas URL (Fase 3);** views continuam via `ScreenContract` (Fase 2 preservada).
+  `useCloudSync` sem redesign: `CloudSyncDeps` inalterada, só a origem dos setters.
+- **Estado:** spike A1 fechado. Próxima ação = Fase 3 precedida do `impeccable` critique (§6.9).
 
 ## Pós-Fase 2 (Plano 5 — Screen Contracts)
 

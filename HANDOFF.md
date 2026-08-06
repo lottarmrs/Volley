@@ -5,11 +5,11 @@
 
 ## Estado Atual
 
-- Branch local: `feature/session-context-raiz` (spike A1, PR a abrir). `main` alinhado com `origin/main` após Fase 2 (PR #17) e fix de formato (PR #18).
+- Branch local: `feature/session-context-raiz` (spike A1, PR #20 draft). `main` alinhado com `origin/main` após Fase 2 (PR #17) e fix de formato (PR #18).
 - Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
 - Prioridade atual do framework: Produto Escalável, depois Experiência.
-- Foco imediato: Plano 5 — **Fase 3 (Nova Navegação)**. Spike A1 (SessionContext na raiz — gate de infra da Fase 3) concluído em 2026-08-05 (ver seção Pós-Spike A1 abaixo). Fase 2 (Screen Contracts) concluída em 2026-08-04 (ver seção pós-Fase-2 abaixo). Fase 1 (reset + cutover) concluída em 2026-08-03 (ver seção Pós-Cutover abaixo).
-- Pré-Fase 3 pendente: skill `impeccable` (modo `critique`) da arquitetura de informação antes de iniciar a refatoração (spec plano-5 §6.9).
+- Foco imediato: Plano 5 — **Fase 3 (Nova Navegação)**. Spike A1 (SessionContext na raiz — gate de infra da Fase 3) concluído em 2026-08-05 (ver seção Pós-Spike A1 abaixo). `impeccable critique` da IA rodado (score 24/40, 3 P0s) em 2026-08-05 (snapshot em `.impeccable/critique/`). **Brainstorm da revisão da IA em andamento** — decisões e árvore de rotas reconciliada em `docs/superpowers/specs/2026-08-06-plano-5-fase-3-nova-navegacao-revisao-design.md`. Fase 2 (Screen Contracts) concluída em 2026-08-04. Fase 1 (reset + cutover) concluída em 2026-08-03.
+- Pré-Fase 3: brainstorm concluiu que a IA adotada é **hierarchy community-centric com URLs aninhadas** (base spec §12 feita direito), não flat. P0-1 Agenda (rota global), P0-2 Gestão split (`/admin` global + `/comunidades/:id/gestao`), P0-3 deep-linkability (rotas aninhadas) — todos resolvidos pela IA reconciliada. Falta detalhar Seções 2 (migração/cutover router-in-parallel) e 3 (changes no `ScreenContract` input: `setPage`→`navigate`), escrever spec final, review do usuário, e invocar `superpowers:writing-plans`.
 
 ## Pós-Spike A1 (Plano 5 — gate de infra da Fase 3)
 

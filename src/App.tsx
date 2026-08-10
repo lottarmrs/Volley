@@ -1086,7 +1086,7 @@ export default function App() {
               <h2 className="text-base font-bold uppercase tracking-wider text-base-content">
                 {getCurrentPageTitle({ page, activeModule })}
               </h2>
-              {sess.activeSession && sess.activeSession.status === 'active' && (
+              {operationalPhase !== 'rascunho' && operationalPhase !== 'encerrada' && (
                 <p className="text-[10px] text-base-content/60 font-medium mt-0.5">
                   Sessão Ativa:{' '}
                   <span className="text-primary font-bold">{sess.activeSession.name}</span>

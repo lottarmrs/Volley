@@ -7,7 +7,7 @@ import type { DashboardIntent } from './dashboardIntents';
 export interface DashboardContractInput {
   activeSession: Session | null;
   sessionDraft: SessionDraft | null;
-  games?: Game[];
+  games: Game[];
   onNewSession: () => void;
   onResumeSession: () => void;
   onResumeDraft: (draft: SessionDraft) => void;
@@ -24,7 +24,7 @@ function buildModel(input: DashboardContractInput): DashboardModel {
   return {
     activeSession: input.activeSession,
     sessionDraft: input.sessionDraft,
-    games: input.games ?? [],
+    games: input.games,
   };
 }
 

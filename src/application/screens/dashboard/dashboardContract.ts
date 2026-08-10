@@ -1,4 +1,4 @@
-import type { Session } from '@shared/types';
+import type { Game, Session } from '@shared/types';
 import type { SessionDraft } from '@logic/sessionDraft';
 import type { ScreenContract } from '../screenContract';
 import type { DashboardModel } from './dashboardModel';
@@ -7,6 +7,7 @@ import type { DashboardIntent } from './dashboardIntents';
 export interface DashboardContractInput {
   activeSession: Session | null;
   sessionDraft: SessionDraft | null;
+  games?: Game[];
   onNewSession: () => void;
   onResumeSession: () => void;
   onResumeDraft: (draft: SessionDraft) => void;
@@ -23,6 +24,7 @@ function buildModel(input: DashboardContractInput): DashboardModel {
   return {
     activeSession: input.activeSession,
     sessionDraft: input.sessionDraft,
+    games: input.games ?? [],
   };
 }
 

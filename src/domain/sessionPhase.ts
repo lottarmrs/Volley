@@ -58,3 +58,13 @@ export function phasePermissions(phase: OperationalPhase): PhasePermissions {
       return NENHUMA;
   }
 }
+
+export const PHASE_LABEL: Record<OperationalPhase, string> = {
+  rascunho: 'Rascunho',
+  times_gerados: 'Times Prontos',
+  pronta: 'Pronta para Começar',
+  entre_partidas: 'Entre Partidas',
+  em_andamento: 'Partida em Andamento',
+  pausada: 'Pausada',
+  encerrada: 'Encerrada',
+};

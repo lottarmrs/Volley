@@ -68,6 +68,7 @@ import { buildSessionWizardContract } from './application/screens/sessionWizard/
 import { buildSessionActiveViewContract } from './application/screens/sessionActiveView/sessionActiveViewContract';
 import { buildPlayerEditViewContract } from './application/screens/playerEditView/playerEditViewContract';
 import { buildDashboardContract } from './application/screens/dashboard/dashboardContract';
+import { derivePhase, PHASE_LABEL } from '@domain/sessionPhase';
 import { buildCommunitiesViewContract } from './application/screens/communitiesView/communitiesViewContract';
 import { buildPlayersViewContract } from './application/screens/playersView/playersViewContract';
 import { buildHistoryViewContract } from './application/screens/historyView/historyViewContract';
@@ -178,6 +179,7 @@ export default function App() {
   const communityRules = useCommunityRules();
   const whatsAppLists = useWhatsAppListTemplates();
   const championships = useChampionships();
+  const operationalPhase = derivePhase(sess.activeSession, sess.games);
 
   // Mount-memo: device id é idempotente e stable per-install; 1× por mount.
   const [currentDeviceId] = useState(getOrCreateDeviceId);
@@ -712,6 +714,7 @@ export default function App() {
             contract={buildDashboardContract({
               activeSession: sess.activeSession,
               sessionDraft,
+              games: sess.games,
               onNewSession: () => {
                 const result = buildManualSessionStartResult({
                   now: new Date(),
@@ -1093,10 +1096,10 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            {sess.activeSession?.status === 'active' && (
+            {operationalPhase !== 'rascunho' && operationalPhase !== 'encerrada' && (
               <div className="badge badge-success badge-soft gap-1.5 sm:gap-2 px-2 sm:px-3 py-3 font-black uppercase text-[9px] tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                <span className="hidden sm:inline">Partida em Andamento</span>
+                <span className="hidden sm:inline">{PHASE_LABEL[operationalPhase]}</span>
               </div>
             )}
 

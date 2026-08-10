@@ -270,8 +270,8 @@ Substitui a decisão local de cada tela pela função da Task 1. É onde os defe
 - [ ] **Step 1: Localizar os pontos que leem status cru**
 
 ```bash
-npx grep -rn "Partida em Andamento\|PARTIDA EM ANDAMENTO" src/
-npx grep -rn "status === 'active'" src/App.tsx src/components/live src/components/dashboard
+git grep -n "Partida em Andamento" -- src/
+git grep -n "status === 'active'" -- src/App.tsx src/components/live src/components/dashboard
 ```
 
 Anotar cada ocorrência. São esses os pontos que a etapa seguinte troca.
@@ -763,7 +763,7 @@ Esperado: 4 testes passando.
 - [ ] **Step 6: Corrigir o truncamento do MVP no Histórico**
 
 ```bash
-npx grep -rn "MVP DA NOITE\|mvp" src/components/history/HistoryView.tsx
+git grep -n -i "mvp" -- src/components/history/HistoryView.tsx
 ```
 
 No card de MVP, o nome é cortado no primeiro espaço. Trocar o corte por `mvpName` inteiro, deixando o CSS truncar visualmente com `truncate` se necessário — o dado não deve ser cortado.

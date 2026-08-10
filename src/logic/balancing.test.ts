@@ -818,3 +818,49 @@ test('balanceTeams distribui todos os selecionados mesmo sem avaliacao', () => {
     assert.equal(findRosterDivergence(d, ids), null);
   }
 });
+
+test('balanceTeams nao descarta atleta com genero e posicao nulos (jogador recem-criado)', () => {
+  const FLAT: Attributes = {
+    ataque: 5,
+    defesa: 5,
+    saque: 5,
+    recepcao: 5,
+    levantamento: 5,
+    bloqueio: 5,
+    velocidade: 5,
+    resistencia: 5,
+    leituraDeJogo: 5,
+    regularidade: 5,
+    controleEmocional: 5,
+  };
+
+  const semGeneroEPosicao = Array.from({ length: 2 }, (_, i) => ({
+    id: 'nulo' + i,
+    nome: 'Nulo' + i,
+    genero: null,
+    posicaoPrincipal: null,
+    atributos: {},
+    perfil: {},
+    status: {},
+    formaAtual: {},
+  })) as unknown as Player[];
+
+  const convidados = Array.from({ length: 7 }, (_, i) => ({
+    id: 'conv' + i,
+    nome: 'Conv' + i,
+    genero: 'M',
+    posicaoPrincipal: 'ponteiro',
+    atributos: FLAT,
+    perfil: {},
+    status: { lesionado: false },
+    formaAtual: { valor: 0 },
+  })) as unknown as Player[];
+
+  const roster = [...semGeneroEPosicao, ...convidados];
+  const ids = roster.map((p) => p.id);
+
+  const divisions = balanceTeams(roster, 3, 's1');
+  for (const d of divisions) {
+    assert.equal(findRosterDivergence(d, ids), null, JSON.stringify(findRosterDivergence(d, ids)));
+  }
+});

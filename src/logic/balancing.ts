@@ -701,18 +701,33 @@ export class InitialTeamBuilder {
       (a) => a.position !== 'levantador' && !a.secondaryPositions?.includes('levantador'),
     );
 
-    const remainingPrimarySettersFemales = remainingPrimarySetters.filter((a) => a.gender === 'F');
-    const remainingPrimarySettersMales = remainingPrimarySetters.filter((a) => a.gender === 'M');
+    // Um atleta sem genero declarado (null, ex: conta recem-criada) nao entra
+    // na cota de F nem de M — mas ainda precisa ser colocado em algum time.
+    // O split abaixo particiona em 3 grupos (nao 2), garantindo que a uniao
+    // sempre cubra o array de entrada, independente do genero.
+    const byGender = (list: AthleteVector[]) => ({
+      females: list.filter((a) => a.gender === 'F'),
+      males: list.filter((a) => a.gender === 'M'),
+      unspecified: list.filter((a) => a.gender !== 'F' && a.gender !== 'M'),
+    });
 
-    const remainingSecondarySettersFemales = remainingSecondarySetters.filter(
-      (a) => a.gender === 'F',
-    );
-    const remainingSecondarySettersMales = remainingSecondarySetters.filter(
-      (a) => a.gender === 'M',
-    );
+    const {
+      females: remainingPrimarySettersFemales,
+      males: remainingPrimarySettersMales,
+      unspecified: remainingPrimarySettersUnspecified,
+    } = byGender(remainingPrimarySetters);
 
-    const remainingOthersFemales = remainingOthers.filter((a) => a.gender === 'F');
-    const remainingOthersMales = remainingOthers.filter((a) => a.gender === 'M');
+    const {
+      females: remainingSecondarySettersFemales,
+      males: remainingSecondarySettersMales,
+      unspecified: remainingSecondarySettersUnspecified,
+    } = byGender(remainingSecondarySetters);
+
+    const {
+      females: remainingOthersFemales,
+      males: remainingOthersMales,
+      unspecified: remainingOthersUnspecified,
+    } = byGender(remainingOthers);
 
     const totalFemales = athletes.filter((a) => a.gender === 'F').length;
     const expectedFemalesPerTeam = calculateGenderDistribution(totalFemales, this.numTeams);
@@ -804,17 +819,20 @@ export class InitialTeamBuilder {
       teams[bestIdx].push(athlete);
     };
 
-    // Place primary setters (females then males)
+    // Place primary setters (females then males then genero nao informado)
     remainingPrimarySettersFemales.forEach((f) => placeSetterGreedy(f, true));
     remainingPrimarySettersMales.forEach((m) => placeSetterGreedy(m, true));
+    remainingPrimarySettersUnspecified.forEach((u) => placeSetterGreedy(u, true));
 
-    // Place secondary setters (females then males)
+    // Place secondary setters (females then males then genero nao informado)
     remainingSecondarySettersFemales.forEach((f) => placeSetterGreedy(f, false));
     remainingSecondarySettersMales.forEach((m) => placeSetterGreedy(m, false));
+    remainingSecondarySettersUnspecified.forEach((u) => placeSetterGreedy(u, false));
 
-    // Place others (females then males)
+    // Place others (females then males then genero nao informado)
     remainingOthersFemales.forEach((f) => placeGreedy(f, true));
     remainingOthersMales.forEach((m) => placeGreedy(m, false));
+    remainingOthersUnspecified.forEach((u) => placeGreedy(u, false));
 
     return { teams };
   }

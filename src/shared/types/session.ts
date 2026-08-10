@@ -539,6 +539,7 @@ export interface AthleteVector {
   secondaryPositions?: string[];
   isInjured: boolean;
   currentForm: number;
+  isEstimated: boolean;
 }
 
 export interface TeamMetrics {

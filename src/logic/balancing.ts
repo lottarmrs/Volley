@@ -15,6 +15,7 @@ import {
   RoleComposition,
   RotationType,
   Position,
+  Attributes,
 } from '../types';
 import {
   calculateGenderDistribution,
@@ -112,36 +113,105 @@ export const GENDER_WEIGHT_FLOOR = 0.6;
 
 // ─── Player Mapping & Technical Vectors ──────────────────────────────────────
 
-export function mapPlayerToAthleteVector(p: Player, sessionPosition?: Position): AthleteVector {
+const ATTRIBUTE_KEYS = [
+  'ataque',
+  'defesa',
+  'saque',
+  'recepcao',
+  'levantamento',
+  'bloqueio',
+  'velocidade',
+  'resistencia',
+  'leituraDeJogo',
+  'regularidade',
+  'controleEmocional',
+] as const;
+
+const MID_SCALE = 5;
+
+export function computeAttributeFallback(players: Player[]): Attributes {
+  const fallback = {} as Attributes;
+  for (const key of ATTRIBUTE_KEYS) {
+    const valores = players
+      .map((p) => p.atributos?.[key])
+      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    fallback[key] = valores.length
+      ? valores.reduce((a, b) => a + b, 0) / valores.length
+      : MID_SCALE;
+  }
+  return fallback;
+}
+
+function hasAnyAttribute(p: Player): boolean {
+  return ATTRIBUTE_KEYS.some((k) => typeof p.atributos?.[k] === 'number');
+}
+
+export function mapPlayerToAthleteVector(
+  p: Player,
+  sessionPosition?: Position,
+  fallback?: Attributes,
+): AthleteVector {
   // Quando o atleta se disponibiliza para uma função diferente da principal,
   // avalia o overall pelos pesos daquela posição (geralmente mais baixo).
   // Sem override (ou jogando na própria posição), mantém o overall geral.
   const effectivePosition = sessionPosition ?? p.posicaoPrincipal;
-  const overall =
+  const rawOverall =
     sessionPosition && sessionPosition !== p.posicaoPrincipal
       ? calculatePositionOverall(p, sessionPosition)
       : calculateGeneralOverall(p);
+
+  const resolve = (key: (typeof ATTRIBUTE_KEYS)[number]) =>
+    p.atributos?.[key] ?? fallback?.[key] ?? MID_SCALE;
+
+  const attack = resolve('ataque');
+  const defense = resolve('defesa');
+  const serve = resolve('saque');
+  const reception = resolve('recepcao');
+  const setting = resolve('levantamento');
+  const block = resolve('bloqueio');
+  const speed = resolve('velocidade');
+  const stamina = resolve('resistencia');
+  const gameVision = resolve('leituraDeJogo');
+  const consistency = resolve('regularidade');
+  const emotionalControl = resolve('controleEmocional');
+
+  const overall = Number.isFinite(rawOverall)
+    ? rawOverall
+    : (attack +
+        defense +
+        serve +
+        reception +
+        setting +
+        block +
+        speed +
+        stamina +
+        gameVision +
+        consistency +
+        emotionalControl) /
+      ATTRIBUTE_KEYS.length;
+
   return {
     id: p.id,
     name: p.apelido || p.nome,
     overall,
-    attack: p.atributos.ataque,
-    defense: p.atributos.defesa,
-    serve: p.atributos.saque,
-    reception: p.atributos.recepcao,
-    setting: p.atributos.levantamento,
-    block: p.atributos.bloqueio,
-    speed: p.atributos.velocidade,
-    stamina: p.atributos.resistencia,
-    gameVision: p.atributos.leituraDeJogo,
-    consistency: p.atributos.regularidade,
-    emotionalControl: p.atributos.controleEmocional,
+    attack,
+    defense,
+    serve,
+    reception,
+    setting,
+    block,
+    speed,
+    stamina,
+    gameVision,
+    consistency,
+    emotionalControl,
     heightCm: p.alturaCm ?? null,
     gender: p.genero,
     position: effectivePosition,
     secondaryPositions: p.posicoesSecundarias || [],
     isInjured: p.status.lesionado,
     currentForm: p.formaAtual.valor,
+    isEstimated: !hasAnyAttribute(p),
   };
 }
 
@@ -1343,6 +1413,19 @@ export function selectPortfolio(candidates: Division[], k = 3, minDistance = 2):
   return chosen;
 }
 
+export function findRosterDivergence(
+  division: Division,
+  selectedPlayerIds: string[],
+): { missing: string[]; duplicated: string[] } | null {
+  const vistos = new Map<string, number>();
+  for (const team of division.teams) {
+    for (const id of team.playerIds) vistos.set(id, (vistos.get(id) ?? 0) + 1);
+  }
+  const missing = selectedPlayerIds.filter((id) => !vistos.has(id));
+  const duplicated = [...vistos.entries()].filter(([, n]) => n > 1).map(([id]) => id);
+  return missing.length || duplicated.length ? { missing, duplicated } : null;
+}
+
 // ─── Entry Point Wrapper ─────────────────────────────────────────────────────
 
 export const balanceTeams = (
@@ -1366,7 +1449,10 @@ export const balanceTeams = (
 
   // Map players to vectors, respeitando posições escolhidas para a sessão.
   const positionOverrides = config?.playerPositions ?? {};
-  const athletes = players.map((p) => mapPlayerToAthleteVector(p, positionOverrides[p.id]));
+  const attributeFallback = computeAttributeFallback(players);
+  const athletes = players.map((p) =>
+    mapPlayerToAthleteVector(p, positionOverrides[p.id], attributeFallback),
+  );
 
   const totalFemales = athletes.filter((a) => a.gender === 'F').length;
   const totalMales = athletes.filter((a) => a.gender === 'M').length;

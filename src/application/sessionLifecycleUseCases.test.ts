@@ -1482,3 +1482,16 @@ test('buildRosterIntegrityIssues devolve vazio quando a divisao cobre a selecao'
   ] as unknown as Player[];
   assert.deepEqual(buildRosterIntegrityIssues(division, ['a', 'b'], players), []);
 });
+
+test('buildRosterIntegrityIssues nomeia o atleta que caiu em mais de um time', () => {
+  const division = {
+    teams: [{ playerIds: ['a', 'b'] }, { playerIds: ['b'] }],
+  } as unknown as Division;
+  const players = [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Bia' },
+  ] as unknown as Player[];
+  const issues = buildRosterIntegrityIssues(division, ['a', 'b'], players);
+  assert.equal(issues.length, 1);
+  assert.ok(issues[0].includes('Bia'));
+});

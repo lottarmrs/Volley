@@ -1760,12 +1760,12 @@ export function SessionWizard({ contract }: SessionWizardProps) {
           activeSession?.selectedPlayerIds ?? [],
           players,
         );
-        const estimatedCount = currentDiv.teams
-          .flatMap((t) => t.playerIds)
-          .filter((id) => {
+        const estimatedCount = [...new Set(currentDiv.teams.flatMap((t) => t.playerIds))].filter(
+          (id) => {
             const player = players.find((p) => p.id === id);
             return player ? isPlayerEstimated(player) : false;
-          }).length;
+          },
+        ).length;
 
         return (
           <div className="space-y-6">
@@ -2085,6 +2085,34 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               ))}
             </div>
 
+            {rosterIssues.length > 0 && (
+              <div className="space-y-2">
+                {rosterIssues.map((issue, i) => (
+                  <div
+                    key={i}
+                    role="alert"
+                    className="alert alert-error alert-soft p-2 items-start"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
+                      {issue}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {estimatedCount > 0 && (
+              <div className="space-y-2">
+                <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
+                    {estimatedCount} atleta(s) entraram com avaliação estimada pela média da turma.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {currentDiv.diagnostics && (
               <div className="card card-border bg-base-200">
                 <div className="card-body p-6 space-y-6">
@@ -2285,35 +2313,6 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                       </div>
                     </div>
                   </div>
-
-                  {rosterIssues.length > 0 && (
-                    <div className="space-y-2 pt-4 border-t border-base-300">
-                      {rosterIssues.map((issue, i) => (
-                        <div
-                          key={i}
-                          role="alert"
-                          className="alert alert-error alert-soft p-2 items-start"
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
-                            {issue}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {estimatedCount > 0 && (
-                    <div className="space-y-2 pt-4 border-t border-base-300">
-                      <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
-                          {estimatedCount} atleta(s) entraram com avaliação estimada pela média da
-                          turma.
-                        </span>
-                      </div>
-                    </div>
-                  )}
 
                   {currentDiv.explanation && currentDiv.explanation.length > 0 && (
                     <div className="space-y-2 pt-4 border-t border-base-300">

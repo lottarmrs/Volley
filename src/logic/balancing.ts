@@ -146,6 +146,10 @@ function hasAnyAttribute(p: Player): boolean {
   return ATTRIBUTE_KEYS.some((k) => typeof p.atributos?.[k] === 'number');
 }
 
+export function isPlayerEstimated(p: Player): boolean {
+  return !hasAnyAttribute(p);
+}
+
 export function mapPlayerToAthleteVector(
   p: Player,
   sessionPosition?: Position,

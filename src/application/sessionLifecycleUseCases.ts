@@ -13,7 +13,7 @@ import type {
   TournamentConfig,
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
-import { balanceTeams } from '../logic/balancing';
+import { balanceTeams, findRosterDivergence } from '../logic/balancing';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
   addPlayerPairConstraint,
@@ -535,6 +535,26 @@ export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan 
       input.partnershipMatrix,
     ),
   };
+}
+
+export function buildRosterIntegrityIssues(
+  division: Division,
+  selectedPlayerIds: string[],
+  players: Player[],
+): string[] {
+  const divergence = findRosterDivergence(division, selectedPlayerIds);
+  if (!divergence) return [];
+  const nome = (id: string) => players.find((p) => p.id === id)?.nome ?? id;
+  const issues: string[] = [];
+  if (divergence.missing.length) {
+    issues.push(
+      `${divergence.missing.length} atleta(s) selecionado(s) ficaram fora dos times: ${divergence.missing.map(nome).join(', ')}.`,
+    );
+  }
+  if (divergence.duplicated.length) {
+    issues.push(`Atleta(s) em mais de um time: ${divergence.duplicated.map(nome).join(', ')}.`);
+  }
+  return issues;
 }
 
 export function buildDivisionGenerationResult(input: {

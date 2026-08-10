@@ -42,6 +42,7 @@ import {
   buildWizardCancelResult,
   buildWizardCancelRequestResult,
   buildWizardCancelApplicationResult,
+  buildRosterIntegrityIssues,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
@@ -50,7 +51,9 @@ import {
 import type {
   Community,
   CommunityRules,
+  Division,
   GameReport,
+  Player,
   PointEvent,
   SessionReport,
   TournamentConfig,
@@ -1457,4 +1460,25 @@ test('buildFinishedSessionResult marks active session finished and builds update
   assert.equal(result.updatedPlayers[0].id, 'player-1');
   assert.equal(result.updatedReports.length, 1);
   assert.equal(result.updatedReports[0].sessionId, 'session-1');
+});
+
+test('buildRosterIntegrityIssues nomeia o atleta que ficou fora dos times', () => {
+  const division = { teams: [{ playerIds: ['a'] }, { playerIds: ['b'] }] } as unknown as Division;
+  const players = [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Bia' },
+    { id: 'c', nome: 'Caio' },
+  ] as unknown as Player[];
+  const issues = buildRosterIntegrityIssues(division, ['a', 'b', 'c'], players);
+  assert.equal(issues.length, 1);
+  assert.ok(issues[0].includes('Caio'));
+});
+
+test('buildRosterIntegrityIssues devolve vazio quando a divisao cobre a selecao', () => {
+  const division = { teams: [{ playerIds: ['a', 'b'] }] } as unknown as Division;
+  const players = [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Bia' },
+  ] as unknown as Player[];
+  assert.deepEqual(buildRosterIntegrityIssues(division, ['a', 'b'], players), []);
 });

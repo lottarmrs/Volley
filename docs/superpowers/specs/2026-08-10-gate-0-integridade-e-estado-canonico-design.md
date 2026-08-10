@@ -56,8 +56,22 @@ estados: é que cada tela decide sozinha o que exibir a partir do `status` cru. 
 **Relatórios.** Torneio com três jogos finalizados (`2×1`, `12×0` W.O., `0×12` W.O.). A
 classificação final conta os três corretamente. O Histórico do mesmo torneio diz
 `TOTAL DE JOGOS: 1` e `PONTOS MARCADOS: 3` — 24 pontos somem — enquanto, logo abaixo, mostra cada
-time com dois jogos disputados. Causa em `reports.ts:232-233`: `totalGames` conta `gameReports` e
-`totalPoints` conta eventos; W.O. não gera nenhum dos dois.
+time com dois jogos disputados.
+
+**Sintoma confirmado, causa em aberto.** A hipótese inicial — "W.O. não gera `gameReport` nem
+eventos" — foi verificada e **não se sustenta**: `isResultGame` (`tournament.ts:300`) aceita
+`finished` e `walkover`, e `generateGameReport` (`reports.ts:29`) não descarta jogo algum, usando
+até times de fallback quando não encontra. Os três jogos deveriam ter virado report.
+
+`totalPoints: sessionPoints.length` (`reports.ts:233`) explica metade do problema: conta eventos de
+ponto, e os `3` observados são exatamente os 3 eventos do jogo disputado — os 24 pontos dos dois
+W.O. não têm evento. Isso é defeito real e independente da causa do `totalGames`.
+
+O `totalGames: 1` (`reports.ts:232`) permanece sem causa determinada. Candidatos não descartados:
+`sessionGames` desatualizado no momento de `finishSession`
+(`sessionLifecycleUseCases.ts:1052-1058`), ou os jogos de W.O. saindo com `sessionId` que não bate
+no filtro. **A primeira tarefa do plano é um teste de caracterização que reproduza o número errado**
+— a causa sai do teste, não de palpite.
 
 ## 3. Decisões tomadas
 
@@ -143,13 +157,18 @@ distribuídos e o `DESEQUILIBRADA — 137 pts` com dispersões `0.0` deixa de oc
 
 ### 5.3 Relatórios
 
-`buildSessionReport` (`src/logic/reports.ts`) passa a derivar dos jogos, não dos subprodutos:
+`generateSessionReport` (`src/logic/reports.ts:123`) passa a derivar dos jogos, não dos subprodutos:
 
-- `totalGames` = jogos com `status` em `finished` ou `walkover`; `cancelled` fica de fora, porque um
-  jogo cancelado não foi disputado;
+- `totalGames` = jogos com `status` em `finished` ou `walkover`, contados a partir de `sessionGames`
+  diretamente — não do comprimento de `gameReports`; `cancelled` fica de fora, porque um jogo
+  cancelado não foi disputado;
 - `totalPoints` = soma de `scoreA + scoreB` desses jogos;
 - campo novo `gamesByWalkover` = jogos com `status === 'walkover'`, para o Histórico poder dizer
   "3 jogos, 2 por W.O.".
+
+Contar direto de `sessionGames` torna o resultado correto **independentemente** da causa ainda não
+determinada do `totalGames: 1` — se o problema for lista desatualizada na chamada, o teste de
+caracterização vai expor isso e a correção entra na mesma tarefa.
 
 `createWalkoverResult` (`tournament.ts:304-320`) já grava `status: 'walkover'`, `finishReason:
 'walkover'` e o placar `pointsPerGame × 0` — o dado necessário existe e está correto. O relatório

@@ -1757,7 +1757,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
         const currentDiv = bestDivisions[selectedDivisionIndex];
         const rosterIssues = buildRosterIntegrityIssues(
           currentDiv,
-          activeSession?.selectedPlayerIds ?? [],
+          selectedPlayers.map((p) => p.id),
           players,
         );
         const estimatedCount = [...new Set(currentDiv.teams.flatMap((t) => t.playerIds))].filter(

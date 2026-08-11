@@ -462,6 +462,12 @@ linhas) + tipos (157) + **257 linhas de teste**, sem nenhum consumidor em `main`
 implementado e fechado: `sessionOwnershipUseCases.ts`, `SessionOwnershipNotice.tsx`,
 `sessionOwnershipCloudService.ts`. Abordagens diferentes para o mesmo problema; a segunda venceu.
 
+**`worktree-reposicionar-export-import`** (1 commit, 04/08) — descartado por decisão do usuário em
+2026-08-11. Commit `3e94b16` `refactor(settings): gate export/import behind offline mode, drop
+orphan Dashboard props`, que existia **apenas no disco local** (sem remoto, fora de `main`).
+Tocava `src/App.tsx` (64 linhas) e `Dashboard.tsx` — exatamente a área que a Fase 3 vai reescrever,
+o que motivou o descarte em vez do merge. Recuperável pelo reflog enquanto ele durar.
+
 **Pergunta em aberto, herdada desta análise:** `src/infra/outbox/` **não existe em `main`**, mas a
 linha do Plano 4 no programa mestre diz "e o outbox" como escopo restaurado e concluído. Ou o
 outbox vive noutro caminho, ou aquela linha está otimista. Vale confirmar um dia — não bloqueia

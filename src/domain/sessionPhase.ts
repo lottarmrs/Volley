@@ -47,7 +47,7 @@ export function phasePermissions(phase: OperationalPhase): PhasePermissions {
   switch (phase) {
     case 'pronta':
     case 'entre_partidas':
-      return { ...NENHUMA, podeIniciar: true, podeEncerrar: true };
+      return { ...NENHUMA, podeIniciar: true, podePausar: true, podeEncerrar: true };
     case 'em_andamento':
       return { ...NENHUMA, podePausar: true, podeEncerrar: true, podePontuar: true };
     case 'pausada':

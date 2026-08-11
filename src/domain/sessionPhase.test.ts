@@ -83,9 +83,17 @@ test('pausada nao permite iniciar', () => {
   assert.equal(p.podePontuar, false);
 });
 
-test('pronta permite iniciar mas nao pontuar', () => {
+test('pronta permite iniciar e pausar mas nao pontuar', () => {
   const p = phasePermissions('pronta');
   assert.equal(p.podeIniciar, true);
+  assert.equal(p.podePausar, true);
+  assert.equal(p.podePontuar, false);
+});
+
+test('entre_partidas tambem permite pausar', () => {
+  const p = phasePermissions('entre_partidas');
+  assert.equal(p.podeIniciar, true);
+  assert.equal(p.podePausar, true);
   assert.equal(p.podePontuar, false);
 });
 

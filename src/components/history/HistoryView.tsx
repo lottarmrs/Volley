@@ -217,7 +217,12 @@ function SessionList({
             <div className="text-right hidden sm:block">
               <p className="text-[8px] font-black text-text-muted uppercase">Partidas</p>
               <p className="text-lg font-black font-mono text-white">
-                {games.filter((g) => g.sessionId === s.id && g.status === 'finished').length}
+                {
+                  games.filter(
+                    (g) =>
+                      g.sessionId === s.id && (g.status === 'finished' || g.status === 'walkover'),
+                  ).length
+                }
               </p>
             </div>
             <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors" />
@@ -248,7 +253,12 @@ function GlobalStats({
     [sessions],
   );
   const registeredGames = useMemo(
-    () => games.filter((g) => g.status === 'finished' && finishedSessionIds.has(g.sessionId)),
+    () =>
+      games.filter(
+        (g) =>
+          (g.status === 'finished' || g.status === 'walkover') &&
+          finishedSessionIds.has(g.sessionId),
+      ),
     [games, finishedSessionIds],
   );
   const registeredGameIds = useMemo(
@@ -889,11 +899,15 @@ function SessionDetailView({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-black/20 rounded-xl border border-white/5">
                 <div>
                   <p className="text-[8px] font-black uppercase text-text-muted">Total de Jogos</p>
-                  <p className="text-sm font-black text-white font-mono">{sessionGames.length}</p>
+                  <p className="text-sm font-black text-white font-mono">
+                    {resolvedReport.totalGames}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[8px] font-black uppercase text-text-muted">Total de Pontos</p>
-                  <p className="text-sm font-black text-white font-mono">{sessPoints.length}</p>
+                  <p className="text-sm font-black text-white font-mono">
+                    {resolvedReport.totalPoints}
+                  </p>
                 </div>
                 <div className="sm:col-span-2 border-t border-white/5 pt-2">
                   <p className="text-[8px] font-black uppercase text-text-muted">Maior Placar</p>

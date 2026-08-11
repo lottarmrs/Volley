@@ -100,4 +100,70 @@ describe('HistoryView', () => {
 
     expect(screen.getByText(/Top Artilheiros/i)).toBeTruthy();
   });
+
+  it('counts W.O. games and points in both the quick stats and Resumo do Torneio cards', () => {
+    const tournamentSession: Session = {
+      ...finishedSession,
+      id: 'session-tournament',
+      type: 'tournament',
+    };
+    const games: Game[] = [
+      {
+        ...finishedGame,
+        id: 'game-normal',
+        sessionId: 'session-tournament',
+        sequenceNumber: 1,
+        scoreA: 2,
+        scoreB: 1,
+        status: 'finished',
+        pointIds: [],
+      },
+      {
+        ...finishedGame,
+        id: 'game-wo-1',
+        sessionId: 'session-tournament',
+        sequenceNumber: 2,
+        scoreA: 12,
+        scoreB: 0,
+        status: 'walkover',
+        finishReason: 'walkover',
+        pointIds: [],
+      },
+      {
+        ...finishedGame,
+        id: 'game-wo-2',
+        sessionId: 'session-tournament',
+        sequenceNumber: 3,
+        scoreA: 0,
+        scoreB: 12,
+        winnerTeamId: 'team-2',
+        loserTeamId: 'team-1',
+        status: 'walkover',
+        finishReason: 'walkover',
+        pointIds: [],
+      },
+    ];
+    const tournamentTeams = teams.map((t) => ({ ...t, sessionId: 'session-tournament' }));
+
+    renderHistoryView({
+      sessions: [tournamentSession],
+      games,
+      pointEvents: [],
+      teams: tournamentTeams,
+      sessionReports: [],
+      selectedHistorySessionId: 'session-tournament',
+    });
+
+    const totalGamesLabels = screen.getAllByText('Total de Jogos');
+    expect(totalGamesLabels).toHaveLength(2);
+    totalGamesLabels.forEach((label) => {
+      expect(label.nextElementSibling?.textContent).toBe('3');
+    });
+
+    const quickStatsPoints = screen.getByText('Pontos Marcados');
+    expect(quickStatsPoints.nextElementSibling?.textContent).toBe('27');
+
+    const resumoPoints = screen.getByText('Total de Pontos');
+    expect(resumoPoints.nextElementSibling?.textContent).toBe('27');
+  });
 });

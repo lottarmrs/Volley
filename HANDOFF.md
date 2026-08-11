@@ -468,6 +468,21 @@ orphan Dashboard props`, que existia **apenas no disco local** (sem remoto, fora
 Tocava `src/App.tsx` (64 linhas) e `Dashboard.tsx` — exatamente a área que a Fase 3 vai reescrever,
 o que motivou o descarte em vez do merge. Recuperável pelo reflog enquanto ele durar.
 
+**`backup/main-before-pr11-sync-20260630`** — **mantido de propósito, só local.** É uma foto de
+`main` de 29–30/06, anterior à reorganização de diretórios (`src/services/` → `src/infra/`,
+`src/components/common/` → `src/ui/common/`). Quase tudo tem equivalente em `main` sob o caminho
+novo, **exceto** três módulos de domínio que não existem lá com nome nenhum:
+`src/domain/playerLink.ts`, `src/domain/permissions.ts` e `src/hooks/usePlayerLinkProposals.ts`
+(funções `canDirectlyLinkPlayer`, `buildPlayerLinkProposal`, `supersedePendingProposalsForLink`).
+
+A funcionalidade **existe** em `main`, sob outra arquitetura — `communityPlayerSearchUseCases.ts`,
+`communityPlayerCloudService.ts`, e as permissões em `communityMembersViewModel.ts` /
+`playerEditViewModel.ts`. O domínio foi reescrito na migração para `ScreenContract`, não perdido.
+
+**O que não foi verificado:** ninguém comparou linha a linha as regras de negócio do
+`playerLink.ts` de junho com a reescrita atual. Se alguma regra caiu na tradução, esse branch é a
+única cópia. É por isso que ele fica. Custa nada sendo local; apagar é irreversível.
+
 **Pergunta em aberto, herdada desta análise:** `src/infra/outbox/` **não existe em `main`**, mas a
 linha do Plano 4 no programa mestre diz "e o outbox" como escopo restaurado e concluído. Ou o
 outbox vive noutro caminho, ou aquela linha está otimista. Vale confirmar um dia — não bloqueia

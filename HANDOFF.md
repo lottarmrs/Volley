@@ -26,13 +26,21 @@
 
 - Fase 2 (Screen Contracts) concluída em 2026-08-04; Fase 1 (reset + cutover) em 2026-08-03.
 
-### Divergência a resolver antes do plano
+### Agenda — decidido em 2026-08-11: `/agenda` global
 
-A auditoria de 2026-08-09/10 gerou uma crítica nova (11/40) e, num brainstorming posterior, a
-Agenda foi discutida como **primeiro bloco do Início, sem item próprio na sidebar**. A spec da
-Fase 3 acima decide o oposto: `/agenda` como **rota global**, e trata isso como a resolução do
-P0-1 daquela crítica de agosto. As duas não convivem — decidir qual governa antes de escrever o
-plano de implementação.
+Num brainstorming de 2026-08-11, a Agenda chegou a ser discutida como "primeiro bloco do Início,
+sem item próprio na sidebar". **Essa direção foi descartada.** Vale a spec da Fase 3: `/agenda`
+como **rota global**.
+
+O argumento contra a rota global era que um item de sidebar chamado Agenda apontando para `/`
+competiria com Início no mesmo destino. Isso valia para a spec de julho, em que Agenda não tinha
+rota própria — a spec revisada resolve dando a ela `/agenda` de verdade, e a competição deixa de
+existir.
+
+Além disso, a §12 da spec base (`2026-07-22-scalable-product-restructure-design.md`, linha 289)
+lista Agenda entre as quatro áreas globais aprovadas — Início, Comunidades, Agenda, Meu perfil.
+Rebaixá-la foi justamente o P0-1 da crítica de 2026-08-05. **Não reabrir sem decisão explícita de
+produto.**
 
 ## Pós-Spike A1 (Plano 5 — gate de infra da Fase 3)
 
@@ -79,14 +87,20 @@ Gate 0. O que ela deixou aberto e ainda não é da Fase 3 está registrado em
 ## 2. Estado do repositório
 
 - Workspace: `C:\Users\Matheus Silva\antigravity\Volley`
-- Branch: `worktree-plano-5-pre-fase-2`
-- HEAD: `8e30c80`
-- Servidor local: **parado**; porta 3000 estava livre na gravação deste handoff.
+- Branch de trabalho: `worktree-plano-5-fase-3-navegacao`
+- `main` em `98d712a` (spike A1, PR #20), logo após `f2ce974` (Gate 0, PR #21).
+- Servidor local: **parado**; porta 3000 livre.
 - Fase 1 do Plano 5: reset/cutover concluído em 2026-08-03.
 - Fase 2 do Plano 5: 9/9 telas migradas para `ScreenContract<Model, Intent>` e gate fechado.
-- Fase 3: **não iniciada**. A crítica obrigatória foi executada, mas revelou bloqueios adicionais.
+- Gate 0 (integridade e estado canônico): concluído em 2026-08-11.
+- Spike A1 (`SessionContext` na raiz): concluído e mergeado.
+- Fase 3: **não iniciada**, mas desbloqueada — spec de design pronta, próximo passo é
+  `superpowers:writing-plans`.
 - `App.tsx` ainda é o shell monolítico e usa `activeModule` + `page` +
   `renderActiveContent()`; os módulos autenticados continuam em `/`.
+- **Nenhum PR aberto.** #19 foi fechado sem merge em 2026-08-11 (duplicata: seu conteúdo já
+  estava em `main` via #18 e #20, e as linhas exclusivas dele eram código pré-Gate-0 que o merge
+  teria revertido).
 
 ### Working tree
 

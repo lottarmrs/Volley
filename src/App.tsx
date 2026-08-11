@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 import { usePlayers } from './hooks/usePlayers';
-import { useSessions } from './hooks/useSessions';
+import { useSession } from './ui/common/useSession';
 import { useSessionWizard } from './hooks/useSessionWizard';
 import { useCommunities } from './hooks/useCommunities';
 import { useCommunityPresence } from './hooks/useCommunityPresence';
@@ -172,7 +172,7 @@ export default function App() {
 
   // ── Domain hooks ──────────────────────────────────────────────────────────
 
-  const sess = useSessions();
+  const sess = useSession();
   const play = usePlayers(sess.games, sess.pointEvents, sess.teams);
   const comm = useCommunities();
   const communityPresence = useCommunityPresence();

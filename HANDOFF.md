@@ -1,17 +1,80 @@
 # HANDOFF — Panelinha / Plano 5 Fase 3
 
-> Atualizado em **2026-08-09 21:18 BRT**, durante a auditoria das superfícies internas de sessão e
-> torneio. Este é o ponto de retomada canônico se o limite da conversa acabar.
+> Atualizado em **2026-08-11**, ao integrar o spike A1 e a spec da Fase 3 com o Gate 0 já
+> mergeado. Este é o ponto de retomada canônico se o limite da conversa acabar.
 
 ## 1. Objetivo em andamento
 
-Preparar a **Fase 3 — navegação centrada em comunidade** somente depois de uma auditoria visual e
-funcional completa do produto atual. O usuário pediu explicitamente que a auditoria também percorra
-as superfícies internas de uma sessão e de um torneio, inclusive estados que só aparecem após
-iniciar partidas, registrar pontos ou concluir fixtures.
+- Produto: app React + Vite local-first para vôlei amador, com sync opcional via Supabase.
+- Prioridade atual do framework: Produto Escalável, depois Experiência.
+- Foco imediato: Plano 5 — **Fase 3 (Nova Navegação)**. As duas pré-condições estão satisfeitas:
 
-Nenhuma refatoração da Fase 3 deve começar enquanto esta auditoria complementar e as decisões de
-produto resultantes não estiverem fechadas.
+  1. **Gate 0 — integridade e estado canônico** (PR #21, mergeado em 2026-08-11). Fechou os três
+     P0 da auditoria: sync apagando registros locais, atletas descartados pelo balanceador
+     (causa real: `genero: null`) e estado operacional contraditório. Entregou
+     `src/domain/sessionPhase.ts`, a fonte única que a nova navegação deve ler.
+     Spec e plano em `docs/superpowers/`.
+  2. **Spike A1 — `SessionContext` na raiz** (PR #20, este branch). Sem ele a árvore remonta ao
+     navegar por rotas URL e a sessão ativa se perde. Detalhe na seção Pós-Spike A1 abaixo.
+
+- **A spec de design da Fase 3 está pronta**, em
+  `docs/superpowers/specs/2026-08-06-plano-5-fase-3-nova-navegacao-revisao-design.md`: árvore de
+  rotas, mapeamento Modules→rotas, estratégia de migração (router-in-parallel + cutover único) e
+  as mudanças no input do `ScreenContract` (`setPage` → `navigate`). Ela responde ao
+  `impeccable critique` de 2026-08-05 (24/40, 3 P0s) e substitui a §6 da spec de julho onde
+  conflitar. **Próximo passo é `superpowers:writing-plans`, não novo brainstorming.**
+
+- Fase 2 (Screen Contracts) concluída em 2026-08-04; Fase 1 (reset + cutover) em 2026-08-03.
+
+### Divergência a resolver antes do plano
+
+A auditoria de 2026-08-09/10 gerou uma crítica nova (11/40) e, num brainstorming posterior, a
+Agenda foi discutida como **primeiro bloco do Início, sem item próprio na sidebar**. A spec da
+Fase 3 acima decide o oposto: `/agenda` como **rota global**, e trata isso como a resolução do
+P0-1 daquela crítica de agosto. As duas não convivem — decidir qual governa antes de escrever o
+plano de implementação.
+
+## Pós-Spike A1 (Plano 5 — gate de infra da Fase 3)
+
+Pré-requisito da Fase 3 (Nova Navegação) satisfeito em **2026-08-05**. O estado da sessão
+ativa (`activeSession`/`games`/`pointEvents`/`gameReports`/`teams`/`sessions`/`sessionReports`)
+vivia em `useSessions()` chamado no `App.tsx` (ho local do shell). Hoje `App.tsx` nunca
+desmonta (`AppRouter` é `/*` catch-all), então o state sobrevive; mas na Fase 3 (rotas URL
+react-router v7) a árvore remonta ao navegar e perderia placar/sorteio/heartbeat sem um
+contexto acima de `<App/>`.
+
+- **Spike A1 (escopo completo, escolhido pelo usuário):** extrai `SessionContext` que detém o
+  state de `useSessions()` e o eleva à raiz (`main.tsx`), acima de `<AppRouter/>`. Padrão
+  espelhado em Toast (PR #16): Context + hook consumer no mesmo `use*.ts`, Provider one-liner
+  que injeta o store externo — sem reimplementar `useSessions` (já persiste/normaliza/limpa
+  órfãos/propaga knockout).
+- **Arquivos:** `src/ui/common/useSession.ts` (Context + `SessionContextValue` + `useSession()`
+  com guard PT-BR), `src/ui/common/SessionProvider.tsx` (Provider one-liner),
+  `src/main.tsx` (`<SessionProvider>` dentro de `<ToastProvider>` envolvendo `<AppRouter/>`),
+  `src/App.tsx` (`useSessions()` → `useSession()`, nome `sess` preservado, ~120 refs intocadas),
+  `src/app/AppRouter.spec.tsx` (harness envolve `<AppRouter/>` em `<SessionProvider>`).
+- **Gate de infra Fase 2 intacto:** views e o novo contexto não importam `@storage`/`@infra`.
+- **Verificação:** `lint` (tsc --noEmit) + `test:unit` (699) + `test:ui` (136) + `build` verdes.
+- **Prova do gate A1:** Provider acima de `<App/>` detém o state — desmontar/remontar `<App/>`
+  (rotas URL Fase 3, StrictMode double-mount, HMR) não destrói a sessão ativa.
+- **Não toca em rotas URL (Fase 3);** views continuam via `ScreenContract` (Fase 2 preservada).
+  `useCloudSync` sem redesign: `CloudSyncDeps` inalterada, só a origem dos setters.
+- **Estado:** spike A1 fechado. O `impeccable critique` exigido pelo §6.9 foi rodado em
+  2026-08-05 (24/40) e respondido pela spec da Fase 3.
+
+> Os números de verificação acima (`test:unit` 699 / `test:ui` 136) são do momento do spike, em
+> 2026-08-05. Depois do Gate 0 a suíte está em 734 / 139.
+
+## 1.1 Auditoria do produto — concluída
+
+A Fase 3 estava condicionada a uma auditoria visual e funcional completa do produto, incluindo as
+superfícies internas de sessão e de torneio — estados que só aparecem depois de iniciar partidas,
+registrar pontos e concluir fixtures.
+
+**Essa auditoria foi concluída** (seções 8 e 9 desta página: 18/18 e 20/21, com o único item
+faltante não aplicável ao formato usado). Os bloqueadores que ela levantou estão fechados pelo
+Gate 0. O que ela deixou aberto e ainda não é da Fase 3 está registrado em
+`.impeccable/audit/2026-08-09-full-product/pass-c/report.md`.
 
 ## 2. Estado do repositório
 

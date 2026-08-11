@@ -457,8 +457,8 @@ em `main`:
 
 **`feat/plan4-session-control`** (2 commits, 29/07) — descartado. `sessionOperations.ts` (105
 linhas) + tipos (157) + **257 linhas de teste**, sem nenhum consumidor em `main`. Modelava
-*operações causais* (`deriveEffectiveOperations`, `validateOperationDependency`,
-`projectSessionOperations`). O produto seguiu por outro modelo — *posse e heartbeat* — que foi
+_operações causais_ (`deriveEffectiveOperations`, `validateOperationDependency`,
+`projectSessionOperations`). O produto seguiu por outro modelo — _posse e heartbeat_ — que foi
 implementado e fechado: `sessionOwnershipUseCases.ts`, `SessionOwnershipNotice.tsx`,
 `sessionOwnershipCloudService.ts`. Abordagens diferentes para o mesmo problema; a segunda venceu.
 

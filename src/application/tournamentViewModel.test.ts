@@ -8,26 +8,30 @@ import {
 import { makeGame, makeSession, makeTeam } from '../test/fixtures';
 import type { SessionReport } from '../types';
 
-test('getTournamentStatusView maps product labels and classes', () => {
-  assert.deepEqual(getTournamentStatusView('active'), {
-    label: 'Ativo',
+test('getTournamentStatusView usa a fase operacional para rotulo e classe', () => {
+  assert.deepEqual(getTournamentStatusView(makeSession('t1', { status: 'active' }), []), {
+    label: 'Pronta para Começar',
     className: 'bg-success-muted text-success',
   });
-  assert.deepEqual(getTournamentStatusView('finished'), {
-    label: 'Finalizado',
+  assert.deepEqual(getTournamentStatusView(makeSession('t2', { status: 'finished' }), []), {
+    label: 'Encerrada',
     className: 'bg-primary/15 text-primary',
   });
-  assert.deepEqual(getTournamentStatusView('teams_generated'), {
-    label: 'Pronto',
+  assert.deepEqual(getTournamentStatusView(makeSession('t3', { status: 'teams_generated' }), []), {
+    label: 'Times Prontos',
     className: 'bg-success/15 text-success',
   });
-  assert.deepEqual(getTournamentStatusView('draft'), {
+  assert.deepEqual(getTournamentStatusView(makeSession('t4', { status: 'draft' }), []), {
     label: 'Rascunho',
     className: 'bg-surface-strong text-text-muted',
   });
+  assert.deepEqual(getTournamentStatusView(makeSession('t5', { status: 'paused' }), []), {
+    label: 'Pausada',
+    className: 'bg-warning/15 text-warning',
+  });
 });
 
-test('buildTournamentCardViewModel counts finished games and resolves champion', () => {
+test('buildTournamentCardViewModel conta finished e walkover, exclui cancelled', () => {
   const tournament = makeSession('tournament-1', {
     type: 'tournament',
     status: 'finished',
@@ -43,21 +47,23 @@ test('buildTournamentCardViewModel counts finished games and resolves champion',
     tournament,
     games: [
       makeGame('game-1', 'tournament-1', { status: 'finished' }),
-      makeGame('game-2', 'tournament-1', { status: 'active' }),
-      makeGame('game-3', 'other-session', { status: 'finished' }),
+      makeGame('game-2', 'tournament-1', { status: 'walkover' }),
+      makeGame('game-3', 'tournament-1', { status: 'cancelled' }),
+      makeGame('game-4', 'tournament-1', { status: 'active' }),
+      makeGame('game-5', 'other-session', { status: 'finished' }),
     ],
     teams: [team],
     sessionReports: [report],
   });
 
-  assert.equal(card.finishedGames, 1);
+  assert.equal(card.finishedGames, 2);
   assert.equal(card.dateLabel, '17/07/2026');
   assert.equal(card.winnerName, 'Time Azul');
-  assert.equal(card.status.label, 'Finalizado');
+  assert.equal(card.status.label, 'Encerrada');
   assert.equal(card.shouldOpenLive, false);
 });
 
-test('buildTournamentCardViewModel opens live for active or ready tournaments only', () => {
+test('buildTournamentCardViewModel abre ao vivo para qualquer fase entre rascunho e encerrada', () => {
   assert.equal(
     buildTournamentCardViewModel({
       tournament: makeSession('tournament-1', { type: 'tournament', status: 'active' }),
@@ -75,6 +81,24 @@ test('buildTournamentCardViewModel opens live for active or ready tournaments on
       sessionReports: [],
     }).shouldOpenLive,
     true,
+  );
+  assert.equal(
+    buildTournamentCardViewModel({
+      tournament: makeSession('tournament-3', { type: 'tournament', status: 'paused' }),
+      games: [],
+      teams: [],
+      sessionReports: [],
+    }).shouldOpenLive,
+    true,
+  );
+  assert.equal(
+    buildTournamentCardViewModel({
+      tournament: makeSession('tournament-4', { type: 'tournament', status: 'draft' }),
+      games: [],
+      teams: [],
+      sessionReports: [],
+    }).shouldOpenLive,
+    false,
   );
 });
 

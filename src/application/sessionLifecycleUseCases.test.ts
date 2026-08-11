@@ -42,6 +42,7 @@ import {
   buildWizardCancelResult,
   buildWizardCancelRequestResult,
   buildWizardCancelApplicationResult,
+  buildRosterIntegrityIssues,
   removeOrphanedSessionData,
   buildTournamentConfigFromCommunityRules,
   selectSessionTeams,
@@ -50,7 +51,9 @@ import {
 import type {
   Community,
   CommunityRules,
+  Division,
   GameReport,
+  Player,
   PointEvent,
   SessionReport,
   TournamentConfig,
@@ -1457,4 +1460,131 @@ test('buildFinishedSessionResult marks active session finished and builds update
   assert.equal(result.updatedPlayers[0].id, 'player-1');
   assert.equal(result.updatedReports.length, 1);
   assert.equal(result.updatedReports[0].sessionId, 'session-1');
+});
+
+test('buildFinishedSessionResult monta o relatorio com todos os jogos da sessao, inclusive W.O.', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'active',
+    type: 'tournament',
+    teamIds: ['team-1', 'team-2'],
+  });
+  const teams = [makeTeam('team-1', 'session-1', []), makeTeam('team-2', 'session-1', [])];
+  const games = [
+    makeGame('game-1', 'session-1', {
+      status: 'finished',
+      teamAId: 'team-1',
+      teamBId: 'team-2',
+      scoreA: 2,
+      scoreB: 1,
+      winnerTeamId: 'team-1',
+      sequenceNumber: 1,
+    }),
+    makeGame('game-2', 'session-1', {
+      status: 'walkover',
+      teamAId: 'team-1',
+      teamBId: 'team-2',
+      scoreA: 12,
+      scoreB: 0,
+      winnerTeamId: 'team-1',
+      finishReason: 'walkover',
+      sequenceNumber: 2,
+    }),
+    makeGame('game-3', 'session-1', {
+      status: 'walkover',
+      teamAId: 'team-1',
+      teamBId: 'team-2',
+      scoreA: 0,
+      scoreB: 12,
+      winnerTeamId: 'team-2',
+      finishReason: 'walkover',
+      sequenceNumber: 3,
+    }),
+    makeGame('game-other-session', 'session-2', { status: 'finished' }),
+  ];
+
+  const result = buildFinishedSessionResult({
+    activeSession,
+    sessions: [activeSession],
+    games,
+    pointEvents: [],
+    teams,
+    players: [],
+    sessionReports: [],
+    finishedAt: '2026-08-10T15:00:00.000Z',
+  });
+
+  assert.equal(result.updatedReports[0].totalGames, 3);
+});
+
+test('buildFinishedSessionResult cancela jogos active/paused em vez de deixa-los orfaos', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'active',
+    teamIds: ['team-1', 'team-2'],
+  });
+  const teams = [makeTeam('team-1', 'session-1', []), makeTeam('team-2', 'session-1', [])];
+  const games = [
+    makeGame('game-1', 'session-1', { status: 'finished', scoreA: 12, scoreB: 2 }),
+    makeGame('game-2', 'session-1', { status: 'active', scoreA: 0, scoreB: 0 }),
+    makeGame('game-3', 'session-1', { status: 'paused', scoreA: 5, scoreB: 3 }),
+  ];
+
+  const result = buildFinishedSessionResult({
+    activeSession,
+    sessions: [activeSession],
+    games,
+    pointEvents: [],
+    teams,
+    players: [],
+    sessionReports: [],
+    finishedAt: '2026-08-10T12:00:00.000Z',
+  });
+
+  const abertos = result.sessionGames.filter((g) => g.status === 'active' || g.status === 'paused');
+  assert.deepEqual(abertos, []);
+
+  const cancelado = result.sessionGames.find((g) => g.id === 'game-2');
+  assert.equal(cancelado?.status, 'cancelled');
+  assert.equal(cancelado?.finishedAt, '2026-08-10T12:00:00.000Z');
+
+  const outroCancelado = result.sessionGames.find((g) => g.id === 'game-3');
+  assert.equal(outroCancelado?.status, 'cancelled');
+
+  const jogoDisputado = result.sessionGames.find((g) => g.id === 'game-1');
+  assert.equal(jogoDisputado?.status, 'finished');
+
+  assert.equal(result.report.totalGames, 1);
+});
+
+test('buildRosterIntegrityIssues nomeia o atleta que ficou fora dos times', () => {
+  const division = { teams: [{ playerIds: ['a'] }, { playerIds: ['b'] }] } as unknown as Division;
+  const players = [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Bia' },
+    { id: 'c', nome: 'Caio' },
+  ] as unknown as Player[];
+  const issues = buildRosterIntegrityIssues(division, ['a', 'b', 'c'], players);
+  assert.equal(issues.length, 1);
+  assert.ok(issues[0].includes('Caio'));
+});
+
+test('buildRosterIntegrityIssues devolve vazio quando a divisao cobre a selecao', () => {
+  const division = { teams: [{ playerIds: ['a', 'b'] }] } as unknown as Division;
+  const players = [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Bia' },
+  ] as unknown as Player[];
+  assert.deepEqual(buildRosterIntegrityIssues(division, ['a', 'b'], players), []);
+});
+
+test('buildRosterIntegrityIssues nomeia o atleta que caiu em mais de um time', () => {
+  const division = {
+    teams: [{ playerIds: ['a', 'b'] }, { playerIds: ['b'] }],
+  } as unknown as Division;
+  const players = [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Bia' },
+  ] as unknown as Player[];
+  const issues = buildRosterIntegrityIssues(division, ['a', 'b'], players);
+  assert.equal(issues.length, 1);
+  assert.ok(issues[0].includes('Bia'));
 });

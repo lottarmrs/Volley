@@ -13,7 +13,7 @@ import type {
   TournamentConfig,
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
-import { balanceTeams } from '../logic/balancing';
+import { balanceTeams, findRosterDivergence } from '../logic/balancing';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
   addPlayerPairConstraint,
@@ -537,6 +537,26 @@ export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan 
   };
 }
 
+export function buildRosterIntegrityIssues(
+  division: Division,
+  selectedPlayerIds: string[],
+  players: Player[],
+): string[] {
+  const divergence = findRosterDivergence(division, selectedPlayerIds);
+  if (!divergence) return [];
+  const nome = (id: string) => players.find((p) => p.id === id)?.nome ?? id;
+  const issues: string[] = [];
+  if (divergence.missing.length) {
+    issues.push(
+      `${divergence.missing.length} atleta(s) selecionado(s) ficaram fora dos times: ${divergence.missing.map(nome).join(', ')}.`,
+    );
+  }
+  if (divergence.duplicated.length) {
+    issues.push(`Atleta(s) em mais de um time: ${divergence.duplicated.map(nome).join(', ')}.`);
+  }
+  return issues;
+}
+
 export function buildDivisionGenerationResult(input: {
   divisions: Division[];
   advanceStep: boolean;
@@ -1025,7 +1045,13 @@ export function buildFinishedSessionResult(input: {
   const sessionPoints = input.pointEvents.filter(
     (point) => point.sessionId === input.activeSession.id,
   );
-  const sessionGames = input.games.filter((game) => game.sessionId === input.activeSession.id);
+  const sessionGames = input.games
+    .filter((game) => game.sessionId === input.activeSession.id)
+    .map((game) =>
+      game.status === 'active' || game.status === 'paused'
+        ? { ...game, status: 'cancelled' as const, finishedAt: input.finishedAt }
+        : game,
+    );
   const sessionTeams = input.teams.filter((team) => team.sessionId === input.activeSession.id);
   const participantIds = new Set(sessionTeams.flatMap((team) => team.playerIds));
   const participants = input.players.filter((player) => participantIds.has(player.id));
@@ -1060,6 +1086,9 @@ export function buildFinishedSessionResult(input: {
     session.id === finishedSession.id ? finishedSession : session,
   );
   const updatedReports = [...input.sessionReports, report];
+  const updatedGames = input.games.map(
+    (game) => sessionGames.find((resolved) => resolved.id === game.id) ?? game,
+  );
 
   return {
     sessionPoints,
@@ -1071,5 +1100,6 @@ export function buildFinishedSessionResult(input: {
     report,
     updatedSessions,
     updatedReports,
+    updatedGames,
   };
 }

@@ -433,6 +433,7 @@ test('report, presence and draft mappers preserve JSON payloads', () => {
     rules: { maxPoints: 15, tieBreakMethod: 'win_by_2' },
     totalGames: 1,
     totalPoints: 27,
+    gamesByWalkover: 0,
     teamStandings: [],
     playerRanking: [],
     games: [gameReport],

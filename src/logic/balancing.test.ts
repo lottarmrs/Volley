@@ -10,6 +10,8 @@ import {
   selectPortfolio,
   ObjectiveScorer,
   recalculateDivisionDiagnostics,
+  computeAttributeFallback,
+  findRosterDivergence,
 } from './balancing';
 import { QUALITY } from './balancingConstants';
 import { Attributes, FreePlayConfig, Player, Position, Division, BalanceWeights } from '../types';
@@ -246,6 +248,7 @@ test('solutionDistance correctly calculates the number of players that changed t
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p2 = {
     id: '2',
@@ -267,6 +270,7 @@ test('solutionDistance correctly calculates the number of players that changed t
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p3 = {
     id: '3',
@@ -288,6 +292,7 @@ test('solutionDistance correctly calculates the number of players that changed t
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p4 = {
     id: '4',
@@ -309,6 +314,7 @@ test('solutionDistance correctly calculates the number of players that changed t
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
 
   const solA = {
@@ -364,6 +370,7 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p2 = {
     id: '2',
@@ -385,6 +392,7 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p3 = {
     id: '3',
@@ -406,6 +414,7 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p4 = {
     id: '4',
@@ -427,6 +436,7 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
 
   const solA = {
@@ -485,6 +495,7 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p2 = {
     id: '2',
@@ -506,6 +517,7 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p3 = {
     id: '3',
@@ -527,6 +539,7 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
   const p4 = {
     id: '4',
@@ -548,6 +561,7 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     position: 'ponteiro',
     isInjured: false,
     currentForm: 5,
+    isEstimated: false,
   };
 
   const sol = {
@@ -683,4 +697,170 @@ test('recalculateDivisionDiagnostics correctly updates diagnostics and snapshots
   // Verify that team strengthSnapshot is recalculated
   assert.equal(updated.teams[0].strengthSnapshot.attack, 6); // (8 + 4) / 2
   assert.equal(updated.teams[1].strengthSnapshot.attack, 4); // (6 + 2) / 2
+});
+
+test('computeAttributeFallback usa media por atributo apenas dos avaliados', () => {
+  const avaliados = [
+    { atributos: { ataque: 4, defesa: 6 } },
+    { atributos: { ataque: 8, defesa: 2 } },
+    { atributos: {} },
+  ] as unknown as Player[];
+  const fb = computeAttributeFallback(avaliados);
+  assert.equal(fb.ataque, 6);
+  assert.equal(fb.defesa, 4);
+});
+
+test('computeAttributeFallback cai no meio da escala quando ninguem foi avaliado', () => {
+  const fb = computeAttributeFallback([{ atributos: {} }] as unknown as Player[]);
+  assert.equal(fb.ataque, 5);
+});
+
+test('atleta sem atributos nao produz NaN no vetor e e marcado como estimado', () => {
+  const fallback = computeAttributeFallback([
+    {
+      atributos: {
+        ataque: 6,
+        defesa: 6,
+        saque: 6,
+        recepcao: 6,
+        levantamento: 6,
+        bloqueio: 6,
+        velocidade: 6,
+        resistencia: 6,
+        leituraDeJogo: 6,
+        regularidade: 6,
+        controleEmocional: 6,
+      },
+    },
+  ] as unknown as Player[]);
+  const semAvaliacao = {
+    id: 'p1',
+    nome: 'Sem dados',
+    atributos: {},
+    formaAtual: {},
+    status: {},
+    perfil: {},
+  } as unknown as Player;
+  const v = mapPlayerToAthleteVector(semAvaliacao, undefined, fallback);
+  assert.equal(v.isEstimated, true);
+  for (const k of [
+    'overall',
+    'attack',
+    'defense',
+    'serve',
+    'reception',
+    'setting',
+    'block',
+    'speed',
+    'stamina',
+    'gameVision',
+    'consistency',
+    'emotionalControl',
+  ] as const) {
+    assert.ok(Number.isFinite(v[k]), `${k} deveria ser finito, veio ${v[k]}`);
+  }
+});
+
+test('findRosterDivergence devolve null quando a uniao dos times cobre a selecao', () => {
+  const division = {
+    teams: [{ playerIds: ['a', 'b'] }, { playerIds: ['c'] }],
+  } as unknown as Division;
+  assert.equal(findRosterDivergence(division, ['a', 'b', 'c']), null);
+});
+
+test('findRosterDivergence nomeia quem ficou de fora', () => {
+  const division = {
+    teams: [{ playerIds: ['a'] }, { playerIds: ['b'] }],
+  } as unknown as Division;
+  assert.deepEqual(findRosterDivergence(division, ['a', 'b', 'c']), {
+    missing: ['c'],
+    duplicated: [],
+  });
+});
+
+test('findRosterDivergence acusa atleta em dois times', () => {
+  const division = {
+    teams: [{ playerIds: ['a', 'b'] }, { playerIds: ['b'] }],
+  } as unknown as Division;
+  assert.deepEqual(findRosterDivergence(division, ['a', 'b']), { missing: [], duplicated: ['b'] });
+});
+
+test('balanceTeams distribui todos os selecionados mesmo sem avaliacao', () => {
+  const players = Array.from({ length: 9 }, (_, i) => ({
+    id: 'p' + i,
+    nome: 'P' + i,
+    atributos:
+      i < 2
+        ? {}
+        : {
+            ataque: 5,
+            defesa: 5,
+            saque: 5,
+            recepcao: 5,
+            levantamento: 5,
+            bloqueio: 5,
+            velocidade: 5,
+            resistencia: 5,
+            leituraDeJogo: 5,
+            regularidade: 5,
+            controleEmocional: 5,
+          },
+    formaAtual: { valor: 0 },
+    status: { lesionado: false },
+    perfil: {},
+    posicaoPrincipal: 'ponteiro',
+    genero: 'M',
+  })) as unknown as Player[];
+
+  const divisions = balanceTeams(players, 3, 's1');
+  const ids = players.map((p) => p.id);
+  for (const d of divisions) {
+    assert.equal(findRosterDivergence(d, ids), null);
+  }
+});
+
+test('balanceTeams nao descarta atleta com genero e posicao nulos (jogador recem-criado)', () => {
+  const FLAT: Attributes = {
+    ataque: 5,
+    defesa: 5,
+    saque: 5,
+    recepcao: 5,
+    levantamento: 5,
+    bloqueio: 5,
+    velocidade: 5,
+    resistencia: 5,
+    leituraDeJogo: 5,
+    regularidade: 5,
+    controleEmocional: 5,
+  };
+
+  const semGeneroEPosicao = Array.from({ length: 2 }, (_, i) => ({
+    id: 'nulo' + i,
+    nome: 'Nulo' + i,
+    genero: null,
+    posicaoPrincipal: null,
+    atributos: {},
+    perfil: {},
+    status: {},
+    formaAtual: {},
+  })) as unknown as Player[];
+
+  const convidados = Array.from({ length: 7 }, (_, i) => ({
+    id: 'conv' + i,
+    nome: 'Conv' + i,
+    genero: 'M',
+    posicaoPrincipal: 'ponteiro',
+    atributos: FLAT,
+    perfil: {},
+    status: { lesionado: false },
+    formaAtual: { valor: 0 },
+  })) as unknown as Player[];
+
+  const roster = [...semGeneroEPosicao, ...convidados];
+  const ids = roster.map((p) => p.id);
+
+  const divisions = balanceTeams(roster, 3, 's1');
+  for (const d of divisions) {
+    assert.equal(findRosterDivergence(d, ids), null, JSON.stringify(findRosterDivergence(d, ids)));
+  }
 });

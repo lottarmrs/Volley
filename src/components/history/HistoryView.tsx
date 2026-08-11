@@ -56,6 +56,7 @@ import {
   getMostBalancedMatch,
   getLongestWinStreak,
   getFinalStandingsKnockout,
+  isResultGame,
 } from '../../logic/tournament';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 
@@ -527,7 +528,7 @@ function SessionDetailView({
     games.some((g) => g.id === p.gameId && g.sessionId === session.id),
   );
   const ranking = calculatePlayerScoringRanking(sessPoints);
-  const sessionGames = games.filter((g) => g.sessionId === session.id && g.status === 'finished');
+  const sessionGames = games.filter((g) => g.sessionId === session.id && isResultGame(g));
   const sessionTeams = teams.filter((t) => t.sessionId === session.id);
   const teamStats = calculateTeamSessionStats(sessionGames, session.teamIds);
 

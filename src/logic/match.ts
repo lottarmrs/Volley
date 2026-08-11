@@ -234,7 +234,9 @@ export function calculateTeamSessionStats(games: Game[], teamIds: string[]) {
   return teamIds
     .map((teamId) => {
       const finishedGames = games.filter(
-        (g) => g.status === 'finished' && (g.teamAId === teamId || g.teamBId === teamId),
+        (g) =>
+          (g.status === 'finished' || g.status === 'walkover') &&
+          (g.teamAId === teamId || g.teamBId === teamId),
       );
 
       const wins = finishedGames.filter((g) => g.winnerTeamId === teamId).length;

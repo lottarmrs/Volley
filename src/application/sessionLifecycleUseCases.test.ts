@@ -1462,6 +1462,60 @@ test('buildFinishedSessionResult marks active session finished and builds update
   assert.equal(result.updatedReports[0].sessionId, 'session-1');
 });
 
+test('buildFinishedSessionResult monta o relatorio com todos os jogos da sessao, inclusive W.O.', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'active',
+    type: 'tournament',
+    teamIds: ['team-1', 'team-2'],
+  });
+  const teams = [makeTeam('team-1', 'session-1', []), makeTeam('team-2', 'session-1', [])];
+  const games = [
+    makeGame('game-1', 'session-1', {
+      status: 'finished',
+      teamAId: 'team-1',
+      teamBId: 'team-2',
+      scoreA: 2,
+      scoreB: 1,
+      winnerTeamId: 'team-1',
+      sequenceNumber: 1,
+    }),
+    makeGame('game-2', 'session-1', {
+      status: 'walkover',
+      teamAId: 'team-1',
+      teamBId: 'team-2',
+      scoreA: 12,
+      scoreB: 0,
+      winnerTeamId: 'team-1',
+      finishReason: 'walkover',
+      sequenceNumber: 2,
+    }),
+    makeGame('game-3', 'session-1', {
+      status: 'walkover',
+      teamAId: 'team-1',
+      teamBId: 'team-2',
+      scoreA: 0,
+      scoreB: 12,
+      winnerTeamId: 'team-2',
+      finishReason: 'walkover',
+      sequenceNumber: 3,
+    }),
+    makeGame('game-other-session', 'session-2', { status: 'finished' }),
+  ];
+
+  const result = buildFinishedSessionResult({
+    activeSession,
+    sessions: [activeSession],
+    games,
+    pointEvents: [],
+    teams,
+    players: [],
+    sessionReports: [],
+    finishedAt: '2026-08-10T15:00:00.000Z',
+  });
+
+  assert.equal(result.updatedReports[0].totalGames, 3);
+});
+
 test('buildRosterIntegrityIssues nomeia o atleta que ficou fora dos times', () => {
   const division = { teams: [{ playerIds: ['a'] }, { playerIds: ['b'] }] } as unknown as Division;
   const players = [

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateGameReport } from './reports';
-import { Game, Player, PointEvent, Team } from '../types';
+import { generateGameReport, generateSessionReport } from './reports';
+import { Game, Player, PointEvent, Session, Team } from '../types';
 
 const game: Game = {
   id: 'game-1',
@@ -75,4 +75,108 @@ test('generateGameReport counts modern point taxonomy by skill', () => {
   assert.equal(playerStats.blocks, 1);
   assert.equal(playerStats.tips, 1);
   assert.equal(playerStats.counterAttacks, 1);
+});
+
+const tournamentSession = {
+  id: 's1',
+  name: 'Torneio',
+  date: '2026-08-10',
+  status: 'finished',
+  type: 'tournament',
+  selectedPlayerIds: [],
+  teamIds: ['t1', 't2'],
+} as unknown as Session;
+const tournamentTeams = [
+  { id: 't1', sessionId: 's1', name: 'Time 1', playerIds: [] },
+  { id: 't2', sessionId: 's1', name: 'Time 2', playerIds: [] },
+] as unknown as Team[];
+const noPlayers: Player[] = [];
+
+const tournamentGames = [
+  {
+    id: 'g1',
+    sessionId: 's1',
+    status: 'finished',
+    teamAId: 't1',
+    teamBId: 't2',
+    scoreA: 2,
+    scoreB: 1,
+    winnerTeamId: 't1',
+    sequenceNumber: 1,
+  },
+  {
+    id: 'g2',
+    sessionId: 's1',
+    status: 'walkover',
+    teamAId: 't1',
+    teamBId: 't2',
+    scoreA: 12,
+    scoreB: 0,
+    winnerTeamId: 't1',
+    finishReason: 'walkover',
+    sequenceNumber: 2,
+  },
+  {
+    id: 'g3',
+    sessionId: 's1',
+    status: 'walkover',
+    teamAId: 't1',
+    teamBId: 't2',
+    scoreA: 0,
+    scoreB: 12,
+    winnerTeamId: 't2',
+    finishReason: 'walkover',
+    sequenceNumber: 3,
+  },
+] as unknown as Game[];
+
+test('relatorio conta os tres jogos, inclusive os decididos por W.O.', () => {
+  const r = generateSessionReport(
+    tournamentSession,
+    tournamentGames,
+    [],
+    tournamentTeams,
+    noPlayers,
+  );
+  assert.equal(r.totalGames, 3);
+});
+
+test('relatorio soma os pontos dos jogos, nao os eventos registrados', () => {
+  const r = generateSessionReport(
+    tournamentSession,
+    tournamentGames,
+    [],
+    tournamentTeams,
+    noPlayers,
+  );
+  assert.equal(r.totalPoints, 27);
+});
+
+test('relatorio informa quantos jogos foram por W.O.', () => {
+  const r = generateSessionReport(
+    tournamentSession,
+    tournamentGames,
+    [],
+    tournamentTeams,
+    noPlayers,
+  );
+  assert.equal(r.gamesByWalkover, 2);
+});
+
+test('jogo cancelado nao entra na contagem', () => {
+  const comCancelado = [
+    ...tournamentGames,
+    {
+      id: 'g4',
+      sessionId: 's1',
+      status: 'cancelled',
+      teamAId: 't1',
+      teamBId: 't2',
+      scoreA: 0,
+      scoreB: 0,
+      sequenceNumber: 4,
+    },
+  ] as unknown as Game[];
+  const r = generateSessionReport(tournamentSession, comCancelado, [], tournamentTeams, noPlayers);
+  assert.equal(r.totalGames, 3);
 });

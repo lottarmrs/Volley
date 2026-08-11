@@ -641,13 +641,13 @@ function SessionDetailView({
         {/* Quick stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total de Jogos', val: sessionGames.length },
-            { label: 'Pontos Marcados', val: sessPoints.length },
+            { label: 'Total de Jogos', val: resolvedReport.totalGames },
+            { label: 'Pontos Marcados', val: resolvedReport.totalPoints },
             { label: 'Times Ativos', val: sessionTeams.length },
             {
               label: 'MVP da Noite',
               val: ranking[0]
-                ? players.find((x) => x.id === ranking[0].playerId)?.nome.split(' ')[0] || '---'
+                ? players.find((x) => x.id === ranking[0].playerId)?.nome || '---'
                 : '---',
             },
           ].map((st) => (
@@ -655,7 +655,7 @@ function SessionDetailView({
               <p className="text-[8px] font-black text-base-content/60 uppercase mb-1">
                 {st.label}
               </p>
-              <p className="text-lg font-black font-mono text-white">{st.val}</p>
+              <p className="text-lg font-black font-mono text-white truncate">{st.val}</p>
             </div>
           ))}
         </div>

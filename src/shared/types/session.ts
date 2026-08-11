@@ -83,6 +83,7 @@ export interface SessionReport {
   };
   totalGames: number;
   totalPoints: number;
+  gamesByWalkover: number;
   teamStandings: {
     teamId: string;
     teamName: string;

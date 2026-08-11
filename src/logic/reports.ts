@@ -127,6 +127,10 @@ export function generateSessionReport(
   sessionTeams: Team[],
   players: Player[],
 ): SessionReport {
+  const countedGames = sessionGames.filter(
+    (g) => g.status === 'finished' || g.status === 'walkover',
+  );
+
   const gameReports = sessionGames
     .filter(isResultGame)
     .sort((a, b) => (a.sequenceNumber || 0) - (b.sequenceNumber || 0))
@@ -229,8 +233,9 @@ export function generateSessionReport(
       maxConsecutiveGames:
         session.config?.type === 'free_play' ? session.config.maxConsecutiveGames : undefined,
     },
-    totalGames: gameReports.length,
-    totalPoints: sessionPoints.length,
+    totalGames: countedGames.length,
+    totalPoints: countedGames.reduce((sum, g) => sum + (g.scoreA ?? 0) + (g.scoreB ?? 0), 0),
+    gamesByWalkover: countedGames.filter((g) => g.status === 'walkover').length,
     teamStandings,
     playerRanking,
     games: gameReports,

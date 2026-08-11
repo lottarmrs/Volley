@@ -1516,6 +1516,45 @@ test('buildFinishedSessionResult monta o relatorio com todos os jogos da sessao,
   assert.equal(result.updatedReports[0].totalGames, 3);
 });
 
+test('buildFinishedSessionResult cancela jogos active/paused em vez de deixa-los orfaos', () => {
+  const activeSession = makeSession('session-1', {
+    status: 'active',
+    teamIds: ['team-1', 'team-2'],
+  });
+  const teams = [makeTeam('team-1', 'session-1', []), makeTeam('team-2', 'session-1', [])];
+  const games = [
+    makeGame('game-1', 'session-1', { status: 'finished', scoreA: 12, scoreB: 2 }),
+    makeGame('game-2', 'session-1', { status: 'active', scoreA: 0, scoreB: 0 }),
+    makeGame('game-3', 'session-1', { status: 'paused', scoreA: 5, scoreB: 3 }),
+  ];
+
+  const result = buildFinishedSessionResult({
+    activeSession,
+    sessions: [activeSession],
+    games,
+    pointEvents: [],
+    teams,
+    players: [],
+    sessionReports: [],
+    finishedAt: '2026-08-10T12:00:00.000Z',
+  });
+
+  const abertos = result.sessionGames.filter((g) => g.status === 'active' || g.status === 'paused');
+  assert.deepEqual(abertos, []);
+
+  const cancelado = result.sessionGames.find((g) => g.id === 'game-2');
+  assert.equal(cancelado?.status, 'cancelled');
+  assert.equal(cancelado?.finishedAt, '2026-08-10T12:00:00.000Z');
+
+  const outroCancelado = result.sessionGames.find((g) => g.id === 'game-3');
+  assert.equal(outroCancelado?.status, 'cancelled');
+
+  const jogoDisputado = result.sessionGames.find((g) => g.id === 'game-1');
+  assert.equal(jogoDisputado?.status, 'finished');
+
+  assert.equal(result.report.totalGames, 1);
+});
+
 test('buildRosterIntegrityIssues nomeia o atleta que ficou fora dos times', () => {
   const division = { teams: [{ playerIds: ['a'] }, { playerIds: ['b'] }] } as unknown as Division;
   const players = [

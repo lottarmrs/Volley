@@ -565,7 +565,7 @@ export default function App() {
       const buildCtxAfter = {
         sessions: result.updatedSessions,
         teams: sess.teams,
-        games: sess.games,
+        games: result.updatedGames,
         pointEvents: sess.pointEvents,
         players: result.updatedPlayers,
         sessionReports: result.updatedReports,
@@ -582,6 +582,7 @@ export default function App() {
       play.setPlayers(result.updatedPlayers);
       sess.setSessionReports(result.updatedReports);
       sess.setSessions(result.updatedSessions);
+      sess.setGames(result.updatedGames);
       sess.setActiveSession(null);
 
       // Trigger modal reveal queue if any

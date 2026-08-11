@@ -133,6 +133,8 @@ export function GuestPlayerModal({
       },
       isGuest: true,
       communityIds: defaultCommunityId ? [defaultCommunityId] : [],
+      syncStatus: 'local',
+      updatedAt: now,
     };
 
     onAddGuestPlayer(newGuest, editDetails);

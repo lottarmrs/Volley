@@ -47,6 +47,7 @@ import { PointModal } from './PointModal';
 import { HighlightFab } from './HighlightFab';
 import { getPointLabel } from '../../logic/match';
 import { PointReason, PointType, Skill, Fault } from '../../types';
+import { derivePhase, phasePermissions, PHASE_LABEL } from '@domain/sessionPhase';
 
 interface Props {
   activeSession: Session;
@@ -133,6 +134,8 @@ export const TournamentActiveView = ({
   const progress = getTournamentProgress(games, activeSession.id);
   const gamesByRound = groupGamesByRound(sessionGames);
   const isPaused = activeSession.status === 'paused';
+  const phase = derivePhase(activeSession, games);
+  const perms = phasePermissions(phase);
   const currentRound =
     currentGame?.round || sessionGames.find((g) => g.status === 'scheduled')?.round || 1;
   const mvp = calculateTournamentMVP(sessionPoints, sessionTeams, players, standings);
@@ -259,13 +262,15 @@ export const TournamentActiveView = ({
           </div>
         </div>
         {progress.isComplete ? (
-          <button
-            type="button"
-            onClick={onFinishSession}
-            className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase shrink-0"
-          >
-            Encerrar
-          </button>
+          perms.podeEncerrar && (
+            <button
+              type="button"
+              onClick={onFinishSession}
+              className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase shrink-0"
+            >
+              Encerrar
+            </button>
+          )
         ) : (
           <div className="flex gap-1.5 sm:gap-2 shrink-0">
             <button
@@ -275,29 +280,43 @@ export const TournamentActiveView = ({
             >
               Editar
             </button>
-            <button
-              type="button"
-              onClick={() => setTournamentPaused(!isPaused)}
-              className={`btn btn-xs font-bold uppercase ${isPaused ? 'btn-success btn-soft' : 'btn-outline'}`}
-            >
-              {isPaused ? <Play className="w-3 h-3 mr-1" /> : <Pause className="w-3 h-3 mr-1" />}
-              {isPaused ? 'Retomar' : 'Pausar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Deseja realmente encerrar o torneio antes de jogar todas as partidas? Os relatórios finais serão calculados com base nos jogos concluídos até o momento.',
-                  )
-                ) {
-                  onFinishSession();
-                }
-              }}
-              className="btn btn-accent btn-xs font-bold uppercase"
-            >
-              Encerrar
-            </button>
+            {perms.podePausar && (
+              <button
+                type="button"
+                onClick={() => setTournamentPaused(true)}
+                className="btn btn-xs font-bold uppercase btn-outline"
+              >
+                <Pause className="w-3 h-3 mr-1" />
+                Pausar
+              </button>
+            )}
+            {perms.podeRetomar && (
+              <button
+                type="button"
+                onClick={() => setTournamentPaused(false)}
+                className="btn btn-xs font-bold uppercase btn-success btn-soft"
+              >
+                <Play className="w-3 h-3 mr-1" />
+                Retomar
+              </button>
+            )}
+            {perms.podeEncerrar && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'Deseja realmente encerrar o torneio antes de jogar todas as partidas? Os relatórios finais serão calculados com base nos jogos concluídos até o momento.',
+                    )
+                  ) {
+                    onFinishSession();
+                  }
+                }}
+                className="btn btn-accent btn-xs font-bold uppercase"
+              >
+                Encerrar
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -318,7 +337,7 @@ export const TournamentActiveView = ({
             Status
           </div>
           <div className="stat-value text-base font-bold uppercase text-base-content">
-            {isPaused ? 'Pausado' : 'Em andamento'}
+            {PHASE_LABEL[phase]}
           </div>
         </div>
         <div className="stat">
@@ -573,7 +592,8 @@ export const TournamentActiveView = ({
           </div>
           <button
             onClick={() => startNextGame(setActiveSession)}
-            className="btn btn-primary px-8 uppercase tracking-widest"
+            disabled={!perms.podeIniciar}
+            className="btn btn-primary px-8 uppercase tracking-widest disabled:opacity-30"
           >
             Iniciar Torneio
           </button>

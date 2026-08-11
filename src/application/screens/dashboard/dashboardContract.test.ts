@@ -44,6 +44,7 @@ function makeInput(overrides: Partial<DashboardContractInput> = {}): DashboardCo
   return {
     activeSession: null,
     sessionDraft: null,
+    games: [],
     onNewSession: () => {},
     onResumeSession: () => {},
     onResumeDraft: () => {},

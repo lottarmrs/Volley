@@ -28,7 +28,9 @@ import {
   resolveComposition,
   mapPlayerToAthleteVector,
   recalculateDivisionDiagnostics,
+  isPlayerEstimated,
 } from '../../logic/balancing';
+import { buildRosterIntegrityIssues } from '../../application/sessionLifecycleUseCases';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
@@ -1753,6 +1755,17 @@ export function SessionWizard({ contract }: SessionWizardProps) {
         // Results
         if (bestDivisions.length === 0) return null;
         const currentDiv = bestDivisions[selectedDivisionIndex];
+        const rosterIssues = buildRosterIntegrityIssues(
+          currentDiv,
+          selectedPlayers.map((p) => p.id),
+          players,
+        );
+        const estimatedCount = [...new Set(currentDiv.teams.flatMap((t) => t.playerIds))].filter(
+          (id) => {
+            const player = players.find((p) => p.id === id);
+            return player ? isPlayerEstimated(player) : false;
+          },
+        ).length;
 
         return (
           <div className="space-y-6">
@@ -2072,6 +2085,34 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               ))}
             </div>
 
+            {rosterIssues.length > 0 && (
+              <div className="space-y-2">
+                {rosterIssues.map((issue, i) => (
+                  <div
+                    key={i}
+                    role="alert"
+                    className="alert alert-error alert-soft p-2 items-start"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
+                      {issue}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {estimatedCount > 0 && (
+              <div className="space-y-2">
+                <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
+                    {estimatedCount} atleta(s) entraram com avaliação estimada pela média da turma.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {currentDiv.diagnostics && (
               <div className="card card-border bg-base-200">
                 <div className="card-body p-6 space-y-6">
@@ -2322,6 +2363,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               </button>
               <button
                 onClick={() => dispatch({ kind: 'confirmDivision' })}
+                disabled={rosterIssues.length > 0}
                 className="btn btn-primary flex-[2]"
               >
                 Gerar tabela

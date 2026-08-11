@@ -3,6 +3,7 @@ import { Plus, History as HistoryIcon, Play, RotateCcw } from 'lucide-react';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { DashboardModel } from '@app/screens/dashboard/dashboardModel';
 import type { DashboardIntent } from '@app/screens/dashboard/dashboardIntents';
+import { derivePhase, PHASE_LABEL } from '@domain/sessionPhase';
 
 interface DashboardProps {
   contract: ScreenContract<DashboardModel, DashboardIntent>;
@@ -10,7 +11,9 @@ interface DashboardProps {
 
 export function Dashboard({ contract }: DashboardProps) {
   const { model, dispatch } = contract;
-  const { activeSession, sessionDraft } = model;
+  const { activeSession, sessionDraft, games } = model;
+  const phase = derivePhase(activeSession, games);
+  const mostrarCardAtivo = phase !== 'rascunho' && phase !== 'encerrada';
   return (
     <div className="space-y-8">
       {/* Welcome Banner */}
@@ -32,7 +35,7 @@ export function Dashboard({ contract }: DashboardProps) {
 
       {/* Active and Draft Sessions Alert */}
       <div className="grid grid-cols-1 gap-4">
-        {(activeSession?.status === 'active' || activeSession?.status === 'teams_generated') && (
+        {mostrarCardAtivo && activeSession && (
           <div className="alert alert-success alert-soft p-5 border border-success/30 flex flex-col sm:flex-row gap-4 items-center justify-between rounded-2xl">
             <div className="flex items-center gap-4">
               <div className="w-11 h-11 rounded-xl bg-success/15 flex items-center justify-center border border-success/20 shrink-0">
@@ -40,7 +43,7 @@ export function Dashboard({ contract }: DashboardProps) {
               </div>
               <div className="text-left">
                 <span className="badge badge-success badge-soft font-bold text-[8px] uppercase">
-                  {activeSession.status === 'active' ? 'Partida Ativa' : 'Pronta para Iniciar'}
+                  {PHASE_LABEL[phase]}
                 </span>
                 <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">
                   {activeSession.name}
@@ -67,39 +70,37 @@ export function Dashboard({ contract }: DashboardProps) {
           </div>
         )}
 
-        {sessionDraft &&
-          activeSession?.status !== 'active' &&
-          activeSession?.status !== 'teams_generated' && (
-            <div className="alert alert-warning alert-soft p-5 border border-warning/30 flex flex-col sm:flex-row gap-4 items-center justify-between rounded-2xl">
-              <div className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-xl bg-warning/15 flex items-center justify-center border border-warning/20 shrink-0">
-                  <RotateCcw className="w-5 h-5 text-warning" />
-                </div>
-                <div className="text-left">
-                  <span className="badge badge-neutral badge-soft text-[8px] font-bold uppercase">
-                    Rascunho Pendente
-                  </span>
-                  <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">
-                    {sessionDraft.session.name}
-                  </h2>
-                </div>
+        {sessionDraft && !mostrarCardAtivo && (
+          <div className="alert alert-warning alert-soft p-5 border border-warning/30 flex flex-col sm:flex-row gap-4 items-center justify-between rounded-2xl">
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-warning/15 flex items-center justify-center border border-warning/20 shrink-0">
+                <RotateCcw className="w-5 h-5 text-warning" />
               </div>
-              <div className="flex gap-2 w-full sm:w-auto justify-end">
-                <button
-                  onClick={() => dispatch({ kind: 'clearDraft' })}
-                  className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
-                >
-                  Descartar
-                </button>
-                <button
-                  onClick={() => dispatch({ kind: 'resumeDraft', draft: sessionDraft })}
-                  className="btn btn-warning btn-sm text-black font-bold flex-1 sm:flex-initial"
-                >
-                  Continuar
-                </button>
+              <div className="text-left">
+                <span className="badge badge-neutral badge-soft text-[8px] font-bold uppercase">
+                  Rascunho Pendente
+                </span>
+                <h2 className="text-sm font-bold uppercase tracking-tight text-white mt-1">
+                  {sessionDraft.session.name}
+                </h2>
               </div>
             </div>
-          )}
+            <div className="flex gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => dispatch({ kind: 'clearDraft' })}
+                className="btn btn-ghost btn-sm text-error hover:bg-error/10 flex-1 sm:flex-initial"
+              >
+                Descartar
+              </button>
+              <button
+                onClick={() => dispatch({ kind: 'resumeDraft', draft: sessionDraft })}
+                className="btn btn-warning btn-sm text-black font-bold flex-1 sm:flex-initial"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Administrative Options */}

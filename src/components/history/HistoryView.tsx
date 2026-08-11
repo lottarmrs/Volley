@@ -56,6 +56,7 @@ import {
   getMostBalancedMatch,
   getLongestWinStreak,
   getFinalStandingsKnockout,
+  isResultGame,
 } from '../../logic/tournament';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 
@@ -217,7 +218,12 @@ function SessionList({
             <div className="text-right hidden sm:block">
               <p className="text-[8px] font-black text-text-muted uppercase">Partidas</p>
               <p className="text-lg font-black font-mono text-white">
-                {games.filter((g) => g.sessionId === s.id && g.status === 'finished').length}
+                {
+                  games.filter(
+                    (g) =>
+                      g.sessionId === s.id && (g.status === 'finished' || g.status === 'walkover'),
+                  ).length
+                }
               </p>
             </div>
             <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-accent transition-colors" />
@@ -248,7 +254,12 @@ function GlobalStats({
     [sessions],
   );
   const registeredGames = useMemo(
-    () => games.filter((g) => g.status === 'finished' && finishedSessionIds.has(g.sessionId)),
+    () =>
+      games.filter(
+        (g) =>
+          (g.status === 'finished' || g.status === 'walkover') &&
+          finishedSessionIds.has(g.sessionId),
+      ),
     [games, finishedSessionIds],
   );
   const registeredGameIds = useMemo(
@@ -517,7 +528,7 @@ function SessionDetailView({
     games.some((g) => g.id === p.gameId && g.sessionId === session.id),
   );
   const ranking = calculatePlayerScoringRanking(sessPoints);
-  const sessionGames = games.filter((g) => g.sessionId === session.id && g.status === 'finished');
+  const sessionGames = games.filter((g) => g.sessionId === session.id && isResultGame(g));
   const sessionTeams = teams.filter((t) => t.sessionId === session.id);
   const teamStats = calculateTeamSessionStats(sessionGames, session.teamIds);
 
@@ -641,13 +652,13 @@ function SessionDetailView({
         {/* Quick stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total de Jogos', val: sessionGames.length },
-            { label: 'Pontos Marcados', val: sessPoints.length },
+            { label: 'Total de Jogos', val: resolvedReport.totalGames },
+            { label: 'Pontos Marcados', val: resolvedReport.totalPoints },
             { label: 'Times Ativos', val: sessionTeams.length },
             {
               label: 'MVP da Noite',
               val: ranking[0]
-                ? players.find((x) => x.id === ranking[0].playerId)?.nome.split(' ')[0] || '---'
+                ? players.find((x) => x.id === ranking[0].playerId)?.nome || '---'
                 : '---',
             },
           ].map((st) => (
@@ -655,7 +666,7 @@ function SessionDetailView({
               <p className="text-[8px] font-black text-base-content/60 uppercase mb-1">
                 {st.label}
               </p>
-              <p className="text-lg font-black font-mono text-white">{st.val}</p>
+              <p className="text-lg font-black font-mono text-white truncate">{st.val}</p>
             </div>
           ))}
         </div>
@@ -889,11 +900,15 @@ function SessionDetailView({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-black/20 rounded-xl border border-white/5">
                 <div>
                   <p className="text-[8px] font-black uppercase text-text-muted">Total de Jogos</p>
-                  <p className="text-sm font-black text-white font-mono">{sessionGames.length}</p>
+                  <p className="text-sm font-black text-white font-mono">
+                    {resolvedReport.totalGames}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[8px] font-black uppercase text-text-muted">Total de Pontos</p>
-                  <p className="text-sm font-black text-white font-mono">{sessPoints.length}</p>
+                  <p className="text-sm font-black text-white font-mono">
+                    {resolvedReport.totalPoints}
+                  </p>
                 </div>
                 <div className="sm:col-span-2 border-t border-white/5 pt-2">
                   <p className="text-[8px] font-black uppercase text-text-muted">Maior Placar</p>

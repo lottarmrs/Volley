@@ -83,6 +83,7 @@ export interface SessionReport {
   };
   totalGames: number;
   totalPoints: number;
+  gamesByWalkover: number;
   teamStandings: {
     teamId: string;
     teamName: string;
@@ -555,6 +556,7 @@ export interface AthleteVector {
   secondaryPositions?: string[];
   isInjured: boolean;
   currentForm: number;
+  isEstimated: boolean;
 }
 
 export interface TeamMetrics {

@@ -431,9 +431,47 @@ Não decidir até a evidência complementar estar pronta:
 5. Modelo único de transição `rascunho → pronto → partida em andamento → encerrado` para Jogo Livre
    e Torneio.
 
+## 13.1 Faxina de branches — 2026-08-11
+
+Todos os branches antigos foram analisados e removidos. Nenhum PR ficou aberto. Registro do que
+foi descartado **com análise**, para ninguém redescobrir e achar que encontrou trabalho perdido:
+
+**`codex/project-closeout`** (14 commits, 29/07) — descartado. Cada item tem substituto melhor
+em `main`:
+
+- `fix(security): make career totals view invoker-safe` — aplicaria `security_invoker = true`
+  na view `career_totals`, fazendo-a respeitar o RLS de `career_events`. **Contradiz decisão de
+  produto posterior:** o schema em `main` documenta que a view é global de propósito ("o card de
+  terceiros fica global e correto sem revelar em quais comunidades a pessoa joga"). Esse
+  comentário **não existe no branch** — a migration é anterior à decisão. Aplicá-la hoje
+  regrediria a feature.
+- `docs: formally close Plan 3` — o fechamento real está no programa mestre
+  (`| 3 | ... | Concluido (main, 2026-07-30) |`), com a nota de escopo. O
+  `plan3-closeout-2026-07-29.md` do branch é anterior e menos completo.
+- Spec e plano de `session-device-control-offline` (29/07, 252 + 730 linhas) — **sucedidos pelo
+  Plano 4** (`docs/superpowers/plans/2026-07-30-plano-4-offline-operacional.md`), que está em
+  `main` e consta como **concluído em 2026-07-31**.
+- `chore(deps)` react-router `^7.17.0` → `^8.3.0` — major bump que `main` não adotou.
+- `style: format prettier` — refeito melhor pelo PR #18 (`endOfLine: lf`).
+- `fix(migrations)` ×2 e `fix(career)` — pressupõem migrations que `main` nunca recebeu.
+
+**`feat/plan4-session-control`** (2 commits, 29/07) — descartado. `sessionOperations.ts` (105
+linhas) + tipos (157) + **257 linhas de teste**, sem nenhum consumidor em `main`. Modelava
+*operações causais* (`deriveEffectiveOperations`, `validateOperationDependency`,
+`projectSessionOperations`). O produto seguiu por outro modelo — *posse e heartbeat* — que foi
+implementado e fechado: `sessionOwnershipUseCases.ts`, `SessionOwnershipNotice.tsx`,
+`sessionOwnershipCloudService.ts`. Abordagens diferentes para o mesmo problema; a segunda venceu.
+
+**Pergunta em aberto, herdada desta análise:** `src/infra/outbox/` **não existe em `main`**, mas a
+linha do Plano 4 no programa mestre diz "e o outbox" como escopo restaurado e concluído. Ou o
+outbox vive noutro caminho, ou aquela linha está otimista. Vale confirmar um dia — não bloqueia
+a Fase 3.
+
 ## 14. Referências principais
 
-- Spec da Fase 3:
+- Spec de design da Fase 3 (a que vale):
+  `docs/superpowers/specs/2026-08-06-plano-5-fase-3-nova-navegacao-revisao-design.md`
+- Spec da Fase 3 (base de julho, substituída na §6 pela acima):
   `docs/superpowers/specs/2026-07-31-plano-5-screen-contracts-reset-navigation-design.md`
 - Plano mestre:
   `docs/superpowers/plans/2026-07-22-scalable-product-program.md`

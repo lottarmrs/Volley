@@ -94,13 +94,27 @@ Gate 0. O que ela deixou aberto e ainda não é da Fase 3 está registrado em
 - Fase 2 do Plano 5: 9/9 telas migradas para `ScreenContract<Model, Intent>` e gate fechado.
 - Gate 0 (integridade e estado canônico): concluído em 2026-08-11.
 - Spike A1 (`SessionContext` na raiz): concluído e mergeado.
-- Fase 3: **não iniciada**, mas desbloqueada — spec de design pronta, próximo passo é
-  `superpowers:writing-plans`.
+- Fase 3: **em execução**. Plano de implementação em
+  `docs/superpowers/plans/2026-08-12-plano-5-fase-3-nova-navegacao.md` (10 tarefas,
+  execução subagent-driven; progresso em `.superpowers/sdd/progress.md`).
 - `App.tsx` ainda é o shell monolítico e usa `activeModule` + `page` +
   `renderActiveContent()`; os módulos autenticados continuam em `/`.
 - **Nenhum PR aberto.** #19 foi fechado sem merge em 2026-08-11 (duplicata: seu conteúdo já
   estava em `main` via #18 e #20, e as linhas exclusivas dele eram código pré-Gate-0 que o merge
   teria revertido).
+
+### `src/App.tsx` está CONGELADO durante a Fase 3
+
+A Fase 3 usa router-in-parallel: o `AppRouter`/`App.tsx` atual serve produção enquanto o
+`AppRouterV7`/`AppShell.tsx` novo cresce atrás da flag (`VITE_NAV_V3` ou `?nav=v3`). Nessa
+janela as closures do shell (cloud sync, backup/import, `handleFinishSession`, helpers de
+campeonato) existem em **duas cópias**, e isso só é seguro porque a fonte antiga não muda.
+
+**Regra:** a Task 1 do plano é a última que edita `src/App.tsx`; da Task 2 à Task 9 o arquivo
+está congelado; a Task 10 o deleta. Defeito encontrado no `App.tsx` durante a janela se corrige
+no `AppShell`, **nunca nos dois**. Se uma correção no `App.tsx` for inevitável, ela vira tarefa
+própria que replica a mudança nas duas cópias no mesmo commit. Duplicação temporária é o preço
+escolhido pela spec §2 (rollback = um `git revert`); duplicação **divergente** é defeito.
 
 ### Working tree
 

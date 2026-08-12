@@ -62,6 +62,59 @@ test('inclui a sessão de hoje', () => {
   assert.equal(items.length, 1);
 });
 
+test('ignora sessão cuja comunidade não existe mais na lista', () => {
+  const items = buildAgendaItems({
+    today: '2026-08-12',
+    communities: [community],
+    sessions: [
+      session({ id: 's1', date: '2026-08-20' }),
+      session({ id: 's2', date: '2026-08-21', communityId: 'orfa' }),
+    ],
+    championships: [],
+    championshipTeams: [],
+    championshipRounds: [],
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.refId),
+    ['s1'],
+  );
+});
+
+test('ignora rodada cujo campeonato pertence a comunidade ausente', () => {
+  const championship = {
+    id: 'ch1',
+    communityId: 'orfa',
+    name: 'Liga de Verão',
+  } as Championship;
+  const teams = [
+    { id: 't1', championshipId: 'ch1', name: 'Time A' },
+    { id: 't2', championshipId: 'ch1', name: 'Time B' },
+  ] as ChampionshipTeam[];
+  const rounds = [
+    {
+      id: 'r1',
+      championshipId: 'ch1',
+      round: 1,
+      teamAId: 't1',
+      teamBId: 't2',
+      scheduledDate: '2026-08-15',
+      skipped: false,
+    },
+  ] as ChampionshipRound[];
+
+  const items = buildAgendaItems({
+    today: '2026-08-12',
+    communities: [community],
+    sessions: [],
+    championships: [championship],
+    championshipTeams: teams,
+    championshipRounds: rounds,
+  });
+
+  assert.deepEqual(items, []);
+});
+
 test('lista rodadas de liga pendentes e ordena tudo por data', () => {
   const championship = {
     id: 'ch1',

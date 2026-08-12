@@ -19,6 +19,11 @@ import {
   PerfilRoute,
   PerfilSyncRoute,
 } from './routes/globalRoutes';
+import {
+  CommunityGestaoRoute,
+  CommunityOverviewRoute,
+  CommunityShell,
+} from './routes/communityRoutes';
 
 export function AppRouterV7() {
   return (
@@ -39,6 +44,11 @@ export function AppRouterV7() {
           <Route path="/painel" element={<PainelRoute />} />
           <Route path="/agenda" element={<AgendaRoute />} />
           <Route path="/comunidades" element={<ComunidadesRoute />} />
+          <Route path="/comunidades/:communityId" element={<CommunityShell />}>
+            <Route index element={<CommunityOverviewRoute />} />
+            <Route path="gestao" element={<CommunityGestaoRoute />} />
+            <Route path="*" element={<Navigate to="/comunidades" replace />} />
+          </Route>
           <Route path="/perfil" element={<PerfilRoute />} />
           <Route path="/perfil/sync" element={<PerfilSyncRoute />} />
           <Route path="/admin" element={<AdminRoute />} />

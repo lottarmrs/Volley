@@ -88,20 +88,12 @@ import { CommunityMembersPanel } from './CommunityMembersPanel';
 import { JoinCommunityByCode } from './JoinCommunityByCode';
 import { AthleteUsernameSearch } from './AthleteUsernameSearch';
 import type { ScreenContract } from '@app/screens/screenContract';
-import type { CommunitiesViewModel } from '@app/screens/communitiesView/communitiesViewModel';
+import type {
+  CommunitiesViewModel,
+  CommunityTab,
+} from '@app/screens/communitiesView/communitiesViewModel';
 import type { CommunitiesViewIntent } from '@app/screens/communitiesView/communitiesViewIntents';
 
-type CommunityTab =
-  | 'summary'
-  | 'players'
-  | 'presence'
-  | 'whatsapp'
-  | 'sessions'
-  | 'championships'
-  | 'ranking'
-  | 'members'
-  | 'rules'
-  | 'data';
 type PlayerFilter =
   | 'all'
   | 'active'
@@ -254,6 +246,7 @@ export function CommunitiesView({
     currentUserId,
     isSupabaseConfigured,
     globalRole,
+    initialCommunityTab,
     addCommunity,
     updateCommunity,
     createChampionship,
@@ -262,7 +255,15 @@ export function CommunitiesView({
     setRoundSkipped,
     updateChampionshipRecurrence,
   } = model;
-  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
+  // ponytail: o estado local so serve ao shell legado (App.tsx), que nao controla
+  // a selecao; quando o modelo traz selectedCommunityId, quem manda e a URL.
+  const [localCommunityId, setLocalCommunityId] = useState<string | null>(null);
+  const selectedCommunityId =
+    model.selectedCommunityId === undefined ? localCommunityId : model.selectedCommunityId;
+  const setSelectedCommunityId = (communityId: string | null) => {
+    setLocalCommunityId(communityId);
+    void dispatch({ kind: 'selectCommunity', communityId });
+  };
 
   const [showArchived, setShowArchived] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -283,6 +284,7 @@ export function CommunitiesView({
     return (
       <CommunityDetailView
         community={selectedCommunity}
+        initialTab={initialCommunityTab}
         players={players}
         sessions={sessions}
         games={games}
@@ -297,10 +299,7 @@ export function CommunitiesView({
         rulesApi={rulesApi}
         onBack={() => setSelectedCommunityId(null)}
         onUpdateCommunity={updateCommunity}
-        onDeleteCommunity={(communityId) => {
-          void dispatch({ kind: 'deleteCommunity', communityId });
-          setSelectedCommunityId(null);
-        }}
+        onDeleteCommunity={(communityId) => void dispatch({ kind: 'deleteCommunity', communityId })}
         onDuplicateCommunity={(communityId, includeAthletes) =>
           void dispatch({ kind: 'duplicateCommunity', communityId, includeAthletes })
         }
@@ -577,6 +576,7 @@ function CommunityCard({
 
 function CommunityDetailView({
   community,
+  initialTab,
   players,
   sessions,
   games,
@@ -610,8 +610,9 @@ function CommunityDetailView({
   globalRole,
 }: Omit<CommunitiesViewProps, 'communities' | 'onAddCommunity'> & {
   community: Community;
+  initialTab?: CommunityTab;
 }) {
-  const [activeTab, setActiveTab] = useState<CommunityTab>('summary');
+  const [activeTab, setActiveTab] = useState<CommunityTab>(initialTab ?? 'summary');
   const summary = getCommunitySummary({
     community,
     players,

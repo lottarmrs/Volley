@@ -22,4 +22,5 @@ export type CommunitiesViewIntent =
       championshipId: string;
       recurrenceRule: Championship['recurrenceRule'];
     }
-  | { kind: 'linkedCloudPlayer'; player: Player; communityId: string };
+  | { kind: 'linkedCloudPlayer'; player: Player; communityId: string }
+  | { kind: 'selectCommunity'; communityId: string | null };

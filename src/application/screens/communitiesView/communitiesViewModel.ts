@@ -19,6 +19,18 @@ import type {
 import type { CreateChampionshipInput } from '@app/championshipUseCases';
 import type { AppResult } from '@app/appResult';
 
+export type CommunityTab =
+  | 'summary'
+  | 'players'
+  | 'presence'
+  | 'whatsapp'
+  | 'sessions'
+  | 'championships'
+  | 'ranking'
+  | 'members'
+  | 'rules'
+  | 'data';
+
 export interface CommunityPresenceApi {
   getPresence: (communityId: string) => CommunityPresence | null;
   setPresenceStatus: (
@@ -63,6 +75,10 @@ export interface CommunitiesViewModel {
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
   globalRole: AuthRole | null;
+  // ponytail: undefined = a propria view guarda qual comunidade esta aberta (shell
+  // legado do App.tsx). Some junto com o App.tsx, quando so a URL mandar.
+  selectedCommunityId?: string | null;
+  initialCommunityTab?: CommunityTab;
   // ponytail: estes callbacks tem retorno consumido de forma sincrona pela view
   // (handleAdd le .id; CommunityRulesTab le o boolean; ChampionshipsTab le .ok).
   // dispatch eh async (Promise<void>) e ignora o retorno, entao sigam pelo Model.

@@ -170,6 +170,39 @@ describe('AppRouterV7 — rotas globais', () => {
   });
 });
 
+const COMMUNITY_LIST_MARKER = /central local dos grupos recorrentes/i;
+
+describe('AppRouterV7 — comunidade', () => {
+  it('expulsa id inexistente para a lista de comunidades', async () => {
+    renderAppV7('/comunidades/nao-existe');
+    expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
+  });
+
+  it('expulsa id inexistente também nas áreas internas', async () => {
+    renderAppV7('/comunidades/nao-existe/pessoas');
+    expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
+  });
+
+  it('manda área inexistente de comunidade válida para a lista', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
+    renderAppV7('/comunidades/c1/area-que-nao-existe');
+    expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
+  });
+
+  it('abre o detalhe da comunidade da URL', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
+    renderAppV7('/comunidades/c1');
+    expect((await screen.findByRole('tab', { name: 'Resumo' })).className).toContain('tab-active');
+    expect(screen.queryByText(COMMUNITY_LIST_MARKER)).toBeNull();
+  });
+
+  it('abre a gestão da comunidade na aba Regras', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
+    renderAppV7('/comunidades/c1/gestao');
+    expect((await screen.findByRole('tab', { name: 'Regras' })).className).toContain('tab-active');
+  });
+});
+
 describe('AppRouterV7 — agenda', () => {
   it('monta a agenda vazia em /agenda', async () => {
     renderAppV7('/agenda');

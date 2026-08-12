@@ -5,6 +5,7 @@ import { buildAgendaItems } from '@app/agendaViewModel';
 import { formatLocalDateInput } from '@logic/date';
 import { buildDashboardContract } from '@app/screens/dashboard/dashboardContract';
 import { buildCommunitiesViewContract } from '@app/screens/communitiesView/communitiesViewContract';
+import type { CommunityTab } from '@app/screens/communitiesView/communitiesViewModel';
 import { buildAccountSyncViewContract } from '@app/screens/accountSyncView/accountSyncViewContract';
 import { buildGestaoViewContract } from '@app/screens/gestaoView/gestaoViewContract';
 import {
@@ -24,7 +25,7 @@ import { useShell } from '../shellContext';
 const Dashboard = lazy(() =>
   import('../../components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
 );
-const CommunitiesView = lazy(() =>
+export const CommunitiesView = lazy(() =>
   import('../../components/community/CommunitiesView').then((module) => ({
     default: module.CommunitiesView,
   })),
@@ -127,7 +128,10 @@ export function AgendaRoute() {
   );
 }
 
-export function useCommunitiesContract() {
+export function useCommunitiesContract(input: {
+  selectedCommunityId: string | null;
+  initialCommunityTab?: CommunityTab;
+}) {
   const shell = useShell();
   const navigate = useNavigate();
   const {
@@ -158,6 +162,10 @@ export function useCommunitiesContract() {
     currentUserId: auth.user?.id ?? null,
     isSupabaseConfigured: auth.isSupabaseConfigured,
     globalRole: auth.profile?.role ?? null,
+    selectedCommunityId: input.selectedCommunityId,
+    initialCommunityTab: input.initialCommunityTab,
+    onSelectCommunity: (communityId) =>
+      navigate(communityId ? paths.comunidade(communityId) : paths.comunidades),
     onBack: () => navigate(paths.painel),
     onAddCommunity: comm.addCommunity,
     onUpdateCommunity: comm.updateCommunity,
@@ -186,7 +194,7 @@ export function useCommunitiesContract() {
     onCreateSession: shell.createSessionFromCommunity,
     onViewSession: (sessionId) => {
       const session = sess.sessions.find((item) => item.id === sessionId);
-      const communityId = session?.communityId ?? null;
+      const communityId = session?.communityId ?? input.selectedCommunityId;
       navigate(communityId ? paths.sessao(communityId, sessionId) : paths.painel);
     },
     onClearCommunityHistory: (communityId) => {
@@ -205,7 +213,7 @@ export function useCommunitiesContract() {
 }
 
 export function ComunidadesRoute() {
-  const contract = useCommunitiesContract();
+  const contract = useCommunitiesContract({ selectedCommunityId: null });
   return <CommunitiesView contract={contract} />;
 }
 

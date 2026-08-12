@@ -76,6 +76,8 @@ function makeInput(
     currentUserId: null,
     isSupabaseConfigured: false,
     globalRole: null,
+    selectedCommunityId: null,
+    onSelectCommunity: () => {},
     onBack: () => {},
     onAddCommunity: ((input: Partial<Community>) => ({ ...makeCommunity(), ...input })) as never,
     onUpdateCommunity: (() => true) as never,
@@ -243,6 +245,24 @@ test('linkedCloudPlayer (opcional) nao lanca quando ausente', async () => {
     player: { id: 'p1' } as Player,
     communityId: 'c1',
   });
+});
+
+test('selectedCommunityId e initialCommunityTab chegam ao modelo', () => {
+  const c = buildCommunitiesViewContract(
+    makeInput({ selectedCommunityId: 'c1', initialCommunityTab: 'rules' }),
+  );
+  assert.equal(c.model.selectedCommunityId, 'c1');
+  assert.equal(c.model.initialCommunityTab, 'rules');
+});
+
+test('selectCommunity repassa o id e o nulo de volta para a lista', async () => {
+  const onSelectCommunity = spy() as unknown as Spy;
+  const c = buildCommunitiesViewContract(
+    makeInput({ onSelectCommunity: onSelectCommunity.fn as never }),
+  );
+  await c.dispatch({ kind: 'selectCommunity', communityId: 'c1' });
+  await c.dispatch({ kind: 'selectCommunity', communityId: null });
+  assert.deepEqual(onSelectCommunity.calls, [['c1'], [null]]);
 });
 
 test('deleteChampionship repassa championshipId', async () => {

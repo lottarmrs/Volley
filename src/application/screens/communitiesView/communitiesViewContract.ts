@@ -18,6 +18,7 @@ import type { ScreenContract } from '../screenContract';
 import type {
   CommunityPresenceApi,
   CommunitiesViewModel,
+  CommunityTab,
   RulesApi,
   WhatsAppApi,
 } from './communitiesViewModel';
@@ -40,6 +41,9 @@ export interface CommunitiesViewContractInput {
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
   globalRole: AuthRole | null;
+  selectedCommunityId?: string | null;
+  initialCommunityTab?: CommunityTab;
+  onSelectCommunity?: (communityId: string | null) => void;
   onBack: () => void;
   onAddCommunity: (input: Partial<Community>) => Community;
   onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
@@ -80,6 +84,8 @@ function buildModel(input: CommunitiesViewContractInput): CommunitiesViewModel {
     currentUserId: input.currentUserId,
     isSupabaseConfigured: input.isSupabaseConfigured,
     globalRole: input.globalRole,
+    selectedCommunityId: input.selectedCommunityId,
+    initialCommunityTab: input.initialCommunityTab,
     addCommunity: input.onAddCommunity,
     updateCommunity: input.onUpdateCommunity,
     createChampionship: input.onCreateChampionship,
@@ -146,6 +152,9 @@ export function buildCommunitiesViewContract(
         return;
       case 'linkedCloudPlayer':
         if (input.onLinkedCloudPlayer) input.onLinkedCloudPlayer(intent.player, intent.communityId);
+        return;
+      case 'selectCommunity':
+        input.onSelectCommunity?.(intent.communityId);
         return;
     }
   };

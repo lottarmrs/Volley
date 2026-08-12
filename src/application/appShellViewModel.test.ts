@@ -2,15 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getAccountDisplay,
-  getCommunitiesNavigationTarget,
   getCurrentPageTitle,
-  getDashboardNavigationTarget,
-  getHistoryNavigationTarget,
-  getHistorySessionNavigationTarget,
-  getLiveSessionNavigationTarget,
   getModuleNavigationItems,
   getModuleNavigationTarget,
-  getPlayersNavigationTarget,
 } from './appShellViewModel';
 
 test('getCurrentPageTitle returns contextual module titles', () => {
@@ -74,32 +68,6 @@ test('getModuleNavigationTarget routes dashboard and players modules with page c
   });
   assert.deepEqual(getModuleNavigationTarget({ module: 'ranking' }), {
     activeModule: 'ranking',
-  });
-});
-
-test('specific shell navigation targets describe common routes', () => {
-  assert.deepEqual(getDashboardNavigationTarget(), {
-    activeModule: 'dashboard',
-    page: 'dashboard',
-  });
-  assert.deepEqual(getPlayersNavigationTarget(), {
-    activeModule: 'players',
-    page: 'players',
-  });
-  assert.deepEqual(getCommunitiesNavigationTarget(), {
-    activeModule: 'players',
-    page: 'communities',
-  });
-  assert.deepEqual(getLiveSessionNavigationTarget(), {
-    activeModule: 'dashboard',
-    page: 'session-active',
-  });
-  assert.deepEqual(getHistoryNavigationTarget(), {
-    activeModule: 'historico',
-  });
-  assert.deepEqual(getHistorySessionNavigationTarget('session-1'), {
-    activeModule: 'historico',
-    selectedHistorySessionId: 'session-1',
   });
 });
 

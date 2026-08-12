@@ -115,36 +115,6 @@ export function getModuleNavigationTarget(input: {
   return { activeModule: input.module };
 }
 
-export interface ShellNavigationTarget {
-  activeModule: Module;
-  page?: Page;
-  selectedHistorySessionId?: string | null;
-}
-
-export function getDashboardNavigationTarget(): ShellNavigationTarget {
-  return { activeModule: 'dashboard', page: 'dashboard' };
-}
-
-export function getPlayersNavigationTarget(): ShellNavigationTarget {
-  return { activeModule: 'players', page: 'players' };
-}
-
-export function getCommunitiesNavigationTarget(): ShellNavigationTarget {
-  return { activeModule: 'players', page: 'communities' };
-}
-
-export function getLiveSessionNavigationTarget(): ShellNavigationTarget {
-  return { activeModule: 'dashboard', page: 'session-active' };
-}
-
-export function getHistoryNavigationTarget(): ShellNavigationTarget {
-  return { activeModule: 'historico' };
-}
-
-export function getHistorySessionNavigationTarget(sessionId: string): ShellNavigationTarget {
-  return { activeModule: 'historico', selectedHistorySessionId: sessionId };
-}
-
 import type { ConnectivityState } from '../logic/connectivity';
 
 export interface PendingDeliveryNotice {

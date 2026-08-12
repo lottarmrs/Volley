@@ -77,19 +77,12 @@ import { buildGestaoViewContract } from './application/screens/gestaoView/gestao
 import {
   buildPendingDeliveryNotice,
   getAccountDisplay,
-  getCommunitiesNavigationTarget,
   getCurrentPageTitle,
-  getDashboardNavigationTarget,
-  getHistoryNavigationTarget,
-  getHistorySessionNavigationTarget,
-  getLiveSessionNavigationTarget,
   getModuleNavigationItems,
   getModuleNavigationTarget,
-  getPlayersNavigationTarget,
   type Module,
   type ModuleNavigationItem,
   type Page,
-  type ShellNavigationTarget,
 } from '@app/appShellViewModel';
 import {
   buildBackupFileName,
@@ -607,7 +600,11 @@ export default function App() {
     applyShellNavigationTarget(target);
   };
 
-  const applyShellNavigationTarget = (target: ShellNavigationTarget) => {
+  const applyShellNavigationTarget = (target: {
+    activeModule: Module;
+    page?: Page;
+    selectedHistorySessionId?: string | null;
+  }) => {
     setActiveModule(target.activeModule);
     if (target.page) setPage(target.page);
     if (target.selectedHistorySessionId !== undefined) {
@@ -726,7 +723,7 @@ export default function App() {
                 setPage('session-wizard');
               },
               onResumeSession: () => {
-                applyShellNavigationTarget(getLiveSessionNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'dashboard', page: 'session-active' });
               },
               onResumeDraft: (draft) => {
                 wizard.resumeDraft(draft);
@@ -756,15 +753,15 @@ export default function App() {
                 }
               },
               onPlayers: () => {
-                applyShellNavigationTarget(getPlayersNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'players', page: 'players' });
               },
               onHistory: () => {
-                applyShellNavigationTarget(getHistoryNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'historico' });
               },
               onExportBackup: handleExportBackup,
               onImportBackup: handleImportBackup,
               onCommunities: () => {
-                applyShellNavigationTarget(getCommunitiesNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'players', page: 'communities' });
               },
             })}
           />
@@ -868,7 +865,10 @@ export default function App() {
             onCreatePlayer: createPlayerForCommunity,
             onCreateSession: createSessionFromCommunity,
             onViewSession: (sessionId) => {
-              applyShellNavigationTarget(getHistorySessionNavigationTarget(sessionId));
+              applyShellNavigationTarget({
+                activeModule: 'historico',
+                selectedHistorySessionId: sessionId,
+              });
             },
             onClearCommunityHistory: (communityId) => {
               sess.setSessions((prev) => applyCommunityHistoryClear(prev, communityId));
@@ -895,7 +895,7 @@ export default function App() {
               teams: sess.teams,
               sessions: sess.sessions,
               onBack: () => {
-                applyShellNavigationTarget(getDashboardNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'dashboard', page: 'dashboard' });
               },
               onAddPlayer: () => {
                 play.handleAddPlayer();
@@ -939,9 +939,12 @@ export default function App() {
             onOpenTournament={(tournament, shouldOpenLive) => {
               if (shouldOpenLive) {
                 sess.setActiveSession(tournament);
-                applyShellNavigationTarget(getLiveSessionNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'dashboard', page: 'session-active' });
               } else {
-                applyShellNavigationTarget(getHistorySessionNavigationTarget(tournament.id));
+                applyShellNavigationTarget({
+                  activeModule: 'historico',
+                  selectedHistorySessionId: tournament.id,
+                });
               }
             }}
           />
@@ -975,7 +978,7 @@ export default function App() {
                 setSelectedHistorySessionId(null);
               },
               onBackToDashboard: () => {
-                applyShellNavigationTarget(getDashboardNavigationTarget());
+                applyShellNavigationTarget({ activeModule: 'dashboard', page: 'dashboard' });
               },
               initialTab: 'sessions',
               hideTabs: false,

@@ -169,3 +169,10 @@ describe('AppRouterV7 — rotas globais', () => {
     expect(await screen.findByRole('heading', { name: /gest[aã]o|administra/i })).toBeTruthy();
   });
 });
+
+describe('AppRouterV7 — agenda', () => {
+  it('monta a agenda vazia em /agenda', async () => {
+    renderAppV7('/agenda');
+    expect(await screen.findByText(/nada agendado/i)).toBeTruthy();
+  });
+});

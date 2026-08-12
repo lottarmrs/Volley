@@ -13,6 +13,7 @@ import {
 } from './auth/AuthPages';
 import {
   AdminRoute,
+  AgendaRoute,
   ComunidadesRoute,
   PainelRoute,
   PerfilRoute,
@@ -36,6 +37,7 @@ export function AppRouterV7() {
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/painel" replace />} />
           <Route path="/painel" element={<PainelRoute />} />
+          <Route path="/agenda" element={<AgendaRoute />} />
           <Route path="/comunidades" element={<ComunidadesRoute />} />
           <Route path="/perfil" element={<PerfilRoute />} />
           <Route path="/perfil/sync" element={<PerfilSyncRoute />} />

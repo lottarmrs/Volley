@@ -1,6 +1,8 @@
 import { lazy } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { paths, resolveAdminRoute, resolveNewSessionPath } from '@app/appRoutes';
+import { buildAgendaItems } from '@app/agendaViewModel';
+import { formatLocalDateInput } from '@logic/date';
 import { buildDashboardContract } from '@app/screens/dashboard/dashboardContract';
 import { buildCommunitiesViewContract } from '@app/screens/communitiesView/communitiesViewContract';
 import { buildAccountSyncViewContract } from '@app/screens/accountSyncView/accountSyncViewContract';
@@ -39,6 +41,9 @@ const SettingsModule = lazy(() =>
   import('../../components/settings/SettingsModule').then((module) => ({
     default: module.SettingsModule,
   })),
+);
+const AgendaView = lazy(() =>
+  import('../../components/agenda/AgendaView').then((module) => ({ default: module.AgendaView })),
 );
 
 export function PainelRoute() {
@@ -91,6 +96,33 @@ export function PainelRoute() {
         onImportBackup: shell.handleImportBackup,
         onCommunities: () => navigate(paths.comunidades),
       })}
+    />
+  );
+}
+
+export function AgendaRoute() {
+  const { sess, comm, championships } = useShell();
+  const navigate = useNavigate();
+  const today = formatLocalDateInput(new Date());
+  const items = buildAgendaItems({
+    today,
+    communities: comm.communities,
+    sessions: sess.sessions,
+    championships: championships.championships,
+    championshipTeams: championships.championshipTeams,
+    championshipRounds: championships.championshipRounds,
+  });
+
+  return (
+    <AgendaView
+      items={items}
+      onOpen={(item) =>
+        navigate(
+          item.kind === 'session'
+            ? paths.sessao(item.communityId, item.refId)
+            : paths.torneios(item.communityId),
+        )
+      }
     />
   );
 }

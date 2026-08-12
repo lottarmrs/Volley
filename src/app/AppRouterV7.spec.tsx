@@ -91,7 +91,7 @@ export function renderAppV7(path: string, state: AuthSessionState = readyState) 
   authSessionMock.current = {
     state,
     session: null,
-    account: null,
+    account: 'account' in state ? state.account : null,
     authClient: stubAuthClient,
     retry: vi.fn(),
     completeUsername: vi.fn(),
@@ -134,5 +134,38 @@ describe('AppRouterV7 — shell', () => {
   it('não monta o app protegido quando a sessão não está pronta', () => {
     renderAppV7('/painel', { kind: 'onboarding', userId: 'u1', playerId: 'p1' });
     expect(screen.getByLabelText('Username')).toBeTruthy();
+  });
+});
+
+describe('AppRouterV7 — rotas globais', () => {
+  it('monta a lista de comunidades em /comunidades', async () => {
+    renderAppV7('/comunidades');
+    expect(await screen.findByRole('heading', { name: /comunidades/i })).toBeTruthy();
+  });
+
+  it('monta as configurações do usuário em /perfil', async () => {
+    renderAppV7('/perfil');
+    expect(await screen.findByRole('heading', { name: /backup/i })).toBeTruthy();
+  });
+
+  it('monta a sincronização em /perfil/sync', async () => {
+    renderAppV7('/perfil/sync');
+    expect(await screen.findByRole('heading', { name: /sincroniza|nuvem|conta/i })).toBeTruthy();
+  });
+
+  it('expulsa não-staff de /admin para /painel', async () => {
+    renderAppV7('/admin');
+    expect(await screen.findByRole('heading', { name: /painel de controle/i })).toBeTruthy();
+  });
+
+  it('deixa staff entrar em /admin', async () => {
+    renderAppV7('/admin', {
+      ...readyState,
+      account: {
+        ...readyState.account,
+        profile: { ...readyState.account.profile, role: 'master' },
+      },
+    } as AuthSessionState);
+    expect(await screen.findByRole('heading', { name: /gest[aã]o|administra/i })).toBeTruthy();
   });
 });

@@ -11,7 +11,13 @@ import {
   RecoverableSessionPage,
   UsernameOnboardingPage,
 } from './auth/AuthPages';
-import { PainelRoute } from './routes/globalRoutes';
+import {
+  AdminRoute,
+  ComunidadesRoute,
+  PainelRoute,
+  PerfilRoute,
+  PerfilSyncRoute,
+} from './routes/globalRoutes';
 
 export function AppRouterV7() {
   return (
@@ -30,6 +36,10 @@ export function AppRouterV7() {
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/painel" replace />} />
           <Route path="/painel" element={<PainelRoute />} />
+          <Route path="/comunidades" element={<ComunidadesRoute />} />
+          <Route path="/perfil" element={<PerfilRoute />} />
+          <Route path="/perfil/sync" element={<PerfilSyncRoute />} />
+          <Route path="/admin" element={<AdminRoute />} />
           <Route path="*" element={<Navigate to="/painel" replace />} />
         </Route>
       </Route>

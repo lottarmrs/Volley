@@ -246,6 +246,7 @@ export function CommunitiesView({
     currentUserId,
     isSupabaseConfigured,
     globalRole,
+    selectedCommunityId,
     initialCommunityTab,
     addCommunity,
     updateCommunity,
@@ -255,13 +256,7 @@ export function CommunitiesView({
     setRoundSkipped,
     updateChampionshipRecurrence,
   } = model;
-  // ponytail: o estado local so serve ao shell legado (App.tsx), que nao controla
-  // a selecao; quando o modelo traz selectedCommunityId, quem manda e a URL.
-  const [localCommunityId, setLocalCommunityId] = useState<string | null>(null);
-  const selectedCommunityId =
-    model.selectedCommunityId === undefined ? localCommunityId : model.selectedCommunityId;
   const setSelectedCommunityId = (communityId: string | null) => {
-    setLocalCommunityId(communityId);
     void dispatch({ kind: 'selectCommunity', communityId });
   };
 

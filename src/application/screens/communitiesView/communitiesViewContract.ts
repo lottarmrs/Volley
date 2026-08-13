@@ -41,9 +41,9 @@ export interface CommunitiesViewContractInput {
   currentUserId: string | null;
   isSupabaseConfigured: boolean;
   globalRole: AuthRole | null;
-  selectedCommunityId?: string | null;
+  selectedCommunityId: string | null;
   initialCommunityTab?: CommunityTab;
-  onSelectCommunity?: (communityId: string | null) => void;
+  onSelectCommunity: (communityId: string | null) => void;
   onBack: () => void;
   onAddCommunity: (input: Partial<Community>) => Community;
   onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
@@ -154,7 +154,7 @@ export function buildCommunitiesViewContract(
         if (input.onLinkedCloudPlayer) input.onLinkedCloudPlayer(intent.player, intent.communityId);
         return;
       case 'selectCommunity':
-        input.onSelectCommunity?.(intent.communityId);
+        input.onSelectCommunity(intent.communityId);
         return;
     }
   };

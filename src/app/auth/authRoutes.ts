@@ -20,3 +20,36 @@ export function routeForAuthState(state: AuthSessionState): string | null {
       return null;
   }
 }
+
+const AUTH_ONLY_PATH_PREFIXES = [
+  '/entrar',
+  '/cadastro',
+  '/auth',
+  '/verificar-email',
+  '/escolher-username',
+  '/configurar-mfa',
+  '/confirmar-mfa',
+  '/recuperar-senha',
+];
+
+export function isAuthOnlyPath(pathname: string): boolean {
+  return AUTH_ONLY_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+export interface RouteLocation {
+  pathname: string;
+  search?: string;
+  hash?: string;
+}
+
+export function resolveTransitionDestination(
+  state: AuthSessionState,
+  from: RouteLocation | undefined,
+): string | RouteLocation {
+  const forcedRoute = routeForAuthState(state);
+  if (forcedRoute) return forcedRoute;
+  if (from && !isAuthOnlyPath(from.pathname)) return from;
+  return '/';
+}

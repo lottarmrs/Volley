@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from 'react-router';
 import { AuthForm } from '../../components/account/AuthForm';
 import type { MfaEnrollment } from '@app/authClient';
 import { useAuthSession } from './useAuthSession';
-import { routeForAuthState } from './authRoutes';
+import { resolveTransitionDestination, routeForAuthState } from './authRoutes';
+import type { RouteLocation } from './authRoutes';
 import { CaptchaField } from './CaptchaField';
 import { captchaSiteKey } from './captchaEnv';
 import { validatePasswordLength } from './passwordPolicy';
@@ -205,10 +206,12 @@ export function AuthLoadingPage() {
 export function AuthTransitionPage() {
   const { state } = useAuthSession();
   const navigate = useNavigate();
+  const location = useLocation();
   useEffect(() => {
     if (state.kind === 'initializing') return;
-    navigate(routeForAuthState(state) ?? '/', { replace: true });
-  }, [state, navigate]);
+    const from = (location.state as { from?: RouteLocation } | null)?.from;
+    navigate(resolveTransitionDestination(state, from), { replace: true });
+  }, [state, navigate, location.state]);
   return <AuthLoadingPage />;
 }
 

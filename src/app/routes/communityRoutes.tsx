@@ -108,7 +108,7 @@ export function PlayerEditRoute() {
   const fallbackPath = paths.pessoas(community.id);
   const targetPlayer =
     playerId && playerId !== NEW_PLAYER_ID
-      ? play.players.find((item) => item.id === playerId)
+      ? getCommunityPlayers(community.id, play.players).find((item) => item.id === playerId)
       : undefined;
 
   useEffect(() => {

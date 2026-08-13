@@ -314,6 +314,17 @@ describe('AppRouter — pessoas', () => {
     expect(await screen.findByText(/ana souza/i)).toBeTruthy();
   });
 
+  it('não edita atleta de outra comunidade pela URL da c1', async () => {
+    const foreign = { ...player, id: 'p2', nome: 'Bruno Lima', communityIds: ['c2'] };
+    seedLocalDb({
+      communities: [community, { id: 'c2', name: 'Rivais' }],
+      players: [player, foreign],
+    });
+    renderApp('/comunidades/c1/pessoas/editar-atleta/p2');
+    expect(await screen.findByText(/ana souza/i)).toBeTruthy();
+    expect(screen.queryByDisplayValue('Bruno Lima')).toBeNull();
+  });
+
   it('monta o formulário em branco para o atleta novo (sentinela "novo")', async () => {
     seedLocalDb({ communities: [community] });
     renderApp('/comunidades/c1/pessoas/editar-atleta/novo');

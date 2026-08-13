@@ -102,6 +102,33 @@ test('applyLocalPlayerSave appends new players and preserves the resolved userna
   assert.equal(result.savedPlayer.syncStatus, 'pending');
 });
 
+test('applyLocalPlayerSave stamps the community on new players so they are reachable', () => {
+  const draft = player('player-new', 'Bruna', []);
+
+  const result = applyLocalPlayerSave({
+    players: [],
+    editingPlayer: draft,
+    communityId: 'community-1',
+    now,
+  });
+
+  assert.deepEqual(result.savedPlayer.communityIds, ['community-1']);
+});
+
+test('applyLocalPlayerSave adds the community to an existing player without dropping prior memberships', () => {
+  const existing = player('player-1', 'Ana', ['community-1']);
+  const draft = { ...existing, apelido: 'Aninha' };
+
+  const result = applyLocalPlayerSave({
+    players: [existing],
+    editingPlayer: draft,
+    communityId: 'community-2',
+    now,
+  });
+
+  assert.deepEqual(result.savedPlayer.communityIds, ['community-1', 'community-2']);
+});
+
 test('applyPlayerCreationForCommunity reuses duplicate players and adds the community once', () => {
   const existing = player('player-1', 'Ana Silva', ['community-1']);
 

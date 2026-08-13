@@ -141,6 +141,9 @@ export function applyLocalPlayerSave(input: {
     evaluationAggregate: simulated.evaluationAggregate,
     hasOwnEvaluation: simulated.hasOwnEvaluation,
     evaluationCommunityId: input.communityId,
+    communityIds: Array.from(
+      new Set([...(input.editingPlayer.communityIds ?? []), input.communityId]),
+    ),
     syncStatus: 'pending',
     updatedAt: input.now,
   };

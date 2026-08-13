@@ -1,30 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  getAccountDisplay,
-  getCurrentPageTitle,
-  getModuleNavigationItems,
-  getModuleNavigationTarget,
-} from './appShellViewModel';
-
-test('getCurrentPageTitle returns contextual module titles', () => {
-  assert.equal(
-    getCurrentPageTitle({ activeModule: 'dashboard', page: 'session-wizard' }),
-    'Configuração da Sessão',
-  );
-  assert.equal(
-    getCurrentPageTitle({ activeModule: 'players', page: 'player-edit' }),
-    'Perfil do Atleta',
-  );
-  assert.equal(
-    getCurrentPageTitle({ activeModule: 'players', page: 'communities' }),
-    'Grupos de Comunidade',
-  );
-  assert.equal(
-    getCurrentPageTitle({ activeModule: 'ranking', page: 'dashboard' }),
-    'Líderes & Classificações',
-  );
-});
+import { getAccountDisplay } from './appShellViewModel';
 
 test('getAccountDisplay prefers profile name, then email, then fallback', () => {
   assert.deepEqual(
@@ -51,44 +27,6 @@ test('getAccountDisplay prefers profile name, then email, then fallback', () => 
     }),
     { name: 'Panelinha', initials: 'PL' },
   );
-});
-
-test('getModuleNavigationTarget routes dashboard and players modules with page changes', () => {
-  assert.deepEqual(
-    getModuleNavigationTarget({ module: 'dashboard', activeSessionStatus: 'active' }),
-    { activeModule: 'dashboard', page: 'session-active' },
-  );
-  assert.deepEqual(getModuleNavigationTarget({ module: 'dashboard' }), {
-    activeModule: 'dashboard',
-    page: 'dashboard',
-  });
-  assert.deepEqual(getModuleNavigationTarget({ module: 'players' }), {
-    activeModule: 'players',
-    page: 'players',
-  });
-  assert.deepEqual(getModuleNavigationTarget({ module: 'ranking' }), {
-    activeModule: 'ranking',
-  });
-});
-
-test('module navigation items expose staff-only management and pending sync badge', () => {
-  assert.deepEqual(
-    getModuleNavigationItems({ isStaff: false, pendingChanges: 3 }).map((item) => ({
-      id: item.id,
-      badge: item.badge,
-    })),
-    [
-      { id: 'dashboard', badge: undefined },
-      { id: 'torneios', badge: undefined },
-      { id: 'players', badge: undefined },
-      { id: 'ranking', badge: undefined },
-      { id: 'historico', badge: undefined },
-      { id: 'conta', badge: 3 },
-      { id: 'configuracoes', badge: undefined },
-    ],
-  );
-
-  assert.equal(getModuleNavigationItems({ isStaff: true, pendingChanges: 0 }).at(-1)?.id, 'gestao');
 });
 
 import { buildPendingDeliveryNotice } from './appShellViewModel';

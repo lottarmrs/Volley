@@ -94,27 +94,23 @@ Gate 0. O que ela deixou aberto e ainda não é da Fase 3 está registrado em
 - Fase 2 do Plano 5: 9/9 telas migradas para `ScreenContract<Model, Intent>` e gate fechado.
 - Gate 0 (integridade e estado canônico): concluído em 2026-08-11.
 - Spike A1 (`SessionContext` na raiz): concluído e mergeado.
-- Fase 3: **em execução**. Plano de implementação em
+- Fase 3: **concluída** (cutover na Task 10). Plano de implementação em
   `docs/superpowers/plans/2026-08-12-plano-5-fase-3-nova-navegacao.md` (10 tarefas,
   execução subagent-driven; progresso em `.superpowers/sdd/progress.md`).
-- `App.tsx` ainda é o shell monolítico e usa `activeModule` + `page` +
-  `renderActiveContent()`; os módulos autenticados continuam em `/`.
+- `src/App.tsx` foi **removido**: não existem mais `activeModule`, `page` nem
+  `renderActiveContent()`. O shell é `src/app/AppShell.tsx` e a navegação é por rotas URL
+  (`src/app/AppRouter.tsx` + `src/app/routes/`), sem feature flag.
 - **Nenhum PR aberto.** #19 foi fechado sem merge em 2026-08-11 (duplicata: seu conteúdo já
   estava em `main` via #18 e #20, e as linhas exclusivas dele eram código pré-Gate-0 que o merge
   teria revertido).
 
-### `src/App.tsx` está CONGELADO durante a Fase 3
+### Registro histórico — a janela de router-in-parallel fechou
 
-A Fase 3 usa router-in-parallel: o `AppRouter`/`App.tsx` atual serve produção enquanto o
-`AppRouterV7`/`AppShell.tsx` novo cresce atrás da flag (`VITE_NAV_V3` ou `?nav=v3`). Nessa
-janela as closures do shell (cloud sync, backup/import, `handleFinishSession`, helpers de
-campeonato) existem em **duas cópias**, e isso só é seguro porque a fonte antiga não muda.
-
-**Regra:** a Task 1 do plano é a última que edita `src/App.tsx`; da Task 2 à Task 9 o arquivo
-está congelado; a Task 10 o deleta. Defeito encontrado no `App.tsx` durante a janela se corrige
-no `AppShell`, **nunca nos dois**. Se uma correção no `App.tsx` for inevitável, ela vira tarefa
-própria que replica a mudança nas duas cópias no mesmo commit. Duplicação temporária é o preço
-escolhido pela spec §2 (rollback = um `git revert`); duplicação **divergente** é defeito.
+Da Task 1 à Task 9 a Fase 3 rodou em router-in-parallel: o `AppRouter`/`App.tsx` antigo servia
+produção enquanto o `AppRouterV7`/`AppShell.tsx` novo crescia atrás da flag (`VITE_NAV_V3` ou
+`?nav=v3`), com as closures do shell duplicadas de propósito. **A Task 10 fechou a janela:**
+`App.tsx` e a flag foram deletados, `AppRouterV7` virou o único `AppRouter` e não existe mais
+cópia a manter em sincronia. Rollback do cutover = `git revert` do commit da Task 10.
 
 ### Working tree
 
@@ -512,8 +508,11 @@ a Fase 3.
   `docs/superpowers/plans/2026-07-22-scalable-product-program.md`
 - Plano concluído da Fase 2:
   `docs/superpowers/plans/2026-08-03-plano-5-fase-2-screen-contracts.md`
+- Plano concluído da Fase 3 (rotas URL, cutover na Task 10):
+  `docs/superpowers/plans/2026-08-12-plano-5-fase-3-nova-navegacao.md`
 - Shell/router:
-  `src/App.tsx`, `src/app/AppRouter.tsx`, `src/application/appShellViewModel.ts`
+  `src/app/AppRouter.tsx`, `src/app/AppShell.tsx`, `src/app/routes/`,
+  `src/application/appRoutes.ts`, `src/application/appShellViewModel.ts`
 - Wizard:
   `src/components/session/SessionWizard.tsx`, `src/hooks/useSessionWizard.ts`,
   `src/application/sessionLifecycleUseCases.ts`

@@ -309,3 +309,46 @@ describe('AppRouterV7 — desempenho', () => {
     expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
   });
 });
+
+describe('AppRouterV7 — sessões da comunidade', () => {
+  const community = { id: 'c1', name: 'Panelinha' };
+  const finished = {
+    id: 's1',
+    communityId: 'c1',
+    name: 'Sessão de quarta',
+    date: '2026-08-05',
+    status: 'finished',
+    type: 'free_play',
+    selectedPlayerIds: [],
+    teamIds: [],
+    createdAt: '2026-08-05T00:00:00.000Z',
+    updatedAt: '2026-08-05T00:00:00.000Z',
+  } satisfies Partial<Session>;
+
+  it('lista só as sessões da comunidade da URL', async () => {
+    seedLocalDb({
+      communities: [community],
+      sessions: [finished, { ...finished, id: 's2', name: 'Sessão de outra', communityId: 'c2' }],
+    });
+    renderAppV7('/comunidades/c1/sessoes');
+    expect(await screen.findByText(/sessão de quarta/i)).toBeTruthy();
+    expect(screen.queryByText(/sessão de outra/i)).toBeNull();
+  });
+
+  it('abre o detalhe da sessão da URL', async () => {
+    seedLocalDb({ communities: [community], sessions: [finished] });
+    renderAppV7('/comunidades/c1/sessoes/s1');
+    expect(await screen.findByText(/dados e regras/i, {}, { timeout: 5000 })).toBeTruthy();
+  });
+
+  it('monta os torneios da comunidade', async () => {
+    seedLocalDb({ communities: [community], sessions: [{ ...finished, type: 'tournament' }] });
+    renderAppV7('/comunidades/c1/sessoes/torneios');
+    expect(await screen.findByText(/sessão de quarta/i)).toBeTruthy();
+  });
+
+  it('expulsa /sessoes de comunidade inexistente', async () => {
+    renderAppV7('/comunidades/nao-existe/sessoes');
+    expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
+  });
+});

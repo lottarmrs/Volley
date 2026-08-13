@@ -27,6 +27,11 @@ import {
   CommunityShell,
   PlayerEditRoute,
 } from './routes/communityRoutes';
+import {
+  CommunitySessionDetailRoute,
+  CommunitySessionsRoute,
+  CommunityTournamentsRoute,
+} from './routes/sessionRoutes';
 
 export function AppRouterV7() {
   return (
@@ -51,6 +56,9 @@ export function AppRouterV7() {
             <Route index element={<CommunityOverviewRoute />} />
             <Route path="pessoas" element={<CommunityPeopleRoute />} />
             <Route path="pessoas/editar-atleta/:playerId" element={<PlayerEditRoute />} />
+            <Route path="sessoes" element={<CommunitySessionsRoute />} />
+            <Route path="sessoes/torneios" element={<CommunityTournamentsRoute />} />
+            <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
             <Route path="desempenho" element={<CommunityPerformanceRoute />} />
             <Route path="gestao" element={<CommunityGestaoRoute />} />
             <Route path="*" element={<Navigate to="/comunidades" replace />} />

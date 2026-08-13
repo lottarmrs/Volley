@@ -23,6 +23,7 @@ import {
   CommunityGestaoRoute,
   CommunityOverviewRoute,
   CommunityPeopleRoute,
+  CommunityPerformanceRoute,
   CommunityShell,
   PlayerEditRoute,
 } from './routes/communityRoutes';
@@ -50,6 +51,7 @@ export function AppRouterV7() {
             <Route index element={<CommunityOverviewRoute />} />
             <Route path="pessoas" element={<CommunityPeopleRoute />} />
             <Route path="pessoas/editar-atleta/:playerId" element={<PlayerEditRoute />} />
+            <Route path="desempenho" element={<CommunityPerformanceRoute />} />
             <Route path="gestao" element={<CommunityGestaoRoute />} />
             <Route path="*" element={<Navigate to="/comunidades" replace />} />
           </Route>

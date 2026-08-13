@@ -278,3 +278,34 @@ describe('AppRouterV7 — pessoas', () => {
     expect(screen.queryByPlaceholderText('Nome Completo')).toBeNull();
   });
 });
+
+describe('AppRouterV7 — desempenho', () => {
+  const community = { id: 'c1', name: 'Panelinha' };
+
+  it('abre no Ranking por padrão', async () => {
+    seedLocalDb({ communities: [community] });
+    renderAppV7('/comunidades/c1/desempenho');
+    expect((await screen.findByRole('tab', { name: 'Ranking' })).className).toContain('tab-active');
+  });
+
+  it('abre no Histórico quando a URL pede', async () => {
+    seedLocalDb({ communities: [community] });
+    renderAppV7('/comunidades/c1/desempenho?aba=historico');
+    expect((await screen.findByRole('tab', { name: 'Histórico' })).className).toContain(
+      'tab-active',
+    );
+  });
+
+  it('?sessao= implica a aba Histórico mesmo sem ?aba=', async () => {
+    seedLocalDb({ communities: [community] });
+    renderAppV7('/comunidades/c1/desempenho?sessao=s1');
+    expect((await screen.findByRole('tab', { name: 'Histórico' })).className).toContain(
+      'tab-active',
+    );
+  });
+
+  it('expulsa /desempenho de comunidade inexistente', async () => {
+    renderAppV7('/comunidades/nao-existe/desempenho?aba=historico&sessao=s1');
+    expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
+  });
+});

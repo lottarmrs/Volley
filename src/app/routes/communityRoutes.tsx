@@ -1,9 +1,17 @@
 import { lazy, useEffect } from 'react';
-import { Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router';
+import {
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router';
 import type { Community } from '@shared/types';
 import { NEW_PLAYER_ID, paths, resolveBackTarget, resolveCommunityRoute } from '@app/appRoutes';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
 import { buildPlayerEditViewContract } from '@app/screens/playerEditView/playerEditViewContract';
+import { buildHistoryViewContract } from '@app/screens/historyView/historyViewContract';
 import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { useShell, useCommunityShell } from '../shellContext';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
@@ -16,6 +24,16 @@ const PlayersView = lazy(() =>
 const PlayerEditView = lazy(() =>
   import('../../components/player/PlayerEditView').then((module) => ({
     default: module.PlayerEditView,
+  })),
+);
+const RankingModule = lazy(() =>
+  import('../../components/ranking/RankingModule').then((module) => ({
+    default: module.RankingModule,
+  })),
+);
+const HistoryView = lazy(() =>
+  import('../../components/history/HistoryView').then((module) => ({
+    default: module.HistoryView,
   })),
 );
 
@@ -148,5 +166,74 @@ export function PlayerEditRoute() {
         },
       })}
     />
+  );
+}
+
+export function CommunityPerformanceRoute() {
+  const shell = useCommunityShell();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { community, play, sess } = shell;
+  const selectedSessionId = searchParams.get('sessao');
+  const aba = selectedSessionId ? 'historico' : (searchParams.get('aba') ?? 'ranking');
+  const communityPlayers = getCommunityPlayers(community.id, play.players);
+  const communitySessions = getCommunitySessions(community.id, sess.sessions);
+
+  return (
+    <div className="space-y-5">
+      <div role="tablist" className="tabs tabs-box overflow-x-auto flex-nowrap justify-start">
+        <button
+          type="button"
+          role="tab"
+          className={`tab whitespace-nowrap ${aba === 'ranking' ? 'tab-active' : ''}`}
+          onClick={() => navigate(paths.desempenho(community.id, { aba: 'ranking' }))}
+        >
+          Ranking
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`tab whitespace-nowrap ${aba === 'historico' ? 'tab-active' : ''}`}
+          onClick={() => navigate(paths.desempenho(community.id, { aba: 'historico' }))}
+        >
+          Histórico
+        </button>
+      </div>
+
+      {aba === 'ranking' ? (
+        <RankingModule
+          players={communityPlayers}
+          games={sess.games}
+          pointEvents={sess.pointEvents}
+          teams={sess.teams}
+          sessions={communitySessions}
+        />
+      ) : (
+        <HistoryView
+          contract={buildHistoryViewContract({
+            sessions: communitySessions,
+            games: sess.games,
+            pointEvents: sess.pointEvents,
+            teams: sess.teams,
+            players: play.players,
+            sessionReports: sess.sessionReports,
+            selectedHistorySessionId: selectedSessionId,
+            setSelectedHistorySessionId: (id) =>
+              navigate(
+                id
+                  ? paths.desempenho(community.id, { sessao: id })
+                  : paths.desempenho(community.id, { aba: 'historico' }),
+              ),
+            onDeleteSession: (sessionId) => {
+              sess.deleteSession(sessionId);
+              navigate(paths.desempenho(community.id, { aba: 'historico' }));
+            },
+            onBackToDashboard: () => navigate(paths.comunidade(community.id)),
+            initialTab: 'sessions',
+            hideTabs: false,
+          })}
+        />
+      )}
+    </div>
   );
 }

@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
 import type { AuthClient } from '@app/authClient';
-import type { Community, Player, Session } from '@shared/types';
+import { paths } from '@app/appRoutes';
+import type { Community, Game, Player, Session } from '@shared/types';
 import type { AuthSessionContextValue } from './auth/useAuthSession';
 import { ToastProvider } from '@ui/common/ToastProvider';
 import { SessionProvider } from '@ui/common/SessionProvider';
@@ -57,6 +58,8 @@ export function seedLocalDb(input: {
   communities?: Partial<Community>[];
   players?: Partial<Player>[];
   sessions?: Partial<Session>[];
+  activeSession?: Partial<Session> | null;
+  games?: Partial<Game>[];
 }) {
   localStorage.setItem(
     'vpg_communities',
@@ -81,11 +84,26 @@ export function seedLocalDb(input: {
   );
   localStorage.setItem('vpg_players', JSON.stringify(input.players ?? []));
   localStorage.setItem('vpg_sessions', JSON.stringify(input.sessions ?? []));
+  if ('activeSession' in input) {
+    localStorage.setItem('vpg_active_session', JSON.stringify(input.activeSession));
+  }
+  if (input.games) {
+    localStorage.setItem('vpg_games', JSON.stringify(input.games));
+  }
 }
 
 afterEach(() => {
   localStorage.clear();
 });
+
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <div data-testid="location-probe" hidden>
+      {location.pathname}
+    </div>
+  );
+}
 
 export function renderAppV7(path: string, state: AuthSessionState = readyState) {
   authSessionMock.current = {
@@ -101,6 +119,7 @@ export function renderAppV7(path: string, state: AuthSessionState = readyState) 
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <SessionProvider>
+          <LocationProbe />
           <AppRouterV7 />
         </SessionProvider>
       </ToastProvider>
@@ -355,7 +374,7 @@ describe('AppRouterV7 — sessões da comunidade', () => {
 
 const WIZARD_MARKER = 'Ex: Vôlei de Domingo';
 const SESSION_LIST_EMPTY_MARKER = /nenhuma sessão registrada ainda/i;
-const DASHBOARD_MARKER = /bem-vindo ao panelinha/i;
+const SESSION_ACTIVE_MARKER = /sessão iniciada/i;
 
 function readActiveSession(): Session | null {
   return JSON.parse(localStorage.getItem('vpg_active_session') ?? 'null');
@@ -395,10 +414,47 @@ describe('AppRouterV7 — wizard e sessão ativa', () => {
     seedLocalDb({ communities: [community] });
     renderAppV7('/comunidades/c1/sessoes/ativa');
     expect(await screen.findByText(SESSION_LIST_EMPTY_MARKER, {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessoes('c1'));
   });
 
-  it('manda /sessao/ativa para o painel quando não há sessão ativa', async () => {
+  it('mantém /sessao/ativa acessível quando a comunidade dona da sessão ativa não existe mais', async () => {
+    seedLocalDb({
+      activeSession: {
+        id: 's-viva',
+        communityId: 'c-fantasma',
+        name: 'Sessão Ao Vivo',
+        date: '2026-08-12',
+        status: 'active',
+        type: 'free_play',
+        selectedPlayerIds: [],
+        teamIds: [],
+        createdAt: '2026-08-12T00:00:00.000Z',
+        updatedAt: '2026-08-12T00:00:00.000Z',
+      } satisfies Partial<Session>,
+    });
     renderAppV7('/sessao/ativa');
-    expect(await screen.findByText(DASHBOARD_MARKER, {}, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText(SESSION_ACTIVE_MARKER, {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoAtivaSemComunidade);
+  });
+
+  it('renderiza a tela de sessão ativa da própria comunidade em /comunidades/c1/sessoes/ativa', async () => {
+    seedLocalDb({
+      communities: [community],
+      activeSession: {
+        id: 's-viva-c1',
+        communityId: 'c1',
+        name: 'Sessão Ao Vivo C1',
+        date: '2026-08-12',
+        status: 'active',
+        type: 'free_play',
+        selectedPlayerIds: [],
+        teamIds: [],
+        createdAt: '2026-08-12T00:00:00.000Z',
+        updatedAt: '2026-08-12T00:00:00.000Z',
+      } satisfies Partial<Session>,
+    });
+    renderAppV7('/comunidades/c1/sessoes/ativa');
+    expect(await screen.findByText(SESSION_ACTIVE_MARKER, {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoAtiva('c1'));
   });
 });

@@ -64,8 +64,8 @@ export function PainelRoute() {
         onNewSession: () => navigate(resolveNewSessionPath({ communityIds })),
         onResumeSession: () =>
           navigate(
-            sess.activeSession?.communityId
-              ? paths.sessaoAtiva(sess.activeSession.communityId)
+            shell.activeSessionCommunityId
+              ? paths.sessaoAtiva(shell.activeSessionCommunityId)
               : paths.sessaoAtivaSemComunidade,
           ),
         onResumeDraft: (draft) => {
@@ -177,7 +177,7 @@ export function LegacyActiveSessionRoute() {
   const { sess, play } = shell;
   const phase = derivePhase(sess.activeSession, sess.games);
   const resolution = resolveLegacyLiveSessionRoute({
-    activeSessionCommunityId: sess.activeSession?.communityId ?? null,
+    activeSessionCommunityId: shell.activeSessionCommunityId,
     hasActiveSession: !!sess.activeSession,
     phase,
   });

@@ -29,6 +29,7 @@ export interface ShellApi {
   currentDeviceId: string;
   sessionDraft: SessionDraft | null;
   pendingChanges: number;
+  activeSessionCommunityId: string | null;
   handleExportBackup: () => void;
   handleImportBackup: (file: File) => void;
   handleFinishSession: () => void;

@@ -103,7 +103,7 @@ export function SessionWizardRoute() {
   const resolution = resolveWizardRoute({
     communityId: community.id,
     hasActiveSession: !!sess.activeSession,
-    activeSessionCommunityId: sess.activeSession?.communityId ?? null,
+    activeSessionCommunityId: shell.activeSessionCommunityId,
   });
   const bootstrapped = useRef(false);
 
@@ -151,7 +151,7 @@ export function SessionActiveRoute() {
   const phase = derivePhase(sess.activeSession, sess.games);
   const resolution = resolveLiveSessionRoute({
     communityId: community.id,
-    activeSessionCommunityId: sess.activeSession?.communityId ?? null,
+    activeSessionCommunityId: shell.activeSessionCommunityId,
     hasActiveSession: !!sess.activeSession,
     phase,
   });

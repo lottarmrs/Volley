@@ -103,7 +103,11 @@ export function AppShell() {
   const operationalPhase = derivePhase(sess.activeSession, sess.games);
   const [currentDeviceId] = useState(getOrCreateDeviceId);
 
-  const activeCommunityId = sess.activeSession?.communityId ?? null;
+  const activeSessionOwnerId = sess.activeSession?.communityId ?? null;
+  const activeCommunityId =
+    activeSessionOwnerId && comm.communities.some((item) => item.id === activeSessionOwnerId)
+      ? activeSessionOwnerId
+      : null;
 
   const wizard = useSessionWizard({
     players: play.players,
@@ -567,6 +571,7 @@ export function AppShell() {
     currentDeviceId,
     sessionDraft,
     pendingChanges,
+    activeSessionCommunityId: activeCommunityId,
     handleExportBackup,
     handleImportBackup,
     handleFinishSession,

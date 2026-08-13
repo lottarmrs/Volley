@@ -209,3 +209,55 @@ describe('AppRouterV7 — agenda', () => {
     expect(await screen.findByText(/nada agendado/i)).toBeTruthy();
   });
 });
+
+describe('AppRouterV7 — pessoas', () => {
+  const community = { id: 'c1', name: 'Panelinha' };
+  const player = {
+    id: 'p1',
+    nome: 'Ana Souza',
+    apelido: 'Ana',
+    genero: 'F',
+    ativo: true,
+    posicaoPrincipal: 'ponteiro',
+    posicoesSecundarias: [],
+    maoDominante: 'direita',
+    atributos: {
+      saque: 5,
+      recepcao: 5,
+      levantamento: 5,
+      ataque: 5,
+      bloqueio: 5,
+      defesa: 5,
+      velocidade: 5,
+      resistencia: 5,
+      leituraDeJogo: 5,
+      regularidade: 5,
+      controleEmocional: 5,
+    },
+    formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
+    communityIds: ['c1'],
+    metadata: { criadoEm: '2026-01-01T00:00:00.000Z', atualizadoEm: '2026-01-01T00:00:00.000Z' },
+  } satisfies Partial<Player>;
+
+  it('lista só os atletas da comunidade da URL', async () => {
+    seedLocalDb({
+      communities: [community],
+      players: [player, { ...player, id: 'p2', nome: 'Bruno Lima', communityIds: ['c2'] }],
+    });
+    renderAppV7('/comunidades/c1/pessoas');
+    expect(await screen.findByText(/ana souza/i)).toBeTruthy();
+    expect(screen.queryByText(/bruno lima/i)).toBeNull();
+  });
+
+  it('abre o atleta da URL em modo edição', async () => {
+    seedLocalDb({ communities: [community], players: [player] });
+    renderAppV7('/comunidades/c1/pessoas/editar-atleta/p1');
+    expect(await screen.findByDisplayValue('Ana Souza', {}, { timeout: 5000 })).toBeTruthy();
+  });
+
+  it('volta para a lista quando o atleta da URL não existe', async () => {
+    seedLocalDb({ communities: [community], players: [player] });
+    renderAppV7('/comunidades/c1/pessoas/editar-atleta/p-inexistente');
+    expect(await screen.findByText(/ana souza/i)).toBeTruthy();
+  });
+});

@@ -48,3 +48,11 @@ export interface ShellApi {
 export function useShell(): ShellApi {
   return useOutletContext<ShellApi>();
 }
+
+export interface CommunityShellApi extends ShellApi {
+  community: Community;
+}
+
+export function useCommunityShell(): CommunityShellApi {
+  return useOutletContext<CommunityShellApi>();
+}

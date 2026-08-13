@@ -1,16 +1,9 @@
-import { Navigate, Outlet, useOutletContext, useParams } from 'react-router';
+import { Navigate, Outlet, useParams } from 'react-router';
 import type { Community } from '@shared/types';
 import { resolveCommunityRoute } from '@app/appRoutes';
-import { useShell, type ShellApi } from '../shellContext';
-import { CommunitiesView, useCommunitiesContract } from './globalRoutes';
-
-export interface CommunityShellApi extends ShellApi {
-  community: Community;
-}
-
-export function useCommunityShell(): CommunityShellApi {
-  return useOutletContext<CommunityShellApi>();
-}
+import { useShell, useCommunityShell } from '../shellContext';
+import { CommunitiesView } from './globalRoutes';
+import { useCommunitiesContract } from './communitiesContract';
 
 export function CommunityShell() {
   const shell = useShell();

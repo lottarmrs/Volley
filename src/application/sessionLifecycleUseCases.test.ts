@@ -189,6 +189,23 @@ test('buildManualSessionStartResult creates a draft and resets the wizard', () =
   assert.equal(result.session.type, 'tournament');
 });
 
+test('buildManualSessionStartResult estampa a comunidade dona da sessão', () => {
+  const result = buildManualSessionStartResult({
+    communityId: 'c1',
+    now: new Date('2026-08-12T12:00:00Z'),
+    createId: () => 'session-1',
+  });
+  assert.equal(result.session.communityId, 'c1');
+});
+
+test('buildManualSessionStartResult sem comunidade mantém communityId nulo', () => {
+  const result = buildManualSessionStartResult({
+    now: new Date('2026-08-12T12:00:00Z'),
+    createId: () => 'session-1',
+  });
+  assert.equal(result.session.communityId ?? null, null);
+});
+
 test('buildDraftClearResult clears draft and active session state', () => {
   const result = buildDraftClearResult();
 

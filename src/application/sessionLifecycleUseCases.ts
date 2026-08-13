@@ -120,6 +120,7 @@ export function buildSessionFromCommunity(input: {
 
 export function buildManualSessionDraft(input: {
   type?: Session['type'];
+  communityId?: string | null;
   now: Date;
   createId: () => string;
 }): Session {
@@ -127,6 +128,7 @@ export function buildManualSessionDraft(input: {
   const label = type === 'tournament' ? 'Torneio' : 'Sessão';
   const session: Session = {
     id: input.createId(),
+    communityId: input.communityId ?? null,
     name: `${label} — ${input.now.toLocaleDateString('pt-BR')}`,
     date: formatLocalDateInput(input.now),
     status: 'draft',
@@ -143,6 +145,7 @@ export function buildManualSessionDraft(input: {
 
 export function buildManualSessionStartResult(input: {
   type?: Session['type'];
+  communityId?: string | null;
   now: Date;
   createId: () => string;
 }): { session: Session; nextWizardStep: number } {

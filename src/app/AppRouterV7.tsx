@@ -15,6 +15,7 @@ import {
   AdminRoute,
   AgendaRoute,
   ComunidadesRoute,
+  LegacyActiveSessionRoute,
   PainelRoute,
   PerfilRoute,
   PerfilSyncRoute,
@@ -31,6 +32,8 @@ import {
   CommunitySessionDetailRoute,
   CommunitySessionsRoute,
   CommunityTournamentsRoute,
+  SessionActiveRoute,
+  SessionWizardRoute,
 } from './routes/sessionRoutes';
 
 export function AppRouterV7() {
@@ -57,12 +60,15 @@ export function AppRouterV7() {
             <Route path="pessoas" element={<CommunityPeopleRoute />} />
             <Route path="pessoas/editar-atleta/:playerId" element={<PlayerEditRoute />} />
             <Route path="sessoes" element={<CommunitySessionsRoute />} />
+            <Route path="sessoes/nova" element={<SessionWizardRoute />} />
+            <Route path="sessoes/ativa" element={<SessionActiveRoute />} />
             <Route path="sessoes/torneios" element={<CommunityTournamentsRoute />} />
             <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
             <Route path="desempenho" element={<CommunityPerformanceRoute />} />
             <Route path="gestao" element={<CommunityGestaoRoute />} />
             <Route path="*" element={<Navigate to="/comunidades" replace />} />
           </Route>
+          <Route path="/sessao/ativa" element={<LegacyActiveSessionRoute />} />
           <Route path="/perfil" element={<PerfilRoute />} />
           <Route path="/perfil/sync" element={<PerfilSyncRoute />} />
           <Route path="/admin" element={<AdminRoute />} />

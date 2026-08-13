@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
@@ -350,5 +350,55 @@ describe('AppRouterV7 — sessões da comunidade', () => {
   it('expulsa /sessoes de comunidade inexistente', async () => {
     renderAppV7('/comunidades/nao-existe/sessoes');
     expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
+  });
+});
+
+const WIZARD_MARKER = 'Ex: Vôlei de Domingo';
+const SESSION_LIST_EMPTY_MARKER = /nenhuma sessão registrada ainda/i;
+const DASHBOARD_MARKER = /bem-vindo ao panelinha/i;
+
+function readActiveSession(): Session | null {
+  return JSON.parse(localStorage.getItem('vpg_active_session') ?? 'null');
+}
+
+describe('AppRouterV7 — wizard e sessão ativa', () => {
+  const community = { id: 'c1', name: 'Panelinha' };
+  const orphanDraft = {
+    id: 's-orfa',
+    communityId: null,
+    name: 'Rascunho órfão',
+    date: '2026-08-12',
+    status: 'draft',
+    selectedPlayerIds: [],
+    teamIds: [],
+    createdAt: '2026-08-12T00:00:00.000Z',
+    updatedAt: '2026-08-12T00:00:00.000Z',
+  } satisfies Partial<Session>;
+
+  it('abre o wizard e cria o rascunho já com a comunidade da URL', async () => {
+    seedLocalDb({ communities: [community] });
+    renderAppV7('/comunidades/c1/sessoes/nova');
+    await screen.findByPlaceholderText(WIZARD_MARKER, {}, { timeout: 5000 });
+    await waitFor(() => expect(readActiveSession()?.communityId).toBe('c1'));
+  });
+
+  it('adota o rascunho órfão em vez de criar uma segunda sessão', async () => {
+    seedLocalDb({ communities: [community] });
+    localStorage.setItem('vpg_active_session', JSON.stringify(orphanDraft));
+    renderAppV7('/comunidades/c1/sessoes/nova');
+    await screen.findByPlaceholderText(WIZARD_MARKER, {}, { timeout: 5000 });
+    await waitFor(() => expect(readActiveSession()?.communityId).toBe('c1'));
+    expect(readActiveSession()?.id).toBe('s-orfa');
+  });
+
+  it('manda /sessoes/ativa para a lista de sessões quando não há sessão em fase jogável', async () => {
+    seedLocalDb({ communities: [community] });
+    renderAppV7('/comunidades/c1/sessoes/ativa');
+    expect(await screen.findByText(SESSION_LIST_EMPTY_MARKER, {}, { timeout: 5000 })).toBeTruthy();
+  });
+
+  it('manda /sessao/ativa para o painel quando não há sessão ativa', async () => {
+    renderAppV7('/sessao/ativa');
+    expect(await screen.findByText(DASHBOARD_MARKER, {}, { timeout: 5000 })).toBeTruthy();
   });
 });

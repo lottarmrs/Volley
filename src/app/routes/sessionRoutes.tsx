@@ -1,8 +1,18 @@
-import { lazy } from 'react';
-import { useNavigate, useParams } from 'react-router';
-import { paths, resolveNewSessionPath } from '@app/appRoutes';
+import { lazy, useEffect, useRef } from 'react';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
+import { derivePhase } from '@domain/sessionPhase';
+import {
+  paths,
+  resolveLiveSessionRoute,
+  resolveNewSessionPath,
+  resolveWizardRoute,
+} from '@app/appRoutes';
 import { buildHistoryViewContract } from '@app/screens/historyView/historyViewContract';
+import { buildSessionWizardContract } from '@app/screens/sessionWizard/sessionWizardContract';
+import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
+import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionLifecycleUseCases';
 import { getCommunitySessions } from '@logic/community';
+import { generateUUID } from '@logic/uuid';
 import { useCommunityShell } from '../shellContext';
 
 const HistoryView = lazy(() =>
@@ -13,6 +23,16 @@ const HistoryView = lazy(() =>
 const TournamentsModule = lazy(() =>
   import('../../components/tournaments/TournamentsModule').then((module) => ({
     default: module.TournamentsModule,
+  })),
+);
+const SessionWizard = lazy(() =>
+  import('../../components/session/SessionWizard').then((module) => ({
+    default: module.SessionWizard,
+  })),
+);
+export const SessionActiveView = lazy(() =>
+  import('../../components/live/SessionActiveView').then((module) => ({
+    default: module.SessionActiveView,
   })),
 );
 
@@ -70,6 +90,89 @@ export function CommunitySessionDetailRoute() {
         onBackToDashboard: () => navigate(paths.sessoes(community.id)),
         initialTab: 'sessions',
         hideTabs: true,
+      })}
+    />
+  );
+}
+
+export function SessionWizardRoute() {
+  const shell = useCommunityShell();
+  const [searchParams] = useSearchParams();
+  const { community, sess, play, comm, wizard } = shell;
+  const type = searchParams.get('tipo') === 'torneio' ? 'tournament' : undefined;
+  const resolution = resolveWizardRoute({
+    communityId: community.id,
+    hasActiveSession: !!sess.activeSession,
+    activeSessionCommunityId: sess.activeSession?.communityId ?? null,
+  });
+  const bootstrapped = useRef(false);
+
+  useEffect(() => {
+    if (bootstrapped.current) return;
+    if (resolution.kind === 'create') {
+      bootstrapped.current = true;
+      const result = buildManualSessionStartResult({
+        type,
+        communityId: community.id,
+        now: new Date(),
+        createId: generateUUID,
+      });
+      sess.setActiveSession(result.session);
+      wizard.setWizardStep(result.nextWizardStep);
+      return;
+    }
+    if (resolution.kind === 'adopt') {
+      bootstrapped.current = true;
+      wizard.updateSession({ communityId: community.id });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolution.kind, community.id, type]);
+
+  if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
+  if (!sess.activeSession) return null;
+
+  return (
+    <SessionWizard
+      contract={buildSessionWizardContract({
+        activeSession: sess.activeSession,
+        players: play.players,
+        communities: comm.communities,
+        hookApi: wizard,
+        applyGuestPlayer: shell.applyGuestPlayer,
+      })}
+    />
+  );
+}
+
+export function SessionActiveRoute() {
+  const shell = useCommunityShell();
+  const navigate = useNavigate();
+  const { community, sess, play } = shell;
+  const phase = derivePhase(sess.activeSession, sess.games);
+  const resolution = resolveLiveSessionRoute({
+    communityId: community.id,
+    activeSessionCommunityId: sess.activeSession?.communityId ?? null,
+    hasActiveSession: !!sess.activeSession,
+    phase,
+  });
+  if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
+
+  return (
+    <SessionActiveView
+      contract={buildSessionActiveViewContract({
+        activeSession: sess.activeSession!,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        players: play.players,
+        sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
+        gameReports: sess.gameReports,
+        currentDeviceId: shell.currentDeviceId,
+        setGames: sess.setGames,
+        setPointEvents: sess.setPointEvents,
+        setGameReports: sess.setGameReports,
+        setActiveSession: sess.updateActiveSession,
+        onExit: () => navigate(paths.comunidade(community.id)),
+        onFinishSession: shell.handleFinishSession,
       })}
     />
   );

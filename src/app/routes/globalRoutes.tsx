@@ -1,19 +1,28 @@
 import { lazy } from 'react';
 import { Navigate, useNavigate } from 'react-router';
-import { paths, resolveAdminRoute, resolveNewSessionPath } from '@app/appRoutes';
+import {
+  paths,
+  resolveAdminRoute,
+  resolveLegacyLiveSessionRoute,
+  resolveNewSessionPath,
+} from '@app/appRoutes';
 import { buildAgendaItems } from '@app/agendaViewModel';
+import { derivePhase } from '@domain/sessionPhase';
 import { formatLocalDateInput } from '@logic/date';
 import { buildDashboardContract } from '@app/screens/dashboard/dashboardContract';
 import { buildAccountSyncViewContract } from '@app/screens/accountSyncView/accountSyncViewContract';
 import { buildGestaoViewContract } from '@app/screens/gestaoView/gestaoViewContract';
+import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
 import {
   buildActiveSessionClearResult,
   buildDraftClearResult,
+  selectSessionTeams,
 } from '@app/sessionLifecycleUseCases';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
 import { useCommunitiesContract } from './communitiesContract';
+import { SessionActiveView } from './sessionRoutes';
 
 const Dashboard = lazy(() =>
   import('../../components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
@@ -157,6 +166,39 @@ export function PerfilSyncRoute() {
         syncIssueSummary: cloudSync.syncIssueSummary,
         onRetryPrimarySyncAction: cloudSync.retryPrimarySyncAction,
         onClearResolvedSyncIssues: cloudSync.clearResolvedSyncIssues,
+      })}
+    />
+  );
+}
+
+export function LegacyActiveSessionRoute() {
+  const shell = useShell();
+  const navigate = useNavigate();
+  const { sess, play } = shell;
+  const phase = derivePhase(sess.activeSession, sess.games);
+  const resolution = resolveLegacyLiveSessionRoute({
+    activeSessionCommunityId: sess.activeSession?.communityId ?? null,
+    hasActiveSession: !!sess.activeSession,
+    phase,
+  });
+  if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
+
+  return (
+    <SessionActiveView
+      contract={buildSessionActiveViewContract({
+        activeSession: sess.activeSession!,
+        games: sess.games,
+        pointEvents: sess.pointEvents,
+        players: play.players,
+        sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
+        gameReports: sess.gameReports,
+        currentDeviceId: shell.currentDeviceId,
+        setGames: sess.setGames,
+        setPointEvents: sess.setPointEvents,
+        setGameReports: sess.setGameReports,
+        setActiveSession: sess.updateActiveSession,
+        onExit: () => navigate(paths.painel),
+        onFinishSession: shell.handleFinishSession,
       })}
     />
   );

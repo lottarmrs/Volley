@@ -140,7 +140,7 @@ describe('AppRouterV7 — shell', () => {
 describe('AppRouterV7 — rotas globais', () => {
   it('monta a lista de comunidades em /comunidades', async () => {
     renderAppV7('/comunidades');
-    expect(await screen.findByRole('heading', { name: /comunidades/i })).toBeTruthy();
+    expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
   });
 
   it('monta as configurações do usuário em /perfil', async () => {

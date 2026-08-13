@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
@@ -259,5 +259,22 @@ describe('AppRouterV7 — pessoas', () => {
     seedLocalDb({ communities: [community], players: [player] });
     renderAppV7('/comunidades/c1/pessoas/editar-atleta/p-inexistente');
     expect(await screen.findByText(/ana souza/i)).toBeTruthy();
+  });
+
+  it('monta o formulário em branco para o atleta novo (sentinela "novo")', async () => {
+    seedLocalDb({ communities: [community] });
+    renderAppV7('/comunidades/c1/pessoas/editar-atleta/novo');
+    const nomeInput = await screen.findByPlaceholderText('Nome Completo', {}, { timeout: 5000 });
+    expect((nomeInput as HTMLInputElement).value).toBe('');
+    expect((screen.getByPlaceholderText('Apelido') as HTMLInputElement).value).toBe('');
+  });
+
+  it('salvar no editor de atleta volta para a lista de Pessoas', async () => {
+    seedLocalDb({ communities: [community], players: [player] });
+    renderAppV7('/comunidades/c1/pessoas/editar-atleta/p1');
+    await screen.findByDisplayValue('Ana Souza', {}, { timeout: 5000 });
+    fireEvent.click(screen.getByRole('button', { name: /salvar altera/i }));
+    expect(await screen.findByText(/ana souza/i)).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Nome Completo')).toBeNull();
   });
 });

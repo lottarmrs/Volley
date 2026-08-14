@@ -138,7 +138,8 @@ export function SessionWizardRoute() {
         players: play.players,
         communities: comm.communities,
         hookApi: wizard,
-        applyGuestPlayer: shell.applyGuestPlayer,
+        applyGuestPlayer: (player, editDetails) =>
+          shell.applyGuestPlayer(player, editDetails, community.id),
       })}
     />
   );

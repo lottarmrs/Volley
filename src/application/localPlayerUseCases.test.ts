@@ -183,15 +183,30 @@ test('applyGuestPlayerUpsert reuses duplicate guests and appends new guests', ()
   const duplicateGuest = { ...player('guest-1', 'Convidado'), isGuest: true };
   const newGuest = { ...player('guest-2', 'Visitante'), isGuest: true };
 
-  const reused = applyGuestPlayerUpsert([existing], duplicateGuest);
+  const reused = applyGuestPlayerUpsert([existing], duplicateGuest, 'community-1');
   assert.equal(reused.selectedPlayer.id, 'player-1');
   assert.equal(reused.players.length, 1);
   assert.equal(reused.wasCreated, false);
 
-  const inserted = applyGuestPlayerUpsert([existing], newGuest);
+  const inserted = applyGuestPlayerUpsert([existing], newGuest, 'community-1');
   assert.equal(inserted.selectedPlayer.id, 'guest-2');
   assert.equal(inserted.players.length, 2);
   assert.equal(inserted.wasCreated, true);
+});
+
+test('applyGuestPlayerUpsert vincula o convidado à comunidade sem duplicar ids', () => {
+  const newGuest = { ...player('guest-2', 'Visitante'), isGuest: true, communityIds: [] };
+
+  const inserted = applyGuestPlayerUpsert([], newGuest, 'community-1');
+  assert.deepEqual(inserted.selectedPlayer.communityIds, ['community-1']);
+  assert.deepEqual(inserted.players[0].communityIds, ['community-1']);
+
+  const alreadyLinked = applyGuestPlayerUpsert(
+    [],
+    { ...newGuest, communityIds: ['community-1'] },
+    'community-1',
+  );
+  assert.deepEqual(alreadyLinked.selectedPlayer.communityIds, ['community-1']);
 });
 
 test('applyLocalPlayerDeletion soft-deletes cloud players', () => {

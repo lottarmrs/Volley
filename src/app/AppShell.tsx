@@ -518,10 +518,10 @@ export function AppShell() {
     if (message) toasts.push(message, 'error');
   };
 
-  const applyGuestPlayer = (newPlayer: Player, editDetails: boolean) => {
-    const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer);
+  const applyGuestPlayer = (newPlayer: Player, editDetails: boolean, communityId: string) => {
+    const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer, communityId);
     play.setPlayers(result.players);
-    if (sess.activeSession) {
+    if (sess.activeSession && sess.activeSession.communityId === communityId) {
       const nextSelected = [
         ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),
       ];
@@ -529,8 +529,7 @@ export function AppShell() {
     }
     if (editDetails) {
       play.setEditingPlayer(result.selectedPlayer);
-      const communityId = activeCommunityId ?? result.selectedPlayer.communityIds?.[0] ?? null;
-      if (communityId) navigate(paths.atleta(communityId, result.selectedPlayer.id));
+      navigate(paths.atleta(communityId, result.selectedPlayer.id));
     }
   };
 

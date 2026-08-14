@@ -134,6 +134,23 @@ export function resolvePlayerRoute(input: {
   return { kind: 'not-found' };
 }
 
+export type PlayerEditAction = 'none' | 'add-new' | 'edit-existing';
+
+export function resolvePlayerEditAction(input: {
+  playerId?: string;
+  targetPlayerId?: string;
+  editingPlayerId?: string;
+  hasEditingPlayer: boolean;
+}): PlayerEditAction {
+  if (!input.playerId) return 'none';
+  if (input.targetPlayerId && input.editingPlayerId === input.targetPlayerId) return 'none';
+  if (input.playerId === NEW_PLAYER_ID) {
+    return input.hasEditingPlayer ? 'none' : 'add-new';
+  }
+  if (input.targetPlayerId) return 'edit-existing';
+  return 'none';
+}
+
 export function resolveNewSessionPath(input: {
   communityIds: string[];
   type?: 'tournament' | 'free_play';

@@ -13,6 +13,7 @@ import {
   paths,
   resolveBackTarget,
   resolveCommunityRoute,
+  resolvePlayerEditAction,
   resolvePlayerRoute,
 } from '@app/appRoutes';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
@@ -120,13 +121,14 @@ export function PlayerEditRoute() {
       : undefined;
 
   useEffect(() => {
-    if (!playerId) return;
-    if (targetPlayer && play.editingPlayer?.id === targetPlayer.id) return;
-    if (playerId === NEW_PLAYER_ID) {
-      if (!play.editingPlayer) play.handleAddPlayer();
-      return;
-    }
-    if (targetPlayer) play.handleEditPlayer(targetPlayer);
+    const action = resolvePlayerEditAction({
+      playerId,
+      targetPlayerId: targetPlayer?.id,
+      editingPlayerId: play.editingPlayer?.id,
+      hasEditingPlayer: Boolean(play.editingPlayer),
+    });
+    if (action === 'add-new') play.handleAddPlayer();
+    else if (action === 'edit-existing' && targetPlayer) play.handleEditPlayer(targetPlayer);
   }, [playerId, play.editingPlayer, targetPlayer]);
 
   const goBack = () => {

@@ -1,10 +1,23 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { describe, expect, it, vi } from 'vitest';
 import type { Session } from '@supabase/supabase-js';
+import type { AuthClient } from '@app/authClient';
+import type { AccountGateway, AccountSnapshot } from '@app/accountUseCases';
+import type { UserProfile } from '@shared/types';
+
+const { playerCloudServiceMock } = vi.hoisted(() => ({
+  playerCloudServiceMock: { isHandleAvailable: vi.fn().mockResolvedValue(true) },
+}));
+
+vi.mock('@infra/supabase/playerCloudService', () => ({
+  playerCloudService: playerCloudServiceMock,
+}));
+
 import { AuthSessionProvider } from './AuthSessionProvider';
 import { useAuthSession } from './useAuthSession';
-import type { AuthClient } from '@app/authClient';
-import type { UserProfile } from '@shared/types';
+import { UsernameOnboardingPage } from './AuthPages';
+import { HandleChangeForm } from '../routes/globalRoutes';
 
 function profile(id: string): UserProfile {
   return {
@@ -53,6 +66,28 @@ function ProbeWithRetry() {
       <button onClick={() => void auth.retry()}>retry</button>
     </div>
   );
+}
+
+function snapshot(overrides: Partial<AccountSnapshot> = {}): AccountSnapshot {
+  return {
+    state: 'ready',
+    profile: profile('u1'),
+    playerId: 'p1',
+    username: 'ana',
+    requiresAal2: false,
+    ...overrides,
+  };
+}
+
+// Reproduz a corrida real: o handle estava livre na checagem e foi tomado antes
+// do submit, entao o RPC devolve unique violation (23505).
+function handleTakenGateway(bootstrap: AccountSnapshot): AccountGateway {
+  return {
+    ensureReady: async (username) => {
+      if (username) throw Object.assign(new Error('duplicate key'), { code: '23505' });
+      return bootstrap;
+    },
+  };
 }
 
 describe('AuthSessionProvider', () => {
@@ -161,5 +196,50 @@ describe('AuthSessionProvider', () => {
     // before navigating — re-fetches the assurance level and reaches ready.
     screen.getByText('retry').click();
     await waitFor(() => expect(screen.getByText('ready')).toBeTruthy());
+  });
+
+  // Regressao: 'nome ja em uso' virava recoverable_error, que routeForAuthState
+  // mapeia para /auth/recuperar-sessao — um erro de campo arrancava a pessoa da
+  // tela inteira, e o catch dos formularios era codigo morto.
+  it('mantem o onboarding na tela quando o username ja esta em uso', async () => {
+    render(
+      <MemoryRouter initialEntries={['/escolher-username']}>
+        <AuthSessionProvider
+          authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
+          accountGateway={handleTakenGateway(snapshot({ state: 'needs_username', username: null }))}
+        >
+          <Probe />
+          <UsernameOnboardingPage />
+        </AuthSessionProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('onboarding')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(/nome de usu/i), { target: { value: 'ana-voleio' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/ja esta em uso/i);
+    expect(screen.queryByText('recoverable_error')).toBeNull();
+    expect(screen.getByText('onboarding')).toBeTruthy();
+  });
+
+  it('mantem a troca de handle na tela quando o username ja esta em uso', async () => {
+    const onDone = vi.fn();
+    render(
+      <AuthSessionProvider
+        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
+        accountGateway={handleTakenGateway(snapshot())}
+      >
+        <Probe />
+        <HandleChangeForm onDone={onDone} />
+      </AuthSessionProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('ready')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Novo nome de usuário'), {
+      target: { value: 'ana-voleio' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/ja esta em uso/i);
+    expect(onDone).not.toHaveBeenCalled();
+    expect(screen.queryByText('recoverable_error')).toBeNull();
+    expect(screen.getByText('ready')).toBeTruthy();
   });
 });

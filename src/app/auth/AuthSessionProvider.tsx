@@ -35,6 +35,17 @@ export function AuthSessionProvider({
       }
       const result = await ensureAccountReadyCommand(accountGateway, username);
       if (!isAppOk(result)) {
+        // Handle tomado entre a checagem e o submit e erro de campo, nao falha de
+        // bootstrap: virar 'recoverable_error' aqui arrancaria a pessoa do
+        // formulario para /auth/recuperar-sessao. Quem chamou com username tem
+        // try/catch esperando exatamente isso.
+        if (
+          username &&
+          result.error.kind === 'product' &&
+          result.error.code === 'username_unavailable'
+        ) {
+          throw new Error(result.error.message);
+        }
         setState({
           kind: 'recoverable_error',
           userId: nextSession.user.id,

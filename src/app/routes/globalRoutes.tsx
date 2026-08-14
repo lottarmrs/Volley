@@ -179,7 +179,7 @@ export function PerfilRoute() {
   );
 }
 
-function HandleChangeForm({ onDone }: { onDone: () => void }) {
+export function HandleChangeForm({ onDone }: { onDone: () => void }) {
   const { completeUsername } = useAuthSession();
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);

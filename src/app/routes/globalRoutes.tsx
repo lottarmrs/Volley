@@ -1,4 +1,4 @@
-import { lazy, useEffect, useState } from 'react';
+import { lazy, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import {
   paths,
@@ -20,7 +20,7 @@ import {
 } from '@app/sessionLifecycleUseCases';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { normalizeHandle, validateHandle } from '@logic/handle';
-import { playerCloudService } from '@infra/supabase/playerCloudService';
+import { useHandleAvailability } from '@hooks/useHandleAvailability';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
 import { useAuthSession } from '../auth/useAuthSession';
@@ -183,30 +183,8 @@ export function HandleChangeForm({ onDone }: { onDone: () => void }) {
   const { completeUsername } = useAuthSession();
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [available, setAvailable] = useState<boolean | null>(null);
   const handle = normalizeHandle(value);
-
-  useEffect(() => {
-    if (!handle || validateHandle(handle) !== null) {
-      setAvailable(null);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      playerCloudService
-        .isHandleAvailable(handle)
-        .then((free) => {
-          if (!cancelled) setAvailable(free);
-        })
-        .catch(() => {
-          if (!cancelled) setAvailable(null);
-        });
-    }, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [handle]);
+  const availability = useHandleAvailability(handle);
 
   return (
     <form
@@ -237,14 +215,17 @@ export function HandleChangeForm({ onDone }: { onDone: () => void }) {
           setError(null);
         }}
       />
-      {available === false && <p className="text-xs text-error">@{handle} já está em uso.</p>}
-      {available === true && <p className="text-xs text-success">@{handle} está disponível.</p>}
+      {availability === 'checking' && <p className="text-xs text-base-content/60">Verificando…</p>}
+      {availability === 'taken' && <p className="text-xs text-error">@{handle} já está em uso.</p>}
+      {availability === 'free' && (
+        <p className="text-xs text-success">@{handle} está disponível.</p>
+      )}
       {error && (
         <p role="alert" className="text-xs text-error">
           {error}
         </p>
       )}
-      <button type="submit" className="btn btn-primary btn-sm" disabled={available === false}>
+      <button type="submit" className="btn btn-primary btn-sm" disabled={availability === 'taken'}>
         Salvar
       </button>
     </form>

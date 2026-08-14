@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '@supabase/supabase-js';
 import type { AuthClient } from '@app/authClient';
 import type { AccountGateway, AccountSnapshot } from '@app/accountUseCases';
@@ -91,6 +91,11 @@ function handleTakenGateway(bootstrap: AccountSnapshot): AccountGateway {
 }
 
 describe('AuthSessionProvider', () => {
+  beforeEach(() => {
+    playerCloudServiceMock.isHandleAvailable.mockReset();
+    playerCloudServiceMock.isHandleAvailable.mockResolvedValue(true);
+  });
+
   it('becomes ready after session and account bootstrap', async () => {
     render(
       <AuthSessionProvider
@@ -241,5 +246,32 @@ describe('AuthSessionProvider', () => {
     expect(onDone).not.toHaveBeenCalled();
     expect(screen.queryByText('recoverable_error')).toBeNull();
     expect(screen.getByText('ready')).toBeTruthy();
+  });
+
+  // A troca de handle nao dava sinal nenhum durante os 400ms de debounce mais a
+  // rede; agora compartilha o mesmo hook do cadastro.
+  it('avisa que esta verificando o novo handle antes da resposta chegar', async () => {
+    let respond: (free: boolean) => void = () => {};
+    playerCloudServiceMock.isHandleAvailable.mockImplementation(
+      () => new Promise<boolean>((resolve) => (respond = resolve)),
+    );
+    render(
+      <AuthSessionProvider
+        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
+        accountGateway={handleTakenGateway(snapshot())}
+      >
+        <HandleChangeForm onDone={vi.fn()} />
+      </AuthSessionProvider>,
+    );
+    fireEvent.change(screen.getByLabelText('Novo nome de usuário'), {
+      target: { value: 'ana-voleio' },
+    });
+    expect(screen.getByText('Verificando…')).toBeTruthy();
+    await waitFor(() =>
+      expect(playerCloudServiceMock.isHandleAvailable).toHaveBeenCalledWith('ana-voleio'),
+    );
+    respond(true);
+    expect(await screen.findByText(/está disponível/)).toBeTruthy();
+    expect(screen.queryByText('Verificando…')).toBeNull();
   });
 });

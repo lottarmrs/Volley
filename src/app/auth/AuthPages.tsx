@@ -10,7 +10,7 @@ import { CaptchaField } from './CaptchaField';
 import { captchaSiteKey } from './captchaEnv';
 import { validatePasswordLength } from './passwordPolicy';
 import { normalizeHandle, validateHandle } from '@logic/handle';
-import { playerCloudService } from '@infra/supabase/playerCloudService';
+import { useHandleAvailability } from '@hooks/useHandleAvailability';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -77,34 +77,11 @@ export function UsernameOnboardingPage() {
   const { completeUsername } = useAuthSession();
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<'idle' | 'checking' | 'free' | 'taken'>('idle');
   const navigate = useNavigate();
   const location = useLocation();
   const handle = normalizeHandle(value);
   const formatError = value ? validateHandle(value) : null;
-
-  useEffect(() => {
-    if (!handle || validateHandle(handle) !== null) {
-      setAvailability('idle');
-      return;
-    }
-    let cancelled = false;
-    setAvailability('checking');
-    const timer = setTimeout(() => {
-      playerCloudService
-        .isHandleAvailable(handle)
-        .then((free) => {
-          if (!cancelled) setAvailability(free ? 'free' : 'taken');
-        })
-        .catch(() => {
-          if (!cancelled) setAvailability('idle');
-        });
-    }, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [handle]);
+  const availability = useHandleAvailability(handle);
 
   return (
     <form

@@ -92,7 +92,7 @@ export function CommunityPeopleRoute() {
         },
         onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
         onAddGuestPlayer: (newPlayer, editDetails) =>
-          shell.applyGuestPlayer(newPlayer, editDetails),
+          shell.applyGuestPlayer(newPlayer, editDetails, community.id),
       })}
     />
   );

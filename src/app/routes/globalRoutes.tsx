@@ -70,7 +70,11 @@ export function PainelRoute() {
           ),
         onResumeDraft: (draft) => {
           wizard.resumeDraft(draft);
-          navigate(resolveNewSessionPath({ communityIds }));
+          navigate(
+            draft.session.communityId
+              ? paths.sessaoNova(draft.session.communityId)
+              : resolveNewSessionPath({ communityIds }),
+          );
         },
         onClearDraft: () => {
           if (window.confirm('Deseja realmente descartar o rascunho?')) {

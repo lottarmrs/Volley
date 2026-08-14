@@ -350,7 +350,6 @@ export function useSessionWizard({
     setWizardStep(result.nextWizardStep);
     setBestDivisions(result.nextBestDivisions);
     setSelectedDivisionIndex(result.nextSelectedDivisionIndex);
-    setPage(result.nextPage);
   };
 
   return {

@@ -43,7 +43,7 @@ export interface ShellApi {
   deleteChampionshipAggregate: (championshipId: string) => void;
   deleteCommunityAggregate: (communityId: string) => void;
   handlePlayerEditActionError: (error: unknown) => void;
-  applyGuestPlayer: (player: Player, editDetails: boolean) => void;
+  applyGuestPlayer: (player: Player, editDetails: boolean, communityId: string) => void;
 }
 
 export function useShell(): ShellApi {

@@ -104,6 +104,7 @@ export function SessionWizardRoute() {
     communityId: community.id,
     hasActiveSession: !!sess.activeSession,
     activeSessionCommunityId: shell.activeSessionCommunityId,
+    phase: derivePhase(sess.activeSession, sess.games),
   });
   const bootstrapped = useRef(false);
 
@@ -138,7 +139,8 @@ export function SessionWizardRoute() {
         players: play.players,
         communities: comm.communities,
         hookApi: wizard,
-        applyGuestPlayer: shell.applyGuestPlayer,
+        applyGuestPlayer: (player, editDetails) =>
+          shell.applyGuestPlayer(player, editDetails, community.id),
       })}
     />
   );

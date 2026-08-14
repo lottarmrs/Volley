@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  LIVE_SESSION_PHASES,
   NEW_PLAYER_ID,
   extractCommunityId,
   getPageTitleForPath,
@@ -143,14 +144,18 @@ test('resolveAdminRoute é staff-only', () => {
 });
 
 test('resolveWizardRoute cria rascunho, adota sessão órfã e reencaminha a de outra comunidade', () => {
-  assert.deepEqual(resolveWizardRoute({ communityId: 'c1', hasActiveSession: false }), {
-    kind: 'create',
-  });
+  assert.deepEqual(
+    resolveWizardRoute({ communityId: 'c1', hasActiveSession: false, phase: 'rascunho' }),
+    {
+      kind: 'create',
+    },
+  );
   assert.deepEqual(
     resolveWizardRoute({
       communityId: 'c1',
       hasActiveSession: true,
       activeSessionCommunityId: null,
+      phase: 'rascunho',
     }),
     { kind: 'adopt' },
   );
@@ -159,6 +164,7 @@ test('resolveWizardRoute cria rascunho, adota sessão órfã e reencaminha a de 
       communityId: 'c1',
       hasActiveSession: true,
       activeSessionCommunityId: 'c1',
+      phase: 'rascunho',
     }),
     { kind: 'ok' },
   );
@@ -167,8 +173,43 @@ test('resolveWizardRoute cria rascunho, adota sessão órfã e reencaminha a de 
       communityId: 'c1',
       hasActiveSession: true,
       activeSessionCommunityId: 'c2',
+      phase: 'rascunho',
     }),
     { kind: 'redirect', to: '/comunidades/c2/sessoes/nova' },
+  );
+});
+
+test('resolveWizardRoute nunca monta o wizard sobre uma sessão em fase jogável', () => {
+  for (const phase of LIVE_SESSION_PHASES) {
+    assert.deepEqual(
+      resolveWizardRoute({
+        communityId: 'c1',
+        hasActiveSession: true,
+        activeSessionCommunityId: 'c1',
+        phase,
+      }),
+      { kind: 'redirect', to: '/comunidades/c1/sessoes/ativa' },
+      `fase ${phase} deveria mandar para a sessão ativa da dona`,
+    );
+    assert.deepEqual(
+      resolveWizardRoute({
+        communityId: 'c1',
+        hasActiveSession: true,
+        activeSessionCommunityId: null,
+        phase,
+      }),
+      { kind: 'redirect', to: '/sessao/ativa' },
+      `fase ${phase} não pode adotar uma sessão órfã em jogo`,
+    );
+  }
+  assert.deepEqual(
+    resolveWizardRoute({
+      communityId: 'c1',
+      hasActiveSession: true,
+      activeSessionCommunityId: 'c1',
+      phase: 'encerrada',
+    }),
+    { kind: 'ok' },
   );
 });
 

@@ -323,7 +323,6 @@ test('buildSessionDraftResumeResult restores wizard state from draft', () => {
   assert.equal(result.nextWizardStep, 2);
   assert.deepEqual(result.nextBestDivisions, [division]);
   assert.equal(result.nextSelectedDivisionIndex, 0);
-  assert.equal(result.nextPage, 'session-wizard');
 });
 
 test('buildSessionDraftPersistenceResult saves only draft sessions with wizard state', () => {

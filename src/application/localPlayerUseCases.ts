@@ -218,8 +218,13 @@ export function applyPlayerCreationForCommunity(input: {
 export function applyGuestPlayerUpsert(
   players: Player[],
   guestPlayer: Player,
+  communityId: string,
 ): { players: Player[]; selectedPlayer: Player; wasCreated: boolean } {
   const duplicate = findDuplicatePlayerByProfile(players, guestPlayer);
   if (duplicate) return { players, selectedPlayer: duplicate, wasCreated: false };
-  return { players: [...players, guestPlayer], selectedPlayer: guestPlayer, wasCreated: true };
+  const selectedPlayer: Player = {
+    ...guestPlayer,
+    communityIds: Array.from(new Set([...(guestPlayer.communityIds ?? []), communityId])),
+  };
+  return { players: [...players, selectedPlayer], selectedPlayer, wasCreated: true };
 }

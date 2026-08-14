@@ -17,6 +17,10 @@ vi.mock('./auth/useAuthSession', () => ({
   useAuthSession: () => authSessionMock.current,
 }));
 
+// Sem isso um .env local liga o Supabase e as telas rodam por um caminho que o
+// CI (que nunca tem .env) não executa.
+vi.mock('../lib/supabaseClient', () => ({ isSupabaseConfigured: false, supabase: null }));
+
 import { AppRouter } from './AppRouter';
 
 const stubAuthClient = {
@@ -161,10 +165,15 @@ describe('AppRouter — autenticação', () => {
   });
 });
 
+const DASHBOARD_MARKER = /bem-vindo ao panelinha/i;
+const ACCOUNT_SYNC_MARKER = /nuvem não configurada/i;
+const GESTAO_MARKER = /usuários & papéis/i;
+
 describe('AppRouter — shell', () => {
   it('monta o shell e o painel em /painel', async () => {
     renderApp('/painel');
     expect(await screen.findByRole('heading', { name: /painel de controle/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: DASHBOARD_MARKER })).toBeTruthy();
   });
 
   it('redireciona a raiz para /painel', async () => {
@@ -203,7 +212,7 @@ describe('AppRouter — rotas globais', () => {
 
   it('monta a sincronização em /perfil/sync', async () => {
     renderApp('/perfil/sync');
-    expect(await screen.findByRole('heading', { name: /sincroniza|nuvem|conta/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: ACCOUNT_SYNC_MARKER })).toBeTruthy();
   });
 
   it('expulsa não-staff de /admin para /painel', async () => {
@@ -219,7 +228,7 @@ describe('AppRouter — rotas globais', () => {
         profile: { ...readyState.account.profile, role: 'master' },
       },
     } as AuthSessionState);
-    expect(await screen.findByRole('heading', { name: /gest[aã]o|administra/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: GESTAO_MARKER })).toBeTruthy();
   });
 });
 
@@ -482,24 +491,66 @@ describe('AppRouter — wizard e sessão ativa', () => {
     expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoAtivaSemComunidade);
   });
 
+  const liveSessionC1 = {
+    id: 's-viva-c1',
+    communityId: 'c1',
+    name: 'Sessão Ao Vivo C1',
+    date: '2026-08-12',
+    status: 'active',
+    type: 'free_play',
+    selectedPlayerIds: [],
+    teamIds: [],
+    createdAt: '2026-08-12T00:00:00.000Z',
+    updatedAt: '2026-08-12T00:00:00.000Z',
+  } satisfies Partial<Session>;
+
   it('renderiza a tela de sessão ativa da própria comunidade em /comunidades/c1/sessoes/ativa', async () => {
-    seedLocalDb({
-      communities: [community],
-      activeSession: {
-        id: 's-viva-c1',
-        communityId: 'c1',
-        name: 'Sessão Ao Vivo C1',
-        date: '2026-08-12',
-        status: 'active',
-        type: 'free_play',
-        selectedPlayerIds: [],
-        teamIds: [],
-        createdAt: '2026-08-12T00:00:00.000Z',
-        updatedAt: '2026-08-12T00:00:00.000Z',
-      } satisfies Partial<Session>,
-    });
+    seedLocalDb({ communities: [community], activeSession: liveSessionC1 });
     renderApp('/comunidades/c1/sessoes/ativa');
     expect(await screen.findByText(SESSION_ACTIVE_MARKER, {}, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoAtiva('c1'));
+  });
+
+  it('retomar rascunho vai direto para a comunidade dona do rascunho', async () => {
+    seedLocalDb({
+      communities: [community, { id: 'c2', name: 'Rivais' }],
+      activeSession: null,
+    });
+    localStorage.setItem(
+      'vpg_session_draft',
+      JSON.stringify({
+        session: {
+          id: 's-rascunho',
+          communityId: 'c2',
+          name: 'Rascunho da c2',
+          date: '2026-08-12',
+          status: 'draft',
+          type: 'free_play',
+          selectedPlayerIds: [],
+          teamIds: [],
+          createdAt: '2026-08-12T00:00:00.000Z',
+          updatedAt: '2026-08-12T00:00:00.000Z',
+        },
+        wizardStep: 1,
+        bestDivisions: [],
+        selectedDivisionIndex: 0,
+        updatedAt: '2026-08-12T00:00:00.000Z',
+      }),
+    );
+    renderApp('/painel');
+    fireEvent.click(await screen.findByRole('button', { name: /continuar/i }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoNova('c2')),
+    );
+  });
+
+  it('não abre o wizard por cima de uma sessão em fase jogável', async () => {
+    seedLocalDb({ communities: [community], activeSession: liveSessionC1 });
+    renderApp('/comunidades/c1/sessoes/nova');
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoAtiva('c1')),
+    );
+    expect(screen.queryByPlaceholderText(WIZARD_MARKER)).toBeNull();
+    expect(await screen.findByText(SESSION_ACTIVE_MARKER, {}, { timeout: 5000 })).toBeTruthy();
   });
 });

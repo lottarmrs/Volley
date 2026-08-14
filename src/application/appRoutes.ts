@@ -105,9 +105,16 @@ export function resolveWizardRoute(input: {
   communityId: string;
   hasActiveSession: boolean;
   activeSessionCommunityId?: string | null;
+  phase: OperationalPhase;
 }): { kind: 'create' | 'adopt' | 'ok' } | { kind: 'redirect'; to: string } {
   if (!input.hasActiveSession) return { kind: 'create' };
   const owner = input.activeSessionCommunityId ?? null;
+  if (LIVE_SESSION_PHASES.includes(input.phase)) {
+    return {
+      kind: 'redirect',
+      to: owner === null ? paths.sessaoAtivaSemComunidade : paths.sessaoAtiva(owner),
+    };
+  }
   if (owner === null) return { kind: 'adopt' };
   if (owner === input.communityId) return { kind: 'ok' };
   return { kind: 'redirect', to: paths.sessaoNova(owner) };

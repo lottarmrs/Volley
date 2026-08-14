@@ -251,7 +251,6 @@ export function buildSessionDraftResumeResult(draft: {
     nextWizardStep: draft.wizardStep,
     nextBestDivisions: draft.bestDivisions,
     nextSelectedDivisionIndex: draft.selectedDivisionIndex,
-    nextPage: 'session-wizard' as const,
   };
 }
 

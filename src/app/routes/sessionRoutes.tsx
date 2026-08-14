@@ -104,6 +104,7 @@ export function SessionWizardRoute() {
     communityId: community.id,
     hasActiveSession: !!sess.activeSession,
     activeSessionCommunityId: shell.activeSessionCommunityId,
+    phase: derivePhase(sess.activeSession, sess.games),
   });
   const bootstrapped = useRef(false);
 

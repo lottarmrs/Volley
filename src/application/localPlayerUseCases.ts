@@ -175,7 +175,6 @@ export function applyPlayerCreationForCommunity(input: {
   communityId: string;
   now: string;
   createId: () => string;
-  createUsername: (name: string) => string | undefined;
 }): { players: Player[]; createdPlayerId: string | null } {
   const name = input.name.trim();
   if (!name) return { players: input.players, createdPlayerId: null };
@@ -208,7 +207,6 @@ export function applyPlayerCreationForCommunity(input: {
   const player = buildDefaultCommunityPlayer({
     id: input.createId(),
     name,
-    username: input.createUsername(name),
     communityId: input.communityId,
     now: input.now,
   });

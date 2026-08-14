@@ -47,7 +47,6 @@ import {
   saveToStorage,
 } from '../storage/localStorageRepository';
 import { countPendingChanges } from '../logic/syncStatus';
-import { resolveUsername } from '../logic/username';
 import { generateUUID } from '../logic/uuid';
 import { applyCommunityDeletion } from '../application/localCommunityUseCases';
 import {
@@ -354,11 +353,6 @@ export function AppShell() {
         communityId,
         now,
         createId: generateUUID,
-        createUsername: (playerName) =>
-          resolveUsername(
-            { nome: playerName, isGuest: false },
-            play.rawPlayers.filter((p) => p.username).map((p) => p.username as string),
-          ),
       }).players,
     );
   };

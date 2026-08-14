@@ -120,6 +120,20 @@ export function resolveWizardRoute(input: {
   return { kind: 'redirect', to: paths.sessaoNova(owner) };
 }
 
+export function resolvePlayerRoute(input: {
+  param?: string;
+  players: Array<{ id: string; username?: string }>;
+}): { kind: 'ok'; playerId: string } | { kind: 'new' } | { kind: 'not-found' } {
+  if (!input.param) return { kind: 'not-found' };
+  if (input.param === NEW_PLAYER_ID) return { kind: 'new' };
+  const byId = input.players.find((player) => player.id === input.param);
+  if (byId) return { kind: 'ok', playerId: byId.id };
+  const target = input.param.toLowerCase();
+  const byHandle = input.players.find((player) => player.username?.toLowerCase() === target);
+  if (byHandle) return { kind: 'ok', playerId: byHandle.id };
+  return { kind: 'not-found' };
+}
+
 export function resolveNewSessionPath(input: {
   communityIds: string[];
   type?: 'tournament' | 'free_play';

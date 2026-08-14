@@ -8,7 +8,13 @@ import {
   useSearchParams,
 } from 'react-router';
 import type { Community } from '@shared/types';
-import { NEW_PLAYER_ID, paths, resolveBackTarget, resolveCommunityRoute } from '@app/appRoutes';
+import {
+  NEW_PLAYER_ID,
+  paths,
+  resolveBackTarget,
+  resolveCommunityRoute,
+  resolvePlayerRoute,
+} from '@app/appRoutes';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
 import { buildPlayerEditViewContract } from '@app/screens/playerEditView/playerEditViewContract';
 import { buildHistoryViewContract } from '@app/screens/historyView/historyViewContract';
@@ -88,7 +94,7 @@ export function CommunityPeopleRoute() {
         },
         onEditPlayer: (player) => {
           play.handleEditPlayer(player);
-          navigate(paths.atleta(community.id, player.id));
+          navigate(paths.atleta(community.id, player.username ?? player.id));
         },
         onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
         onAddGuestPlayer: (newPlayer, editDetails) =>
@@ -106,14 +112,16 @@ export function PlayerEditRoute() {
   const { community, play, sess, comm, auth } = shell;
   const permissions = useCommunityPermissions(community);
   const fallbackPath = paths.pessoas(community.id);
+  const communityPlayers = getCommunityPlayers(community.id, play.players);
+  const resolution = resolvePlayerRoute({ param: playerId, players: communityPlayers });
   const targetPlayer =
-    playerId && playerId !== NEW_PLAYER_ID
-      ? getCommunityPlayers(community.id, play.players).find((item) => item.id === playerId)
+    resolution.kind === 'ok'
+      ? communityPlayers.find((item) => item.id === resolution.playerId)
       : undefined;
 
   useEffect(() => {
     if (!playerId) return;
-    if (play.editingPlayer?.id === playerId) return;
+    if (targetPlayer && play.editingPlayer?.id === targetPlayer.id) return;
     if (playerId === NEW_PLAYER_ID) {
       if (!play.editingPlayer) play.handleAddPlayer();
       return;
@@ -127,7 +135,7 @@ export function PlayerEditRoute() {
     else navigate(target.to);
   };
 
-  if (playerId && playerId !== NEW_PLAYER_ID && !targetPlayer) {
+  if (resolution.kind === 'not-found') {
     return <Navigate to={fallbackPath} replace />;
   }
   if (!play.editingPlayer) return null;

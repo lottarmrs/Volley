@@ -342,6 +342,18 @@ describe('AppRouter — pessoas', () => {
     expect((screen.getByPlaceholderText('Apelido') as HTMLInputElement).value).toBe('');
   });
 
+  it('abre o atleta pelo handle na URL', async () => {
+    seedLocalDb({ communities: [community], players: [{ ...player, username: 'ana' }] });
+    renderApp('/comunidades/c1/pessoas/editar-atleta/ana');
+    expect(await screen.findByDisplayValue('Ana Souza')).toBeTruthy();
+  });
+
+  it('continua abrindo o atleta pelo id', async () => {
+    seedLocalDb({ communities: [community], players: [{ ...player, username: 'ana' }] });
+    renderApp('/comunidades/c1/pessoas/editar-atleta/p1');
+    expect(await screen.findByDisplayValue('Ana Souza')).toBeTruthy();
+  });
+
   it('salvar no editor de atleta volta para a lista de Pessoas', async () => {
     seedLocalDb({ communities: [community], players: [player] });
     renderApp('/comunidades/c1/pessoas/editar-atleta/p1');

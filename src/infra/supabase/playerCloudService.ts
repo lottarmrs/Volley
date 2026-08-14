@@ -5,9 +5,10 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
   return {
     id: local.cloudId || undefined,
     owner_id: ownerId,
-    // Only send the handle when we have one, so an upload from a device whose
-    // local copy still lacks a username never clobbers an existing cloud handle.
-    ...(local.username ? { username: local.username } : {}),
+    // O handle só existe onde a linha pertence a uma conta (user_id não nulo).
+    // Sem esse guard, o upload reescreveria na nuvem o handle de um atleta sem
+    // conta e desfaria a migration que soltou esses nomes.
+    ...(local.username && local.userId ? { username: local.username } : {}),
     name: local.nome,
     nickname: local.apelido || null,
     gender: local.genero,

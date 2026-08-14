@@ -271,4 +271,10 @@ export const playerCloudService = {
     if (!row) return null;
     return { cloudId: row.id, username: row.username, name: row.name };
   },
+
+  /** True when no athlete holds this handle yet. Optimistic UI hint; the unique
+   *  index is what actually decides on write. */
+  async isHandleAvailable(handle: string): Promise<boolean> {
+    return (await this.findByUsername(handle)) === null;
+  },
 };

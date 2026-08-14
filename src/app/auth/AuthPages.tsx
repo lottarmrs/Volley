@@ -9,6 +9,8 @@ import type { RouteLocation } from './authRoutes';
 import { CaptchaField } from './CaptchaField';
 import { captchaSiteKey } from './captchaEnv';
 import { validatePasswordLength } from './passwordPolicy';
+import { normalizeHandle, validateHandle } from '@logic/handle';
+import { playerCloudService } from '@infra/supabase/playerCloudService';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -73,17 +75,50 @@ export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
 
 export function UsernameOnboardingPage() {
   const { completeUsername } = useAuthSession();
-  const [username, setUsername] = useState('');
+  const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<'idle' | 'checking' | 'free' | 'taken'>('idle');
   const navigate = useNavigate();
   const location = useLocation();
+  const handle = normalizeHandle(value);
+  const formatError = value ? validateHandle(value) : null;
+
+  useEffect(() => {
+    if (!handle || validateHandle(handle) !== null) {
+      setAvailability('idle');
+      return;
+    }
+    let cancelled = false;
+    setAvailability('checking');
+    const timer = setTimeout(() => {
+      playerCloudService
+        .isHandleAvailable(handle)
+        .then((free) => {
+          if (!cancelled) setAvailability(free ? 'free' : 'taken');
+        })
+        .catch(() => {
+          if (!cancelled) setAvailability('idle');
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [handle]);
+
   return (
     <form
+      className="flex flex-col gap-3 max-w-sm mx-auto py-16 px-4"
       onSubmit={async (event) => {
         event.preventDefault();
+        const invalid = validateHandle(value);
+        if (invalid) {
+          setError(invalid);
+          return;
+        }
         setError(null);
         try {
-          await completeUsername(username);
+          await completeUsername(handle);
           const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
           navigate(from ?? '/', { replace: true });
         } catch (cause) {
@@ -91,10 +126,42 @@ export function UsernameOnboardingPage() {
         }
       }}
     >
-      <label htmlFor="username">Username</label>
-      <input id="username" value={username} onChange={(event) => setUsername(event.target.value)} />
-      {error ? <p role="alert">{error}</p> : null}
-      <button type="submit">Continuar</button>
+      <h2 className="text-xl font-black uppercase tracking-wider">Escolha seu nome de usuário</h2>
+      <p className="text-xs text-base-content/60">
+        É por ele que outras pessoas vão te encontrar e vincular às comunidades. Você pode mudar
+        depois.
+      </p>
+      <label htmlFor="username" className="text-xs font-bold uppercase">
+        Nome de usuário
+      </label>
+      <input
+        id="username"
+        className="input input-bordered"
+        value={value}
+        autoCapitalize="none"
+        autoCorrect="off"
+        onChange={(event) => {
+          setValue(event.target.value);
+          setError(null);
+        }}
+      />
+      {formatError ? (
+        <p className="text-xs text-warning">{formatError}</p>
+      ) : availability === 'checking' ? (
+        <p className="text-xs text-base-content/60">Verificando…</p>
+      ) : availability === 'taken' ? (
+        <p className="text-xs text-error">@{handle} já está em uso.</p>
+      ) : availability === 'free' ? (
+        <p className="text-xs text-success">@{handle} está disponível.</p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-xs text-error">
+          {error}
+        </p>
+      ) : null}
+      <button type="submit" className="btn btn-primary" disabled={availability === 'taken'}>
+        Continuar
+      </button>
     </form>
   );
 }

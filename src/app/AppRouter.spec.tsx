@@ -195,7 +195,7 @@ describe('AppRouter — shell', () => {
 
   it('não monta o app protegido quando a sessão não está pronta', () => {
     renderApp('/painel', { kind: 'onboarding', userId: 'u1', playerId: 'p1' });
-    expect(screen.getByLabelText('Username')).toBeTruthy();
+    expect(screen.getByLabelText(/nome de usu/i)).toBeTruthy();
   });
 });
 

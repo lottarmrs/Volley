@@ -210,6 +210,11 @@ describe('AppRouter — rotas globais', () => {
     expect(await screen.findByRole('heading', { name: /backup/i })).toBeTruthy();
   });
 
+  it('mostra o nome de usuário atual em /perfil', async () => {
+    renderApp('/perfil');
+    expect(await screen.findByText(/@ana/i)).toBeTruthy();
+  });
+
   it('monta a sincronização em /perfil/sync', async () => {
     renderApp('/perfil/sync');
     expect(await screen.findByRole('heading', { name: ACCOUNT_SYNC_MARKER })).toBeTruthy();

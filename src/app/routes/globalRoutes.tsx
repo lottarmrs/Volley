@@ -1,4 +1,4 @@
-import { lazy } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import {
   paths,
@@ -19,8 +19,11 @@ import {
   selectSessionTeams,
 } from '@app/sessionLifecycleUseCases';
 import { supabaseAuthClient } from '@infra/supabase/authClient';
+import { normalizeHandle, validateHandle } from '@logic/handle';
+import { playerCloudService } from '@infra/supabase/playerCloudService';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
+import { useAuthSession } from '../auth/useAuthSession';
 import { useCommunitiesContract } from './communitiesContract';
 import { SessionActiveView } from './sessionRoutes';
 
@@ -141,12 +144,110 @@ export function ComunidadesRoute() {
 
 export function PerfilRoute() {
   const shell = useShell();
+  const { account } = useAuthSession();
+  const [editing, setEditing] = useState(false);
+  const current = account?.username ?? null;
+
   return (
-    <SettingsModule
-      onExportBackup={shell.handleExportBackup}
-      onImportBackup={shell.handleImportBackup}
-      onRestoreDemoPlayers={shell.play.handleRestoreDemoPlayers}
-    />
+    <div className="space-y-6">
+      <div className="card card-border bg-base-200">
+        <div className="card-body gap-2">
+          <h2 className="text-base font-black uppercase tracking-tight">Nome de usuário</h2>
+          {current ? (
+            <p className="text-sm text-base-content/70">@{current}</p>
+          ) : (
+            <p className="text-sm text-base-content/60">Você ainda não escolheu um.</p>
+          )}
+          <p className="text-xs text-base-content/60">
+            É por ele que outras pessoas te encontram. Ao trocar, o nome antigo fica livre para
+            outra pessoa.
+          </p>
+          <div className="card-actions">
+            <button type="button" className="btn btn-sm" onClick={() => setEditing((v) => !v)}>
+              {editing ? 'Cancelar' : 'Trocar'}
+            </button>
+          </div>
+          {editing && <HandleChangeForm onDone={() => setEditing(false)} />}
+        </div>
+      </div>
+      <SettingsModule
+        onExportBackup={shell.handleExportBackup}
+        onImportBackup={shell.handleImportBackup}
+        onRestoreDemoPlayers={shell.play.handleRestoreDemoPlayers}
+      />
+    </div>
+  );
+}
+
+function HandleChangeForm({ onDone }: { onDone: () => void }) {
+  const { completeUsername } = useAuthSession();
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const handle = normalizeHandle(value);
+
+  useEffect(() => {
+    if (!handle || validateHandle(handle) !== null) {
+      setAvailable(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      playerCloudService
+        .isHandleAvailable(handle)
+        .then((free) => {
+          if (!cancelled) setAvailable(free);
+        })
+        .catch(() => {
+          if (!cancelled) setAvailable(null);
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [handle]);
+
+  return (
+    <form
+      className="flex flex-col gap-2 pt-2"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const invalid = validateHandle(value);
+        if (invalid) {
+          setError(invalid);
+          return;
+        }
+        try {
+          await completeUsername(handle);
+          onDone();
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Não foi possível trocar.');
+        }
+      }}
+    >
+      <input
+        aria-label="Novo nome de usuário"
+        className="input input-bordered input-sm"
+        value={value}
+        autoCapitalize="none"
+        autoCorrect="off"
+        onChange={(event) => {
+          setValue(event.target.value);
+          setError(null);
+        }}
+      />
+      {available === false && <p className="text-xs text-error">@{handle} já está em uso.</p>}
+      {available === true && <p className="text-xs text-success">@{handle} está disponível.</p>}
+      {error && (
+        <p role="alert" className="text-xs text-error">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="btn btn-primary btn-sm" disabled={available === false}>
+        Salvar
+      </button>
+    </form>
   );
 }
 

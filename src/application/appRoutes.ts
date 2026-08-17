@@ -13,6 +13,9 @@ export const LIVE_SESSION_PHASES: OperationalPhase[] = [
 export const paths = {
   painel: '/painel',
   agenda: '/agenda',
+  ligas: '/ligas',
+  ligaNova: '/ligas/nova',
+  liga: (championshipId: string) => `/ligas/${championshipId}`,
   comunidades: '/comunidades',
   perfil: '/perfil',
   perfilSync: '/perfil/sync',
@@ -169,6 +172,11 @@ export function getPageTitleForPath(pathname: string): string {
   const segments = segmentsOf(pathname);
   if (segments.length === 0 || segments[0] === 'painel') return 'Painel de Controle';
   if (segments[0] === 'agenda') return 'Agenda';
+  if (segments[0] === 'ligas') {
+    if (segments[1] === 'nova') return 'Nova Liga';
+    if (segments[1]) return 'Detalhes da Liga';
+    return 'Hub de Ligas';
+  }
   if (segments[0] === 'perfil')
     return segments[1] === 'sync' ? 'Sincronização & Backup Nuvem' : 'Meu Perfil';
   if (segments[0] === 'admin') return 'Administração da Plataforma';
@@ -282,6 +290,13 @@ export function getShellNavigationItems(input: {
       icon: 'history',
       to: paths.agenda,
       active: path === paths.agenda,
+    },
+    {
+      id: 'ligas',
+      label: 'Ligas',
+      icon: 'tournament',
+      to: paths.ligas,
+      active: path.startsWith('/ligas'),
     },
     {
       id: 'comunidades',

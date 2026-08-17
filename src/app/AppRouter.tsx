@@ -12,6 +12,11 @@ import {
   UsernameOnboardingPage,
 } from './auth/AuthPages';
 import {
+  LigasHubRoute,
+  LigaNovaRoute,
+  LigaDetalheRoute,
+} from './routes/championshipRoutes';
+import {
   AdminRoute,
   AgendaRoute,
   ComunidadesRoute,
@@ -54,6 +59,9 @@ export function AppRouter() {
           <Route index element={<Navigate to="/painel" replace />} />
           <Route path="/painel" element={<PainelRoute />} />
           <Route path="/agenda" element={<AgendaRoute />} />
+          <Route path="/ligas" element={<LigasHubRoute />} />
+          <Route path="/ligas/nova" element={<LigaNovaRoute />} />
+          <Route path="/ligas/:championshipId" element={<LigaDetalheRoute />} />
           <Route path="/comunidades" element={<ComunidadesRoute />} />
           <Route path="/comunidades/:communityId" element={<CommunityShell />}>
             <Route index element={<CommunityOverviewRoute />} />

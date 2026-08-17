@@ -280,6 +280,7 @@ test('sidebar global lista as áreas aprovadas e marca a ativa', () => {
     [
       { id: 'painel', to: '/painel', active: false, badge: undefined },
       { id: 'agenda', to: '/agenda', active: true, badge: undefined },
+      { id: 'ligas', to: '/ligas', active: false, badge: undefined },
       { id: 'comunidades', to: '/comunidades', active: false, badge: undefined },
       { id: 'perfil', to: '/perfil', active: false, badge: 3 },
     ],

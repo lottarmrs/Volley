@@ -11,6 +11,11 @@ const POSITION_SIGLA: Record<Position, string> = {
   'all-rounder': 'UNI',
 };
 
+function getSigla(pos?: Position | null): string {
+  if (!pos) return 'JOG';
+  return POSITION_SIGLA[pos] || 'JOG';
+}
+
 export function VolleyballCourtLineup({
   team,
   players,
@@ -49,13 +54,14 @@ export function VolleyballCourtLineup({
         {/* Front Row (Positions 4, 3, 2) */}
         <div className="grid grid-cols-3 gap-2 mb-6">
           {frontRow.map((player, idx) => (
-            <PlayerCardSlot
-              key={player?.id || `front-${idx}`}
-              player={player}
-              isCaptain={player?.id === team.captainPlayerId}
-              positionLabel={player ? POSITION_SIGLA[player.posicaoPrincipal] || 'JOG' : 'VAZIO'}
-              onSelectCaptain={onSelectCaptain}
-            />
+            <React.Fragment key={player?.id || `front-${idx}`}>
+              <PlayerCardSlot
+                player={player}
+                isCaptain={player?.id === team.captainPlayerId}
+                positionLabel={getSigla(player?.posicaoPrincipal)}
+                onSelectCaptain={onSelectCaptain}
+              />
+            </React.Fragment>
           ))}
         </div>
 
@@ -69,13 +75,14 @@ export function VolleyballCourtLineup({
         {/* Back Row (Positions 5, 6, 1) */}
         <div className="grid grid-cols-3 gap-2">
           {backRow.map((player, idx) => (
-            <PlayerCardSlot
-              key={player?.id || `back-${idx}`}
-              player={player}
-              isCaptain={player?.id === team.captainPlayerId}
-              positionLabel={player ? POSITION_SIGLA[player.posicaoPrincipal] || 'JOG' : 'VAZIO'}
-              onSelectCaptain={onSelectCaptain}
-            />
+            <React.Fragment key={player?.id || `back-${idx}`}>
+              <PlayerCardSlot
+                player={player}
+                isCaptain={player?.id === team.captainPlayerId}
+                positionLabel={getSigla(player?.posicaoPrincipal)}
+                onSelectCaptain={onSelectCaptain}
+              />
+            </React.Fragment>
           ))}
         </div>
       </div>
@@ -134,7 +141,7 @@ function PlayerCardSlot({
 
       {/* Jersey Icon */}
       <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center font-black text-primary text-xs mb-1">
-        {POSITION_SIGLA[player.posicaoPrincipal] || 'J'}
+        {getSigla(player.posicaoPrincipal)}
       </div>
 
       <span className="text-xs font-bold truncate max-w-full">

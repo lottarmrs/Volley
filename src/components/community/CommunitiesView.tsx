@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   Calendar,
   ChevronLeft,
@@ -20,6 +21,7 @@ import {
   Users,
   Volleyball,
 } from 'lucide-react';
+import { paths } from '@app/appRoutes';
 import { matchesSearch } from '../../logic/textNormalization';
 import {
   AuthRole,
@@ -1263,6 +1265,24 @@ export function ChampionshipsTab({
 
   return (
     <div className="space-y-5">
+      {/* Banner Hub Standalone */}
+      <div className="card card-border bg-gradient-to-r from-primary/10 via-base-200 to-base-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-primary/30 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-black">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="font-black uppercase text-sm">Hub Standalone de Ligas de Vôlei</h4>
+            <p className="text-xs text-base-content/60">
+              Acesse a nova página dedicada com visão de quadra em perspectiva, tabela de aproveitamento e gestão de elencos.
+            </p>
+          </div>
+        </div>
+        <Link to={paths.ligas} className="btn btn-primary btn-sm shrink-0">
+          Abrir Hub de Ligas <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-black uppercase tracking-tight">Ligas por pontos corridos</h3>

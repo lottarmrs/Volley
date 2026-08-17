@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Check, Calendar, Shield, Trophy, Users } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
 import { paths } from '../../application/appRoutes';
-import { createChampionship, generateRoundDates } from '../../logic/championship';
+import { generateRoundDates } from '../../logic/championship';
 import { createChampionship as createChampionshipUseCase } from '../../application/championshipUseCases';
 import { generateTournamentSchedule } from '../../logic/tournament';
 import { generateUUID } from '../../logic/uuid';
@@ -42,7 +42,7 @@ export function ChampionshipWizardView() {
   const [newTeamName, setNewTeamName] = useState('');
 
   // Available Players
-  const availablePlayers = play.players;
+  const availablePlayers = play?.players || [];
 
   const handleAddTeam = () => {
     if (!newTeamName.trim()) return;
@@ -218,7 +218,7 @@ export function ChampionshipWizardView() {
               <select
                 className="select select-bordered select-sm"
                 value={format}
-                onChange={(e) => setFormat(e.target.value as ChampionshipFormat)}
+                onChange={(e) => setFormat(e.target.value as 'round_robin' | 'double_round_robin')}
               >
                 <option value="round_robin">Turno Único (Todos contra Todos)</option>
                 <option value="double_round_robin">Turno e Returno (Ida e Volta)</option>

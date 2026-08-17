@@ -9,7 +9,7 @@ vi.mock('../../app/shellContext', () => ({
       communities: [{ id: 'comm-1', name: 'Vôlei de Terça' }],
       members: [{ id: 'm1', communityId: 'comm-1', playerId: 'p1' }],
     },
-    players: {
+    play: {
       players: [{ id: 'p1', nome: 'Ana Silva', apelido: 'Ana' }],
     },
     championships: {

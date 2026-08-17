@@ -168,11 +168,32 @@ export interface ChampionshipTeam {
   championshipId: string;
   name: string;
   playerIds: string[];
+  captainPlayerId?: string;
+  courtPositions?: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 'reserva'>;
   cloudId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
   updatedAt?: string;
+}
+
+export type ChampionshipRequestKind = 'reschedule_round' | 'rename_team';
+export type ChampionshipRequestStatus = 'pending' | 'accepted' | 'rejected' | 'approved';
+
+export interface ChampionshipRequest {
+  id: string;
+  championshipId: string;
+  kind: ChampionshipRequestKind;
+  status: ChampionshipRequestStatus;
+  requestedByPlayerId: string;
+  requestedByTeamId: string;
+  roundId?: string;
+  proposedDate?: string;
+  acceptedByCaptainId?: string;
+  proposedTeamName?: string;
+  approvedByAdminId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChampionshipRound {

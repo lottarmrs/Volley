@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Check, Calendar, Shield, Trophy, Users } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
 import { paths } from '../../application/appRoutes';
-import { generateChampionshipRounds } from '../../logic/championship';
+import { generateRoundDates } from '../../logic/championship';
+import { generateTournamentSchedule } from '../../logic/tournament';
 import { generateUUID } from '../../logic/uuid';
 import type { ChampionshipFormat, ChampionshipRecurrenceRule } from '../../types';
 
@@ -80,11 +81,23 @@ export function ChampionshipWizardView() {
     time,
     startDate,
   };
-  const previewRounds = generateChampionshipRounds(
+
+  const scheduleMatches = generateTournamentSchedule(
     teams.map((t) => t.id),
     format,
-    recurrenceRule,
   );
+  const roundCount = Math.max(...scheduleMatches.map((m) => m.round), 0);
+  const dates = generateRoundDates(recurrenceRule, roundCount);
+
+  const previewRounds = scheduleMatches.map((match, idx) => ({
+    id: `prev-${idx}`,
+    championshipId: 'temp',
+    round: match.round,
+    teamAId: match.teamAId,
+    teamBId: match.teamBId,
+    scheduledDate: dates[match.round - 1] || startDate,
+    skipped: false,
+  }));
 
   const handleFinish = () => {
     const championshipId = generateUUID();

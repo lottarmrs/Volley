@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Check, Calendar, Shield, Trophy, Users } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
 import { paths } from '../../application/appRoutes';
-import { generateRoundDates } from '../../logic/championship';
+import { createChampionship, generateRoundDates } from '../../logic/championship';
+import { createChampionship as createChampionshipUseCase } from '../../application/championshipUseCases';
 import { generateTournamentSchedule } from '../../logic/tournament';
 import { generateUUID } from '../../logic/uuid';
-import type { ChampionshipFormat, ChampionshipRecurrenceRule } from '../../types';
+import type { ChampionshipRecurrenceRule } from '../../types';
 
 interface DraftTeam {
   id: string;
@@ -17,14 +18,14 @@ interface DraftTeam {
 
 export function ChampionshipWizardView() {
   const navigate = useNavigate();
-  const { comm, players, championships } = useShell();
+  const { comm, play, championships } = useShell();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1: Info & Recurrence
   const [name, setName] = useState('');
   const [communityId, setCommunityId] = useState(comm.communities[0]?.id || '');
-  const [format, setFormat] = useState<ChampionshipFormat>('round_robin');
+  const [format, setFormat] = useState<'round_robin' | 'double_round_robin'>('round_robin');
   const [dayOfWeek, setDayOfWeek] = useState<number>(2); // Terça-feira
   const [time, setTime] = useState('20:00');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -40,11 +41,8 @@ export function ChampionshipWizardView() {
   ]);
   const [newTeamName, setNewTeamName] = useState('');
 
-  // Community Players
-  const communityMemberIds = new Set(
-    comm.members.filter((m) => m.communityId === communityId).map((m) => m.playerId),
-  );
-  const availablePlayers = players.players.filter((p) => communityMemberIds.has(p.id));
+  // Available Players
+  const availablePlayers = play.players;
 
   const handleAddTeam = () => {
     if (!newTeamName.trim()) return;
@@ -100,9 +98,7 @@ export function ChampionshipWizardView() {
   }));
 
   const handleFinish = () => {
-    const championshipId = generateUUID();
-    const result = championships.createChampionship({
-      id: championshipId,
+    const result = createChampionshipUseCase({
       communityId,
       name: name.trim() || 'Liga de Vôlei',
       format,
@@ -110,15 +106,50 @@ export function ChampionshipWizardView() {
       recurrenceRule,
       teams: teams.map((t) => ({
         id: t.id,
+        name: t.name,
+        playerIds: t.playerIds,
+      })),
+    });
+
+    if (result.ok) {
+      const championshipId = generateUUID();
+      const now = new Date().toISOString();
+
+      const newChampionship = {
+        id: championshipId,
+        communityId: result.value.championship.communityId,
+        name: result.value.championship.name,
+        format: result.value.championship.format,
+        classificationPoints: result.value.championship.classificationPoints,
+        recurrenceRule: result.value.championship.recurrenceRule,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const newTeams = teams.map((t) => ({
+        id: t.id,
         championshipId,
         name: t.name,
         playerIds: t.playerIds,
         captainPlayerId: t.captainPlayerId,
-      })),
-      rounds: previewRounds,
-    });
+        updatedAt: now,
+      }));
 
-    if (result.ok) {
+      const newRounds = result.value.rounds.map((r) => ({
+        id: generateUUID(),
+        championshipId,
+        round: r.round,
+        teamAId: r.teamAId,
+        teamBId: r.teamBId,
+        scheduledDate: r.scheduledDate,
+        skipped: r.skipped,
+        updatedAt: now,
+      }));
+
+      championships.setChampionships((prev) => [...prev, newChampionship]);
+      championships.setChampionshipTeams((prev) => [...prev, ...newTeams]);
+      championships.setChampionshipRounds((prev) => [...prev, ...newRounds]);
+
       navigate(paths.liga(championshipId));
     }
   };

@@ -21,7 +21,7 @@ import type { ChampionshipRound, ChampionshipTeam } from '../../types';
 
 export function ChampionshipDetailView({ championshipId }: { championshipId?: string }) {
   const navigate = useNavigate();
-  const { comm, play, championships, sess } = useShell();
+  const { comm, play, championships, sess, deleteChampionshipAggregate, materializeChampionshipRound } = useShell();
 
   const [activeTab, setActiveTab] = useState<'tabela' | 'rodadas' | 'elencos' | 'premios'>('tabela');
   const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
@@ -43,7 +43,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
   const community = comm.communities.find((c) => c.id === championship?.communityId);
 
   // Group Rounds
-  const roundNumbers = Array.from(new Set(rounds.map((r) => r.round))).sort((a, b) => a - b);
+  const roundNumbers = Array.from(new Set(rounds.map((r) => r.round))).sort((a: number, b: number) => a - b);
   const currentRoundNumber = roundNumbers[selectedRoundIndex] || 1;
   const currentRoundMatches = rounds.filter((r) => r.round === currentRoundNumber);
 
@@ -88,16 +88,16 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
 
   const handleDelete = () => {
     if (window.confirm(`Tem certeza que deseja excluir a liga "${championship.name}"?`)) {
-      championships.deleteChampionship(championship.id);
+      deleteChampionshipAggregate(championship.id);
       navigate(paths.ligas);
     }
   };
 
   const handleMaterializeRound = (round: ChampionshipRound) => {
     if (!community) return;
-    const result = championships.materializeRound(round.id, community.id);
+    const result = materializeChampionshipRound(round.id);
     if (result.ok) {
-      navigate(paths.sessao(community.id, result.value.session.id));
+      navigate(paths.sessao(community.id, result.value.sessionId));
     }
   };
 

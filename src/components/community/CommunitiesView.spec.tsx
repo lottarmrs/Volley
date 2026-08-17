@@ -68,26 +68,30 @@ const players = [
   makePlayer('p4', { nome: 'Davi', apelido: '' }),
 ];
 
+import { BrowserRouter } from 'react-router';
+
 function renderTab(overrides: Partial<ComponentProps<typeof ChampionshipsTab>> = {}) {
   return render(
-    <ChampionshipsTab
-      community={community}
-      players={players}
-      games={[]}
-      pointEvents={[]}
-      sessionTeams={[]}
-      championships={[]}
-      championshipTeams={[]}
-      championshipRounds={[]}
-      canManage
-      onCreateChampionship={() => appOk(undefined)}
-      onMaterializeRound={() => appOk({ sessionId: 'session-new' })}
-      onDeleteChampionship={() => {}}
-      onRescheduleRound={() => appOk(undefined)}
-      onSetRoundSkipped={() => appOk(undefined)}
-      onUpdateChampionshipRecurrence={() => appOk(undefined)}
-      {...overrides}
-    />,
+    <BrowserRouter>
+      <ChampionshipsTab
+        community={community}
+        players={players}
+        games={[]}
+        pointEvents={[]}
+        sessionTeams={[]}
+        championships={[]}
+        championshipTeams={[]}
+        championshipRounds={[]}
+        canManage
+        onCreateChampionship={() => appOk(undefined)}
+        onMaterializeRound={() => appOk({ sessionId: 'session-new' })}
+        onDeleteChampionship={() => {}}
+        onRescheduleRound={() => appOk(undefined)}
+        onSetRoundSkipped={() => appOk(undefined)}
+        onUpdateChampionshipRecurrence={() => appOk(undefined)}
+        {...overrides}
+      />
+    </BrowserRouter>,
   );
 }
 

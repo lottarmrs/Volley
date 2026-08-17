@@ -236,6 +236,14 @@ const communityPlayersOptimizationMigration = readFixture(
   ),
 );
 
+const handleOwnershipMigration = readFileSync(
+  new URL(
+    '../../../supabase/migrations/20260814120000_handle_belongs_to_accounts.sql',
+    import.meta.url,
+  ),
+  'utf8',
+).replace(/\r\n/g, '\n');
+
 const membershipCloudServiceSource = readFileSync(
   new URL('./membershipCloudService.ts', import.meta.url),
   'utf8',
@@ -2729,4 +2737,10 @@ test('session control expiry window stays in step with the client heartbeat', ()
   assert.ok(consolidada, 'missing session_control_is_expired in schema.sql');
   assert.match(consolidada, /interval '10 minutes'/i);
   assert.doesNotMatch(consolidada, /interval '30 minutes'/i);
+});
+
+test('a migration de handle libera username de atleta sem conta', () => {
+  assert.match(handleOwnershipMigration, /update public\.players/);
+  assert.match(handleOwnershipMigration, /set username = null/);
+  assert.match(handleOwnershipMigration, /where user_id is null/);
 });

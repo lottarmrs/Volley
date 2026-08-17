@@ -169,6 +169,16 @@ test('player mapper tolerates a missing metadata object (I1: no crash)', () => {
   assert.ok(!Number.isNaN(new Date(db.updated_at).getTime()));
 });
 
+test('player mapper only sends the handle when the row belongs to an account', () => {
+  const linked = mapPlayerToDb({ ...player, username: 'matheus', userId: 'user-1' }, 'owner-id');
+  assert.equal(linked.username, 'matheus');
+
+  // Sem conta não há handle: se o upload mandasse username aqui, ele reescreveria
+  // na nuvem o handle que a migration soltou e desfaria a limpeza.
+  const unlinked = mapPlayerToDb({ ...player, username: 'matheus' }, 'owner-id');
+  assert.equal(Object.prototype.hasOwnProperty.call(unlinked, 'username'), false);
+});
+
 test('community rules mapper preserves community ids and rule payloads', () => {
   const rules: CommunityRules = {
     communityId: 'community-local',

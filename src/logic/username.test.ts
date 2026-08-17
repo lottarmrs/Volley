@@ -34,9 +34,14 @@ test('generateUsernames is deterministic and unique across a batch', () => {
   assert.equal(new Set(result).size, result.length);
 });
 
-test('resolveUsername derives a fresh unique handle for a new athlete', () => {
-  assert.equal(resolveUsername({ nome: 'Carol Mendes' }, []), 'carol-mendes');
-  assert.equal(resolveUsername({ nome: 'Matheus' }, ['matheus']), 'matheus-2');
+test('resolveUsername nunca inventa handle: quem não tem, continua sem', () => {
+  assert.equal(resolveUsername({ nome: 'Thaís Lottar' }, []), undefined);
+  assert.equal(resolveUsername({ nome: 'Thaís Lottar', isGuest: false }, ['outro']), undefined);
+});
+
+test('resolveUsername preserva o handle de quem já tem', () => {
+  assert.equal(resolveUsername({ nome: 'Thaís Lottar', username: 'thais' }, ['outro']), 'thais');
+  assert.equal(resolveUsername({ nome: 'Nome Novo', username: 'thais' }, []), 'thais');
 });
 
 test('resolveUsername keeps an existing handle and skips guests/blank names', () => {

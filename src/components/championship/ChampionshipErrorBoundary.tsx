@@ -10,9 +10,13 @@ interface State {
   error: Error | null;
 }
 
-export class ChampionshipErrorBoundary extends Component<Props, State, unknown> {
+export class ChampionshipErrorBoundary extends Component<Props, State> {
+  public override props: Props;
+  public override state: State;
+
   constructor(props: Props) {
     super(props);
+    this.props = props;
     this.state = {
       hasError: false,
       error: null,

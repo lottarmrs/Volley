@@ -36,7 +36,7 @@ export function usePlayerCareer({ playerCloudId, enabled }: UsePlayerCareerOptio
       setEvents(loadedEvents);
       setTotals(loadedTotals);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Nao foi possivel carregar a carreira.');
+      setError(cause instanceof Error ? cause.message : 'Não foi possível carregar a carreira.');
     } finally {
       setLoading(false);
     }

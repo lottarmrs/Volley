@@ -27,6 +27,35 @@ export function approveChampionshipRequest(
   };
 }
 
+export function acceptChampionshipRequest(
+  request: ChampionshipRequest,
+  captainId: string,
+): ChampionshipRequest {
+  return {
+    ...request,
+    status: 'accepted',
+    acceptedByCaptainId: captainId,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function rejectChampionshipRequest(request: ChampionshipRequest): ChampionshipRequest {
+  return {
+    ...request,
+    status: 'rejected',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Uma solicitacao so aceita transicao enquanto esta aberta. `approved` e
+ * `rejected` sao terminais: sem esta guarda daria para aprovar de novo o que ja
+ * foi recusado, e a rodada mudaria de data pelas costas de quem recusou.
+ */
+export function isRequestOpen(request: ChampionshipRequest): boolean {
+  return request.status === 'pending' || request.status === 'accepted';
+}
+
 export function calculateRecentForm(teamId: string, games: Game[]): ('v' | 'd')[] {
   const teamGames = games.filter(
     (g) => (g.teamAId === teamId || g.teamBId === teamId) && g.winnerTeamId,

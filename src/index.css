@@ -1,6 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap');
 @import 'tailwindcss';
-@plugin "daisyui";
+/* O app tem um tema so ('panelinha', dark) e nao troca de tema em lugar nenhum.
+   Sem isto o daisyUI emite tambem os temas light e dark embutidos, que viajam
+   em toda visita e nunca sao aplicados. */
+@plugin "daisyui" {
+  themes: false;
+}
 
 @plugin "daisyui/theme" {
   name: 'panelinha';
@@ -40,10 +44,13 @@
 }
 
 @theme inline {
+  /* 'Inter Variable' / 'JetBrains Mono Variable' sao os arquivos self-hosted
+     (@fontsource-variable, importados em main.tsx); os nomes sem sufixo cobrem
+     quem ja tem a fonte instalada no sistema. */
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --color-background: var(--color-base-100);
   --color-surface: var(--color-base-200);
@@ -172,7 +179,7 @@ body,
   font-size: 11px !important;
   line-height: 1.4 !important;
   padding: 8px 12px !important;
-  border-radius: 8px !important;
+  border-radius: var(--radius-md) !important;
 }
 
 /* ─── VUT - Volley Ultimate Team Card Styles ────────────────────────────── */
@@ -383,25 +390,322 @@ body,
   }
 }
 
-@media (pointer: coarse) {
+/* Em @layer base de proposito: sem camada, esta regra venceria as utilitarias
+   do Tailwind (estilo sem camada ganha de qualquer camada, independente de
+   especificidade) e o piso de 44px viraria teto. */
+@layer base {
+  @media (pointer: coarse) {
+    /* `:where()` zera a especificidade: isto é um PISO, não um teto. Sem ele a
+       regra empatava com as classes utilitárias e, por vir depois no arquivo,
+       vencia — encolhendo de 52px para 44px o botão de marcar ponto, que é a
+       ação mais repetida do produto e a que se toca correndo, com uma mão. */
+    :where(
+      button,
+      .btn,
+      select,
+      input[type='checkbox'],
+      input[type='radio'],
+      a.btn,
+      a[role='button']
+    ) {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    /* Campos de digitacao ficavam de fora do piso de 44px e desciam para os 40px
+       do user-agent. Nao entram no inline-flex acima: isso quebra o alinhamento
+       do texto dentro do campo. */
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='search'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    textarea {
+      min-height: 44px;
+    }
+
+    .btn-xs {
+      min-height: 36px;
+      padding: 0 12px;
+    }
+
+    .btn-sm {
+      min-height: 40px;
+      padding: 0 16px;
+    }
+  }
+}
+
+/* Custom Volleyball Jersey Clip Path */
+.player-jersey-shape {
+  width: 76px;
+  aspect-ratio: 1.02;
+  background: var(--jersey-bg, linear-gradient(60deg in hsl, #d75252, #852b4f));
+  clip-path: path(
+    'M 39.16 97.32 L 37.57 94.58 L 36.3 94.19 C 24.27 90.49 15.12 87.49 7.0 81.74 C 0.84 75.99 2.3 68.78 8.36 55.87 L 9.31 54.81 L 11.11 55.74 C 22.52 58.87 28.96 59.45 30.37 59.56 L 30.37 29.14 L 32.57 28.62 C 55.99 26.09 66.97 27.15 69.23 29.73 L 71.49 30.17 L 71.49 60.59 L 71.86 60.49 C 75.63 59.82 78.47 59.68 81.83 57.7 C 82.56 57.23 83.21 57.0 85.61 59.65 C 87.61 62.44 88.89 65.95 89.5 69.81 C 83.77 73.24 66.27 79.8 54.19 83.74 L 52.07 84.55 L 50.4 87.11 C 48.38 89.61 39.45 86.53 30.54 87.13 Z'
+  );
+  clip-path: shape(
+    from 39.16% 97.32%,
+    line by -1.59% -2.74%,
+    line by -1.27% -0.39%,
+    curve by -12.03% -3.7% with -2.32% -0.73%/-9.18% -2.84%,
+    curve by -16.1% -5.75% with -6.03% -1.82%/-11.31% -3.7%,
+    curve by -8.16% -3.85% with -2.93% -1.23%/-8.05% -3.65%,
+    curve by 1.46% -7.21% with -0.11% -0.16%/0.75% -4.35%,
+    curve by 6.06% -12.91% with 1.48% -5.92%/3.36% -9.92%,
+    line by 0.95% -1.06%,
+    line by 1.8% 0.93%,
+    curve by 11.41% 3.13% with 3.96% 2.03%/6.44% 2.71%,
+    line by 1.3% 0.11%,
+    line by 0% -30.42%,
+    line by 0% -30.42%,
+    line by 2.2% -0.52%,
+    curve by 23.42% -2.53% with 7.92% -1.83%/14.4% -2.53%,
+    curve by 26.54% 2.61% with 9.16% 0%/16.8% 0.75%,
+    line by 2.26% 0.44%,
+    line by 0% 30.42%,
+    line by 0% 30.42%,
+    line by 0.37% -0.1%,
+    curve by 3.77% -0.67% with 0.19% -0.06%/1.89% -0.36%,
+    curve by 6.06% -1.36% with 3.6% -0.58%/4.61% -0.81%,
+    curve by 3.36% -1.98% with 0.99% -0.37%/2.47% -1.25%,
+    curve by 0.73% -0.47% with 0.32% -0.26%/0.65% -0.47%,
+    curve by 2.4% 2.65% with 0.21% 0%/1.59% 1.53%,
+    curve by 4.77% 13.18% with 2% 2.79%/3.28% 6.3%,
+    curve by 0.89% 3.86% with 0.35% 1.61%/0.75% 3.34%,
+    curve by 0.24% 1.17% with 0.13% 0.52%/0.24% 1.04%,
+    curve by -5.73% 3.43% with 0% 0.29%/-2.43% 1.75%,
+    curve by -17.5% 6.56% with -5.28% 2.68%/-8.32% 3.83%,
+    curve by -12.08% 3.94% with -6.98% 2.08%/-8.81% 2.68%,
+    line by -2.12% 0.81%,
+    line by -1.67% 2.56%,
+    curve by -2.02% 2.5% with -1.43% 2.18%/-1.73% 2.56%,
+    curve by -8.93% -0.58% with -1.3% -0.31%/-5.6% -0.58%,
+    curve by -8.91% 0.6% with -3.31% 0%/-7.65% 0.29%,
+    curve by -1.89% -2.68% with -0.27% 0.06%/-0.57% -0.36%,
+    close
+  );
+  transform: rotate(180deg);
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  position: relative;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease-in-out,
+    filter 0.2s ease-in-out;
+}
+.player-jersey-shape:hover {
+  transform: rotate(180deg) scale(1.1);
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.6));
+}
+.player-jersey-inner-content {
+  transform: rotate(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── DayPilot Calendar & Month Theme Adaptations (Light & Dark) ────────── */
+.daypilot-container {
+  color: var(--color-base-content);
+  background-color: transparent;
+}
+
+.daypilot-container div[class*='_main'] {
+  background-color: transparent !important;
+  border-color: var(--color-border) !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* Column & Header Bars */
+.daypilot-container div[class*='_colheader'],
+.daypilot-container div[class*='_header'],
+.daypilot-container div[class*='_dayheader'] {
+  background-color: var(--color-base-300) !important;
+  color: var(--color-base-content) !important;
+  border-color: var(--color-border) !important;
+}
+
+.daypilot-container div[class*='_colheader_inner'],
+.daypilot-container div[class*='_header_inner'],
+.daypilot-container div[class*='_dayheader_inner'] {
+  color: var(--color-base-content) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+}
+
+/* Time & Corner Headers */
+.daypilot-container div[class*='_rowheader'],
+.daypilot-container div[class*='_corner'],
+.daypilot-container div[class*='_cornerright'] {
+  background-color: var(--color-base-300) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border) !important;
+}
+
+.daypilot-container div[class*='_rowheader_inner'],
+.daypilot-container div[class*='_corner_inner'] {
+  color: var(--color-text-muted) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+}
+
+.daypilot-container span[class*='_rowheader_minutes'] {
+  font-size: 0.65rem !important;
+  font-weight: 600 !important;
+  opacity: 0.75 !important;
+  margin-left: 2px !important;
+  vertical-align: middle !important;
+}
+
+/* Calendar & Month Grid Cells */
+.daypilot-container div[class*='_cell'] {
+  background-color: var(--color-base-200) !important;
+  border-color: var(--color-border) !important;
+}
+
+.daypilot-container div[class*='_cell_business'] {
+  background-color: var(--color-base-100) !important;
+}
+
+.daypilot-container div[class*='_cell_inner'] {
+  color: var(--color-base-content) !important;
+}
+
+/* Month view day headers (cell header with date number) */
+.daypilot-container .month_default_dayheader {
+  background-color: color-mix(in srgb, var(--color-base-300) 80%, transparent) !important;
+  color: var(--color-base-content) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+/* Cells belonging to previous or next month (other month days) */
+.daypilot-other-month-cell,
+.daypilot-container div[class*='_cell_other'],
+.daypilot-container .month_default_cell_other {
+  background-color: color-mix(in srgb, var(--color-base-300) 35%, var(--color-base-100)) !important;
+  opacity: 0.35 !important;
+  filter: grayscale(80%) !important;
+}
+
+.daypilot-other-month-cell div[class*='_cell_inner'],
+.daypilot-other-month-cell .month_default_dayheader,
+.daypilot-container div[class*='_cell_other'] div[class*='_cell_inner'] {
+  color: var(--color-text-subtle) !important;
+  background-color: transparent !important;
+}
+
+/* Events inside Calendar & Month Views */
+.daypilot-container div[class*='_event'] {
+  border-radius: var(--radius-md) !important;
+  font-family: var(--font-sans) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease !important;
+}
+
+.daypilot-container div[class*='_event']:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+}
+
+.daypilot-container div[class*='_event_inner'] {
+  padding: 4px 8px !important;
+  font-size: 0.75rem !important;
+  line-height: 1.25 !important;
+}
+
+/* ─── Movimento reduzido ─────────────────────────────────────────────────────
+   Reduzir nao e desligar. O que some aqui sao os laços decorativos que rodam
+   sozinhos para sempre; o que fica e todo movimento que carrega significado:
+   o giro do spinner (indica trabalho em curso), o pulsar de opacidade dos
+   avisos e esqueletos (indica estado), e as transicoes de cor e foco. */
+@media (prefers-reduced-motion: reduce) {
+  /* Brilhos e varreduras dos cards VUT: raridade continua legivel pela cor,
+     pela borda e pelo texto, sem a animacao infinita. */
+  .vut-border-epic,
+  .vut-border-legendary,
+  .vut-style-holographic-crown::after {
+    animation: none;
+  }
+
+  /* Anel expansivo e salto sao movimento espacial puro, sem informacao. */
+  .animate-ping,
+  .animate-bounce {
+    animation: none;
+  }
+
+  /* Hover que desloca o elemento vira apenas realce de profundidade. */
+  .daypilot-container div[class*='_event']:hover {
+    transform: none !important;
+  }
+}
+
+/* Varredura unica de luz quando a carta pousa na revelacao. Mesma linguagem da
+   moldura holografica das edicoes especiais, disparada uma vez em vez de em
+   laco: e a chegada da carta, nao um enfeite permanente. */
+.vut-reveal-landing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    125deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 62%
+  );
+  background-size: 250% 250%;
+  animation: vut-sweep 900ms cubic-bezier(0.16, 1, 0.3, 1) 220ms 1 both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vut-reveal-landing::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ─── Anel de foco do design system ──────────────────────────────────────────
+   O DESIGN.md especifica um anel azul elétrico e o token --shadow-focus existe
+   desde o início, mas nada o usava: o foco visível vinha do contorno branco
+   genérico do daisyUI. `:where()` mantém especificidade zero, então qualquer
+   componente que precise de um foco próprio continua podendo sobrescrever. */
+:where(
+  a,
   button,
-  .btn,
+  [role='button'],
+  input,
   select,
-  input[type='checkbox'],
-  input[type='radio'],
-  a {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
+  textarea,
+  summary,
+  label.btn,
+  [tabindex]
+):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-focus);
+}
 
-  .btn-xs {
-    min-height: 36px;
-    padding: 0 12px;
-  }
-
-  .btn-sm {
-    min-height: 40px;
-    padding: 0 16px;
-  }
+/* Links de texto sobre superfície escura: o primary #2563eb rende 3.48:1 contra
+   o #14171c dos cards, abaixo do piso de 4.5:1 para texto. O tom claro da mesma
+   rampa documentada resolve sem trocar a cor de marca dos botões. */
+.link-primary {
+  color: #60a5fa;
 }

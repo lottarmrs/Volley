@@ -161,13 +161,13 @@ export function materializeRound(
   now: string,
 ): AppResult<MaterializedRound> {
   if (round.skipped) {
-    return productError('invalid_input', 'Rodada pulada nao pode ser materializada.');
+    return productError('invalid_input', 'Rodada pulada não pode ser materializada.');
   }
 
   const championshipTeamA = teams.find((t) => t.id === round.teamAId);
   const championshipTeamB = teams.find((t) => t.id === round.teamBId);
   if (!championshipTeamA || !championshipTeamB) {
-    return productError('not_found', 'Times da rodada nao encontrados no elenco informado.');
+    return productError('not_found', 'Times da rodada não encontrados no elenco informado.');
   }
 
   const sessionId = generateUUID();

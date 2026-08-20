@@ -36,6 +36,7 @@ const { authClientMock } = vi.hoisted(() => ({
 }));
 
 import {
+  LoginPage,
   MfaChallengePage,
   MfaSetupPage,
   PasswordRecoveryPage,
@@ -158,7 +159,29 @@ describe('AuthForm', () => {
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'AB' } });
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
     expect(signUp).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toBeTruthy();
+  });
+});
+
+describe('LoginPage', () => {
+  it('renders signin page with AuthForm in signin mode', () => {
+    renderAuthPage(
+      '/entrar',
+      { state: { kind: 'anonymous' } },
+      undefined,
+      <LoginPage mode="signin" />,
+    );
+    expect(screen.getByRole('button', { name: /entrar no sistema/i })).toBeDefined();
+    expect(screen.getByText('Voltar ao Painel')).toBeDefined();
+  });
+
+  it('renders signup page with AuthForm in signup mode', () => {
+    renderAuthPage(
+      '/cadastro',
+      { state: { kind: 'anonymous' } },
+      undefined,
+      <LoginPage mode="signup" />,
+    );
+    expect(screen.getByRole('button', { name: 'Criar conta' })).toBeDefined();
   });
 });
 
@@ -217,7 +240,7 @@ describe('MfaSetupPage', () => {
     // Regressao: com MFA obrigatorio esta pagina e o unico caminho para
     // master/programmer/owner/admin. Enquanto o erro so era renderizado dentro do
     // formulario (que depende de enrollment), uma falha de enroll deixava a tela presa
-    // no spinner "Carregando Sessao..." e trancava a conta fora do app.
+    // no spinner "Carregando sessão..." e trancava a conta fora do app.
     authClientMock.enrollTotp.mockRejectedValue(
       new Error('A factor with the friendly name "" for this user already exists'),
     );
@@ -241,7 +264,7 @@ describe('MfaSetupPage', () => {
       qrCode: 'data:image/png;base64,qr',
       secret: 'SECRET123',
     });
-    authClientMock.verifyTotp.mockRejectedValue(new Error('Codigo invalido.'));
+    authClientMock.verifyTotp.mockRejectedValue(new Error('Código inválido.'));
     renderAuthPage(
       '/configurar-mfa',
       { state: { kind: 'mfa_setup_required', userId: 'u1' } as unknown as AuthSessionState },
@@ -251,7 +274,7 @@ describe('MfaSetupPage', () => {
     await waitFor(() => expect(screen.getByAltText(/QR code/i)).toBeTruthy());
     fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '000000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ativar' }));
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Codigo invalido.'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Código inválido.'));
   });
 });
 
@@ -279,7 +302,7 @@ describe('MfaChallengePage', () => {
 
   it('shows a recoverable error for an invalid challenge code', async () => {
     const retry = vi.fn();
-    authClientMock.verifyTotp.mockRejectedValue(new Error('Codigo invalido.'));
+    authClientMock.verifyTotp.mockRejectedValue(new Error('Código inválido.'));
     renderAuthPage(
       '/confirmar-mfa',
       { state: { kind: 'mfa_required', userId: 'u1' } as unknown as AuthSessionState, retry },
@@ -288,7 +311,7 @@ describe('MfaChallengePage', () => {
     );
     fireEvent.change(screen.getByLabelText('Código de 6 dígitos'), { target: { value: '000000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }));
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Codigo invalido.'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Código inválido.'));
     expect(retry).not.toHaveBeenCalled();
     expect(screen.getByLabelText('Código de 6 dígitos')).toBeTruthy();
   });

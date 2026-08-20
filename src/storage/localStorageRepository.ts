@@ -22,7 +22,10 @@ export const STORAGE_KEYS = {
   championships: 'vpg_championships',
   championshipTeams: 'vpg_championship_teams',
   championshipRounds: 'vpg_championship_rounds',
+  championshipRequests: 'vpg_championship_requests',
   syncIssueLedger: 'vpg_sync_issue_ledger',
+  activeCommunityId: 'vpg_active_community_id',
+  dismissedHints: 'vpg_dismissed_hints',
 };
 
 export const LOCAL_CACHE_OWNER_KEY = 'vpg_cache_owner_id';

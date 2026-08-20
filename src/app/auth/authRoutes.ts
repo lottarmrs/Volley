@@ -1,4 +1,5 @@
 import type { AuthSessionState } from '@app/authSession';
+import { resolveAccessLevel } from '@app/guestAccess';
 
 export function routeForAuthState(state: AuthSessionState): string | null {
   switch (state.kind) {
@@ -48,7 +49,10 @@ export function resolveTransitionDestination(
   state: AuthSessionState,
   from: RouteLocation | undefined,
 ): string | RouteLocation {
-  const forcedRoute = routeForAuthState(state);
+  // `anonymous` nao e mais um estado forcado: o convidado entra no app em modo
+  // local. Só os estados intermediarios (verificacao, MFA, onboarding, erro)
+  // continuam prendendo a navegacao numa rota de autenticacao.
+  const forcedRoute = resolveAccessLevel(state) === 'blocked' ? routeForAuthState(state) : null;
   if (forcedRoute) return forcedRoute;
   if (from && !isAuthOnlyPath(from.pathname)) return from;
   return '/';

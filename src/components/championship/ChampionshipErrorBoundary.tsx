@@ -1,8 +1,8 @@
-import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface Props {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 interface State {
@@ -10,28 +10,28 @@ interface State {
   error: Error | null;
 }
 
-export class ChampionshipErrorBoundary extends Component<Props, State> {
-  public override props: Props;
-  public override state: State;
+export class ChampionshipErrorBoundary extends React.Component<Props, State> {
+  declare props: Readonly<Props>;
+  declare state: State;
+  declare setState: (state: Partial<State>) => void;
 
   constructor(props: Props) {
     super(props);
-    this.props = props;
     this.state = {
       hasError: false,
       error: null,
     };
   }
 
-  public static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ChampionshipErrorBoundary caught an error:', error, errorInfo);
   }
 
-  public render() {
+  render() {
     if (this.state.hasError) {
       return (
         <div className="card card-border bg-base-200 p-6 max-w-lg mx-auto my-12 text-center space-y-4">

@@ -145,7 +145,7 @@ describe('AppRouter — autenticação', () => {
     expect(screen.queryByRole('heading', { name: /entrar no sistema/i })).toBeNull();
   });
 
-  it('sai de /auth/loading quando a sessão termina de resolver', async () => {
+  it('sai de /auth/loading para o modo local quando a sessão resolve para anônima', async () => {
     const { rerender } = renderApp('/auth/loading', { kind: 'initializing' });
     expect(screen.getByText(/carregando sess/i)).toBeTruthy();
 
@@ -161,7 +161,24 @@ describe('AppRouter — autenticação', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { name: /entrar no sistema/i })).toBeTruthy();
+    // Sem conta o app abre em modo local: o convidado sorteia e marca a pelada
+    // de hoje. O login deixou de ser pedágio de entrada.
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe(paths.painel),
+    );
+    expect(screen.queryByRole('heading', { name: /entrar no sistema/i })).toBeNull();
+  });
+
+  it('estado intermediário continua prendendo a navegação na rota de autenticação', async () => {
+    renderApp('/painel', { kind: 'email_verification', userId: 'u1' });
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe('/verificar-email'),
+    );
+  });
+
+  it('convidado que abre uma área de conta recebe o convite, não o app', async () => {
+    renderApp('/agenda', { kind: 'anonymous' });
+    expect(await screen.findByRole('heading', { name: /agenda precisa de conta/i })).toBeTruthy();
   });
 });
 
@@ -207,7 +224,7 @@ describe('AppRouter — rotas globais', () => {
 
   it('monta as configurações do usuário em /perfil', async () => {
     renderApp('/perfil');
-    expect(await screen.findByRole('heading', { name: /backup/i })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /Configurações & Dados/i })).toBeTruthy();
   });
 
   it('monta a sincronização em /perfil/sync', async () => {
@@ -266,9 +283,65 @@ describe('AppRouter — comunidade', () => {
 });
 
 describe('AppRouter — agenda', () => {
-  it('monta a agenda vazia em /agenda', async () => {
+  it('com pelada marcada, o calendário carrega sob demanda e renderiza', async () => {
+    const amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    seedLocalDb({
+      communities: [{ id: 'c1', name: 'Panelinha' }],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Pelada de quarta',
+          date: amanha,
+          status: 'configured',
+          communityId: 'c1',
+        } as Partial<Session>,
+      ],
+    });
+
+    renderApp(paths.agenda);
+
+    // O DayPilot vive num chunk separado: se o limite lazy quebrar, o fallback
+    // fica preso na tela e o seletor de visão nunca aparece.
+    expect(await screen.findByRole('button', { name: /semana/i })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(/carregando calendário/i)).toBeNull());
+  });
+
+  it('sem nada marcado, a agenda explica o que a preenche em vez do calendário vazio', async () => {
     renderApp('/agenda');
-    expect(await screen.findByText(/nada agendado/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /nada marcado por enquanto/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /marcar uma pelada/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /semana/i })).toBeNull();
+  });
+});
+
+describe('AppRouter — primeiro uso das áreas com conta', () => {
+  it('sem liga nenhuma, /ligas conta o que é uma liga e esconde métricas zeradas', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
+    renderApp(paths.ligas);
+
+    expect(await screen.findByRole('heading', { name: /sua pelada vira temporada/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /criar a primeira liga/i })).toBeTruthy();
+    expect(screen.queryByText(/ligas ativas/i)).toBeNull();
+    expect(screen.queryByPlaceholderText(/buscar liga/i)).toBeNull();
+  });
+
+  it('comunidade recém-criada mostra o caminho, não um painel de zeros', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }], players: [] });
+    renderApp(paths.comunidade('c1'));
+
+    expect(await screen.findByRole('heading', { name: /sua comunidade está de pé/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /cadastrar atletas/i })).toBeTruthy();
+    // O painel de estatísticas zeradas não pode aparecer no primeiro uso.
+    expect(screen.queryByText(/^Pontos$/)).toBeNull();
+  });
+
+  it('sem comunidade, /comunidades abre porta para quem organiza e para quem foi convidado', async () => {
+    renderApp(paths.comunidades);
+
+    expect(
+      await screen.findByRole('heading', { name: /a comunidade é a sua pelada por inteiro/i }),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /criar minha comunidade/i })).toBeTruthy();
   });
 });
 

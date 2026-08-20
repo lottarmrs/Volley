@@ -21,6 +21,7 @@ import {
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
+
 import { useCommunitiesContract } from './communitiesContract';
 import { SessionActiveView } from './sessionRoutes';
 
@@ -40,6 +41,11 @@ const AccountSyncView = lazy(() =>
 const GestaoView = lazy(() =>
   import('../../components/admin/GestaoView').then((module) => ({ default: module.GestaoView })),
 );
+const UserProfileView = lazy(() =>
+  import('../../components/account/UserProfileView').then((module) => ({
+    default: module.UserProfileView,
+  })),
+);
 const SettingsModule = lazy(() =>
   import('../../components/settings/SettingsModule').then((module) => ({
     default: module.SettingsModule,
@@ -52,8 +58,15 @@ const AgendaView = lazy(() =>
 export function PainelRoute() {
   const shell = useShell();
   const navigate = useNavigate();
-  const { sess, comm, wizard } = shell;
+  const { sess, comm, wizard, play } = shell;
   const communityIds = comm.communities.map((community) => community.id);
+
+  // Painel vazio nao ensina nada: sem elenco, sem sessao e sem rascunho, o
+  // proximo passo util e montar a lista e sortear. Nao ha laco aqui porque
+  // /comecar nunca devolve para /painel.
+  const semNada =
+    play.players.length === 0 && !sess.activeSession && !shell.sessionDraft && !comm.communities[0];
+  if (semNada) return <Navigate to={paths.comecar} replace />;
 
   return (
     <Dashboard
@@ -61,7 +74,12 @@ export function PainelRoute() {
         activeSession: sess.activeSession,
         sessionDraft: shell.sessionDraft,
         games: sess.games,
-        onNewSession: () => navigate(resolveNewSessionPath({ communityIds })),
+        // Sem comunidade nenhuma, `resolveNewSessionPath` despeja o usuario numa
+        // lista vazia de comunidades. O comeco rapido cria a comunidade sozinho.
+        onNewSession: () =>
+          navigate(
+            communityIds.length === 0 ? paths.comecar : resolveNewSessionPath({ communityIds }),
+          ),
         onResumeSession: () =>
           navigate(
             shell.activeSessionCommunityId
@@ -77,7 +95,11 @@ export function PainelRoute() {
           );
         },
         onClearDraft: () => {
-          if (window.confirm('Deseja realmente descartar o rascunho?')) {
+          if (
+            window.confirm(
+              'Descartar o rascunho da pelada? Os atletas escolhidos e os times sorteados até aqui se perdem. O elenco da comunidade não muda.',
+            )
+          ) {
             const result = buildDraftClearResult();
             clearSessionDraft();
             sess.setActiveSession(result.nextActiveSession);
@@ -141,11 +163,21 @@ export function ComunidadesRoute() {
 
 export function PerfilRoute() {
   const shell = useShell();
+  const { auth, play, cloudSync, comm } = shell;
+
+  const currentPlayer =
+    play.players.find((p) => p.userId === auth.user?.id) || play.players[0] || null;
+
   return (
-    <SettingsModule
+    <UserProfileView
+      user={auth.user}
+      profile={auth.profile}
+      player={currentPlayer}
+      communities={comm.communities}
+      lastSyncedAt={cloudSync.lastSyncedAt}
       onExportBackup={shell.handleExportBackup}
       onImportBackup={shell.handleImportBackup}
-      onRestoreDemoPlayers={shell.play.handleRestoreDemoPlayers}
+      onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
     />
   );
 }

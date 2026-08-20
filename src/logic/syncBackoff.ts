@@ -39,7 +39,7 @@ export function classifySyncError(error: unknown): AppError['kind'] {
 }
 
 /**
- * Quando tentar de novo. `undefined` significa "nao tente automaticamente".
+ * Quando tentar de novo. `undefined` significa "não tente automaticamente".
  *
  * Erro de rede NUNCA retorna undefined: congelar um sync de payload inteiro faria os
  * dados nunca subirem, que e a falha que este plano conserta.

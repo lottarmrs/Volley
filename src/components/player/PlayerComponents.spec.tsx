@@ -40,7 +40,7 @@ describe('PlayerItem', () => {
 
     expect(screen.queryByText(/feminino/i)).toBeNull();
     expect(screen.queryByText(/masculino/i)).toBeNull();
-    expect(screen.getByText(/nao informado/i)).toBeTruthy();
+    expect(screen.getByText(/não informado/i)).toBeTruthy();
   });
 
   it('still shows a declared gender', () => {

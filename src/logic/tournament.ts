@@ -264,7 +264,7 @@ function getTieBreakerReason(
 
   if (previous.wins !== current.wins) return 'vitorias';
   if (previous.pointsFor !== current.pointsFor) return 'pontos pro';
-  if (previous.pointsAgainst !== current.pointsAgainst) return 'menor numero de pontos contra';
+  if (previous.pointsAgainst !== current.pointsAgainst) return 'menor número de pontos contra';
   return tiedGroup.length > 2 ? 'criterios agregados' : 'criterio manual';
 }
 

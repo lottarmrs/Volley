@@ -252,7 +252,11 @@ export const PointModal = ({
           <h3 className="font-bold uppercase tracking-tight text-accent text-base">
             Registrar Detalhes do Ponto
           </h3>
-          <button onClick={onClose} className="btn btn-ghost btn-circle btn-sm">
+          <button
+            onClick={onClose}
+            aria-label="Fechar sem marcar o ponto"
+            className="btn btn-ghost btn-circle btn-sm"
+          >
             <Plus className="w-5 h-5 rotate-45" />
           </button>
         </div>

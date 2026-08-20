@@ -902,7 +902,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           {
             label: 'Resumo atleta',
             icon: <TrendingUp className="w-4 h-4" />,
-            text: `${player.nome} no VUT\nForma: ${currentAvg !== null ? currentAvg.toFixed(1) : '-'} | Conquistas: ${unlockedCount}/${totalCount}\nQuase la: ${nearAchievements[0]?.name || 'sem meta proxima'}`,
+            text: `${player.nome} no VUT\nForma: ${currentAvg !== null ? currentAvg.toFixed(1) : '-'} | Conquistas: ${unlockedCount}/${totalCount}\nQuase la: ${nearAchievements[0]?.name || 'sem meta próxima'}`,
           },
           {
             label: 'Pacote da noite',
@@ -1008,6 +1008,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Fechar o card do atleta"
           className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-50 text-base-content/60 hover:text-base-content"
         >
           <X className="w-5 h-5" />

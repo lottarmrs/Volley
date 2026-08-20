@@ -2178,6 +2178,9 @@ create policy "Community members can read modification logs" on public.modificat
     owner_id = (select auth.uid())
     or (community_id is not null and public.current_user_has_community_role(community_id))
   );
+create policy "Authenticated users can insert modification logs" on public.modification_logs
+  for insert to authenticated
+  with check (true);
 -- Note: modification_logs has no insert/update/delete policies since it is populated via triggers running under SECURITY DEFINER
 
 -- Support access for app staff (master | programmer): additional PERMISSIVE

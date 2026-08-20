@@ -7,7 +7,7 @@ interface SessionWizardProgressProps {
 
 export function SessionWizardProgress({ currentStep, steps }: SessionWizardProgressProps) {
   return (
-    <ul className="steps steps-horizontal w-full mb-12 overflow-x-auto pb-4 no-scrollbar">
+    <ul className="steps steps-horizontal w-full mb-12 pb-4">
       {steps.map((step) => (
         <li
           key={step.id}

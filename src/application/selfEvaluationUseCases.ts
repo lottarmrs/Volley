@@ -24,6 +24,6 @@ export async function submitSelfEvaluation(
     await gateway.upsert(trimmedPlayerId, attributes);
     return appOk(undefined);
   } catch (error) {
-    return technicalError('Nao foi possivel salvar sua autoavaliacao.', error);
+    return technicalError('Não foi possível salvar sua autoavaliação.', error);
   }
 }

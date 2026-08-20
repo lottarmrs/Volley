@@ -62,7 +62,7 @@ describe('useCommunityDiscovery', () => {
       error: {
         kind: 'technical',
         code: 'technical_error',
-        message: 'Nao foi possivel buscar comunidades.',
+        message: 'Não foi possível buscar comunidades.',
         recoverable: true,
       },
     });
@@ -87,7 +87,7 @@ describe('useCommunityDiscovery', () => {
       error: {
         kind: 'technical',
         code: 'technical_error',
-        message: 'Nao foi possivel buscar comunidades.',
+        message: 'Não foi possível buscar comunidades.',
         recoverable: true,
         cause: new Error('RPC search failed'),
       },
@@ -140,7 +140,7 @@ describe('useCommunityDiscovery', () => {
       error: {
         kind: 'technical',
         code: 'technical_error',
-        message: 'Nao foi possivel enviar o pedido.',
+        message: 'Não foi possível enviar o pedido.',
         recoverable: true,
       },
     });

@@ -58,6 +58,17 @@ test('resolveTransitionDestination cai no fallback quando nao ha destino origina
   assert.equal(resolveTransitionDestination(readyState, undefined), '/');
 });
 
+test('convidado sai da tela de transicao para o app, nao para o login', () => {
+  assert.equal(resolveTransitionDestination({ kind: 'anonymous' }, undefined), '/');
+  assert.deepEqual(resolveTransitionDestination({ kind: 'anonymous' }, { pathname: '/painel' }), {
+    pathname: '/painel',
+  });
+});
+
+test('convidado que veio de uma rota de autenticacao nao volta para ela', () => {
+  assert.equal(resolveTransitionDestination({ kind: 'anonymous' }, { pathname: '/entrar' }), '/');
+});
+
 test('resolveTransitionDestination nao cria laco quando o destino original e uma rota de autenticacao', () => {
   const destination = resolveTransitionDestination(readyState, { pathname: '/entrar' });
   assert.equal(destination, '/');

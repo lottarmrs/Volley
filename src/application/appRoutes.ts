@@ -12,6 +12,8 @@ export const LIVE_SESSION_PHASES: OperationalPhase[] = [
 
 export const paths = {
   painel: '/painel',
+  comecar: '/comecar',
+  resumo: '/pelada/resumo',
   agenda: '/agenda',
   ligas: '/ligas',
   ligaNova: '/ligas/nova',
@@ -171,6 +173,8 @@ export function pathForLegacyPage(page: LegacyPage, communityId: string | null):
 export function getPageTitleForPath(pathname: string): string {
   const segments = segmentsOf(pathname);
   if (segments.length === 0 || segments[0] === 'painel') return 'Painel de Controle';
+  if (segments[0] === 'comecar') return 'Montar a Pelada';
+  if (segments[0] === 'pelada' && segments[1] === 'resumo') return 'Resumo da Pelada';
   if (segments[0] === 'agenda') return 'Agenda';
   if (segments[0] === 'ligas') {
     if (segments[1] === 'nova') return 'Nova Liga';
@@ -220,13 +224,61 @@ export interface ShellNavItem {
   badge?: number;
 }
 
+export function getReturnRouteForPath(pathname: string): string | null {
+  const segments = segmentsOf(pathname);
+  if (segments.length <= 1) return null;
+
+  if (segments[0] === 'ligas') {
+    return paths.ligas;
+  }
+
+  if (segments[0] === 'perfil' && segments[1] === 'sync') {
+    return paths.perfil;
+  }
+
+  if (segments[0] === 'comunidades') {
+    const communityId = segments[1];
+    if (segments.length === 2) {
+      return paths.comunidades;
+    }
+    const area = segments[2];
+    if (segments.length === 3) {
+      return paths.comunidade(communityId);
+    }
+    if (area === 'pessoas' && segments[3] === 'editar-atleta') {
+      return paths.pessoas(communityId);
+    }
+    if (area === 'sessoes') {
+      return paths.sessoes(communityId);
+    }
+    return paths.comunidade(communityId);
+  }
+
+  return null;
+}
+
 export function getShellNavigationItems(input: {
   pathname: string;
   isStaff: boolean;
   pendingChanges: number;
+  isGuest?: boolean;
 }): ShellNavItem[] {
   const communityId = extractCommunityId(input.pathname);
   const path = input.pathname.split('?')[0];
+
+  // No modo local o convidado so alcanca a pelada de hoje. Listar as areas de
+  // conta aqui seria oferecer becos: todas param no muro de cadastro.
+  if (input.isGuest) {
+    return [
+      {
+        id: 'painel',
+        label: 'Pelada de hoje',
+        icon: 'dashboard',
+        to: paths.painel,
+        active: path === paths.painel || path === paths.comecar,
+      },
+    ];
+  }
 
   if (communityId) {
     const area = segmentsOf(path)[2] ?? null;
@@ -268,7 +320,7 @@ export function getShellNavigationItems(input: {
       },
       {
         id: 'voltar-comunidades',
-        label: 'Comunidades',
+        label: 'Trocar comunidade',
         icon: 'history',
         to: paths.comunidades,
         active: false,

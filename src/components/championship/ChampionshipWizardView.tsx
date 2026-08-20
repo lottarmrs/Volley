@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowLeft, ArrowRight, Check, Calendar, Shield, Trophy, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Check, Calendar, Shield, Trophy } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
 import { paths } from '../../application/appRoutes';
 import { generateRoundDates } from '../../logic/championship';
@@ -21,6 +21,7 @@ export function ChampionshipWizardView() {
   const { comm, play, championships } = useShell();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [erroCriacao, setErroCriacao] = useState<string | null>(null);
 
   // Step 1: Info & Recurrence
   const [name, setName] = useState('');
@@ -60,17 +61,18 @@ export function ChampionshipWizardView() {
       teams.map((t) => {
         if (t.id !== teamId) return t;
         const exists = t.playerIds.includes(playerId);
-        const playerIds = exists ? t.playerIds.filter((id) => id !== playerId) : [...t.playerIds, playerId];
-        const captainPlayerId = exists && t.captainPlayerId === playerId ? undefined : t.captainPlayerId;
+        const playerIds = exists
+          ? t.playerIds.filter((id) => id !== playerId)
+          : [...t.playerIds, playerId];
+        const captainPlayerId =
+          exists && t.captainPlayerId === playerId ? undefined : t.captainPlayerId;
         return { ...t, playerIds, captainPlayerId };
       }),
     );
   };
 
   const handleSetCaptain = (teamId: string, playerId: string) => {
-    setTeams(
-      teams.map((t) => (t.id === teamId ? { ...t, captainPlayerId: playerId } : t)),
-    );
+    setTeams(teams.map((t) => (t.id === teamId ? { ...t, captainPlayerId: playerId } : t)));
   };
 
   // Preview Rounds
@@ -98,6 +100,7 @@ export function ChampionshipWizardView() {
   }));
 
   const handleFinish = () => {
+    setErroCriacao(null);
     const result = createChampionshipUseCase({
       communityId,
       name: name.trim() || 'Liga de Vôlei',
@@ -111,47 +114,59 @@ export function ChampionshipWizardView() {
       })),
     });
 
-    if (result.ok) {
-      const championshipId = generateUUID();
-      const now = new Date().toISOString();
-
-      const newChampionship = {
-        id: championshipId,
-        communityId: result.value.championship.communityId,
-        name: result.value.championship.name,
-        format: result.value.championship.format,
-        classificationPoints: result.value.championship.classificationPoints,
-        recurrenceRule: result.value.championship.recurrenceRule,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const newTeams = teams.map((t) => ({
-        id: t.id,
-        championshipId,
-        name: t.name,
-        playerIds: t.playerIds,
-        captainPlayerId: t.captainPlayerId,
-        updatedAt: now,
-      }));
-
-      const newRounds = result.value.rounds.map((r) => ({
-        id: generateUUID(),
-        championshipId,
-        round: r.round,
-        teamAId: r.teamAId,
-        teamBId: r.teamBId,
-        scheduledDate: r.scheduledDate,
-        skipped: r.skipped,
-        updatedAt: now,
-      }));
-
-      championships.setChampionships((prev) => [...prev, newChampionship]);
-      championships.setChampionshipTeams((prev) => [...prev, ...newTeams]);
-      championships.setChampionshipRounds((prev) => [...prev, ...newRounds]);
-
-      navigate(paths.liga(championshipId));
+    // Sem este ramo o botao "Lancar Liga" nao fazia nada quando o use case
+    // recusava (menos de 2 times, ou recorrencia que nao cobre as rodadas):
+    // falha silenciosa no unico ponto de nao-retorno do wizard.
+    if (!result.ok) {
+      setErroCriacao(result.error.message);
+      return;
     }
+
+    const championshipId = generateUUID();
+    const now = new Date().toISOString();
+
+    const newChampionship = {
+      id: championshipId,
+      communityId: result.value.championship.communityId,
+      name: result.value.championship.name,
+      format: result.value.championship.format,
+      classificationPoints: result.value.championship.classificationPoints,
+      recurrenceRule: result.value.championship.recurrenceRule,
+      // `useChampionships.create` carimba 'local' e este caminho nao carimbava
+      // nada: liga criada pelo wizard (o unico caminho existente) ficava fora da
+      // fila de sincronizacao.
+      syncStatus: 'local' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const newTeams = teams.map((t) => ({
+      id: t.id,
+      championshipId,
+      name: t.name,
+      playerIds: t.playerIds,
+      captainPlayerId: t.captainPlayerId,
+      syncStatus: 'local' as const,
+      updatedAt: now,
+    }));
+
+    const newRounds = result.value.rounds.map((r) => ({
+      id: generateUUID(),
+      championshipId,
+      round: r.round,
+      teamAId: r.teamAId,
+      teamBId: r.teamBId,
+      scheduledDate: r.scheduledDate,
+      skipped: r.skipped,
+      syncStatus: 'local' as const,
+      updatedAt: now,
+    }));
+
+    championships.setChampionships((prev) => [...prev, newChampionship]);
+    championships.setChampionshipTeams((prev) => [...prev, ...newTeams]);
+    championships.setChampionshipRounds((prev) => [...prev, ...newRounds]);
+
+    navigate(paths.liga(championshipId));
   };
 
   return (
@@ -161,7 +176,7 @@ export function ChampionshipWizardView() {
         <button
           type="button"
           onClick={() => navigate(paths.ligas)}
-          className="btn btn-ghost btn-sm btn-square"
+          className="btn btn-ghost btn-square min-h-[44px] min-w-[44px]"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -169,7 +184,9 @@ export function ChampionshipWizardView() {
           <h2 className="text-xl font-black uppercase flex items-center gap-2">
             <Trophy className="w-5 h-5 text-primary" /> Criar Nova Liga
           </h2>
-          <p className="text-xs text-base-content/60">Wizard em 4 passos para lançar a temporada da comunidade.</p>
+          <p className="text-xs text-base-content/60">
+            Wizard em 4 passos para lançar a temporada da comunidade.
+          </p>
         </div>
       </div>
 
@@ -184,13 +201,15 @@ export function ChampionshipWizardView() {
       {/* STEP 1: Basic Info & Recurrence */}
       {step === 1 && (
         <div className="card card-border bg-base-200 p-6 space-y-4">
-          <h3 className="font-black text-sm uppercase text-primary">Passo 1: Informações e Recorrência</h3>
+          <h3 className="font-black text-sm uppercase text-primary">
+            Passo 1: Informações e Recorrência
+          </h3>
 
           <div className="form-control">
             <label className="label text-xs font-bold">Nome da Liga</label>
             <input
               type="text"
-              className="input input-bordered input-sm"
+              className="input input-bordered min-h-[44px]"
               placeholder="Ex: Liga da Primavera 2026"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -201,7 +220,7 @@ export function ChampionshipWizardView() {
             <div className="form-control">
               <label className="label text-xs font-bold">Comunidade</label>
               <select
-                className="select select-bordered select-sm"
+                className="select select-bordered min-h-[44px]"
                 value={communityId}
                 onChange={(e) => setCommunityId(e.target.value)}
               >
@@ -216,7 +235,7 @@ export function ChampionshipWizardView() {
             <div className="form-control">
               <label className="label text-xs font-bold">Formato do Campeonato</label>
               <select
-                className="select select-bordered select-sm"
+                className="select select-bordered min-h-[44px]"
                 value={format}
                 onChange={(e) => setFormat(e.target.value as 'round_robin' | 'double_round_robin')}
               >
@@ -230,7 +249,7 @@ export function ChampionshipWizardView() {
             <div className="form-control">
               <label className="label text-xs font-bold">Dia da Semana</label>
               <select
-                className="select select-bordered select-sm"
+                className="select select-bordered min-h-[44px]"
                 value={dayOfWeek}
                 onChange={(e) => setDayOfWeek(Number(e.target.value))}
               >
@@ -248,7 +267,7 @@ export function ChampionshipWizardView() {
               <label className="label text-xs font-bold">Horário Padrão</label>
               <input
                 type="time"
-                className="input input-bordered input-sm"
+                className="input input-bordered min-h-[44px]"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
               />
@@ -258,7 +277,7 @@ export function ChampionshipWizardView() {
               <label className="label text-xs font-bold">Data da 1ª Rodada</label>
               <input
                 type="date"
-                className="input input-bordered input-sm"
+                className="input input-bordered min-h-[44px]"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
@@ -268,7 +287,7 @@ export function ChampionshipWizardView() {
           <div className="flex justify-end pt-4">
             <button
               type="button"
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary min-h-[44px] px-4"
               onClick={() => setStep(2)}
               disabled={!name.trim()}
             >
@@ -281,14 +300,16 @@ export function ChampionshipWizardView() {
       {/* STEP 2: Scoring Rules */}
       {step === 2 && (
         <div className="card card-border bg-base-200 p-6 space-y-4">
-          <h3 className="font-black text-sm uppercase text-primary">Passo 2: Regras de Pontuação</h3>
+          <h3 className="font-black text-sm uppercase text-primary">
+            Passo 2: Regras de Pontuação
+          </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="form-control">
               <label className="label text-xs font-bold">Pontos por Vitória</label>
               <input
                 type="number"
-                className="input input-bordered input-sm"
+                className="input input-bordered min-h-[44px]"
                 value={winPoints}
                 onChange={(e) => setWinPoints(Number(e.target.value))}
               />
@@ -298,7 +319,7 @@ export function ChampionshipWizardView() {
               <label className="label text-xs font-bold">Pontos por Derrota</label>
               <input
                 type="number"
-                className="input input-bordered input-sm"
+                className="input input-bordered min-h-[44px]"
                 value={lossPoints}
                 onChange={(e) => setLossPoints(Number(e.target.value))}
               />
@@ -306,7 +327,9 @@ export function ChampionshipWizardView() {
           </div>
 
           <div className="card bg-base-100 p-4 border border-base-300 text-xs space-y-2">
-            <span className="font-bold uppercase text-primary">Critérios de Desempate (Automáticos):</span>
+            <span className="font-bold uppercase text-primary">
+              Critérios de Desempate (Automáticos):
+            </span>
             <ol className="list-decimal list-inside space-y-1 text-base-content/70">
               <li>Número de Vitórias</li>
               <li>Pontos de Classificação</li>
@@ -316,10 +339,18 @@ export function ChampionshipWizardView() {
           </div>
 
           <div className="flex justify-between pt-4">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep(1)}>
+            <button
+              type="button"
+              className="btn btn-ghost min-h-[44px] px-4"
+              onClick={() => setStep(1)}
+            >
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setStep(3)}>
+            <button
+              type="button"
+              className="btn btn-primary min-h-[44px] px-4"
+              onClick={() => setStep(3)}
+            >
               Próximo: Times & Capitães <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -335,12 +366,16 @@ export function ChampionshipWizardView() {
           <div className="flex gap-2">
             <input
               type="text"
-              className="input input-bordered input-sm grow"
+              className="input input-bordered min-h-[44px] grow"
               placeholder="Nome da nova equipe..."
               value={newTeamName}
               onChange={(e) => setNewTeamName(e.target.value)}
             />
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddTeam}>
+            <button
+              type="button"
+              className="btn btn-secondary min-h-[44px] px-4"
+              onClick={handleAddTeam}
+            >
               Adicionar Equipe
             </button>
           </div>
@@ -356,7 +391,7 @@ export function ChampionshipWizardView() {
                   {teams.length > 2 && (
                     <button
                       type="button"
-                      className="btn btn-ghost btn-xs text-error"
+                      className="btn btn-ghost min-h-[44px] px-3 text-xs text-error"
                       onClick={() => handleRemoveTeam(team.id)}
                     >
                       Remover equipe
@@ -373,24 +408,38 @@ export function ChampionshipWizardView() {
                     const isSelected = team.playerIds.includes(player.id);
                     const isCaptain = team.captainPlayerId === player.id;
 
+                    const nome = player.apelido || player.nome;
+
+                    // Botao de capitao como irmao, nao aninhado: botao dentro de
+                    // botao e HTML invalido, e o `<div onClick>` anterior nao era
+                    // focavel nem anunciado.
                     return (
                       <div
                         key={player.id}
-                        className={`p-2 rounded border text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                          isSelected ? 'bg-primary/10 border-primary' : 'bg-base-200 border-base-300'
+                        className={`flex items-center gap-1 rounded border p-1 transition-colors ${
+                          isSelected
+                            ? 'bg-primary/10 border-primary'
+                            : 'bg-base-200 border-base-300'
                         }`}
-                        onClick={() => handleTogglePlayerInTeam(team.id, player.id)}
                       >
-                        <span className="truncate">{player.apelido || player.nome}</span>
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => handleTogglePlayerInTeam(team.id, player.id)}
+                          className="flex min-h-[44px] flex-1 items-center truncate px-2 text-xs"
+                        >
+                          <span className="truncate">{nome}</span>
+                        </button>
                         {isSelected && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetCaptain(team.id, player.id);
-                            }}
-                            className={`badge badge-xs font-black ${
-                              isCaptain ? 'badge-warning' : 'badge-outline'
+                            aria-pressed={isCaptain}
+                            aria-label={`Definir ${nome} como capitão da ${team.name}`}
+                            onClick={() => handleSetCaptain(team.id, player.id)}
+                            className={`min-h-[44px] min-w-[44px] shrink-0 rounded text-xs font-black ${
+                              isCaptain
+                                ? 'bg-warning text-warning-content'
+                                : 'border border-base-300 text-base-content/60'
                             }`}
                           >
                             C
@@ -405,10 +454,18 @@ export function ChampionshipWizardView() {
           </div>
 
           <div className="flex justify-between pt-4">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep(2)}>
+            <button
+              type="button"
+              className="btn btn-ghost min-h-[44px] px-4"
+              onClick={() => setStep(2)}
+            >
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setStep(4)}>
+            <button
+              type="button"
+              className="btn btn-primary min-h-[44px] px-4"
+              onClick={() => setStep(4)}
+            >
               Próximo: Revisão & Calendário <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -418,7 +475,9 @@ export function ChampionshipWizardView() {
       {/* STEP 4: Review & Schedule Preview */}
       {step === 4 && (
         <div className="card card-border bg-base-200 p-6 space-y-6">
-          <h3 className="font-black text-sm uppercase text-primary">Passo 4: Revisão Geral e Calendário</h3>
+          <h3 className="font-black text-sm uppercase text-primary">
+            Passo 4: Revisão Geral e Calendário
+          </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="bg-base-100 p-3 rounded border border-base-300 space-y-1">
@@ -436,7 +495,8 @@ export function ChampionshipWizardView() {
           {/* Schedule Rounds Preview */}
           <div className="space-y-3">
             <h4 className="font-bold text-xs uppercase flex items-center gap-1.5 text-base-content/70">
-              <Calendar className="w-4 h-4" /> Prévia das Rodadas Geradas ({previewRounds.length} confrontos)
+              <Calendar className="w-4 h-4" /> Prévia das Rodadas Geradas ({previewRounds.length}{' '}
+              confrontos)
             </h4>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {previewRounds.map((rd) => {
@@ -456,7 +516,9 @@ export function ChampionshipWizardView() {
                     className="flex items-center justify-between bg-base-100 p-2.5 rounded border border-base-300 text-xs"
                   >
                     <span className="font-bold text-primary">Rodada {rd.round}</span>
-                    <span className="font-black">{teamA?.name} VS {teamB?.name}</span>
+                    <span className="font-black">
+                      {teamA?.name} VS {teamB?.name}
+                    </span>
                     <span className="text-base-content/60">{dateStr}</span>
                   </div>
                 );
@@ -464,11 +526,32 @@ export function ChampionshipWizardView() {
             </div>
           </div>
 
+          {erroCriacao && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-error/40 bg-error/10 p-3 text-xs leading-relaxed text-error"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <strong className="font-black uppercase">Não foi possível lançar a liga.</strong>{' '}
+                {erroCriacao}
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-between pt-4 border-t border-base-300">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep(3)}>
+            <button
+              type="button"
+              className="btn btn-ghost min-h-[44px] px-4"
+              onClick={() => setStep(3)}
+            >
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
-            <button type="button" className="btn btn-success btn-sm" onClick={handleFinish}>
+            <button
+              type="button"
+              className="btn btn-success min-h-[44px] px-4"
+              onClick={handleFinish}
+            >
               <Check className="w-4 h-4" /> Lançar Liga e Gerar Rodadas
             </button>
           </div>

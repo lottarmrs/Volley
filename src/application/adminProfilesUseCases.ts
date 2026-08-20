@@ -18,7 +18,7 @@ export async function listAdminProfilesQuery(
   try {
     return appOk({ profiles: await gateway.listProfiles() });
   } catch (error) {
-    return technicalError('Nao foi possivel carregar os usuarios.', error);
+    return technicalError('Não foi possível carregar os usuários.', error);
   }
 }
 
@@ -27,11 +27,11 @@ export async function changeUserRoleCommand(
   gateway: AdminProfilesGateway = supabaseAdminProfilesGateway,
 ): Promise<AppResult<{ profile: UserProfile }>> {
   const userId = input.userId.trim();
-  if (!userId) return productError('invalid_input', 'Usuario invalido.');
+  if (!userId) return productError('invalid_input', 'Usuário inválido.');
 
   try {
     return appOk({ profile: await gateway.setRole(userId, input.role) });
   } catch (error) {
-    return technicalError('Nao foi possivel alterar o papel.', error);
+    return technicalError('Não foi possível alterar o papel.', error);
   }
 }

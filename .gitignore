@@ -37,3 +37,6 @@ nul
 # master (UUIDs e rows de contas reais). So ficam na maquina do operador, nunca
 # no repo (publico).
 docs/operations/snapshots/
+
+# Estado de runtime do modo live do Impeccable (pid, porta, token, locks).
+.impeccable/live/

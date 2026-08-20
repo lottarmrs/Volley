@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { Player, Team, Skill } from '../../types';
+import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../../storage/localStorageRepository';
+
+const HINT_ID = 'lance-destaque';
 
 interface HighlightFabProps {
   teams: Team[];
@@ -31,6 +34,18 @@ const inferSkill = (position: string | null): Skill =>
 export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) => {
   const [open, setOpen] = useState(false);
   const [skillOverride, setSkillOverride] = useState<Skill | null>(null);
+  // O botão só diz "estrela": para que ele serve é a parte que ninguém adivinha.
+  const [hintVisible, setHintVisible] = useState(
+    () => !loadFromStorage<string[]>(STORAGE_KEYS.dismissedHints, []).includes(HINT_ID),
+  );
+
+  const dismissHint = () => {
+    setHintVisible(false);
+    const dismissed = loadFromStorage<string[]>(STORAGE_KEYS.dismissedHints, []);
+    if (!dismissed.includes(HINT_ID)) {
+      saveToStorage(STORAGE_KEYS.dismissedHints, [...dismissed, HINT_ID]);
+    }
+  };
 
   const close = () => {
     setOpen(false);
@@ -44,9 +59,34 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
 
   return (
     <>
+      {hintVisible && !open && (
+        <div
+          role="note"
+          className="fixed right-5 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-30 flex w-64 gap-3 rounded-2xl border border-warning/30 bg-base-200 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.6)] sm:right-6 sm:bottom-24"
+        >
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <div className="space-y-2">
+            <p className="text-xs leading-relaxed text-base-content/80">
+              Defesa salva, recepção perfeita e levantamento de primeira não marcam ponto — mas
+              contam aqui. É assim que líbero e levantador sobem no ranking.
+            </p>
+            <button
+              type="button"
+              onClick={dismissHint}
+              className="text-[11px] font-bold uppercase tracking-wider text-warning hover:text-warning/80"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* FAB — cor âmbar/warning, distinta de ponto (accent) e erro (error). */}
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          dismissHint();
+          setOpen(true);
+        }}
         title="Registrar lance de destaque"
         className="btn btn-warning btn-circle shadow-xl shadow-warning/30 fixed right-5 bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:right-6 sm:bottom-6 z-30 w-14 h-14"
       >
@@ -60,7 +100,11 @@ export const HighlightFab = ({ teams, players, onRegister }: HighlightFabProps) 
               <h3 className="font-bold uppercase tracking-tight text-warning text-sm flex items-center gap-2">
                 <Sparkles className="w-4 h-4" /> Lance de Destaque
               </h3>
-              <button onClick={close} className="btn btn-ghost btn-circle btn-sm">
+              <button
+                onClick={close}
+                aria-label="Fechar sem registrar o lance"
+                className="btn btn-ghost btn-circle btn-sm"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>

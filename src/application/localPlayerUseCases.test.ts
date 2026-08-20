@@ -286,3 +286,42 @@ test('validateLocalPlayerSave rejects non-positive heights and out-of-range attr
   assert.equal(result.alturaCm, 'A altura deve ser um valor positivo.');
   assert.equal(result.atributos, 'Alguns atributos estão fora do intervalo (0–10).');
 });
+
+test('applyPlayerCreationForCommunity distingue criado, vinculado e vazio', () => {
+  const base = player('p1', 'Ana Paula');
+
+  const vazio = applyPlayerCreationForCommunity({
+    players: [base],
+    name: '   ',
+    communityId: 'c1',
+    now,
+    createId: () => 'novo',
+    createUsername: () => undefined,
+  });
+  assert.equal(vazio.outcome, 'empty');
+  assert.equal(vazio.players.length, 1);
+
+  const vinculado = applyPlayerCreationForCommunity({
+    players: [base],
+    name: 'Ana Paula',
+    communityId: 'c1',
+    now,
+    createId: () => 'novo',
+    createUsername: () => undefined,
+  });
+  assert.equal(vinculado.outcome, 'linked');
+  assert.equal(vinculado.name, 'Ana Paula');
+  assert.equal(vinculado.players.length, 1, 'vincular nao cria um segundo atleta');
+
+  const criado = applyPlayerCreationForCommunity({
+    players: [base],
+    name: 'Bia',
+    communityId: 'c1',
+    now,
+    createId: () => 'novo',
+    createUsername: () => undefined,
+  });
+  assert.equal(criado.outcome, 'created');
+  assert.equal(criado.name, 'Bia');
+  assert.equal(criado.players.length, 2);
+});

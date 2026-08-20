@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X, Trophy, Star, ArrowRight, Sparkles, Target, CheckCircle2, Layers } from 'lucide-react';
 import { FutCard } from './FutCard';
 import { Achievement, VutCard } from '../../logic/futCards';
+import { DURATION, EASE_ARRIVE } from '../../ui/motion';
 
 export interface RevealItem {
   card: VutCard;
@@ -18,6 +19,7 @@ interface VutRevealModalProps {
 export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose, revealItems }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isOpened, setIsOpened] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   if (!isOpen || revealItems.length === 0) return null;
 
@@ -100,10 +102,13 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose,
               /* Pack/Envelope to be clicked */
               <motion.div
                 key="pack"
-                initial={{ scale: 0.8, opacity: 0, rotateY: -180 }}
-                animate={{ scale: 1, opacity: 1, rotateY: 0 }}
-                exit={{ scale: 1.1, opacity: 0, rotateY: 180 }}
-                transition={{ duration: 0.5, type: 'spring' }}
+                initial={reduceMotion ? { opacity: 0 } : { scale: 0.9, opacity: 0, rotateY: -90 }}
+                animate={reduceMotion ? { opacity: 1 } : { scale: 1, opacity: 1, rotateY: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { scale: 1.04, opacity: 0, rotateY: 90 }}
+                transition={{
+                  duration: reduceMotion ? DURATION.state : DURATION.overlay,
+                  ease: EASE_ARRIVE,
+                }}
                 onClick={handleOpenPack}
                 className="w-[180px] h-[260px] sm:w-[220px] sm:h-[320px] bg-gradient-to-br from-accent via-pink-600 to-primary rounded-2xl border-2 border-white/20 shadow-2xl flex flex-col items-center justify-between p-4 sm:p-6 cursor-pointer hover:shadow-accent/20 hover:border-white/40 active:scale-95 transition-all"
               >
@@ -112,7 +117,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose,
                   <Star className="w-5 h-5 fill-white/10" />
                 </div>
                 <div className="flex flex-col items-center space-y-3">
-                  <Trophy className="w-16 h-16 text-white/90 animate-bounce" />
+                  <Trophy className="w-16 h-16 text-white/90" />
                   <span className="text-lg font-black text-white uppercase tracking-widest leading-none">
                     VUT
                   </span>
@@ -129,23 +134,27 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose,
                 </div>
               </motion.div>
             ) : (
-              /* Revealed Card with reasons */
+              /* Momento focal: a carta vira como carta de verdade — meia volta,
+                 desacelerando ate parar. Sem mola: nada aqui precisa quicar. */
               <motion.div
                 key="card-reveal"
-                initial={{ scale: 0.5, rotateY: 180, opacity: 0 }}
-                animate={{ scale: 1, rotateY: 0, opacity: 1 }}
-                transition={{ duration: 0.6, type: 'spring', bounce: 0.3 }}
+                initial={reduceMotion ? { opacity: 0 } : { scale: 0.82, rotateY: 180, opacity: 0 }}
+                animate={reduceMotion ? { opacity: 1 } : { scale: 1, rotateY: 0, opacity: 1 }}
+                transition={{
+                  duration: reduceMotion ? DURATION.state : DURATION.focal,
+                  ease: EASE_ARRIVE,
+                }}
                 className="flex flex-col items-center space-y-4 [&_.vut-card-container]:scale-[0.68] sm:[&_.vut-card-container]:scale-100"
               >
-                <div className="vut-card-container origin-top transition-transform">
+                <div className="vut-card-container vut-reveal-landing relative origin-top transition-transform">
                   <FutCard card={currentItem.card} />
                 </div>
 
                 {/* Highlight Reasons */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ duration: DURATION.state, ease: EASE_ARRIVE, delay: 0.35 }}
                   className="bg-black/50 border border-white/10 p-3.5 rounded-xl text-center space-y-1.5 max-w-[280px]"
                 >
                   <span className="text-[8px] font-black uppercase text-accent tracking-widest font-mono">
@@ -159,9 +168,9 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose,
                 </motion.div>
 
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.45 }}
+                  transition={{ duration: DURATION.state, ease: EASE_ARRIVE, delay: 0.48 }}
                   className="grid grid-cols-1 gap-2 max-w-[320px] w-full"
                 >
                   <div className="grid grid-cols-2 gap-2">
@@ -225,7 +234,7 @@ export const VutRevealModal: React.FC<VutRevealModalProps> = ({ isOpen, onClose,
               onClick={handleNext}
               className="btn btn-accent btn-sm gap-2 uppercase font-bold px-6 py-2 h-auto text-xs"
             >
-              {isLast ? 'Concluir Pacote' : 'Proxima Carta'} <ArrowRight className="w-4 h-4" />
+              {isLast ? 'Concluir Pacote' : 'Próxima carta'} <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <button

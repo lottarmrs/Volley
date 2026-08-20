@@ -18,6 +18,7 @@ import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import {
   buildCommunityMembersViewModel,
   COMMUNITY_ROLE_LABELS,
+  COMMUNITY_ROLE_POWERS,
 } from '../../application/communityMembersViewModel';
 
 interface CommunityMembersPanelProps {
@@ -83,6 +84,14 @@ export function CommunityMembersPanel({
   const [busy, setBusy] = useState(false);
   const [joinCode, setJoinCode] = useState<string | null>(community.joinCode ?? null);
   const [copied, setCopied] = useState(false);
+  const [confirmacao, setConfirmacao] = useState<{
+    titulo: string;
+    descricao: string;
+    rotuloAcao: string;
+    acao: () => void | Promise<void>;
+  } | null>(null);
+  /** Nenhuma ação bem-sucedida deste painel confirmava nada. */
+  const [sucesso, setSucesso] = useState<string | null>(null);
 
   if (vm.state === 'cloud_disabled' || vm.state === 'community_not_synced') {
     return (
@@ -118,11 +127,25 @@ export function CommunityMembersPanel({
     }
   };
 
-  const handleGenerateCode = () =>
+  const gerarCodigo = () =>
     runAction(async () => {
       const code = await generateJoinCode();
       setJoinCode(code);
+      setSucesso('Código novo gerado. O anterior deixou de funcionar.');
     }, 'Não foi possível gerar o código.');
+
+  // Gerar um código novo invalida o antigo em silêncio: quem já recebeu o
+  // anterior no grupo para de conseguir entrar e ninguém é avisado.
+  const handleGenerateCode = () => {
+    if (!joinCode) return gerarCodigo();
+    setConfirmacao({
+      titulo: 'Gerar um código novo?',
+      descricao:
+        'O código atual para de funcionar na hora. Quem já recebeu o antigo no grupo e ainda não entrou vai precisar do novo.',
+      rotuloAcao: 'Gerar novo código',
+      acao: gerarCodigo,
+    });
+  };
 
   const handleDisableCode = () =>
     runAction(async () => {
@@ -141,8 +164,21 @@ export function CommunityMembersPanel({
     }
   };
 
-  const handleRoleChange = (member: CommunityMember, role: CommunityMemberRole) =>
-    runAction(() => changeRole(member.id, role), 'Não foi possível alterar o papel.');
+  // Papel é governança: quem vira admin passa a aprovar membro e editar regras,
+  // e a RPC não tem desfazer. Era a única mutação sensível do painel sem
+  // confirmação — remover membro já tinha.
+  const handleRoleChange = (member: CommunityMember, role: CommunityMemberRole) => {
+    const nome = member.name || member.email || 'este membro';
+    setConfirmacao({
+      titulo: `Tornar ${nome} ${COMMUNITY_ROLE_LABELS[role]}?`,
+      descricao: COMMUNITY_ROLE_POWERS[role],
+      rotuloAcao: 'Confirmar papel',
+      acao: async () => {
+        await runAction(() => changeRole(member.id, role), 'Não foi possível alterar o papel.');
+        setSucesso(`${nome} agora é ${COMMUNITY_ROLE_LABELS[role]}.`);
+      },
+    });
+  };
 
   const handleRemove = (member: CommunityMember) => {
     const label = member.name || member.email || 'este membro';
@@ -159,6 +195,58 @@ export function CommunityMembersPanel({
 
   return (
     <div className="space-y-5">
+      {confirmacao && (
+        <div className="modal modal-open" role="dialog" aria-labelledby="confirmar-membro-titulo">
+          <div className="modal-box max-w-md space-y-5">
+            <div className="space-y-2">
+              <h3
+                id="confirmar-membro-titulo"
+                className="text-lg font-black uppercase tracking-tight"
+              >
+                {confirmacao.titulo}
+              </h3>
+              <p className="text-sm leading-relaxed text-base-content/70">
+                {confirmacao.descricao}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row-reverse">
+              <button
+                type="button"
+                onClick={() => {
+                  const acao = confirmacao.acao;
+                  setConfirmacao(null);
+                  void acao();
+                }}
+                className="btn btn-primary min-h-[48px] flex-1 px-6 font-black uppercase tracking-wider"
+              >
+                {confirmacao.rotuloAcao}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmacao(null)}
+                className="btn btn-ghost min-h-[48px] flex-1 px-6 font-bold uppercase tracking-wider"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sucesso && (
+        <div role="status" className="alert alert-success alert-soft text-sm">
+          <span>{sucesso}</span>
+          <button
+            type="button"
+            onClick={() => setSucesso(null)}
+            aria-label="Dispensar confirmação"
+            className="btn btn-ghost btn-xs btn-square"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-text-muted uppercase">Área de membros</span>
         <button
@@ -327,7 +415,11 @@ export function CommunityMembersPanel({
         {loading && activeMembers.length === 0 ? (
           <p className="text-sm text-text-muted px-1">Carregando…</p>
         ) : activeMembers.length === 0 ? (
-          <p className="text-sm text-text-muted px-1">Nenhum membro ainda.</p>
+          <p className="px-1 text-sm leading-relaxed text-text-muted">
+            Membro é quem entra na comunidade com a própria conta e ganha permissão para agir —
+            marcar ponto, aprovar entrada, avaliar atleta. Diferente do elenco: atleta é quem joga,
+            membro é quem opera. Gere um código de convite acima para chamar alguém.
+          </p>
         ) : (
           <ul className="space-y-2">
             {sortedMembers.map((row) => {

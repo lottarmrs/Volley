@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-20T17:22:34Z",
+  "title": "Design System: Panelinha Team Balancer",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Electric Court Blue",
+        "canonical": "#2563eb",
+        "tonalRamp": [
+          "#0b1d45",
+          "#133580",
+          "#1d4ed8",
+          "#2563eb",
+          "#3b82f6",
+          "#60a5fa",
+          "#93c5fd",
+          "#dbeafe"
+        ]
+      },
+      "accent": {
+        "role": "tertiary",
+        "displayName": "Volleyball Matchday Orange",
+        "canonical": "#f97316",
+        "tonalRamp": [
+          "#451a03",
+          "#7c2d12",
+          "#c2410c",
+          "#ea580c",
+          "#f97316",
+          "#fb923c",
+          "#fdba74",
+          "#ffedd5"
+        ]
+      },
+      "secondary": {
+        "role": "secondary",
+        "displayName": "Cyan Tactical",
+        "canonical": "#14b8a6",
+        "tonalRamp": [
+          "#042f2e",
+          "#115e59",
+          "#0f766e",
+          "#0d9488",
+          "#14b8a6",
+          "#2dd4bf",
+          "#5eead4",
+          "#ccfbf1"
+        ]
+      },
+      "base-100": {
+        "role": "neutral",
+        "displayName": "Deep Arena Base",
+        "canonical": "#0b0c0e",
+        "tonalRamp": [
+          "#050506",
+          "#0b0c0e",
+          "#14171c",
+          "#1e222a",
+          "#2a2f3a",
+          "#3f4656",
+          "#6b7280",
+          "#9ca3af",
+          "#f3f4f6"
+        ]
+      },
+      "vut-bronze": {
+        "role": "extended",
+        "displayName": "VUT Bronze",
+        "canonical": "#4a2f1c",
+        "tonalRamp": ["#170b05", "#2f180d", "#4a2f1c", "#8c5a33", "#c08552", "#ecdcd6"]
+      },
+      "vut-silver": {
+        "role": "extended",
+        "displayName": "VUT Prata",
+        "canonical": "#6b828f",
+        "tonalRamp": ["#1e2529", "#3e4d56", "#6b828f", "#9db3bd", "#c5d6de", "#e3f2fd"]
+      },
+      "vut-gold": {
+        "role": "extended",
+        "displayName": "VUT Ouro",
+        "canonical": "#d4af37",
+        "tonalRamp": ["#543d05", "#855b13", "#aa7c11", "#d4af37", "#fffdd0", "#fff9c4"]
+      },
+      "vut-elite": {
+        "role": "extended",
+        "displayName": "VUT Elite",
+        "canonical": "#1e1b4b",
+        "tonalRamp": ["#120012", "#03001e", "#03001c", "#1e1b4b", "#4c1d95", "#e0e7ff", "#fae8ff"]
+      },
+      "vut-maestro": {
+        "role": "extended",
+        "displayName": "VUT Maestro (levantador)",
+        "canonical": "#0d9488",
+        "tonalRamp": ["#115e59", "#0f766e", "#0d9488", "#2dd4bf", "#ccfbf1"]
+      },
+      "vut-muralha": {
+        "role": "extended",
+        "displayName": "VUT Muralha (bloqueio)",
+        "canonical": "#ea580c",
+        "tonalRamp": ["#431407", "#9a3412", "#ea580c", "#fb923c", "#ffedd5"]
+      },
+      "vut-rarity-common": {
+        "role": "extended",
+        "displayName": "Moldura comum",
+        "canonical": "#5d4037",
+        "tonalRamp": ["#5d4037", "#d7ccc8"]
+      },
+      "vut-rarity-uncommon": {
+        "role": "extended",
+        "displayName": "Moldura incomum",
+        "canonical": "#1b5e20",
+        "tonalRamp": ["#1b5e20", "#4caf50", "#81c784"]
+      },
+      "vut-rarity-rare": {
+        "role": "extended",
+        "displayName": "Moldura rara",
+        "canonical": "#0d47a1",
+        "tonalRamp": ["#0d47a1", "#2196f3", "#64b5f6"]
+      },
+      "vut-rarity-epic": {
+        "role": "extended",
+        "displayName": "Moldura épica",
+        "canonical": "#ba68c8",
+        "tonalRamp": ["#4a148c", "#9c27b0", "#ba68c8"]
+      },
+      "vut-rarity-legendary": {
+        "role": "extended",
+        "displayName": "Moldura lendária (holográfica)",
+        "canonical": "#ffb300",
+        "tonalRamp": ["#ff3d00", "#ffb300", "#9c27b0", "#2196f3", "#4caf50"]
+      },
+      "vut-glow": {
+        "role": "extended",
+        "displayName": "Brilhos de estilo VUT",
+        "canonical": "#6366f1",
+        "tonalRamp": [
+          "#ef4444",
+          "#ec4899",
+          "#6366f1",
+          "#a855f7",
+          "#7c3aed",
+          "#f43f5e",
+          "#ff8c00",
+          "#ffdf00"
+        ]
+      },
+      "team-jersey": {
+        "role": "extended",
+        "displayName": "Uniformes de time",
+        "canonical": "#d75252",
+        "tonalRamp": [
+          "#852b4f",
+          "#d75252",
+          "#1e40af",
+          "#064e3b",
+          "#10b981",
+          "#c2410c",
+          "#581c87",
+          "#8b5cf6",
+          "#1e293b",
+          "#d97706"
+        ]
+      },
+      "warning": {
+        "role": "state",
+        "displayName": "Alerta",
+        "canonical": "#d97706",
+        "tonalRamp": ["#451a03", "#78350f", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d"]
+      },
+      "success": {
+        "role": "state",
+        "displayName": "Sucesso",
+        "canonical": "#16a34a",
+        "tonalRamp": ["#052e16", "#14532d", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac"]
+      },
+      "error": {
+        "role": "state",
+        "displayName": "Erro",
+        "canonical": "#dc2626",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5"]
+      },
+      "info": {
+        "role": "state",
+        "displayName": "Informação",
+        "canonical": "#0284c7",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc"]
+      }
+    },
+    "typographyMeta": {
+      "sans": {
+        "displayName": "Inter (Sans-Serif)",
+        "purpose": "Primary interface text, labels, and headings."
+      },
+      "mono": {
+        "displayName": "JetBrains Mono (Monospace)",
+        "purpose": "Live match scores, numerical stats, and timers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.4)",
+        "purpose": "Standard depth for cards and section panels."
+      },
+      {
+        "name": "floating",
+        "value": "0 16px 40px rgba(0, 0, 0, 0.6)",
+        "purpose": "Elevated depth for modals, dropdowns, and score sheets."
+      },
+      {
+        "name": "focus",
+        "value": "0 0 0 3px rgba(37, 99, 235, 0.35)",
+        "purpose": "Accessibility focus ring on buttons and form fields."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Standard easing for UI transitions."
+      },
+      {
+        "name": "vut-shimmer",
+        "value": "vut-shimmer 3s linear infinite",
+        "purpose": "Shimmer rotation animation for epic tier cards."
+      },
+      {
+        "name": "vut-holo",
+        "value": "vut-holo 6s ease infinite",
+        "purpose": "Holographic gradient animation for legendary tier cards."
+      },
+      {
+        "name": "ease-arrive",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Chegada confiante: desaceleração exponencial para entradas, revelações e confirmações. Substitui mola e elástico, que devolvem o objeto e leem como brinquedo."
+      },
+      {
+        "name": "duration-scale",
+        "value": "150ms feedback · 250ms estado · 400ms overlay · 600ms momento focal",
+        "purpose": "Duração expressa distância e consequência. Saída sempre mais rápida que entrada. Definido em src/ui/motion.ts."
+      },
+      {
+        "name": "vut-reveal-landing",
+        "value": "vut-sweep 900ms cubic-bezier(0.16, 1, 0.3, 1) 220ms 1 both",
+        "purpose": "Varredura única de luz quando a carta pousa na revelação. Mesma linguagem da moldura holográfica, disparada uma vez em vez de em laço."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Standard action button for primary workflow steps.",
+      "html": "<button class=\"ds-btn-primary\">SALVAR PARÂMETROS</button>",
+      "css": ".ds-btn-primary { background-color: #2563eb; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-family: Inter, sans-serif; font-weight: 600; font-size: 14px; border: none; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; } .ds-btn-primary:hover { background-color: #1d4ed8; }"
+    },
+    {
+      "name": "Accent Button",
+      "kind": "button",
+      "refersTo": "button-accent",
+      "description": "High-visibility button for live matchday actions (e.g. scoring points).",
+      "html": "<button class=\"ds-btn-accent\">+1 PONTO</button>",
+      "css": ".ds-btn-accent { background-color: #f97316; color: #ffffff; padding: 12px 24px; border-radius: 10px; font-family: Inter, sans-serif; font-weight: 700; font-size: 14px; border: none; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; } .ds-btn-accent:hover { background-color: #ea580c; }"
+    },
+    {
+      "name": "Surface Card",
+      "kind": "card",
+      "refersTo": "card-surface",
+      "description": "Standard surface container for athlete stats and match summary.",
+      "html": "<div class=\"ds-card\"><h4 class=\"ds-card-title\">Time A</h4><p class=\"ds-card-text\">Média Geral: 8.4 • Gênero: 3M / 3F</p></div>",
+      "css": ".ds-card { background-color: #14171c; color: #ffffff; padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); font-family: Inter, sans-serif; } .ds-card-title { font-size: 16px; font-weight: 700; margin: 0 0 8px 0; } .ds-card-text { font-size: 14px; color: rgba(255, 255, 255, 0.65); margin: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Technical Volleyball Arena",
+    "overview": "O Panelinha Team Balancer adota a estética de uma arena técnica de alta energia: um tema escuro profundo e imersivo (#0b0c0e), contrastado com azul elétrico (#2563eb) e laranja vibrante de quadra (#f97316). O design é construído para alta legibilidade e operação tátil imediata.",
+    "keyCharacteristics": [
+      "Dark mode nativo com fundos em camadas profundas (#0b0c0e → #14171c → #1e222a)",
+      "Destaques de ação em Azul Elétrico (#2563eb) e Laranja Quadra (#f97316)",
+      "Tipografia limpa e técnica (Inter para UI e JetBrains Mono para pontuações)",
+      "Componentes colecionáveis VUT com raridades visuais e efeitos metalizados",
+      "Alvos de toque otimizados para dispositivos móveis (min-height: 44px)"
+    ],
+    "rules": [
+      {
+        "name": "The Court Accent Hierarchy Rule",
+        "body": "O azul primário (#2563eb) domina ações do sistema. O laranja de quadra (#f97316) é exclusivo para eventos esportivos ao vivo.",
+        "section": "colors"
+      },
+      {
+        "name": "The Monospace Score Rule",
+        "body": "Todos os números de placar ao vivo, tempos, pontuações e estatísticas devem ser renderizados em JetBrains Mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Layering Rule",
+        "body": "A profundidade é criada primariamente por variação de tom de fundo e bordas translúcidas, reservando sombras intensas apenas para modais e superfícies flutuantes.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usar numerais em JetBrains Mono em placares ao vivo e estatísticas de atletas.",
+      "Do garantir que botões interativos possuam min-height: 44px em dispositivos móveis.",
+      "Do utilizar bordas translúcidas de 1px com color-mix para separar camadas de superfícies escuras.",
+      "Do manter mensagens de UI e rótulos obrigatoriamente em Português (pt-BR)."
+    ],
+    "donts": [
+      "Don't utilizar fundos brancos ou temas claros puro sem preservar o contraste do dark mode.",
+      "Don't misturar a cor Laranja Quadra (#f97316) com botões genéricos de sistema.",
+      "Don't usar sombras genéricas sem cor em superfícies flutuantes."
+    ]
+  }
+}

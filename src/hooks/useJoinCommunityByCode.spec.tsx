@@ -64,7 +64,7 @@ describe('useJoinCommunityByCode', () => {
       error: {
         kind: 'product',
         code: 'not_found',
-        message: 'Codigo de convite invalido ou comunidade nao encontrada.',
+        message: 'Código de convite inválido ou comunidade não encontrada.',
         recoverable: false,
       },
     });
@@ -92,7 +92,7 @@ describe('useJoinCommunityByCode', () => {
       error: {
         kind: 'technical',
         code: 'technical_error',
-        message: 'Nao foi possivel buscar a comunidade.',
+        message: 'Não foi possível buscar a comunidade.',
         recoverable: true,
         cause: new Error('RPC preview failed'),
       },

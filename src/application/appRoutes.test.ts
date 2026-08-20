@@ -5,6 +5,7 @@ import {
   NEW_PLAYER_ID,
   extractCommunityId,
   getPageTitleForPath,
+  getReturnRouteForPath,
   getShellNavigationItems,
   pathForLegacyPage,
   paths,
@@ -251,6 +252,7 @@ test('pathForLegacyPage traduz as páginas que o wizard ainda emite', () => {
 test('getPageTitleForPath deriva o título da URL', () => {
   assert.equal(getPageTitleForPath('/painel'), 'Painel de Controle');
   assert.equal(getPageTitleForPath('/agenda'), 'Agenda');
+  assert.equal(getPageTitleForPath('/pelada/resumo'), 'Resumo da Pelada');
   assert.equal(getPageTitleForPath('/comunidades'), 'Comunidades');
   assert.equal(getPageTitleForPath('/comunidades/c1'), 'Visão Geral da Comunidade');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes'), 'Sessões');
@@ -287,6 +289,40 @@ test('sidebar global lista as áreas aprovadas e marca a ativa', () => {
   );
 });
 
+test('sidebar do convidado mostra só a pelada de hoje, sem becos de conta', () => {
+  const items = getShellNavigationItems({
+    pathname: '/painel',
+    isStaff: false,
+    pendingChanges: 0,
+    isGuest: true,
+  });
+  assert.deepEqual(
+    items.map((item) => ({ id: item.id, to: item.to, active: item.active })),
+    [{ id: 'painel', to: '/painel', active: true }],
+  );
+});
+
+test('convidado dentro da comunidade não ganha a sidebar de comunidade', () => {
+  const items = getShellNavigationItems({
+    pathname: '/comunidades/c1/sessoes/nova',
+    isStaff: false,
+    pendingChanges: 0,
+    isGuest: true,
+  });
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, 'painel');
+});
+
+test('o começo rápido mantém a pelada de hoje marcada como ativa', () => {
+  const items = getShellNavigationItems({
+    pathname: '/comecar',
+    isStaff: false,
+    pendingChanges: 0,
+    isGuest: true,
+  });
+  assert.equal(items[0].active, true);
+});
+
 test('sidebar global expõe administração só para staff', () => {
   const items = getShellNavigationItems({ pathname: '/painel', isStaff: true, pendingChanges: 0 });
   assert.equal(items.at(-1)?.id, 'admin');
@@ -310,4 +346,18 @@ test('sidebar dentro da comunidade troca para as 5 áreas mais a volta', () => {
       { id: 'voltar-comunidades', to: '/comunidades', active: false },
     ],
   );
+});
+
+test('getReturnRouteForPath calcula o destino padronizado de retorno', () => {
+  assert.equal(
+    getReturnRouteForPath('/comunidades/c1/pessoas/editar-atleta/p7'),
+    '/comunidades/c1/pessoas',
+  );
+  assert.equal(getReturnRouteForPath('/comunidades/c1/sessoes/nova'), '/comunidades/c1/sessoes');
+  assert.equal(getReturnRouteForPath('/comunidades/c1/sessoes/s9'), '/comunidades/c1/sessoes');
+  assert.equal(getReturnRouteForPath('/comunidades/c1/pessoas'), '/comunidades/c1');
+  assert.equal(getReturnRouteForPath('/comunidades/c1'), '/comunidades');
+  assert.equal(getReturnRouteForPath('/perfil/sync'), '/perfil');
+  assert.equal(getReturnRouteForPath('/ligas/l1'), '/ligas');
+  assert.equal(getReturnRouteForPath('/painel'), null);
 });

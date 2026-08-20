@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   AlertTriangle,
@@ -19,6 +19,11 @@ import {
   ShieldAlert,
   Trash2,
   Trophy,
+  CheckCircle2,
+  ClipboardCheck,
+  MessageCircle,
+  Circle,
+  Lock,
   Users,
   Volleyball,
 } from 'lucide-react';
@@ -89,6 +94,10 @@ import {
 import { ShareActions } from '../share/ShareActions';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
 import { JoinCommunityByCode } from './JoinCommunityByCode';
+import { CommunityDiscovery } from './CommunityDiscovery';
+import { CreateCommunityModal } from './CreateCommunityModal';
+import { UnsavedGuardProvider, useUnsavedGuard, type UnsavedGuard } from './unsavedGuard';
+import { EmptyState } from '../../ui/EmptyState';
 import { AthleteUsernameSearch } from './AthleteUsernameSearch';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type {
@@ -178,7 +187,7 @@ interface CommunitiesViewProps {
 const TAB_ITEMS: Array<{ id: CommunityTab; label: string }> = [
   { id: 'summary', label: 'Resumo' },
   { id: 'players', label: 'Atletas' },
-  { id: 'presence', label: 'Presenca' },
+  { id: 'presence', label: 'Presença' },
   { id: 'whatsapp', label: 'Lista WhatsApp' },
   { id: 'sessions', label: 'Sessões' },
   { id: 'championships', label: 'Ligas' },
@@ -207,23 +216,6 @@ function formatDate(date?: string) {
 
 function formatFormat(type?: string) {
   return type === 'tournament' ? 'Campeonato' : 'Jogo Livre';
-}
-
-function emptyCommunityInput(): Partial<Community> {
-  const now = new Date().toISOString();
-  return {
-    name: 'Nova comunidade',
-    description: '',
-    defaultLocation: '',
-    defaultDay: '',
-    defaultStartTime: '',
-    defaultEndTime: '',
-    defaultFormat: 'free_play',
-    color: 'primary',
-    icon: 'volleyball',
-    archived: false,
-    createdAt: now,
-  };
 }
 
 export function CommunitiesView({
@@ -265,6 +257,8 @@ export function CommunitiesView({
 
   const [showArchived, setShowArchived] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showDiscovery, setShowDiscovery] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const selectedCommunity =
     communities.find((community) => community.id === selectedCommunityId) || null;
 
@@ -273,8 +267,11 @@ export function CommunitiesView({
     [communities, showArchived],
   );
 
-  const handleAdd = () => {
-    const community = addCommunity(emptyCommunityInput());
+  const handleAdd = () => setShowCreateModal(true);
+
+  const handleCreate = (input: Partial<Community>) => {
+    const community = addCommunity(input);
+    setShowCreateModal(false);
     setSelectedCommunityId(community.id);
   };
 
@@ -331,7 +328,9 @@ export function CommunitiesView({
 
   return (
     <div className="space-y-5 pb-24">
-      <div className="flex items-center justify-between gap-3">
+      {/* Quatro controles não cabem em 375px lado a lado: sem wrap a página
+          inteira ganhava rolagem horizontal. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => dispatch({ kind: 'back' })}
@@ -339,7 +338,7 @@ export function CommunitiesView({
         >
           <ChevronLeft className="w-4 h-4" /> Voltar
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <label className="label cursor-pointer gap-2 text-xs font-bold uppercase">
             <span>Arquivadas</span>
             <input
@@ -350,13 +349,22 @@ export function CommunitiesView({
             />
           </label>
           {isSupabaseConfigured && currentUserId && (
-            <button
-              type="button"
-              onClick={() => setShowJoinModal(true)}
-              className="btn btn-ghost btn-sm"
-            >
-              <KeyRound className="w-4 h-4" /> Entrar com código
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowDiscovery(true)}
+                className="btn btn-ghost btn-sm"
+              >
+                <Search className="w-4 h-4" /> Procurar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowJoinModal(true)}
+                className="btn btn-ghost btn-sm"
+              >
+                <KeyRound className="w-4 h-4" /> Entrar com código
+              </button>
+            </>
           )}
           <button type="button" onClick={handleAdd} className="btn btn-primary btn-sm">
             <Plus className="w-4 h-4" /> Nova
@@ -365,11 +373,15 @@ export function CommunitiesView({
       </div>
 
       {showJoinModal && <JoinCommunityByCode onClose={() => setShowJoinModal(false)} />}
+      {showDiscovery && <CommunityDiscovery onClose={() => setShowDiscovery(false)} />}
+      {showCreateModal && (
+        <CreateCommunityModal onClose={() => setShowCreateModal(false)} onCreate={handleCreate} />
+      )}
 
       <div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Comunidades</h2>
         <p className="text-sm text-base-content/60">
-          Central local dos grupos recorrentes de volei.
+          Central local dos grupos recorrentes de vôlei.
         </p>
       </div>
 
@@ -406,19 +418,47 @@ export function CommunitiesView({
         ))}
       </div>
 
+      {/* Quem chega aqui vazio pode ser o organizador do grupo ou o atleta que foi
+          convidado. Os dois precisam de porta própria, senão um deles fica parado. */}
       {visibleCommunities.length === 0 && (
-        <div className="card card-border bg-base-200 border-dashed">
-          <div className="card-body items-center text-center py-16">
-            <Volleyball className="w-10 h-10 text-base-content/30" />
-            <h3 className="card-title text-base">Nenhuma comunidade cadastrada</h3>
-            <p className="text-sm text-base-content/60">
-              Crie uma comunidade para organizar presenca, listas e sessoes recorrentes.
-            </p>
-            <button type="button" onClick={handleAdd} className="btn btn-primary mt-2">
-              <Plus className="w-4 h-4" /> Criar comunidade
+        <EmptyState
+          icon={Volleyball}
+          title="A comunidade é a sua pelada por inteiro"
+          description="É onde moram o elenco, as presenças, as regras da casa e o histórico de todas as sessões. Quem organiza cria a sua; quem foi chamado entra na do grupo e já aparece na lista da próxima."
+        >
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="btn btn-primary min-h-[48px] flex-1 gap-2 px-6 font-black uppercase tracking-wider"
+            >
+              <Plus className="h-5 w-5" /> Criar minha comunidade
             </button>
+            {isSupabaseConfigured && currentUserId && (
+              <button
+                type="button"
+                onClick={() => setShowDiscovery(true)}
+                className="btn btn-outline min-h-[48px] flex-1 gap-2 px-6 font-bold uppercase tracking-wider"
+              >
+                <Search className="h-5 w-5" /> Procurar minha turma
+              </button>
+            )}
           </div>
-        </div>
+
+          {isSupabaseConfigured && currentUserId && (
+            <p className="text-xs leading-relaxed text-base-content/60">
+              Recebeu um código de convite no grupo?{' '}
+              <button
+                type="button"
+                onClick={() => setShowJoinModal(true)}
+                className="link link-primary font-bold"
+              >
+                Entrar com código
+              </button>
+              .
+            </p>
+          )}
+        </EmptyState>
       )}
     </div>
   );
@@ -474,14 +514,14 @@ function CommunityCard({
             </div>
             <h3 className="card-title mt-2 text-lg uppercase">{community.name}</h3>
             <p className="text-sm text-base-content/60 line-clamp-2">
-              {community.description || 'Sem descricao.'}
+              {community.description || 'Sem descrição.'}
             </p>
           </div>
           <div className="dropdown dropdown-end">
             <button
               type="button"
               className="btn btn-ghost btn-sm btn-square"
-              aria-label="Acoes da comunidade"
+              aria-label="Ações da comunidade"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
@@ -530,10 +570,10 @@ function CommunityCard({
 
         <div className="text-xs text-base-content/60 flex flex-col gap-1">
           <span className="inline-flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5" /> {community.defaultLocation || 'Local nao informado'}
+            <MapPin className="w-3.5 h-3.5" /> {community.defaultLocation || 'Local não informado'}
           </span>
           <span className="inline-flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5" /> {community.defaultDay || 'Dia nao definido'}{' '}
+            <Clock className="w-3.5 h-3.5" /> {community.defaultDay || 'Dia não definido'}{' '}
             {community.defaultStartTime ? `- ${community.defaultStartTime}` : ''}
             {community.defaultEndTime ? ` as ${community.defaultEndTime}` : ''}
           </span>
@@ -564,7 +604,7 @@ function CommunityCard({
             disabled={!permissions.canCreateSession}
             className="btn btn-primary btn-sm"
           >
-            Criar sessao
+            Criar sessão
           </button>
         </div>
       </div>
@@ -611,6 +651,37 @@ function CommunityDetailView({
   initialTab?: CommunityTab;
 }) {
   const [activeTab, setActiveTab] = useState<CommunityTab>(initialTab ?? 'summary');
+
+  // Guarda de rascunho: a aba ativa registra aqui se tem trabalho não salvo.
+  const guardaRef = useRef<UnsavedGuard | null>(null);
+  const registrarGuarda = useCallback((guard: UnsavedGuard | null) => {
+    guardaRef.current = guard;
+  }, []);
+  // O rótulo entra no estado junto do destino: ler a ref durante o render
+  // deixaria o diálogo à mercê de quando a aba se desregistra.
+  const [abaPendente, setAbaPendente] = useState<{
+    destino: CommunityTab;
+    origem: string;
+  } | null>(null);
+
+  const pedirTroca = (proxima: CommunityTab) => {
+    if (proxima === activeTab) return;
+    const guarda = guardaRef.current;
+    if (guarda?.dirty) {
+      setAbaPendente({ destino: proxima, origem: guarda.label });
+      return;
+    }
+    setActiveTab(proxima);
+  };
+
+  const resolverTroca = (acao: 'salvar' | 'descartar') => {
+    if (!abaPendente) return;
+    if (acao === 'salvar') guardaRef.current?.save();
+    guardaRef.current = null;
+    setActiveTab(abaPendente.destino);
+    setAbaPendente(null);
+  };
+
   const summary = getCommunitySummary({
     community,
     players,
@@ -632,260 +703,382 @@ function CommunityDetailView({
   });
 
   return (
-    <div className="space-y-5 pb-24">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={onBack} className="btn btn-ghost btn-sm">
-          <ChevronLeft className="w-4 h-4" /> Comunidades
-        </button>
-        <ShareActions
-          title={community.name}
-          text={formatCommunitySummaryText(community, summary)}
-          variant="icon"
-          blocks={[
-            {
-              id: 'summary',
-              label: 'Resumo',
-              text: formatCommunitySummaryText(community, summary),
-            },
-            {
-              id: 'players',
-              label: 'Atletas',
-              text: formatCommunityPlayersText(community, communityPlayers),
-            },
-          ]}
-        />
-      </div>
-
-      <div className="card card-border bg-base-200">
-        <div className="card-body gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                <span className="badge badge-primary badge-soft">
-                  {formatFormat(community.defaultFormat)}
-                </span>
-                {community.archived && <span className="badge badge-neutral">Arquivada</span>}
+    <UnsavedGuardProvider value={registrarGuarda}>
+      <div className="space-y-5 pb-24">
+        {abaPendente && (
+          <div className="modal modal-open" role="dialog" aria-labelledby="rascunho-titulo">
+            <div className="modal-box max-w-md space-y-5">
+              <div className="space-y-2">
+                <h3 id="rascunho-titulo" className="text-lg font-black uppercase tracking-tight">
+                  Você tem alterações não salvas
+                </h3>
+                <p className="text-sm leading-relaxed text-base-content/70">
+                  O que você digitou em <strong>{abaPendente.origem}</strong> ainda não foi salvo.
+                  Sair da aba agora descarta essas alterações.
+                </p>
               </div>
-              <h2 className="text-2xl font-black uppercase tracking-tight">{community.name}</h2>
-              <p className="text-sm text-base-content/60">
-                {community.description || 'Sem descricao.'}
-              </p>
-              <div className="mt-3 text-xs text-base-content/60 space-y-1">
-                <p className="flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5" />{' '}
-                  {community.defaultLocation || 'Local nao informado'}
-                </p>
-                <p className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5" /> {community.defaultDay || 'Dia nao definido'}{' '}
-                  {community.defaultStartTime ? `${community.defaultStartTime}` : ''}
-                  {community.defaultEndTime ? ` as ${community.defaultEndTime}` : ''}
-                </p>
+              <div className="flex flex-col gap-3 sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => resolverTroca('salvar')}
+                  className="btn btn-primary min-h-[48px] flex-1 px-6 font-black uppercase tracking-wider"
+                >
+                  Salvar e sair
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resolverTroca('descartar')}
+                  className="btn btn-outline btn-error min-h-[48px] flex-1 px-6 font-bold uppercase tracking-wider"
+                >
+                  Descartar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbaPendente(null)}
+                  className="btn btn-ghost min-h-[48px] flex-1 px-6 font-bold uppercase tracking-wider"
+                >
+                  Voltar
+                </button>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                onCreateSession(
-                  community,
-                  communityPlayers.filter((player) => player.ativo).map((player) => player.id),
-                  rules,
-                )
-              }
-              disabled={!permissions.canCreateSession}
-              className="btn btn-primary btn-block sm:btn-wide"
-            >
-              <Plus className="w-4 h-4" /> Criar sessao com esta comunidade
-            </button>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={onBack} className="btn btn-ghost btn-sm">
+            <ChevronLeft className="w-4 h-4" /> Comunidades
+          </button>
+          <ShareActions
+            title={community.name}
+            text={formatCommunitySummaryText(community, summary)}
+            variant="icon"
+            blocks={[
+              {
+                id: 'summary',
+                label: 'Resumo',
+                text: formatCommunitySummaryText(community, summary),
+              },
+              {
+                id: 'players',
+                label: 'Atletas',
+                text: formatCommunityPlayersText(community, communityPlayers),
+              },
+            ]}
+          />
+        </div>
+
+        <div className="card card-border bg-base-200">
+          <div className="card-body gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <span className="badge badge-primary badge-soft">
+                    {formatFormat(community.defaultFormat)}
+                  </span>
+                  {community.archived && <span className="badge badge-neutral">Arquivada</span>}
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-tight">{community.name}</h2>
+                <p className="text-sm text-base-content/60">
+                  {community.description || 'Sem descrição.'}
+                </p>
+                <div className="mt-3 text-xs text-base-content/60 space-y-1">
+                  <p className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5" />{' '}
+                    {community.defaultLocation || 'Local não informado'}
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5" />{' '}
+                    {community.defaultDay || 'Dia não definido'}{' '}
+                    {community.defaultStartTime ? `${community.defaultStartTime}` : ''}
+                    {community.defaultEndTime ? ` as ${community.defaultEndTime}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onCreateSession(
+                    community,
+                    communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+                    rules,
+                  )
+                }
+                disabled={!permissions.canCreateSession}
+                className="btn btn-primary btn-block sm:btn-wide"
+              >
+                <Plus className="w-4 h-4" /> Criar sessão com esta comunidade
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div role="tablist" className="tabs tabs-box overflow-x-auto flex-nowrap justify-start">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            className={`tab whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+        <div role="tablist" className="tabs tabs-box flex-wrap justify-start">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`tab whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : ''}`}
+              onClick={() => pedirTroca(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'summary' && (
+          <CommunitySummaryTab
+            community={community}
+            players={players}
+            sessions={sessions}
+            games={games}
+            pointEvents={pointEvents}
+            sessionReports={sessionReports}
+            onCreateSession={() =>
+              onCreateSession(
+                community,
+                communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+                rules,
+              )
+            }
+            onGoToWhatsApp={() => setActiveTab('whatsapp')}
+            onGoToPlayers={() => setActiveTab('players')}
+            canCreateSession={permissions.canCreateSession}
+            canManageRoster={permissions.canEditPlayerProfile}
+          />
+        )}
+        {activeTab === 'players' && (
+          <CommunityPlayersTab
+            community={community}
+            currentUserId={currentUserId}
+            isSupabaseConfigured={isSupabaseConfigured}
+            players={players}
+            sessions={sessions}
+            onUpdatePlayerCommunities={onUpdatePlayerCommunities}
+            onCreatePlayer={onCreatePlayer}
+            onLinkedCloudPlayer={onLinkedCloudPlayer}
+            canManageMembers={permissions.canManageMembers}
+          />
+        )}
+        {activeTab === 'presence' && (
+          <CommunityPresenceTab
+            community={community}
+            players={communityPlayers}
+            presenceApi={presenceApi}
+            onCreateSession={() =>
+              onCreateSession(
+                community,
+                presenceApi
+                  .getPresentPlayers(community.id, communityPlayers)
+                  .map((player) => player.id),
+                rules,
+              )
+            }
+            canCreateSession={permissions.canCreateSession}
+          />
+        )}
+        {activeTab === 'whatsapp' && (
+          <CommunityWhatsAppListTab
+            community={community}
+            players={communityPlayers}
+            whatsAppApi={whatsAppApi}
+            canCreateSession={permissions.canCreateSession}
+            canEditRules={permissions.canEditRules}
+          />
+        )}
+        {activeTab === 'sessions' && (
+          <CommunitySessionsTab
+            community={community}
+            sessions={sessions}
+            games={games}
+            pointEvents={pointEvents}
+            sessionReports={sessionReports}
+            onViewSession={onViewSession}
+            onRepeatSession={(session) =>
+              onCreateSession(community, session.selectedPlayerIds, rules)
+            }
+          />
+        )}
+        {activeTab === 'championships' && (
+          <ChampionshipsTab
+            community={community}
+            players={communityPlayers}
+            games={games}
+            pointEvents={pointEvents}
+            sessionTeams={teams}
+            championships={championships}
+            championshipTeams={championshipTeams}
+            championshipRounds={championshipRounds}
+            canManage={permissions.canEditRules}
+            onCreateChampionship={onCreateChampionship}
+            onMaterializeRound={onMaterializeRound}
+            onDeleteChampionship={onDeleteChampionship}
+            onRescheduleRound={onRescheduleRound}
+            onSetRoundSkipped={onSetRoundSkipped}
+            onUpdateChampionshipRecurrence={onUpdateChampionshipRecurrence}
+          />
+        )}
+        {activeTab === 'ranking' && (
+          <CommunityRankingTab
+            community={community}
+            players={players}
+            sessions={sessions}
+            games={games}
+            pointEvents={pointEvents}
+            teams={teams}
+            sessionReports={sessionReports}
+          />
+        )}
+        {activeTab === 'members' && (
+          <CommunityMembersPanel
+            community={community}
+            currentUserId={currentUserId}
+            isSupabaseConfigured={isSupabaseConfigured}
+            globalRole={globalRole}
+            players={communityPlayers}
+          />
+        )}
+        {activeTab === 'rules' && (
+          <CommunityRulesTab
+            rules={rules}
+            onSave={(draftRules) => {
+              try {
+                rulesApi.saveRules(draftRules, permissions.canEditRules);
+              } catch (err: any) {
+                if (err.message === 'PERMISSION_DENIED') {
+                  alert('Erro: Ação não autorizada pelo nível de permissão.');
+                }
+              }
+            }}
+            canEditRules={permissions.canEditRules}
+          />
+        )}
+        {activeTab === 'data' && (
+          <CommunityDataTab
+            community={community}
+            players={players}
+            sessions={sessions}
+            onUpdateCommunity={(id, patch) => {
+              try {
+                return onUpdateCommunity(id, patch, permissions.canEditRules);
+              } catch (err: any) {
+                if (err.message === 'PERMISSION_DENIED') {
+                  alert('Erro: Ação não autorizada pelo nível de permissão.');
+                }
+                return false;
+              }
+            }}
+            onDeleteCommunity={(id) => {
+              if (!permissions.canDeleteCommunity) {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+                return;
+              }
+              onDeleteCommunity(id);
+            }}
+            onDuplicateCommunity={onDuplicateCommunity}
+            onClearCommunityHistory={(id) => {
+              if (!permissions.canClearHistory) {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+                return;
+              }
+              onClearCommunityHistory(id);
+            }}
+            canEditRules={permissions.canEditRules}
+            canDeleteCommunity={permissions.canDeleteCommunity}
+            canClearHistory={permissions.canClearHistory}
+          />
+        )}
+      </div>
+    </UnsavedGuardProvider>
+  );
+}
+
+/**
+ * Primeiro uso de uma comunidade. A sequência não é enfeite: sem atletas o
+ * sorteio não roda, então marcar pelada fica travado até o elenco existir.
+ */
+function CommunityFirstRun({
+  community,
+  onGoToPlayers,
+  canManageRoster,
+}: {
+  community: Community;
+  onGoToPlayers: () => void;
+  canManageRoster: boolean;
+}) {
+  const passos = [
+    {
+      estado: 'feito' as const,
+      titulo: `"${community.name}" criada`,
+      detalhe: 'Nome e regras você ajusta a qualquer momento na aba Regras.',
+    },
+    {
+      estado: 'agora' as const,
+      titulo: 'Chamar o elenco',
+      detalhe:
+        'Cadastre quem joga com você. Os fundamentos de cada atleta alimentam o sorteio equilibrado.',
+    },
+    {
+      estado: 'depois' as const,
+      titulo: 'Marcar a primeira pelada',
+      detalhe: 'Com elenco na mão, o sorteio monta os times e o placar entra no ar.',
+    },
+  ];
+
+  return (
+    <EmptyState
+      icon={Volleyball}
+      title="Sua comunidade está de pé"
+      description="Falta o que faz ela existir: gente. Assim que o elenco entrar, o sorteio equilibrado, o placar ao vivo e o ranking passam a funcionar sozinhos."
+    >
+      <ol className="flex flex-col gap-3">
+        {passos.map((passo) => (
+          <li
+            key={passo.titulo}
+            className={`flex gap-3 rounded-xl border p-4 ${
+              passo.estado === 'agora'
+                ? 'border-primary/30 bg-primary/5'
+                : 'border-base-300 bg-base-300/25'
+            }`}
           >
-            {tab.label}
-          </button>
+            <span className="mt-0.5 shrink-0">
+              {passo.estado === 'feito' ? (
+                <CheckCircle2 className="h-5 w-5 text-success" />
+              ) : passo.estado === 'agora' ? (
+                <Circle className="h-5 w-5 text-primary" />
+              ) : (
+                <Lock className="h-5 w-5 text-base-content/30" />
+              )}
+            </span>
+            <div className="min-w-0 space-y-1">
+              <p
+                className={`text-sm font-bold uppercase tracking-wide ${
+                  passo.estado === 'depois' ? 'text-base-content/45' : 'text-white'
+                }`}
+              >
+                {passo.titulo}
+              </p>
+              <p className="text-xs leading-relaxed text-base-content/60">{passo.detalhe}</p>
+            </div>
+          </li>
         ))}
-      </div>
+      </ol>
 
-      {activeTab === 'summary' && (
-        <CommunitySummaryTab
-          community={community}
-          players={players}
-          sessions={sessions}
-          games={games}
-          pointEvents={pointEvents}
-          sessionReports={sessionReports}
-          onCreateSession={() =>
-            onCreateSession(
-              community,
-              communityPlayers.filter((player) => player.ativo).map((player) => player.id),
-              rules,
-            )
-          }
-          onGoToWhatsApp={() => setActiveTab('whatsapp')}
-          canCreateSession={permissions.canCreateSession}
-        />
+      <button
+        type="button"
+        onClick={onGoToPlayers}
+        disabled={!canManageRoster}
+        className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+      >
+        <Users className="h-5 w-5" /> Cadastrar atletas
+      </button>
+      {!canManageRoster && (
+        <p className="text-xs leading-relaxed text-base-content/60">
+          Seu papel nesta comunidade ainda não permite montar o elenco. Peça a quem administra.
+        </p>
       )}
-      {activeTab === 'players' && (
-        <CommunityPlayersTab
-          community={community}
-          currentUserId={currentUserId}
-          isSupabaseConfigured={isSupabaseConfigured}
-          players={players}
-          sessions={sessions}
-          onUpdatePlayerCommunities={onUpdatePlayerCommunities}
-          onCreatePlayer={onCreatePlayer}
-          onLinkedCloudPlayer={onLinkedCloudPlayer}
-          canManageMembers={permissions.canManageMembers}
-        />
-      )}
-      {activeTab === 'presence' && (
-        <CommunityPresenceTab
-          community={community}
-          players={communityPlayers}
-          presenceApi={presenceApi}
-          onCreateSession={() =>
-            onCreateSession(
-              community,
-              presenceApi
-                .getPresentPlayers(community.id, communityPlayers)
-                .map((player) => player.id),
-              rules,
-            )
-          }
-          canCreateSession={permissions.canCreateSession}
-        />
-      )}
-      {activeTab === 'whatsapp' && (
-        <CommunityWhatsAppListTab
-          community={community}
-          players={communityPlayers}
-          whatsAppApi={whatsAppApi}
-          canCreateSession={permissions.canCreateSession}
-          canEditRules={permissions.canEditRules}
-        />
-      )}
-      {activeTab === 'sessions' && (
-        <CommunitySessionsTab
-          community={community}
-          sessions={sessions}
-          games={games}
-          pointEvents={pointEvents}
-          sessionReports={sessionReports}
-          onViewSession={onViewSession}
-          onRepeatSession={(session) =>
-            onCreateSession(community, session.selectedPlayerIds, rules)
-          }
-        />
-      )}
-      {activeTab === 'championships' && (
-        <ChampionshipsTab
-          community={community}
-          players={communityPlayers}
-          games={games}
-          pointEvents={pointEvents}
-          sessionTeams={teams}
-          championships={championships}
-          championshipTeams={championshipTeams}
-          championshipRounds={championshipRounds}
-          canManage={permissions.canEditRules}
-          onCreateChampionship={onCreateChampionship}
-          onMaterializeRound={onMaterializeRound}
-          onDeleteChampionship={onDeleteChampionship}
-          onRescheduleRound={onRescheduleRound}
-          onSetRoundSkipped={onSetRoundSkipped}
-          onUpdateChampionshipRecurrence={onUpdateChampionshipRecurrence}
-        />
-      )}
-      {activeTab === 'ranking' && (
-        <CommunityRankingTab
-          community={community}
-          players={players}
-          sessions={sessions}
-          games={games}
-          pointEvents={pointEvents}
-          teams={teams}
-          sessionReports={sessionReports}
-        />
-      )}
-      {activeTab === 'members' && (
-        <CommunityMembersPanel
-          community={community}
-          currentUserId={currentUserId}
-          isSupabaseConfigured={isSupabaseConfigured}
-          globalRole={globalRole}
-          players={communityPlayers}
-        />
-      )}
-      {activeTab === 'rules' && (
-        <CommunityRulesTab
-          community={community}
-          rules={rules}
-          onSave={(draftRules) => {
-            try {
-              rulesApi.saveRules(draftRules, permissions.canEditRules);
-            } catch (err: any) {
-              if (err.message === 'PERMISSION_DENIED') {
-                alert('Erro: Ação não autorizada pelo nível de permissão.');
-              }
-            }
-          }}
-          onUpdateCommunity={(id, patch) => {
-            try {
-              return onUpdateCommunity(id, patch, permissions.canEditRules);
-            } catch (err: any) {
-              if (err.message === 'PERMISSION_DENIED') {
-                alert('Erro: Ação não autorizada pelo nível de permissão.');
-              }
-              return false;
-            }
-          }}
-          canEditRules={permissions.canEditRules}
-        />
-      )}
-      {activeTab === 'data' && (
-        <CommunityDataTab
-          community={community}
-          players={players}
-          sessions={sessions}
-          onUpdateCommunity={(id, patch) => {
-            try {
-              return onUpdateCommunity(id, patch, permissions.canEditRules);
-            } catch (err: any) {
-              if (err.message === 'PERMISSION_DENIED') {
-                alert('Erro: Ação não autorizada pelo nível de permissão.');
-              }
-              return false;
-            }
-          }}
-          onDeleteCommunity={(id) => {
-            if (!permissions.canDeleteCommunity) {
-              alert('Erro: Ação não autorizada pelo nível de permissão.');
-              return;
-            }
-            onDeleteCommunity(id);
-          }}
-          onDuplicateCommunity={onDuplicateCommunity}
-          onClearCommunityHistory={(id) => {
-            if (!permissions.canClearHistory) {
-              alert('Erro: Ação não autorizada pelo nível de permissão.');
-              return;
-            }
-            onClearCommunityHistory(id);
-          }}
-          canEditRules={permissions.canEditRules}
-          canDeleteCommunity={permissions.canDeleteCommunity}
-          canClearHistory={permissions.canClearHistory}
-        />
-      )}
-    </div>
+    </EmptyState>
   );
 }
 
@@ -898,7 +1091,9 @@ function CommunitySummaryTab({
   sessionReports,
   onCreateSession,
   onGoToWhatsApp,
+  onGoToPlayers,
   canCreateSession = true,
+  canManageRoster = true,
 }: {
   community: Community;
   players: Player[];
@@ -908,7 +1103,9 @@ function CommunitySummaryTab({
   sessionReports: SessionReport[];
   onCreateSession: () => void;
   onGoToWhatsApp: () => void;
+  onGoToPlayers: () => void;
   canCreateSession?: boolean;
+  canManageRoster?: boolean;
 }) {
   const summary = getCommunitySummary({
     community,
@@ -919,6 +1116,18 @@ function CommunitySummaryTab({
     sessionReports,
   });
   const text = formatCommunitySummaryText(community, summary);
+
+  // Comunidade recém-criada: um painel de zeros e quatro "Sem dados" não contam
+  // o que fazer. A ordem aqui é real — sem elenco não há sorteio.
+  if (summary.totalAthletes === 0) {
+    return (
+      <CommunityFirstRun
+        community={community}
+        onGoToPlayers={onGoToPlayers}
+        canManageRoster={canManageRoster}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -978,7 +1187,7 @@ function CommunitySummaryTab({
           disabled={!canCreateSession}
           className="btn btn-primary btn-block"
         >
-          <Plus className="w-4 h-4" /> Criar sessao
+          <Plus className="w-4 h-4" /> Criar sessão
         </button>
         <button type="button" onClick={onGoToWhatsApp} className="btn btn-outline btn-block">
           <FileText className="w-4 h-4" /> Lista WhatsApp
@@ -1275,7 +1484,8 @@ export function ChampionshipsTab({
           <div>
             <h4 className="font-black uppercase text-sm">Hub Standalone de Ligas de Vôlei</h4>
             <p className="text-xs text-base-content/60">
-              Acesse a nova página dedicada com visão de quadra em perspectiva, tabela de aproveitamento e gestão de elencos.
+              Acesse a nova página dedicada com visão de quadra em perspectiva, tabela de
+              aproveitamento e gestão de elencos.
             </p>
           </div>
         </div>
@@ -1478,14 +1688,13 @@ export function ChampionshipsTab({
       )}
 
       {communityChampionships.length === 0 ? (
-        <div className="card card-border bg-base-200 border-dashed">
-          <div className="card-body items-center text-center py-12">
-            <Trophy className="w-9 h-9 text-base-content/30" />
-            <h4 className="font-bold">Nenhuma liga criada</h4>
-            <p className="text-sm text-base-content/60">
-              Crie a primeira temporada para gerar confrontos e datas automaticamente.
-            </p>
-          </div>
+        <div>
+          <EmptyState
+            icon={Trophy}
+            size="compact"
+            title="Uma temporada dentro da comunidade"
+            description="A liga pega os times que você inscrever e gera os confrontos e as datas sozinha, rodada a rodada. A classificação se atualiza a cada pelada encerrada — você marca ponto como sempre e a tabela anda."
+          />
         </div>
       ) : (
         <>
@@ -1841,6 +2050,7 @@ function CommunityPlayersTab({
               <input
                 type="text"
                 className="grow"
+                aria-label="Buscar atleta no elenco"
                 placeholder="Buscar atleta"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -1848,6 +2058,7 @@ function CommunityPlayersTab({
             </label>
             <select
               className="select select-bordered"
+              aria-label="Filtrar elenco"
               value={filter}
               onChange={(event) => setFilter(event.target.value as PlayerFilter)}
             >
@@ -1865,24 +2076,36 @@ function CommunityPlayersTab({
           </div>
 
           {canManageMembers && (
-            <div className="join w-full">
-              <input
-                className="input input-bordered join-item flex-1"
-                placeholder="Novo atleta"
-                value={newPlayerName}
-                onChange={(event) => setNewPlayerName(event.target.value)}
-              />
-              <button
-                type="button"
-                className="btn btn-primary join-item"
-                onClick={() => {
-                  onCreatePlayer(newPlayerName, community.id);
-                  setNewPlayerName('');
-                }}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
+            /* <form> para o Enter submeter: é a ação mais repetida da página e o
+               reflexo de quem digita nome atrás de nome. */
+            <form
+              className="space-y-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onCreatePlayer(newPlayerName, community.id);
+                setNewPlayerName('');
+              }}
+            >
+              <label htmlFor="novo-atleta" className="label-text font-bold">
+                Novo atleta
+              </label>
+              <div className="join w-full">
+                <input
+                  id="novo-atleta"
+                  className="input input-bordered join-item flex-1"
+                  placeholder="Ex.: Ana Paula"
+                  value={newPlayerName}
+                  onChange={(event) => setNewPlayerName(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  aria-label="Adicionar atleta ao elenco"
+                  className="btn btn-primary join-item"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
           )}
 
           {canManageMembers && (
@@ -1939,6 +2162,17 @@ function CommunityPlayersTab({
           />
         </div>
       </div>
+
+      {/* Vazio aqui é a comunidade sem elenco vinculado — não importa quantos
+          atletas existam em outras comunidades da conta. */}
+      {filteredPlayers.length === 0 && !search && (
+        <EmptyState
+          icon={Users}
+          size="compact"
+          title="Três formas de montar o elenco"
+          description="Digite o nome no campo acima para criar um atleta do zero. Se a pessoa já usa o Panelinha, busque pelo @username dela. E quem só vai jogar hoje entra como convidado, sem cadastro."
+        />
+      )}
 
       <div className="list bg-base-200 rounded-box border border-base-300">
         {filteredPlayers.map((player) => (
@@ -2033,6 +2267,19 @@ function CommunityPresenceTab({
   const alerts = getPresenceAlerts(presence, players);
   const text = formatPresenceText(community.name, presence, players);
 
+  // Presença é sobre quem do elenco vem hoje. Sem elenco, a lista de chamada é
+  // uma folha em branco e as estatísticas viram zeros sem sentido.
+  if (getCommunityPlayers(community.id, players).length === 0) {
+    return (
+      <EmptyState
+        icon={ClipboardCheck}
+        size="compact"
+        title="A chamada precisa de elenco"
+        description="Aqui você marca quem confirmou para a pelada de hoje e quem furou. O sorteio usa essa lista para montar os times apenas com quem está em quadra — mas ela só existe depois que os atletas estiverem cadastrados na aba Atletas."
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="stats stats-vertical sm:stats-horizontal w-full bg-base-200">
@@ -2096,7 +2343,7 @@ function CommunityPresenceTab({
           onClick={onCreateSession}
           disabled={!canCreateSession}
         >
-          Criar sessao
+          Criar sessão
         </button>
       </div>
 
@@ -2222,10 +2469,37 @@ function CommunityWhatsAppListTab({
   );
   const text = formatWhatsAppList(draft);
 
+  // `updatedAt` muda a cada tecla, então comparar o objeto inteiro acusaria
+  // sujeira falsa; a referência é o que está persistido, sem o carimbo.
+  const semCarimbo = (valor: WhatsAppListDraft) => JSON.stringify({ ...valor, updatedAt: '' });
+  const persistido = whatsAppApi.getLatestDraft(community.id);
+
+  useUnsavedGuard({
+    dirty: persistido ? semCarimbo(draft) !== semCarimbo(persistido) : true,
+    save: () => {
+      whatsAppApi.saveTemplate(template);
+      whatsAppApi.saveDraft(draft);
+    },
+    label: 'Lista WhatsApp',
+  });
+
   const updateDraft = (patch: Partial<WhatsAppListDraft>) =>
     setDraft((prev) => ({ ...prev, ...patch, updatedAt: new Date().toISOString() }));
 
   const recreateFromTemplate = () => {
+    // Rótulo neutro, ação destrutiva: "Gerar" substitui o rascunho inteiro pelo
+    // modelo e apaga os nomes já digitados.
+    const nomesPreenchidos = [...draft.setters, ...draft.mainSlots, ...draft.reserveSlots].filter(
+      (slot) => slot.displayName?.trim(),
+    ).length;
+    if (nomesPreenchidos > 0) {
+      const confirmado = window.confirm(
+        `Gerar a lista do zero apaga ${nomesPreenchidos} ${
+          nomesPreenchidos === 1 ? 'nome já preenchido' : 'nomes já preenchidos'
+        }. Continuar?`,
+      );
+      if (!confirmado) return;
+    }
     const next = createDraftFromTemplate(template, draft.date);
     setDraft(next);
     whatsAppApi.saveTemplate(template);
@@ -2262,6 +2536,19 @@ function CommunityWhatsAppListTab({
     { id: 'payment-reminder', label: 'Lembrete pagamento', text: formatPaymentReminder(draft) },
     { id: 'open-slots', label: 'Vagas abertas', text: formatOpenSlotsMessage(draft) },
   ];
+
+  // A lista que vai para o grupo é a convocatória do elenco. Sem elenco ela sai
+  // vazia, e mandar uma lista em branco no WhatsApp é pior que não mandar.
+  if (getCommunityPlayers(community.id, players).length === 0) {
+    return (
+      <EmptyState
+        icon={MessageCircle}
+        size="compact"
+        title="A convocatória sai daqui"
+        description="Este é o texto pronto para colar no grupo: quem está convocado, quantas vagas sobraram, o local, o horário e a chave PIX. Ele se monta sozinho a partir do elenco e da chamada — que precisam existir primeiro."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -2582,7 +2869,7 @@ function CommunitySessionsTab({
                     <h3 className="card-title mt-2">{session.name}</h3>
                     <p className="text-xs text-base-content/60">
                       {formatDate(session.date)} -{' '}
-                      {session.location || community.defaultLocation || 'Local nao informado'}
+                      {session.location || community.defaultLocation || 'Local não informado'}
                     </p>
                   </div>
                   <span className="badge badge-outline">{session.status}</span>
@@ -2629,7 +2916,12 @@ function CommunitySessionsTab({
         })}
       </div>
       {communitySessions.length === 0 && (
-        <div className="alert alert-info">Nenhuma sessão vinculada a esta comunidade.</div>
+        <EmptyState
+          icon={Volleyball}
+          size="compact"
+          title="Toda pelada jogada fica aqui"
+          description="Cada sessão encerrada vira histórico: quem jogou, o placar de cada partida, os destaques e os pontos que alimentam o ranking. A primeira aparece assim que você encerrar uma pelada desta comunidade."
+        />
       )}
     </div>
   );
@@ -2667,13 +2959,13 @@ function CommunityRankingTab({
 
   return (
     <div className="space-y-4">
-      <div className="join overflow-x-auto">
+      <div className="flex flex-wrap gap-1.5">
         {(
           [
             ['all', 'Geral'],
-            ['month', 'Mes'],
-            ['last5', 'Ultimas 5'],
-            ['last10', 'Ultimas 10'],
+            ['month', 'Mês'],
+            ['last5', 'Últimas 5'],
+            ['last10', 'Últimas 10'],
             ['season', 'Temporada'],
           ] as Array<[CommunityRankingFilter, string]>
         ).map(([id, label]) => (
@@ -2741,37 +3033,63 @@ function CommunityRankingTab({
           </div>
         ))}
       </div>
-      {ranking.rows.length === 0 && (
-        <div className="alert alert-info">Sem dados para ranking nesta comunidade.</div>
-      )}
+      {ranking.rows.length === 0 &&
+        (filter === 'all' ? (
+          <EmptyState
+            icon={Trophy}
+            size="compact"
+            title="O ranking se escreve jogando"
+            description="Cada ponto marcado numa pelada desta comunidade entra aqui: ataque, bloqueio, ace e vitória viram posição na tabela. Assim que a primeira sessão for encerrada, o elenco aparece ordenado."
+          >
+            <Link
+              to={paths.sessaoNova(community.id)}
+              className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+            >
+              <Plus className="h-5 w-5" /> Marcar a primeira pelada
+            </Link>
+          </EmptyState>
+        ) : (
+          <div className="card card-border bg-base-200 border-dashed">
+            <div className="card-body items-center gap-3 py-10 text-center">
+              <Trophy className="h-8 w-8 text-base-content/30" />
+              <p className="text-sm text-base-content/70">
+                Nenhuma partida deste recorte ainda. Veja o ranking geral da comunidade.
+              </p>
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className="btn btn-outline btn-sm min-h-[44px] px-5 font-bold uppercase tracking-wider"
+              >
+                Ver o geral
+              </button>
+            </div>
+          </div>
+        ))}
     </div>
   );
 }
 
 function CommunityRulesTab({
-  community,
   rules,
   onSave,
-  onUpdateCommunity,
   canEditRules = true,
 }: {
-  community: Community;
   rules: CommunityRules;
   onSave: (rules: CommunityRules) => void;
-  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
   canEditRules?: boolean;
 }) {
   const [draft, setDraft] = useState<CommunityRules>(rules);
-  const save = () => {
-    onSave(draft);
-    onUpdateCommunity(community.id, {
-      defaultLocation: draft.defaultLocation,
-      defaultDay: draft.defaultDay,
-      defaultStartTime: draft.defaultStartTime,
-      defaultEndTime: draft.defaultEndTime,
-      defaultFormat: draft.defaultFormat,
-    });
-  };
+  // Salvar Regras não escreve mais os campos padrão da comunidade: eles são
+  // editados só na aba Dados. Enquanto os dois lugares gravavam, salvar Regras
+  // reescrevia por cima o que Dados tinha acabado de mudar, com os valores
+  // carregados quando esta aba montou.
+  const save = () => onSave(draft);
+
+  useUnsavedGuard({
+    dirty: JSON.stringify(draft) !== JSON.stringify(rules),
+    save,
+    label: 'Regras',
+  });
 
   return (
     <div className="space-y-3">
@@ -2784,53 +3102,13 @@ function CommunityRulesTab({
         </div>
       )}
 
-      <RulesCollapse title="Dados padrao" open>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field
-            label="Local padrao"
-            value={draft.defaultLocation || ''}
-            onChange={(value) => setDraft({ ...draft, defaultLocation: value })}
-            disabled={!canEditRules}
-          />
-          <Field
-            label="Dia padrao"
-            value={draft.defaultDay || ''}
-            onChange={(value) => setDraft({ ...draft, defaultDay: value })}
-            disabled={!canEditRules}
-          />
-          <Field
-            label="Inicio"
-            type="time"
-            value={draft.defaultStartTime || ''}
-            onChange={(value) => setDraft({ ...draft, defaultStartTime: value })}
-            disabled={!canEditRules}
-          />
-          <Field
-            label="Fim"
-            type="time"
-            value={draft.defaultEndTime || ''}
-            onChange={(value) => setDraft({ ...draft, defaultEndTime: value })}
-            disabled={!canEditRules}
-          />
-          <label className="form-control">
-            <span className="label-text">Formato padrao</span>
-            <select
-              className="select select-bordered"
-              value={draft.defaultFormat}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  defaultFormat: event.target.value as 'free_play' | 'tournament',
-                })
-              }
-              disabled={!canEditRules}
-            >
-              <option value="free_play">Jogo Livre</option>
-              <option value="tournament">Campeonato</option>
-            </select>
-          </label>
-        </div>
-      </RulesCollapse>
+      {/* Local, Dia, Inicio, Fim e Formato viviam aqui E na aba Dados, com
+          rotulos divergentes e dois botoes de salvar: ninguem sabia qual era a
+          verdade. Regras ficou so com regra de jogo. */}
+      <div className="rounded-xl border border-base-300 bg-base-200/60 p-4 text-sm leading-relaxed text-base-content/70">
+        Local, dia e horário padrão da comunidade ficam na aba <strong>Dados</strong>, junto do
+        nome. Aqui moram só as regras de jogo.
+      </div>
 
       <RulesCollapse title="Jogo Livre">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2915,6 +3193,7 @@ function CommunityRulesTab({
           onChange={(event) =>
             setDraft({ ...draft, defaultTeamNames: event.target.value.split('\n').filter(Boolean) })
           }
+          aria-label="Nomes padrão dos times, um por linha"
           placeholder="Um nome de time por linha"
           disabled={!canEditRules}
         />
@@ -2950,7 +3229,9 @@ function RulesCollapse({
 }) {
   return (
     <div className="collapse collapse-arrow bg-base-200 border border-base-300">
-      <input type="checkbox" defaultChecked={open} />
+      {/* O checkbox é o único jeito de abrir a seção; sem nome, o leitor de tela
+          anunciava só "caixa de seleção" cinco vezes seguidas. */}
+      <input type="checkbox" defaultChecked={open} aria-label={`Abrir ou fechar ${title}`} />
       <div className="collapse-title font-bold">{title}</div>
       <div className="collapse-content">{children}</div>
     </div>
@@ -3044,6 +3325,12 @@ function CommunityDataTab({
     setNameError(saved ? null : 'Ja existe uma comunidade com esse nome.');
   };
 
+  useUnsavedGuard({
+    dirty: JSON.stringify(draft) !== JSON.stringify(community),
+    save,
+    label: 'Dados',
+  });
+
   return (
     <div className="space-y-4">
       {!canEditRules && (
@@ -3067,7 +3354,7 @@ function CommunityDataTab({
             error={nameError || undefined}
           />
           <label className="form-control">
-            <span className="label-text">Descricao</span>
+            <span className="label-text">Descrição</span>
             <textarea
               className="textarea textarea-bordered"
               value={draft.description || ''}
@@ -3152,8 +3439,8 @@ function CommunityDataTab({
             <h3 className="font-bold text-lg">Confirmar ação</h3>
             <p className="py-4">
               {confirm === 'delete'
-                ? 'Essa acao excluira a comunidade deste dispositivo. Os atletas podem ser mantidos no elenco geral.'
-                : 'Essa acao removera o vinculo de historico das sessoes desta comunidade.'}
+                ? 'Essa ação exclui a comunidade deste aparelho. Os atletas podem ser mantidos no elenco geral.'
+                : 'Essa ação remove o vínculo de histórico das sessões desta comunidade.'}
             </p>
             <div className="modal-action">
               <button type="button" className="btn" onClick={() => setConfirm(null)}>

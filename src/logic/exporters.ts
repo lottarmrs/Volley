@@ -166,19 +166,19 @@ export function formatTournamentFinalForWhatsApp(input: {
     .join('\n');
 
   return [
-    `🏆 Torneio finalizado`,
+    `🥇 *Torneio Finalizado — ${input.sessionName}* 🏐`,
     ``,
-    `Campeão: ${championName}`,
-    `Vice: ${runnerUpName}`,
-    `MVP: ${mvpName} — ${mvpPoints} pontos`,
+    `🏆 *Campeão*: *${championName}*`,
+    `🥈 *Vice-Campeão*: *${runnerUpName}*`,
+    `⭐ *MVP da Noite*: *${mvpName}* (${mvpPoints} pts)`,
     ``,
-    `Classificação final:`,
+    `📊 *Classificação Final*`,
     standings || `Sem classificação registrada.`,
     ``,
-    `Artilharia:`,
+    `🔥 *Top Pontuadores*`,
     scorers || `Sem pontuação individual registrada.`,
     ``,
-    `Gerado pelo Panelinha.`,
+    `Acompanhe no Panelinha 🏐`,
   ].join('\n');
 }
 
@@ -192,16 +192,16 @@ export function formatTournamentStandingsForWhatsApp(input: {
       const teamName = input.teams.find((t) => t.id === team.teamId)?.name || 'Time';
       const saldo =
         team.pointDifference > 0 ? `+${team.pointDifference}` : `${team.pointDifference}`;
-      return `${index + 1}º ${teamName} — ${team.classificationPoints} pts | ${team.wins}V | saldo ${saldo}`;
+      return `${index + 1}º *${teamName}* — ${team.classificationPoints} pts | ${team.wins}V/${team.losses}D | Saldo ${saldo}`;
     })
     .join('\n');
 
   return [
-    `🏐 Classificação parcial`,
+    `📊 *Classificação Parcial — ${input.sessionName}* 🏐`,
     ``,
     standings || `Sem classificação registrada.`,
     ``,
-    `Gerado pelo Panelinha.`,
+    `Acompanhe no Panelinha 🏐`,
   ].join('\n');
 }
 
@@ -217,16 +217,16 @@ export function formatTournamentScorersForWhatsApp(input: {
         input.players.find((p) => p.id === rank.playerId)?.apelido ||
         input.players.find((p) => p.id === rank.playerId)?.nome ||
         'Atleta';
-      return `${index + 1}. ${playerName} — ${rank.points} pts`;
+      return `${index + 1}. *${playerName}* — ${rank.points} pts`;
     })
     .join('\n');
 
   return [
-    `🔥 Artilharia — ${input.sessionName}`,
+    `🔥 *Artilharia da Sessão — ${input.sessionName}* 🏐`,
     ``,
     scorers || `Sem pontuação individual registrada.`,
     ``,
-    `Gerado pelo Panelinha.`,
+    `Acompanhe no Panelinha 🏐`,
   ].join('\n');
 }
 

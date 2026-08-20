@@ -168,6 +168,7 @@ export interface ChampionshipTeam {
   championshipId: string;
   name: string;
   playerIds: string[];
+  color?: string;
   captainPlayerId?: string;
   courtPositions?: Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 'reserva'>;
   cloudId?: string;

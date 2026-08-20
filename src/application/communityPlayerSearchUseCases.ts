@@ -27,7 +27,7 @@ export async function searchPlayerByUsernameQuery(
   try {
     return appOk(await gateway.findByUsername(handle));
   } catch (error) {
-    return technicalError('Nao foi possivel buscar o atleta.', error);
+    return technicalError('Não foi possível buscar o atleta.', error);
   }
 }
 
@@ -41,7 +41,7 @@ export async function linkCommunityPlayerByUsernameCommand(
   gateway: CommunityPlayerSearchGateway = supabaseCommunityPlayerSearchGateway,
 ): Promise<AppResult<{ linkedPlayer: Player | null }>> {
   if (!input.currentUserId) {
-    return productError('not_authenticated', 'Usuario nao autenticado.');
+    return productError('not_authenticated', 'Usuário não autenticado.');
   }
   if (!input.communityCloudId || !input.playerCloudId) {
     return productError('invalid_input', 'Comunidade ou atleta sem identificador de nuvem.');
@@ -60,7 +60,7 @@ export async function linkCommunityPlayerByUsernameCommand(
         : null,
     });
   } catch (error) {
-    return technicalError('Nao foi possivel vincular o atleta.', error);
+    return technicalError('Não foi possível vincular o atleta.', error);
   }
 }
 

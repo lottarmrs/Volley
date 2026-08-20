@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { X, Search, Sparkles, Check, Info } from 'lucide-react';
+import { X, Search, Sparkles, Check, Info, Star } from 'lucide-react';
 import { Player, Attributes, Position, Gender } from '../../types';
 import { calculateGeneralOverall, getAttributeLabel } from '../../logic/calculations';
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
 import { generateUUID } from '../../logic/uuid';
+import { StarRating } from '../../ui/StarRating';
 
 interface GuestPlayerModalProps {
   isOpen: boolean;
@@ -64,6 +65,14 @@ export function GuestPlayerModal({
       .slice(0, 5);
   }, [players, templateSearch]);
 
+  const averageAttribute = useMemo(() => {
+    const keys = Object.keys(atributos) as (keyof Attributes)[];
+    const sum = keys.reduce((acc, k) => acc + (atributos[k] || 5), 0);
+    return sum / keys.length;
+  }, [atributos]);
+
+  // O early return vinha antes deste useMemo: abrir e fechar o modal mudava a
+  // quantidade de hooks entre renders, que e exatamente o que o React proibe.
   if (!isOpen) return null;
 
   const handleSelectTemplate = (player: Player) => {
@@ -79,6 +88,25 @@ export function GuestPlayerModal({
     setSelectedTemplatePlayer(null);
     setTemplateSearch('');
     setAtributos({ ...INITIAL_ATTRIBUTES });
+  };
+
+  const starRatingValue = Math.min(5, Math.max(0.5, Math.round((averageAttribute / 2) * 2) / 2));
+
+  const handleQuickStarChange = (newStars: number) => {
+    const targetAttributeVal = Math.min(10, Math.max(1, newStars * 2));
+    setAtributos({
+      saque: targetAttributeVal,
+      recepcao: targetAttributeVal,
+      levantamento: targetAttributeVal,
+      ataque: targetAttributeVal,
+      bloqueio: targetAttributeVal,
+      defesa: targetAttributeVal,
+      velocidade: targetAttributeVal,
+      resistencia: targetAttributeVal,
+      leituraDeJogo: targetAttributeVal,
+      regularidade: targetAttributeVal,
+      controleEmocional: targetAttributeVal,
+    });
   };
 
   const handleAttributeChange = (key: keyof Attributes, val: number) => {
@@ -163,6 +191,7 @@ export function GuestPlayerModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar sem adicionar o convidado"
             className="btn btn-ghost btn-xs btn-circle text-base-content/70 hover:text-base-content"
           >
             <X className="w-4 h-4" />
@@ -312,14 +341,37 @@ export function GuestPlayerModal({
             )}
           </div>
 
-          {/* Section 3: Slider Attribute Editor */}
+          {/* Section 3: Quick Star Rating + Attribute Editor */}
           <div className="space-y-5">
+            {/* Avaliação Rápida (Estrelas) */}
+            <div className="bg-warning/10 border border-warning/30 p-4 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-warning flex items-center gap-1.5">
+                    <Star className="w-4 h-4 fill-warning" /> Avaliação Rápida do Convidado
+                  </h4>
+                  <p className="text-[10px] text-text-muted uppercase font-bold mt-0.5">
+                    Selecione o nível aproximado de 1 a 5 estrelas para definir automaticamente
+                    todos os atributos.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-1">
+                <StarRating
+                  value={starRatingValue}
+                  onChange={handleQuickStarChange}
+                  size="lg"
+                  showLabel={true}
+                />
+              </div>
+            </div>
+
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-widest text-base-content/60">
-                Ajustar Atributos do Convidado
+                Ajuste Fino dos Atributos (Opcional)
               </h4>
               <p className="text-[9px] text-text-muted uppercase font-bold mt-1">
-                Ajuste fino dos atributos técnicos e físicos
+                Ajuste individual de cada fundamento técnico e físico
               </p>
             </div>
 

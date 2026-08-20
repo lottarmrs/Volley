@@ -15,6 +15,8 @@ import {
   resolveLegacyLiveSessionRoute,
   resolveLiveSessionRoute,
   resolveNewSessionPath,
+  resolvePlayerEditAction,
+  resolvePlayerRoute,
   resolveWizardRoute,
 } from './appRoutes';
 
@@ -327,6 +329,90 @@ test('sidebar global expõe administração só para staff', () => {
   const items = getShellNavigationItems({ pathname: '/painel', isStaff: true, pendingChanges: 0 });
   assert.equal(items.at(-1)?.id, 'admin');
   assert.equal(items.at(-1)?.to, '/admin');
+});
+
+test('resolvePlayerRoute aceita id, handle e a sentinela de novo atleta', () => {
+  const players = [{ id: 'p1', username: 'ana' }, { id: 'p2' }];
+  assert.deepEqual(resolvePlayerRoute({ param: 'p1', players }), { kind: 'ok', playerId: 'p1' });
+  assert.deepEqual(resolvePlayerRoute({ param: 'ana', players }), { kind: 'ok', playerId: 'p1' });
+  assert.deepEqual(resolvePlayerRoute({ param: 'ANA', players }), { kind: 'ok', playerId: 'p1' });
+  assert.deepEqual(resolvePlayerRoute({ param: 'p2', players }), { kind: 'ok', playerId: 'p2' });
+  assert.deepEqual(resolvePlayerRoute({ param: NEW_PLAYER_ID, players }), { kind: 'new' });
+  assert.deepEqual(resolvePlayerRoute({ param: 'nao-existe', players }), { kind: 'not-found' });
+  assert.deepEqual(resolvePlayerRoute({ players }), { kind: 'not-found' });
+});
+
+test('resolvePlayerRoute prefere id quando um handle colide com um id', () => {
+  const players = [
+    { id: 'ana', username: 'zeca' },
+    { id: 'p2', username: 'ana' },
+  ];
+  assert.deepEqual(resolvePlayerRoute({ param: 'ana', players }), { kind: 'ok', playerId: 'ana' });
+});
+
+test('resolvePlayerEditAction nao recarrega quando o atleta em edicao ja e o alvo resolvido', () => {
+  assert.equal(
+    resolvePlayerEditAction({
+      playerId: 'ana',
+      targetPlayerId: 'p1',
+      editingPlayerId: 'p1',
+      hasEditingPlayer: true,
+    }),
+    'none',
+  );
+});
+
+test('resolvePlayerEditAction pede o carregamento do alvo quando o atleta em edicao ainda nao e ele', () => {
+  assert.equal(
+    resolvePlayerEditAction({
+      playerId: 'ana',
+      targetPlayerId: 'p1',
+      editingPlayerId: undefined,
+      hasEditingPlayer: false,
+    }),
+    'edit-existing',
+  );
+});
+
+test('resolvePlayerEditAction cria o atleta novo so quando ainda nao ha edicao em curso', () => {
+  assert.equal(
+    resolvePlayerEditAction({
+      playerId: NEW_PLAYER_ID,
+      targetPlayerId: undefined,
+      editingPlayerId: undefined,
+      hasEditingPlayer: false,
+    }),
+    'add-new',
+  );
+  assert.equal(
+    resolvePlayerEditAction({
+      playerId: NEW_PLAYER_ID,
+      targetPlayerId: undefined,
+      editingPlayerId: 'novo-id',
+      hasEditingPlayer: true,
+    }),
+    'none',
+  );
+});
+
+test('resolvePlayerEditAction nao faz nada sem playerId ou quando o alvo nao existe', () => {
+  assert.equal(
+    resolvePlayerEditAction({
+      targetPlayerId: undefined,
+      editingPlayerId: undefined,
+      hasEditingPlayer: false,
+    }),
+    'none',
+  );
+  assert.equal(
+    resolvePlayerEditAction({
+      playerId: 'nao-existe',
+      targetPlayerId: undefined,
+      editingPlayerId: undefined,
+      hasEditingPlayer: false,
+    }),
+    'none',
+  );
 });
 
 test('sidebar dentro da comunidade troca para as 5 áreas mais a volta', () => {

@@ -138,7 +138,6 @@ test('applyPlayerCreationForCommunity reuses duplicate players and adds the comm
     communityId: 'community-2',
     now,
     createId: () => 'unused',
-    createUsername: () => 'unused',
   });
 
   assert.equal(result.createdPlayerId, 'player-1');
@@ -155,13 +154,25 @@ test('applyPlayerCreationForCommunity appends a new player when no duplicate exi
     communityId: 'community-1',
     now,
     createId: () => 'player-new',
-    createUsername: () => 'bruna',
   });
 
   assert.equal(result.createdPlayerId, 'player-new');
   assert.equal(result.players.length, 1);
   assert.equal(result.players[0].nome, 'Bruna');
-  assert.equal(result.players[0].username, 'bruna');
+  assert.equal(result.players[0].username, undefined);
+});
+
+test('applyPlayerCreationForCommunity cria atleta sem handle', () => {
+  const result = applyPlayerCreationForCommunity({
+    players: [],
+    name: 'Ana Souza',
+    communityId: 'c1',
+    now: '2026-08-14T00:00:00.000Z',
+    createId: () => 'p1',
+  });
+  const created = result.players.find((player) => player.id === 'p1');
+  assert.equal(created?.username, undefined);
+  assert.deepEqual(created?.communityIds, ['c1']);
 });
 
 test('applyPlayerCreationForCommunity ignores blank names', () => {
@@ -171,7 +182,6 @@ test('applyPlayerCreationForCommunity ignores blank names', () => {
     communityId: 'community-1',
     now,
     createId: () => 'unused',
-    createUsername: () => 'unused',
   });
 
   assert.equal(result.createdPlayerId, null);
@@ -296,7 +306,6 @@ test('applyPlayerCreationForCommunity distingue criado, vinculado e vazio', () =
     communityId: 'c1',
     now,
     createId: () => 'novo',
-    createUsername: () => undefined,
   });
   assert.equal(vazio.outcome, 'empty');
   assert.equal(vazio.players.length, 1);
@@ -307,7 +316,6 @@ test('applyPlayerCreationForCommunity distingue criado, vinculado e vazio', () =
     communityId: 'c1',
     now,
     createId: () => 'novo',
-    createUsername: () => undefined,
   });
   assert.equal(vinculado.outcome, 'linked');
   assert.equal(vinculado.name, 'Ana Paula');
@@ -319,7 +327,6 @@ test('applyPlayerCreationForCommunity distingue criado, vinculado e vazio', () =
     communityId: 'c1',
     now,
     createId: () => 'novo',
-    createUsername: () => undefined,
   });
   assert.equal(criado.outcome, 'created');
   assert.equal(criado.name, 'Bia');

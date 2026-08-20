@@ -23,6 +23,8 @@ import { CaptchaField } from './CaptchaField';
 import { captchaSiteKey } from './captchaEnv';
 import { validatePasswordLength } from './passwordPolicy';
 import { OtpInput } from '../../ui/OtpInput';
+import { normalizeHandle, validateHandle } from '@logic/handle';
+import { useHandleAvailability } from '@hooks/useHandleAvailability';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -164,10 +166,14 @@ export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
 
 export function UsernameOnboardingPage() {
   const { completeUsername } = useAuthSession();
-  const [username, setUsername] = useState('');
+  const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const handle = normalizeHandle(value);
+  const formatError = value ? validateHandle(value) : null;
+  const availability = useHandleAvailability(handle);
+
   return (
     <div className="min-h-screen bg-base-100 flex flex-col justify-center items-center p-4 relative overflow-hidden">
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
@@ -211,9 +217,14 @@ export function UsernameOnboardingPage() {
         <form
           onSubmit={async (event) => {
             event.preventDefault();
+            const invalid = validateHandle(value);
+            if (invalid) {
+              setError(invalid);
+              return;
+            }
             setError(null);
             try {
-              await completeUsername(username);
+              await completeUsername(handle);
               const from = (location.state as { from?: { pathname?: string } } | null)?.from
                 ?.pathname;
               navigate(from ?? '/', { replace: true });
@@ -230,20 +241,35 @@ export function UsernameOnboardingPage() {
               className="label text-[11px] font-bold uppercase tracking-wider text-base-content/70 pb-1"
               htmlFor="username"
             >
-              Username
+              Nome de usuário
             </label>
             <input
               id="username"
               type="text"
-              placeholder="seu-username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              placeholder="seu-nome"
+              value={value}
+              autoCapitalize="none"
+              autoCorrect="off"
+              onChange={(event) => {
+                setValue(event.target.value);
+                setError(null);
+              }}
               className="input input-bordered w-full rounded-xl bg-base-100/60 focus:bg-base-100 transition-colors"
               required
             />
           </div>
+          {formatError ? (
+            <p className="text-xs text-warning">{formatError}</p>
+          ) : availability === 'checking' ? (
+            <p className="text-xs text-base-content/60">Verificando…</p>
+          ) : availability === 'taken' ? (
+            <p className="text-xs text-error">@{handle} já está em uso.</p>
+          ) : availability === 'free' ? (
+            <p className="text-xs text-success">@{handle} está disponível.</p>
+          ) : null}
           <button
             type="submit"
+            disabled={availability === 'taken'}
             className="btn btn-primary w-full rounded-2xl font-bold uppercase tracking-wider shadow-lg shadow-primary/20 text-sm h-12"
           >
             Continuar
@@ -309,9 +335,7 @@ export function PasswordRecoveryPage() {
               }
               try {
                 await authClient.updatePassword(newPassword);
-                try {
-                  await authClient.signOutOthers();
-                } catch {}
+                await authClient.signOutOthers().catch(() => undefined);
                 setUpdated(true);
               } catch (cause) {
                 setUpdateError(

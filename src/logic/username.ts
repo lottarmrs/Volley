@@ -48,18 +48,16 @@ export function generateUsernames(names: string[], taken: Set<string> = new Set(
 }
 
 /**
- * Picks the username to persist for a new/edited athlete:
- * - guests never get a handle (returns whatever they already had, usually none);
- * - an athlete that already has a handle keeps it (handles are stable);
- * - a blank/slug-less name yields none (assign later when the name is set);
- * - otherwise derives a fresh unique slug, avoiding `takenUsernames`.
+ * Picks the username to persist for a new/edited athlete. A handle belongs to
+ * whoever registers an account: this function never mints one. It preserves an
+ * existing handle (including a guest's, which is normally none) and otherwise
+ * returns undefined — the athlete is addressed by players.id until an account
+ * claims a handle.
  */
 export function resolveUsername(
   athlete: { nome: string; isGuest?: boolean; username?: string },
   takenUsernames: Iterable<string>,
 ): string | undefined {
-  if (athlete.isGuest) return athlete.username;
-  if (athlete.username) return athlete.username;
-  if (!slugify(athlete.nome)) return undefined;
-  return generateUsername(athlete.nome, new Set(takenUsernames));
+  void takenUsernames;
+  return athlete.username;
 }

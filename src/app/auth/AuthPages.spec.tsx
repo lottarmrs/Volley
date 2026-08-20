@@ -35,6 +35,16 @@ const { authClientMock } = vi.hoisted(() => ({
   },
 }));
 
+const { playerCloudServiceMock } = vi.hoisted(() => ({
+  playerCloudServiceMock: {
+    isHandleAvailable: vi.fn().mockResolvedValue(true) as (handle: string) => Promise<boolean>,
+  },
+}));
+
+vi.mock('@infra/supabase/playerCloudService', () => ({
+  playerCloudService: playerCloudServiceMock,
+}));
+
 import {
   LoginPage,
   MfaChallengePage,
@@ -185,18 +195,53 @@ describe('LoginPage', () => {
   });
 });
 
+function renderOnboarding(
+  overrides: {
+    completeUsername?: (username: string) => Promise<void>;
+    isHandleAvailable?: (handle: string) => Promise<boolean>;
+  } = {},
+) {
+  playerCloudServiceMock.isHandleAvailable =
+    overrides.isHandleAvailable ?? vi.fn().mockResolvedValue(true);
+  return renderAuthPage(
+    '/escolher-username',
+    {
+      state: { kind: 'onboarding', userId: 'u1', playerId: 'p1' },
+      completeUsername: overrides.completeUsername ?? vi.fn().mockResolvedValue(undefined),
+    },
+    { from: { pathname: '/comunidades' } },
+  );
+}
+
 describe('UsernameOnboardingPage', () => {
   it('completes username onboarding and returns to intended route', async () => {
     const completeUsername = vi.fn().mockResolvedValue(undefined);
-    renderAuthPage(
-      '/escolher-username',
-      { state: { kind: 'onboarding', userId: 'u1', playerId: 'p1' }, completeUsername },
-      { from: { pathname: '/comunidades' } },
-    );
-    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ana-voleio' } });
+    renderOnboarding({ completeUsername });
+    fireEvent.change(screen.getByLabelText(/nome de usu/i), { target: { value: 'ana-voleio' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     await waitFor(() => expect(completeUsername).toHaveBeenCalledWith('ana-voleio'));
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/comunidades'));
+  });
+
+  it('recusa formato inválido sem chamar o servidor', async () => {
+    const completeUsername = vi.fn();
+    renderOnboarding({ completeUsername });
+    fireEvent.change(screen.getByLabelText(/nome de usu/i), { target: { value: 'ab' } });
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/3 a 30 caracteres/i);
+    expect(completeUsername).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando o nome de usuário já está em uso', async () => {
+    renderOnboarding({ isHandleAvailable: vi.fn().mockResolvedValue(false) });
+    fireEvent.change(screen.getByLabelText(/nome de usu/i), { target: { value: 'ana' } });
+    expect(await screen.findByText(/já está em uso/i)).toBeTruthy();
+  });
+
+  it('confirma quando está livre', async () => {
+    renderOnboarding({ isHandleAvailable: vi.fn().mockResolvedValue(true) });
+    fireEvent.change(screen.getByLabelText(/nome de usu/i), { target: { value: 'ana' } });
+    expect(await screen.findByText(/dispon/i)).toBeTruthy();
   });
 });
 

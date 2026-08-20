@@ -212,7 +212,7 @@ describe('AppRouter — shell', () => {
 
   it('não monta o app protegido quando a sessão não está pronta', () => {
     renderApp('/painel', { kind: 'onboarding', userId: 'u1', playerId: 'p1' });
-    expect(screen.getByLabelText('Username')).toBeTruthy();
+    expect(screen.getByLabelText(/nome de usu/i)).toBeTruthy();
   });
 });
 
@@ -225,6 +225,11 @@ describe('AppRouter — rotas globais', () => {
   it('monta as configurações do usuário em /perfil', async () => {
     renderApp('/perfil');
     expect(await screen.findByRole('button', { name: /Configurações & Dados/i })).toBeTruthy();
+  });
+
+  it('mostra o nome de usuário atual em /perfil', async () => {
+    renderApp('/perfil');
+    expect(await screen.findByText(/@ana/i)).toBeTruthy();
   });
 
   it('monta a sincronização em /perfil/sync', async () => {
@@ -413,6 +418,18 @@ describe('AppRouter — pessoas', () => {
     const nomeInput = await screen.findByPlaceholderText('Nome Completo', {}, { timeout: 5000 });
     expect((nomeInput as HTMLInputElement).value).toBe('');
     expect((screen.getByPlaceholderText('Apelido') as HTMLInputElement).value).toBe('');
+  });
+
+  it('abre o atleta pelo handle na URL', async () => {
+    seedLocalDb({ communities: [community], players: [{ ...player, username: 'ana' }] });
+    renderApp('/comunidades/c1/pessoas/editar-atleta/ana');
+    expect(await screen.findByDisplayValue('Ana Souza')).toBeTruthy();
+  });
+
+  it('continua abrindo o atleta pelo id', async () => {
+    seedLocalDb({ communities: [community], players: [{ ...player, username: 'ana' }] });
+    renderApp('/comunidades/c1/pessoas/editar-atleta/p1');
+    expect(await screen.findByDisplayValue('Ana Souza')).toBeTruthy();
   });
 
   it('salvar no editor de atleta volta para a lista de Pessoas', async () => {

@@ -1,0 +1,12 @@
+{
+  "target": "src/App.tsx",
+  "url": "http://127.0.0.1:3000/",
+  "title": "Panelinha Team Balancer",
+  "capturedAt": "2026-08-09T23:08:48.171Z",
+  "authenticated": true,
+  "states": [
+    "dashboard default",
+    "sidebar drawer open"
+  ],
+  "note": "Captured by controller after user authentication; no credentials, cookies or storage exported."
+}

@@ -52,7 +52,7 @@ export function useCommunitiesContract(input: {
     onAddCommunity: comm.addCommunity,
     onUpdateCommunity: comm.updateCommunity,
     onDeleteCommunity: (communityId) => {
-      if (!window.confirm('Excluir esta comunidade? Os atletas continuarao cadastrados.')) return;
+      if (!window.confirm('Excluir esta comunidade? Os atletas continuarão cadastrados.')) return;
       shell.deleteCommunityAggregate(communityId);
       navigate(paths.comunidades);
     },

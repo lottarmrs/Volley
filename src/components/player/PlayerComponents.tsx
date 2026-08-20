@@ -194,7 +194,7 @@ export const PlayerItem: React.FC<{
     <motion.div
       whileHover={{ scale: 1.01 }}
       onClick={onToggle}
-      className={`card bg-base-200 border shadow-md rounded-2xl cursor-pointer transition-all border-l-4 ${
+      className={`card bg-base-200 border shadow-md rounded-2xl cursor-pointer transition-all ${
         isSelected
           ? 'border-primary bg-primary/5 shadow-primary/10'
           : 'border-base-300 hover:border-primary/50 hover:shadow-primary/5'
@@ -405,7 +405,7 @@ export const PlayerItem: React.FC<{
                 ? 'Masculino'
                 : player.genero === 'F'
                   ? 'Feminino'
-                  : 'Nao informado'}
+                  : 'Não informado'}
             </span>
             {player.status.lesionado && (
               <span className="badge badge-error badge-soft badge-xs font-bold uppercase rounded-md scale-90">

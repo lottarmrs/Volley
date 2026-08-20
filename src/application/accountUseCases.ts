@@ -30,6 +30,6 @@ export async function ensureAccountReadyCommand(
     if (code === '22023') {
       return productError('invalid_username', 'Use de 3 a 30 letras, numeros, _ ou -.');
     }
-    return technicalError('Nao foi possivel preparar sua conta agora.', cause);
+    return technicalError('Não foi possível preparar sua conta agora.', cause);
   }
 }

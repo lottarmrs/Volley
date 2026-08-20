@@ -1,0 +1,29 @@
+- checkbox "close sidebar"
+- banner:
+  - heading "Painel de Controle" [level=2]
+  - generic: TESTEADM
+  - generic: TE
+- main:
+  - heading "Bem-vindo ao Panelinha" [level=1]
+  - paragraph: Plataforma de gerenciamento de campeonatos, partidas e equilíbrio de equipes.
+  - button "Nova Sessão":
+    - text: Nova Sessão
+  - generic: Rascunho Pendente
+  - heading "Sessão — 28/06/2026" [level=2]
+  - button "Descartar"
+  - button "Continuar"
+  - figure:
+    - img "Nova Sessão"
+  - heading "Nova Sessão" [level=2]
+  - paragraph: Criar novo evento, selecionar elenco e equilibrar equipes de forma inteligente.
+  - figure:
+    - img "Atletas"
+  - heading "Atletas" [level=2]
+  - paragraph: Gerenciar fichas técnicas, habilidades individuais, posições e forma física dos jogadores.
+  - figure:
+    - img "Comunidades"
+  - heading "Comunidades" [level=2]
+  - paragraph: Organizar grupos de jogadores recorrentes, filtrar participantes e definir presenças.
+  - button "Histórico de Sessões Consultar partidas e relatórios antigos":
+    - text: Histórico de Sessões
+    - paragraph: Consultar partidas e relatórios antigos

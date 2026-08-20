@@ -39,7 +39,12 @@ export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
           <h3 className="font-bold text-lg flex items-center gap-2">
             <Search className="w-5 h-5 text-primary" /> Descobrir comunidades
           </h3>
-          <button type="button" onClick={onClose} className="btn btn-ghost btn-sm btn-square">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar busca de comunidades"
+            className="btn btn-ghost btn-sm btn-square"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -49,6 +54,7 @@ export function CommunityDiscovery({ onClose }: CommunityDiscoveryProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && search(query)}
+            aria-label="Buscar comunidade pública por nome"
             placeholder="Buscar por nome…"
             className="input input-bordered flex-1"
             autoFocus

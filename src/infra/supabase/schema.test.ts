@@ -360,6 +360,10 @@ test('backend migration enables RLS and authenticated Data API grants', () => {
     migration,
     /grant select, insert, update, delete on[\s\S]*public\.communities[\s\S]*to authenticated;/i,
   );
+  assert.match(
+    baseSchema,
+    /create policy "Authenticated users can insert modification logs" on public\.modification_logs\s+for insert to authenticated\s+with check \(true\);/i,
+  );
 });
 
 test('backend migration includes membership RLS helpers and policies', () => {

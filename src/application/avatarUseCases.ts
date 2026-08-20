@@ -42,7 +42,7 @@ export async function listAvatarApprovalQueueQuery(
   try {
     return appOk({ items: await gateway.listMyApprovalQueue() });
   } catch (error) {
-    return technicalError('Nao foi possivel carregar as aprovacoes.', error);
+    return technicalError('Não foi possível carregar as aprovações.', error);
   }
 }
 
@@ -51,13 +51,13 @@ export async function reviewPlayerAvatarCommand(
   gateway: AvatarGateway = supabaseAvatarGateway,
 ): Promise<AppResult<{ proposalId: string }>> {
   const proposalId = input.proposalId.trim();
-  if (!proposalId) return productError('invalid_input', 'Proposta de foto invalida.');
+  if (!proposalId) return productError('invalid_input', 'Proposta de foto inválida.');
 
   try {
     if (input.action === 'approve') await gateway.approve(proposalId);
     else await gateway.reject(proposalId);
     return appOk({ proposalId });
   } catch (error) {
-    return technicalError('Acao nao concluida.', error);
+    return technicalError('Ação não concluída.', error);
   }
 }

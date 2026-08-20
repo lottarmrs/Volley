@@ -18,7 +18,7 @@ export interface SyncIssueEntry {
   resolvedAt?: string;
   kind?: AppError['kind'];
   /**
-   * Quando tentar de novo. Ausente significa "nao tente automaticamente" — o que
+   * Quando tentar de novo. Ausente significa "não tente automaticamente" — o que
    * acontece com erro estrutural, que nao se conserta com o tempo.
    */
   nextAttemptAt?: string;
@@ -206,6 +206,34 @@ export function clearStoredResolvedSyncIssues(): SyncIssueEntry[] {
 export function formatSyncIssueError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'string' && error.trim()) return error;
+  if (typeof error === 'object' && error !== null) {
+    const obj = error as Record<string, unknown>;
+    if (typeof obj.message === 'string' && obj.message.trim()) {
+      return obj.code ? `[${obj.code}] ${obj.message}` : obj.message;
+    }
+    if (typeof obj.error_description === 'string' && obj.error_description.trim()) {
+      return obj.error_description;
+    }
+    if (typeof obj.details === 'string' && obj.details.trim()) {
+      return obj.details;
+    }
+    if (typeof obj.hint === 'string' && obj.hint.trim()) {
+      return obj.hint;
+    }
+    if (typeof obj.error === 'string' && obj.error.trim()) {
+      return obj.error;
+    }
+    if (typeof obj.error === 'object' && obj.error !== null) {
+      const nested = obj.error as Record<string, unknown>;
+      if (typeof nested.message === 'string' && nested.message.trim()) {
+        return nested.message;
+      }
+    }
+    try {
+      const json = JSON.stringify(error);
+      if (json && json !== '{}') return json;
+    } catch {}
+  }
   return 'Falha desconhecida';
 }
 

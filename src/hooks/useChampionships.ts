@@ -6,8 +6,17 @@ import {
 import { appOk, productError } from '../application/appResult';
 import { generateRoundDates } from '../logic/championship';
 import { generateUUID } from '../logic/uuid';
+import {
+  createChampionshipRequest as buildChampionshipRequest,
+  isRequestOpen,
+} from '../application/championshipGovernanceUseCases';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../storage/localStorageRepository';
-import type { Championship, ChampionshipRound, ChampionshipTeam } from '../types';
+import type {
+  Championship,
+  ChampionshipRequest,
+  ChampionshipRound,
+  ChampionshipTeam,
+} from '../types';
 
 export interface CreatedChampionshipAggregate {
   championship: Championship;
@@ -37,6 +46,9 @@ export function useChampionships() {
   const [championshipRounds, setChampionshipRounds] = useState<ChampionshipRound[]>(() =>
     loadFromStorage(STORAGE_KEYS.championshipRounds, []),
   );
+  const [championshipRequests, setChampionshipRequests] = useState<ChampionshipRequest[]>(() =>
+    loadFromStorage(STORAGE_KEYS.championshipRequests, []),
+  );
 
   useEffect(() => saveToStorage(STORAGE_KEYS.championships, championships), [championships]);
   useEffect(
@@ -46,6 +58,10 @@ export function useChampionships() {
   useEffect(
     () => saveToStorage(STORAGE_KEYS.championshipRounds, championshipRounds),
     [championshipRounds],
+  );
+  useEffect(
+    () => saveToStorage(STORAGE_KEYS.championshipRequests, championshipRequests),
+    [championshipRequests],
   );
 
   const create = useCallback((input: CreateChampionshipInput) => {
@@ -153,6 +169,28 @@ export function useChampionships() {
     [championshipRounds],
   );
 
+  const createRequest = useCallback((input: Parameters<typeof buildChampionshipRequest>[0]) => {
+    const request = buildChampionshipRequest(input);
+    setChampionshipRequests((current) => [...current, request]);
+    return request;
+  }, []);
+
+  const resolveRequest = useCallback(
+    (requestId: string, transition: (request: ChampionshipRequest) => ChampionshipRequest) => {
+      const request = championshipRequests.find((item) => item.id === requestId);
+      if (!request) return productError('not_found', 'Solicitação não encontrada.');
+      if (!isRequestOpen(request)) {
+        return productError('conflict', 'Esta solicitação já foi encerrada.');
+      }
+      const next = transition(request);
+      setChampionshipRequests((current) =>
+        current.map((item) => (item.id === requestId ? next : item)),
+      );
+      return appOk(next);
+    },
+    [championshipRequests],
+  );
+
   const setRoundSkipped = useCallback(
     (roundId: string, skipped: boolean) => {
       const round = championshipRounds.find((item) => item.id === roundId);
@@ -219,6 +257,10 @@ export function useChampionships() {
     championshipRounds: championshipRounds.filter((item) => !item.deletedAt),
     rawChampionshipRounds: championshipRounds,
     setChampionshipRounds,
+    championshipRequests,
+    setChampionshipRequests,
+    createRequest,
+    resolveRequest,
     create,
     markRoundMaterialized,
     deleteChampionship,

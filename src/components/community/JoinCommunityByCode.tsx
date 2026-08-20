@@ -36,7 +36,12 @@ export function JoinCommunityByCode({ onClose }: JoinCommunityByCodeProps) {
           <h3 className="font-bold text-lg flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-primary" /> Entrar com código
           </h3>
-          <button type="button" onClick={onClose} className="btn btn-ghost btn-sm btn-square">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar entrada por código"
+            className="btn btn-ghost btn-sm btn-square"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -46,6 +51,7 @@ export function JoinCommunityByCode({ onClose }: JoinCommunityByCodeProps) {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handlePreview()}
+            aria-label="Código de convite da comunidade"
             placeholder="CÓDIGO"
             className="input input-bordered flex-1 font-mono tracking-widest uppercase"
             disabled={loading || requested}

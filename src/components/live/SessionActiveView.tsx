@@ -97,6 +97,10 @@ export const SessionActiveView = ({
   );
 
   const [preSelectedPlayerId, setPreSelectedPlayerId] = useState<string | undefined>();
+  const [activeTab, setActiveTab] = useState<'events' | 'scorers' | 'standings' | 'queue'>(
+    'events',
+  );
+  const [showFinishModal, setShowFinishModal] = useState(false);
   const [control, setControl] = useState<SessionControlView>({
     canScore: true,
     reason: 'free',
@@ -107,7 +111,7 @@ export const SessionActiveView = ({
 
   // A ORDEM importa. Primeiro decidimos a partir do estado que veio da nuvem, DEPOIS
   // reivindicamos — porque reivindicar grava o meu device_id, e a partir daí o caso
-  // "minha sessao em outro aparelho" some e o aviso nunca apareceria.
+  // "minha sessão em outro aparelho" some e o aviso nunca apareceria.
   useEffect(() => {
     if (!activeSession?.cloudId) return;
 
@@ -327,13 +331,13 @@ export const SessionActiveView = ({
           <div className="flex gap-2">
             <button
               onClick={() => dispatch({ kind: 'exit' })}
-              className="btn btn-xs btn-error btn-soft"
+              className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-error btn-soft font-bold uppercase tracking-wider"
             >
               Voltar
             </button>
             <button
-              onClick={() => dispatch({ kind: 'finishSession' })}
-              className="btn btn-xs btn-accent btn-soft font-bold"
+              onClick={() => setShowFinishModal(true)}
+              className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-accent btn-soft font-bold uppercase tracking-wider"
             >
               Encerrar Sessão
             </button>
@@ -450,13 +454,13 @@ export const SessionActiveView = ({
         <div className="flex gap-2 shrink-0">
           <button
             onClick={() => dispatch({ kind: 'exit' })}
-            className="btn btn-xs btn-error btn-soft"
+            className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-error btn-soft font-bold uppercase tracking-wider"
           >
             Voltar
           </button>
           <button
-            onClick={() => dispatch({ kind: 'finishSession' })}
-            className="btn btn-xs btn-accent btn-soft font-bold"
+            onClick={() => setShowFinishModal(true)}
+            className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-accent btn-soft font-bold uppercase tracking-wider"
           >
             Encerrar Sessão
           </button>
@@ -501,8 +505,15 @@ export const SessionActiveView = ({
           )}
       </div>
 
+      {/* O placar é o estado da aplicação e mudava sem nenhum anúncio. */}
+      <p aria-live="polite" className="sr-only">
+        {teamA.name} {currentGame.scoreA}, {teamB.name} {currentGame.scoreB}
+      </p>
+
       <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Duas colunas em todo breakpoint: um placar existe para a comparação,
+            e rolar para ver o adversário no meio do rali inverte o Princípio #1. */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-4">
           <TeamScoreCard
             team={teamA}
             score={currentGame.scoreA}
@@ -519,12 +530,10 @@ export const SessionActiveView = ({
             sets={currentGame.sets}
             setTargets={currentGame.setTargets}
             isTeamA={true}
-            onRegisterPoint={() => {
-              if (!control.canScore) return;
-              registerPoint(currentGame.teamAId);
-            }}
+            canScore={control.canScore}
+            blockedReason={control.message}
+            onRegisterPoint={() => registerPoint(currentGame.teamAId)}
             onOpenDetailModal={(pid) => {
-              if (!control.canScore) return;
               setPointModalTeamId(currentGame.teamAId);
               setPreSelectedPlayerId(pid);
             }}
@@ -545,16 +554,27 @@ export const SessionActiveView = ({
             sets={currentGame.sets}
             setTargets={currentGame.setTargets}
             isTeamA={false}
-            onRegisterPoint={() => {
-              if (!control.canScore) return;
-              registerPoint(currentGame.teamBId);
-            }}
+            canScore={control.canScore}
+            blockedReason={control.message}
+            onRegisterPoint={() => registerPoint(currentGame.teamBId)}
             onOpenDetailModal={(pid) => {
-              if (!control.canScore) return;
               setPointModalTeamId(currentGame.teamBId);
               setPreSelectedPlayerId(pid);
             }}
           />
+        </div>
+
+        {/* Fica acima do painel de jogo encerrado de propósito: antes o painel se
+            injetava entre os cards e o desfazer, e a ação de recuperar de um toque
+            errado mudava de lugar conforme o estado do jogo. */}
+        <div className="flex justify-center relative z-10">
+          <button
+            onClick={undoLastPoint}
+            disabled={!control.canScore}
+            className="btn btn-outline min-h-[44px] rounded-full bg-base-200 px-5 text-xs font-bold uppercase tracking-wider disabled:opacity-40"
+          >
+            <RotateCcw className="w-4 h-4" /> Desfazer Ponto
+          </button>
         </div>
 
         {currentGame.status === 'finished' && (
@@ -651,15 +671,6 @@ export const SessionActiveView = ({
           </motion.div>
         )}
 
-        <div className="flex justify-center relative z-10 transition-all -mt-8">
-          <button
-            onClick={undoLastPoint}
-            className="btn btn-sm btn-outline rounded-full bg-base-200"
-          >
-            <RotateCcw className="w-3 h-3" /> Desfazer Ponto
-          </button>
-        </div>
-
         <AnimatePresence>
           {pointModalTeamId && sessionTeams.some((t) => t.id === pointModalTeamId) && (
             <PointModal
@@ -696,343 +707,486 @@ export const SessionActiveView = ({
           )}
         </AnimatePresence>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="card card-border bg-base-200 overflow-hidden">
-              <div className="p-4 bg-base-300/40 border-b border-base-300 flex items-center justify-between">
-                <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
-                  Sessões do Confronto
-                </h4>
-                <span className="badge badge-accent badge-soft font-bold uppercase">
-                  Tempo Real
-                </span>
-              </div>
-              <div className="sm:max-h-64 sm:overflow-y-auto p-2 space-y-1">
-                {sessionPoints
-                  .slice()
-                  .reverse()
-                  .map((p) => {
-                    const label = getPointLabel(p, sessionTeams, players);
-                    return (
-                      <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        key={p.id}
-                        className="flex items-center justify-between p-2 rounded hover:bg-base-100 transition-colors group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-mono text-accent opacity-50 w-12 shrink-0">
-                            J{games.find((g) => g.id === p.gameId)?.sequenceNumber}•#
-                            {p.sequenceNumber}
-                          </span>
-                          <div>
-                            <p className="text-[10px] font-bold text-base-content">
-                              {label.playerName}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[8px] font-bold text-text-muted uppercase">
-                                {label.teamName}
-                              </span>
-                              <span className="text-[8px] text-accent italic">
-                                • {label.reason}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            <p
-                              className={`text-[10px] font-bold font-mono ${p.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}
-                            >
-                              {p.eventKind === 'highlight' ? '🌟' : label.score}
-                            </p>
-                            <p className="text-[7px] text-text-muted uppercase">
-                              {new Date(p.timestamp).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit',
-                              })}
-                            </p>
-                          </div>
-                          {p.eventKind === 'highlight' && (
-                            <button
-                              onClick={() => deleteHighlight(p.id)}
-                              title="Remover lance"
-                              className="btn btn-ghost btn-xs btn-circle text-error opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                {sessionPoints.length === 0 && (
-                  <div className="text-center py-12 text-xs text-text-muted opacity-30 italic uppercase border border-dashed border-base-300 rounded-xl">
-                    Nenhum evento registrado.
+        <AnimatePresence>
+          {showFinishModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="card card-border bg-base-200 border-base-300 max-w-md w-full p-6 space-y-5 shadow-2xl"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-accent/15 text-accent flex items-center justify-center shrink-0">
+                    <Trophy className="w-6 h-6" />
                   </div>
-                )}
-              </div>
+                  <div>
+                    <h3 className="text-base font-bold uppercase tracking-tight text-base-content">
+                      Encerrar Sessão Ativa?
+                    </h3>
+                    <p className="text-xs text-base-content/60 mt-0.5">
+                      Os resultados dos jogos, estatísticas dos times e pontuações individuais serão
+                      salvos no histórico.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-base-300/40 p-4 rounded-xl space-y-2 border border-base-300 text-xs text-base-content/80">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold uppercase text-[10px] text-text-muted">
+                      Total de Jogos:
+                    </span>
+                    <span className="font-mono font-bold text-accent">
+                      {sessionGames.length} partidas
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold uppercase text-[10px] text-text-muted">
+                      Eventos Registrados:
+                    </span>
+                    <span className="font-mono font-bold text-info">
+                      {sessionPoints.length} pontos
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFinishModal(false)}
+                    className="btn btn-ghost btn-sm font-bold uppercase tracking-wider min-h-[44px] flex-1"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFinishModal(false);
+                      dispatch({ kind: 'finishSession' });
+                    }}
+                    className="btn btn-accent btn-sm font-bold uppercase tracking-wider min-h-[44px] flex-1 shadow-lg shadow-accent/20"
+                  >
+                    Confirmar & Encerrar
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Telemetry Tabs Navigation */}
+        <div className="card card-border bg-base-200 p-2 rounded-2xl border-base-300">
+          <div className="flex flex-wrap gap-1.5 py-0.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('events')}
+              className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+                activeTab === 'events'
+                  ? 'btn-primary shadow-lg shadow-primary/20'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              <Activity className="w-4 h-4 text-info" />
+              Eventos ({sessionPoints.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('scorers')}
+              className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+                activeTab === 'scorers'
+                  ? 'btn-primary shadow-lg shadow-primary/20'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              <Zap className="w-4 h-4 text-accent" />
+              Artilharia & Destaques
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('standings')}
+              className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+                activeTab === 'standings'
+                  ? 'btn-primary shadow-lg shadow-primary/20'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-warning" />
+              Classificação
+            </button>
+            {activeSession.type === 'free_play' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('queue')}
+                className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+                  activeTab === 'queue'
+                    ? 'btn-primary shadow-lg shadow-primary/20'
+                    : 'btn-ghost text-base-content/70 hover:text-base-content'
+                }`}
+              >
+                <RotateCcw className="w-4 h-4 text-accent" />
+                Fila de Espera ({(activeSession.config as FreePlayConfig).initialQueue?.length || 0}
+                )
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Tab Panels */}
+        {activeTab === 'events' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card card-border bg-base-200 overflow-hidden"
+          >
+            <div className="p-4 bg-base-300/40 border-b border-base-300 flex items-center justify-between">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
+                Histórico de Pontos da Sessão
+              </h4>
+              <span className="badge badge-accent badge-soft font-bold uppercase">Tempo Real</span>
             </div>
-
-            <div className="card card-border bg-base-200 overflow-hidden">
-              <div className="p-4 bg-base-300/40 border-b border-base-300 flex items-center justify-between">
-                <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
-                  Jogadores em Destaque
-                </h4>
-                <Zap className="w-3.5 h-3.5 text-accent" />
-              </div>
-              {(() => {
-                const rec = calculateSessionRecognition(sessionPoints);
-                const nameOf = (id?: string) => {
-                  const pl = players.find((x) => x.id === id);
-                  return pl?.apelido || pl?.nome;
-                };
-                if (!rec.maestro && !rec.muralha) return null;
-                return (
-                  <div className="px-3 py-2 flex flex-wrap gap-2 border-b border-base-300 bg-base-300/20">
-                    {rec.maestro && (
-                      <span className="badge badge-soft badge-accent text-[8px] font-bold uppercase tracking-wider gap-1">
-                        🎯 Maestro: {nameOf(rec.maestro.playerId)} ({rec.maestro.count})
-                      </span>
-                    )}
-                    {rec.muralha && (
-                      <span className="badge badge-soft badge-warning text-[8px] font-bold uppercase tracking-wider gap-1">
-                        🧱 Muralha: {nameOf(rec.muralha.playerId)} ({rec.muralha.count})
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
-              <div className="p-2 space-y-1">
-                {scoringRanking.slice(0, 5).map((rank, i) => {
-                  const p = players.find((player) => player.id === rank.playerId);
-                  const pPoints = sessionPoints.filter(
-                    (pt) => pt.playerId === rank.playerId && isCreditedPoint(pt),
-                  );
-                  const reasons = pPoints.reduce(
-                    (acc, curr) => {
-                      const r = curr.reason || 'unknown';
-                      acc[r] = (acc[r] || 0) + 1;
-                      return acc;
-                    },
-                    {} as Record<string, number>,
-                  );
-                  const topReason =
-                    (Object.entries(reasons).sort(
-                      (a, b) => (b[1] as number) - (a[1] as number),
-                    )[0]?.[0] as PointReason) || 'unknown';
-
+            <div className="sm:max-h-80 sm:overflow-y-auto p-2 space-y-1">
+              {sessionPoints
+                .slice()
+                .reverse()
+                .map((p) => {
+                  const label = getPointLabel(p, sessionTeams, players);
                   return (
-                    <div
-                      key={rank.playerId}
-                      className="flex items-center justify-between p-3 rounded-xl bg-base-100/50 hover:bg-base-100 transition-all group overflow-hidden relative"
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      key={p.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl hover:bg-base-100 transition-colors group"
                     >
-                      <div
-                        className={`absolute top-0 left-0 w-1 h-full ${i === 0 ? 'bg-accent' : 'bg-base-300'}`}
-                      />
-                      <div className="flex items-center gap-3 relative pl-1">
-                        <span
-                          className={`text-[10px] font-bold font-mono ${i === 0 ? 'text-accent' : 'text-text-muted'}`}
-                        >
-                          0{i + 1}
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono text-accent opacity-50 w-14 shrink-0">
+                          J{games.find((g) => g.id === p.gameId)?.sequenceNumber}•#
+                          {p.sequenceNumber}
                         </span>
                         <div>
-                          <p className="text-[10px] font-bold text-base-content leading-none">
-                            {p?.apelido || p?.nome}
+                          <p className="text-[10px] font-bold text-base-content">
+                            {label.playerName}
                           </p>
-                          <div className="flex gap-2 items-center mt-1">
-                            <span className="text-[10px] font-bold font-mono text-accent">
-                              {rank.points}{' '}
-                              <span className="text-[8px] text-text-muted uppercase">PTS</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-bold text-text-muted uppercase">
+                              {label.teamName}
                             </span>
-                            <span className="text-[9px] uppercase text-text-muted font-medium italic opacity-60">
-                              • {POINT_REASON_LABELS[topReason]}
+                            <span className="text-[8px] text-accent italic">• {label.reason}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p
+                            className={`text-[10px] font-bold font-mono ${p.eventKind === 'highlight' ? 'text-warning' : 'text-accent'}`}
+                          >
+                            {p.eventKind === 'highlight' ? '🌟' : label.score}
+                          </p>
+                          <p className="text-[7px] text-text-muted font-mono uppercase">
+                            {new Date(p.timestamp).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                        {p.eventKind === 'highlight' && (
+                          <button
+                            onClick={() => deleteHighlight(p.id)}
+                            title="Remover lance"
+                            className="btn btn-ghost btn-xs btn-circle text-error opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              {sessionPoints.length === 0 && (
+                <div className="text-center py-12 text-xs text-text-muted opacity-30 italic uppercase border border-dashed border-base-300 rounded-xl">
+                  Nenhum evento registrado nesta sessão ainda.
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'scorers' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card card-border bg-base-200 overflow-hidden"
+          >
+            <div className="p-4 bg-base-300/40 border-b border-base-300 flex items-center justify-between">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
+                Jogadores em Destaque & Artilharia
+              </h4>
+              <Zap className="w-3.5 h-3.5 text-accent" />
+            </div>
+            {(() => {
+              const rec = calculateSessionRecognition(sessionPoints);
+              const nameOf = (id?: string) => {
+                const pl = players.find((x) => x.id === id);
+                return pl?.apelido || pl?.nome;
+              };
+              if (!rec.maestro && !rec.muralha) return null;
+              return (
+                <div className="px-3 py-2 flex flex-wrap gap-2 border-b border-base-300 bg-base-300/20">
+                  {rec.maestro && (
+                    <span className="badge badge-soft badge-accent text-[8px] font-bold uppercase tracking-wider gap-1">
+                      🎯 Maestro: {nameOf(rec.maestro.playerId)} ({rec.maestro.count})
+                    </span>
+                  )}
+                  {rec.muralha && (
+                    <span className="badge badge-soft badge-warning text-[8px] font-bold uppercase tracking-wider gap-1">
+                      🧱 Muralha: {nameOf(rec.muralha.playerId)} ({rec.muralha.count})
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+            <div className="p-3 space-y-1.5">
+              {scoringRanking.map((rank, i) => {
+                const p = players.find((player) => player.id === rank.playerId);
+                const pPoints = sessionPoints.filter(
+                  (pt) => pt.playerId === rank.playerId && isCreditedPoint(pt),
+                );
+                const reasons = pPoints.reduce(
+                  (acc, curr) => {
+                    const r = curr.reason || 'unknown';
+                    acc[r] = (acc[r] || 0) + 1;
+                    return acc;
+                  },
+                  {} as Record<string, number>,
+                );
+                const topReason =
+                  (Object.entries(reasons).sort(
+                    (a, b) => (b[1] as number) - (a[1] as number),
+                  )[0]?.[0] as PointReason) || 'unknown';
+
+                return (
+                  <div
+                    key={rank.playerId}
+                    className="flex items-center justify-between p-3 rounded-xl bg-base-100/50 hover:bg-base-100 transition-all group overflow-hidden relative"
+                  >
+                    <div
+                      className={`absolute top-0 left-0 w-1 h-full ${i === 0 ? 'bg-accent' : 'bg-base-300'}`}
+                    />
+                    <div className="flex items-center gap-3 relative pl-1">
+                      <span
+                        className={`text-[10px] font-bold font-mono ${i === 0 ? 'text-accent' : 'text-text-muted'}`}
+                      >
+                        0{i + 1}
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-base-content leading-none">
+                          {p?.apelido || p?.nome}
+                        </p>
+                        <div className="flex gap-2 items-center mt-1">
+                          <span className="text-[10px] font-bold font-mono text-accent">
+                            {rank.points}{' '}
+                            <span className="text-[8px] text-text-muted uppercase">PTS</span>
+                          </span>
+                          <span className="text-[9px] uppercase text-text-muted font-medium italic opacity-60">
+                            • {POINT_REASON_LABELS[topReason]}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center border border-base-300 bg-base-200 ${i === 0 ? 'border-accent/50' : ''}`}
+                      >
+                        <Zap
+                          className={`w-3.5 h-3.5 ${i === 0 ? 'text-accent' : 'text-text-muted'}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {scoringRanking.length === 0 && (
+                <div className="text-center py-12 text-xs text-text-muted opacity-30 italic uppercase border border-dashed border-base-300 rounded-xl">
+                  Sem pontuação individual registrada.
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'standings' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card card-border bg-base-200 overflow-hidden"
+          >
+            <div className="p-4 bg-base-300/40 border-b border-base-300 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-3.5 h-3.5 text-accent" />
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
+                  Classificação Geral dos Times
+                </h4>
+              </div>
+              <span className="text-[8px] font-mono text-accent opacity-60">SESSÃO</span>
+            </div>
+            <div className="p-3 space-y-2">
+              {teamStats.map((stat, i) => {
+                const team = sessionTeams.find((t) => t.id === stat.teamId);
+                const winRate =
+                  stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0;
+                return (
+                  <div
+                    key={stat.teamId}
+                    className="p-4 rounded-xl bg-base-100/50 border border-base-300 space-y-3 hover:border-base-300 transition-all relative group overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 -rotate-12 translate-x-4 -translate-y-4 rounded-3xl group-hover:bg-accent/5 transition-all" />
+
+                    <div className="flex justify-between items-start relative">
+                      <div className="flex gap-3">
+                        <span className="text-[10px] font-bold font-mono text-text-muted w-4">
+                          {i + 1}º
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold uppercase text-base-content truncate max-w-[140px]">
+                            {team?.name}
+                          </p>
+                          <div className="flex gap-2 items-center mt-0.5">
+                            <span className="text-[10px] font-bold text-success">{stat.wins}V</span>
+                            <span className="text-[10px] font-bold text-error">{stat.losses}D</span>
+                            <span className="text-[9px] font-bold text-text-muted/40">
+                              • {winRate}% VIT
                             </span>
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center border border-base-300 bg-base-200 ${i === 0 ? 'border-accent/50' : ''}`}
+                        <span
+                          className={`text-xl font-bold font-mono leading-none ${stat.pointDifference > 0 ? 'text-success' : stat.pointDifference < 0 ? 'text-error' : 'text-text-muted'}`}
                         >
-                          <Zap
-                            className={`w-3.5 h-3.5 ${i === 0 ? 'text-accent' : 'text-text-muted'}`}
-                          />
+                          {stat.pointDifference > 0 ? '+' : ''}
+                          {stat.pointDifference}
+                        </span>
+                        <p className="text-[8px] uppercase font-bold text-text-muted">SALDO</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-base-300 relative">
+                      <div className="text-center">
+                        <p className="text-[8px] uppercase font-bold text-text-muted">Pró</p>
+                        <p className="font-mono text-xs text-base-content">{stat.pointsFor}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[8px] uppercase font-bold text-text-muted">Contra</p>
+                        <p className="font-mono text-xs text-text-muted">{stat.pointsAgainst}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'queue' && activeSession.type === 'free_play' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card card-border bg-base-200 border-t-4 border-t-accent overflow-hidden"
+          >
+            <div className="card-body p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
+                    Ordem da Fila de Reentrada
+                  </h4>
+                  <p className="text-[9px] text-text-muted font-semibold uppercase mt-0.5">
+                    💡 Ganhou Fica: Vencedores permanecem em quadra • Perdedores entram no fim da
+                    fila
+                  </p>
+                </div>
+                <RotateCcw className="w-3.5 h-3.5 text-accent/50 shrink-0" />
+              </div>
+
+              <div className="space-y-2">
+                {(activeSession.config as FreePlayConfig).initialQueue?.map((tid, idx) => {
+                  const team = sessionTeams.find((t) => t.id === tid);
+                  const teamS = teamStats.find((s) => s.teamId === tid);
+                  const isFirst = idx === 0;
+                  const isLast =
+                    idx ===
+                    ((activeSession.config as FreePlayConfig).initialQueue?.length || 0) - 1;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex justify-between items-center px-4 py-3 bg-base-100/50 rounded-xl text-xs border transition-all group ${isFirst ? 'border-accent/40 bg-accent/10 shadow-lg shadow-accent/5' : 'border-base-300 hover:border-accent/20'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold transition-colors ${isFirst ? 'bg-accent text-black font-black' : 'bg-base-300 text-accent group-hover:bg-accent/20'}`}
+                        >
+                          {idx + 1}
                         </div>
+                        <div>
+                          <span className="text-xs font-bold uppercase text-base-content leading-none block">
+                            {team?.name}
+                          </span>
+                          <span className="text-[8px] uppercase text-text-muted font-mono mt-0.5 block">
+                            {teamS?.wins || 0}V - {teamS?.losses || 0}D
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {!isFirst && (
+                          <button
+                            type="button"
+                            onClick={() => moveTeamInQueue(idx, 'up')}
+                            className="btn btn-ghost btn-circle min-h-[44px] min-w-[44px] text-text-muted hover:text-accent flex items-center justify-center"
+                            title="Mover para cima"
+                          >
+                            <ChevronUp className="w-5 h-5" />
+                          </button>
+                        )}
+                        {!isLast && (
+                          <button
+                            type="button"
+                            onClick={() => moveTeamInQueue(idx, 'down')}
+                            className="btn btn-ghost btn-circle min-h-[44px] min-w-[44px] text-text-muted hover:text-accent flex items-center justify-center"
+                            title="Mover para baixo"
+                          >
+                            <ChevronDown className="w-5 h-5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeTeamFromQueue(tid)}
+                          title="Remover da fila"
+                          className="btn btn-ghost btn-circle min-h-[44px] min-w-[44px] text-error hover:bg-error/15 flex items-center justify-center"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
                       </div>
                     </div>
                   );
                 })}
-                {scoringRanking.length === 0 && (
-                  <div className="text-center py-12 text-xs text-text-muted opacity-30 italic uppercase border border-dashed border-base-300 rounded-xl">
-                    Sem pontuação individual.
+                {(activeSession.type !== 'free_play' ||
+                  !(activeSession.config as FreePlayConfig).initialQueue ||
+                  (activeSession.config as FreePlayConfig).initialQueue.length === 0) && (
+                  <div className="text-center py-8 border border-dashed border-base-300 rounded-xl">
+                    <p className="text-[10px] italic text-text-muted uppercase">
+                      Nenhum time aguardando na fila de reentrada.
+                    </p>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="card card-border bg-base-200 overflow-hidden">
-              <div className="p-4 bg-base-300/40 border-b border-base-300 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-accent" />
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
-                    Classificação Geral
-                  </h4>
-                </div>
-                <span className="text-[8px] font-mono text-accent opacity-60">SESSÃO</span>
-              </div>
-              <div className="p-2 space-y-2 sm:max-h-[400px] sm:overflow-y-auto">
-                {teamStats.map((stat, i) => {
-                  const team = sessionTeams.find((t) => t.id === stat.teamId);
-                  const winRate =
-                    stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0;
-                  return (
-                    <div
-                      key={stat.teamId}
-                      className="p-4 rounded-xl bg-base-100/50 border border-base-300 space-y-3 hover:border-base-300 transition-all relative group overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 -rotate-12 translate-x-4 -translate-y-4 rounded-3xl group-hover:bg-accent/5 transition-all" />
-
-                      <div className="flex justify-between items-start relative">
-                        <div className="flex gap-3">
-                          <span className="text-[10px] font-bold font-mono text-text-muted w-4">
-                            {i + 1}º
-                          </span>
-                          <div>
-                            <p className="text-xs font-bold uppercase text-base-content truncate max-w-[120px]">
-                              {team?.name}
-                            </p>
-                            <div className="flex gap-2 items-center mt-0.5">
-                              <span className="text-[10px] font-bold text-success">
-                                {stat.wins}V
-                              </span>
-                              <span className="text-[10px] font-bold text-error">
-                                {stat.losses}D
-                              </span>
-                              <span className="text-[9px] font-bold text-text-muted/40">
-                                • {winRate}% VIT
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`text-xl font-bold font-mono leading-none ${stat.pointDifference > 0 ? 'text-success' : stat.pointDifference < 0 ? 'text-error' : 'text-text-muted'}`}
-                          >
-                            {stat.pointDifference > 0 ? '+' : ''}
-                            {stat.pointDifference}
-                          </span>
-                          <p className="text-[8px] uppercase font-bold text-text-muted">SALDO</p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-base-300 relative">
-                        <div className="text-center">
-                          <p className="text-[8px] uppercase font-bold text-text-muted">Pró</p>
-                          <p className="font-mono text-xs text-base-content">{stat.pointsFor}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[8px] uppercase font-bold text-text-muted">Contra</p>
-                          <p className="font-mono text-xs text-text-muted">{stat.pointsAgainst}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {activeSession.type === 'free_play' && (
-                <>
-                  <div className="card card-border bg-base-200 border-t-4 border-t-accent overflow-hidden">
-                    <div className="card-body p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
-                          Ordem de Reentrada
-                        </h4>
-                        <RotateCcw className="w-3.5 h-3.5 text-accent/50" />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {(activeSession.config as FreePlayConfig).initialQueue?.map((tid, idx) => {
-                          const team = sessionTeams.find((t) => t.id === tid);
-                          const teamS = teamStats.find((s) => s.teamId === tid);
-                          const isFirst = idx === 0;
-                          const isLast =
-                            idx ===
-                            ((activeSession.config as FreePlayConfig).initialQueue?.length || 0) -
-                              1;
-
-                          return (
-                            <div
-                              key={idx}
-                              className={`flex justify-between items-center px-3 py-2 bg-base-100/50 rounded-lg text-[10px] border transition-all group ${isFirst ? 'border-accent/30 bg-accent/5' : 'border-transparent hover:border-base-300'}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${isFirst ? 'bg-accent text-black font-black' : 'bg-base-300 text-accent group-hover:bg-accent/20'}`}
-                                >
-                                  {idx + 1}
-                                </div>
-                                <div>
-                                  <span className="text-[10px] font-bold uppercase text-base-content leading-none block">
-                                    {team?.name}
-                                  </span>
-                                  <span className="text-[7px] uppercase text-text-muted">
-                                    {teamS?.wins || 0}V - {teamS?.losses || 0}D
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {!isFirst && (
-                                  <button
-                                    onClick={() => moveTeamInQueue(idx, 'up')}
-                                    className="btn btn-ghost btn-xs btn-circle text-text-muted hover:text-accent"
-                                  >
-                                    <ChevronUp className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                {!isLast && (
-                                  <button
-                                    onClick={() => moveTeamInQueue(idx, 'down')}
-                                    className="btn btn-ghost btn-xs btn-circle text-text-muted hover:text-accent"
-                                  >
-                                    <ChevronDown className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <div className="divider divider-horizontal mx-0.5" />
-                                <button
-                                  onClick={() => removeTeamFromQueue(tid)}
-                                  title="Remover da fila"
-                                  className="btn btn-ghost btn-xs btn-circle text-error hover:bg-error/15"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {(activeSession.type !== 'free_play' ||
-                          !(activeSession.config as FreePlayConfig).initialQueue ||
-                          (activeSession.config as FreePlayConfig).initialQueue.length === 0) && (
-                          <div className="text-center py-6 border border-dashed border-base-300 rounded-xl">
-                            <p className="text-[9px] italic text-text-muted uppercase">
-                              Nenhum time na reserva
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+          </motion.div>
+        )}
       </div>
 
       {currentGame.status === 'active' && (

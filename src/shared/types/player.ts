@@ -51,6 +51,7 @@ export interface Player {
   ativo: boolean;
   posicaoPrincipal: Position | null;
   posicoesSecundarias: Position[];
+  numeroCamisa?: number;
   alturaCm?: number;
   maoDominante: 'direita' | 'esquerda';
   atributos: Attributes;

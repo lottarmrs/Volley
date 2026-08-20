@@ -130,7 +130,10 @@ export function SessionWizardRoute() {
   }, [resolution.kind, community.id, type]);
 
   if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
-  if (!sess.activeSession) return null;
+  if (!sess.activeSession) {
+    if (!bootstrapped.current) return null;
+    return <Navigate to={paths.comunidade(community.id)} replace />;
+  }
 
   return (
     <SessionWizard

@@ -635,7 +635,7 @@ function SessionDetailView({
             onClick={() => {
               if (
                 confirm(
-                  'Excluir este historico? Esta acao remove torneio, jogos, pontos e relatorios.',
+                  'Excluir este histórico? Remove o torneio, os jogos, os pontos e os relatórios, e não dá para desfazer.',
                 )
               ) {
                 onDeleteSession(session.id);
@@ -705,10 +705,10 @@ function SessionDetailView({
             </div>
             <div>
               <p className="text-text-muted font-black">Local</p>
-              <p className="text-white font-black">{session.location || 'Nao informado'}</p>
+              <p className="text-white font-black">{session.location || 'Não informado'}</p>
             </div>
             <div>
-              <p className="text-text-muted font-black">Observacoes</p>
+              <p className="text-text-muted font-black">Observações</p>
               <p className="text-white font-black">{session.notes || 'Sem observacoes'}</p>
             </div>
           </div>

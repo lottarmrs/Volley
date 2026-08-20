@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { routeForAuthState } from './authRoutes';
-import { AuthGuard } from './AuthGuard';
+import { SessionGate } from './AuthGuard';
 import { AuthTransitionPage } from './AuthPages';
 import type { AuthSessionState } from '@app/authSession';
 import type { AuthSessionContextValue } from './useAuthSession';
@@ -78,7 +78,7 @@ function protectedAppTree(initialPath: string) {
       <Routes>
         <Route path="/auth/loading" element={<AuthTransitionPage />} />
         <Route path="/entrar" element={<div>Tela de entrar</div>} />
-        <Route element={<AuthGuard />}>
+        <Route element={<SessionGate />}>
           <Route path="/painel" element={<div>Painel</div>} />
           <Route
             path="/comunidades/:communityId/desempenho"
@@ -110,7 +110,7 @@ const readyState: AuthSessionState = {
   },
 };
 
-describe('AuthGuard + AuthTransitionPage — sobrevivencia da URL no reload (F5)', () => {
+describe('SessionGate + AuthTransitionPage — sobrevivencia da URL no reload (F5)', () => {
   it('restaura a rota profunda original depois que a sessao resolve para ready', async () => {
     setAuthSessionState({ kind: 'initializing' });
     const initialPath = '/comunidades/c1/desempenho?aba=historico';

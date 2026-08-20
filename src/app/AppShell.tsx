@@ -2,7 +2,9 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { AnimatePresence, motion } from 'motion/react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import {
+  ArrowLeft,
   BarChart3,
+  ChevronRight,
   Cloud,
   LayoutDashboard,
   Medal,
@@ -13,7 +15,9 @@ import {
 } from 'lucide-react';
 
 import {
+  extractCommunityId,
   getPageTitleForPath,
+  getReturnRouteForPath,
   getShellNavigationItems,
   paths,
   pathForLegacyPage,
@@ -46,6 +50,7 @@ import {
   loadFromStorage,
   saveToStorage,
 } from '../storage/localStorageRepository';
+import { isGuestAccess } from '../application/guestAccess';
 import { countPendingChanges } from '../logic/syncStatus';
 import { generateUUID } from '../logic/uuid';
 import { applyCommunityDeletion } from '../application/localCommunityUseCases';
@@ -107,6 +112,19 @@ export function AppShell() {
     activeSessionOwnerId && comm.communities.some((item) => item.id === activeSessionOwnerId)
       ? activeSessionOwnerId
       : null;
+
+  const currentCommunityId = extractCommunityId(location.pathname);
+  const currentCommunity = useMemo(
+    () => comm.communities.find((c) => c.id === currentCommunityId) || null,
+    [comm.communities, currentCommunityId],
+  );
+  const returnPath = getReturnRouteForPath(location.pathname);
+
+  useEffect(() => {
+    if (currentCommunityId) {
+      saveToStorage(STORAGE_KEYS.activeCommunityId, currentCommunityId);
+    }
+  }, [currentCommunityId]);
 
   const wizard = useSessionWizard({
     players: play.players,
@@ -318,10 +336,13 @@ export function AppShell() {
         // Go to dashboard to reload fresh data
         navigate(paths.painel);
 
-        window.alert('Dados importados com sucesso!');
+        toasts.push('Backup restaurado. Seus atletas e sessões voltaram.', 'success');
       } catch (e) {
         console.error('Erro ao importar backup:', e);
-        window.alert('Erro ao importar: arquivo inválido.');
+        toasts.push(
+          'Este arquivo não é um backup do Panelinha. Escolha o .json que você exportou aqui — seus dados atuais continuam intactos.',
+          'error',
+        );
       }
     };
     reader.readAsText(file);
@@ -346,15 +367,29 @@ export function AppShell() {
 
   const createPlayerForCommunity = (name: string, communityId: string) => {
     const now = new Date().toISOString();
-    play.setPlayers(
-      applyPlayerCreationForCommunity({
-        players: play.rawPlayers,
-        name,
-        communityId,
-        now,
-        createId: generateUUID,
-      }).players,
-    );
+    const result = applyPlayerCreationForCommunity({
+      players: play.rawPlayers,
+      name,
+      communityId,
+      now,
+      createId: generateUUID,
+    });
+
+    play.setPlayers(result.players);
+
+    // A ação mais executada da página era muda nos três desfechos.
+    if (result.outcome === 'empty') {
+      toasts.push('Digite o nome do atleta antes de adicionar.', 'error');
+      return;
+    }
+    if (result.outcome === 'linked') {
+      toasts.push(
+        `${result.name} já estava no seu elenco e foi vinculado a esta comunidade.`,
+        'info',
+      );
+      return;
+    }
+    toasts.push(`${result.name} entrou no elenco.`, 'success');
   };
 
   const materializeChampionshipRound = (roundId: string) => {
@@ -445,9 +480,11 @@ export function AppShell() {
 
   // ── Finish session ────────────────────────────────────────────────────────
 
+  // Quem chama já confirmou: o free play tem o modal de encerramento e o torneio
+  // pergunta antes de encerrar com partidas pendentes. Um confirm aqui era a
+  // segunda pergunta seguida, no exato momento em que a pelada acabou.
   const handleFinishSession = () => {
     if (!sess.activeSession) return;
-    if (!window.confirm('Deseja realmente encerrar a sessão atual?')) return;
 
     try {
       const result = buildFinishedSessionResult({
@@ -501,7 +538,7 @@ export function AppShell() {
         setRevealQueue(itemsToReveal);
       }
 
-      navigate(paths.painel);
+      navigate(paths.resumo);
     } catch (e) {
       console.error('Error in handleFinishSession:', e);
     }
@@ -527,10 +564,42 @@ export function AppShell() {
     }
   };
 
+  const isGuest = isGuestAccess(auth.state);
+
+  // Conversão de convidado: o acervo montado no modo local não tem dono
+  // (`getLocalCacheOwnerId()` nulo), e `validateCacheOwner` deixa um cache sem
+  // dono passar. Um upload no primeiro login carimba o dono e leva a pelada
+  // inteira para a conta nova, sem o usuário recomeçar nada.
+  const guestMigrationRef = useRef(false);
+  useEffect(() => {
+    if (guestMigrationRef.current) return;
+    if (!auth.isSupabaseConfigured || !auth.user?.id) return;
+    if (getLocalCacheOwnerId()) return;
+    if (play.rawPlayers.length === 0 && sess.sessions.length === 0) return;
+
+    guestMigrationRef.current = true;
+    void cloudSync
+      .uploadToCloud()
+      .then(() => toasts.push('Sua pelada local agora está vinculada à sua conta.', 'success'))
+      .catch(() => {
+        // A falha já foi registrada no ledger de sync; o acervo continua salvo
+        // localmente e a próxima tentativa acontece pelo painel de sincronização.
+        guestMigrationRef.current = false;
+      });
+  }, [
+    auth.isSupabaseConfigured,
+    auth.user?.id,
+    cloudSync,
+    play.rawPlayers.length,
+    sess.sessions.length,
+    toasts,
+  ]);
+
   const navItems = getShellNavigationItems({
     pathname: location.pathname,
     isStaff: auth.isStaff,
     pendingChanges,
+    isGuest,
   });
   const headerAccount = getAccountDisplay({
     profileName: auth.profile?.name,
@@ -593,8 +662,12 @@ export function AppShell() {
           </button>
         )}
         <header className="h-[72px] bg-base-200 border-b border-base-300 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-            <label htmlFor="sidebar-drawer" className="btn btn-ghost btn-circle lg:hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
+            <label
+              htmlFor="sidebar-drawer"
+              aria-label="Abrir menu de navegação"
+              className="btn btn-ghost btn-circle lg:hidden"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -609,12 +682,37 @@ export function AppShell() {
                 ></path>
               </svg>
             </label>
-            <div>
-              <h2 className="text-base font-bold uppercase tracking-wider text-base-content">
+            {returnPath && (
+              <Link
+                to={returnPath}
+                className="btn btn-ghost btn-circle btn-sm min-h-[36px] min-w-[36px]"
+                aria-label="Voltar"
+                title="Voltar para navegação anterior"
+              >
+                <ArrowLeft className="w-4 h-4 text-base-content/70 hover:text-base-content" />
+              </Link>
+            )}
+            <div className="min-w-0">
+              {currentCommunity && (
+                <div className="flex min-w-0 items-center gap-1 text-xs font-bold text-base-content/60 mb-0.5">
+                  <span className="shrink-0">Panelinha</span>
+                  <ChevronRight className="w-3 h-3 shrink-0 opacity-40" />
+                  <Link
+                    to={paths.comunidade(currentCommunity.id)}
+                    className="truncate text-primary hover:underline"
+                  >
+                    {currentCommunity.name}
+                  </Link>
+                </div>
+              )}
+              {/* O h1 da pagina vive aqui, derivado da rota: 11 views nao tinham
+                  cabecalho proprio, e as que tinham criavam um segundo h1. O shell
+                  garante exatamente um por rota; o conteudo comeca no h2. */}
+              <h1 className="truncate text-base font-bold uppercase tracking-wider text-base-content">
                 {getPageTitleForPath(location.pathname)}
-              </h2>
+              </h1>
               {liveSessionVisible && (
-                <p className="text-[10px] text-base-content/60 font-medium mt-0.5">
+                <p className="truncate text-xs text-base-content/60 font-medium mt-0.5">
                   Sessão Ativa:{' '}
                   <span className="text-primary font-bold">{sess.activeSession?.name}</span>
                 </p>
@@ -622,27 +720,47 @@ export function AppShell() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             {liveSessionVisible && (
               <Link
                 to={liveSessionPath}
-                className="badge badge-success badge-soft gap-1.5 sm:gap-2 px-2 sm:px-3 py-3 font-black uppercase text-[9px] tracking-wider"
+                className="badge badge-success min-w-0 gap-2 px-3 py-3 font-black uppercase text-xs tracking-wider text-emerald-950 shadow-md shadow-emerald-950/40 transition-transform hover:scale-105"
+                title="Clique para abrir a Partida Ao Vivo em andamento"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                <span className="hidden sm:inline">{PHASE_LABEL[operationalPhase]}</span>
+                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-950 animate-ping" />
+                {/* Em 375px o rótulo completo somado ao CTA de conta estourava o
+                    header; o ponto pulsante já carrega o "ao vivo". */}
+                <span className="hidden truncate sm:inline">
+                  PARTIDA AO VIVO: {PHASE_LABEL[operationalPhase]}
+                </span>
+                <span className="truncate sm:hidden">AO VIVO</span>
               </Link>
             )}
 
-            <div className="h-4 w-px bg-base-300" />
+            <div className="hidden h-4 w-px shrink-0 bg-base-300 sm:block" />
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-base-content uppercase hidden sm:inline">
-                {headerAccount.name}
-              </span>
-              <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black uppercase text-xs">
-                {headerAccount.initials}
+            {isGuest ? (
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="hidden text-xs font-bold uppercase tracking-wide text-base-content/60 sm:inline">
+                  Modo local
+                </span>
+                <Link
+                  to="/entrar"
+                  className="btn btn-primary min-h-[40px] shrink-0 px-3 text-xs font-black uppercase tracking-wider sm:px-4"
+                >
+                  <span>Entrar</span>
+                </Link>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-base-content uppercase hidden sm:inline">
+                  {headerAccount.name}
+                </span>
+                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-content font-black uppercase text-xs shadow-sm">
+                  {headerAccount.initials}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
@@ -655,7 +773,13 @@ export function AppShell() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.15 }}
             >
-              <Suspense fallback={null}>
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center min-h-[50vh]">
+                    <span className="loading loading-spinner loading-lg text-primary" />
+                  </div>
+                }
+              >
                 <Outlet context={shell} />
               </Suspense>
             </motion.div>
@@ -677,21 +801,49 @@ export function AppShell() {
           aria-label="close sidebar"
           className="drawer-overlay"
         ></label>
-        <aside className="w-64 bg-base-200 border-r border-base-300 h-screen flex flex-col justify-between shrink-0">
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-8">
+        <aside
+          aria-label="Menu principal"
+          className="w-64 bg-base-200 border-r border-base-300 h-screen flex flex-col justify-between shrink-0"
+        >
+          <div className="p-6 overflow-y-auto">
+            <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
                 <Trophy className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h1 className="text-lg font-black tracking-tight text-base-content uppercase leading-none">
+                <span className="block text-lg font-black tracking-tight text-base-content uppercase leading-none">
                   Panelinha
-                </h1>
+                </span>
                 <p className="text-[9px] text-base-content/60 font-bold tracking-wider uppercase mt-1">
                   Plataforma Esportiva
                 </p>
               </div>
             </div>
+
+            {/* MÓDULO DA COMUNIDADE BANNER */}
+            {currentCommunity && (
+              <div className="bg-primary/10 border border-primary/25 rounded-2xl p-3 mb-6 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="badge badge-primary badge-xs font-black uppercase tracking-wider text-[9px]">
+                    Módulo da Comunidade
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-primary text-primary-content font-black flex items-center justify-center text-xs uppercase shadow-sm shrink-0">
+                    {currentCommunity.name.slice(0, 2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-base-content truncate">
+                      {currentCommunity.name}
+                    </p>
+                    <p className="text-[10px] text-base-content/60 font-medium truncate">
+                      {currentCommunity.location || 'Comunidade Ativa'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <nav className="space-y-1">
               <ul className="menu p-0">
                 {navItems.map((item) => (
@@ -704,7 +856,7 @@ export function AppShell() {
                         ) as HTMLInputElement;
                         if (checkbox) checkbox.checked = false;
                       }}
-                      className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                      className={`w-full flex items-center gap-3.5 px-4 min-h-[44px] rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                         item.active
                           ? 'bg-primary! text-primary-content! shadow-lg shadow-primary/20'
                           : 'text-base-content/70 hover:text-base-content hover:bg-base-300'

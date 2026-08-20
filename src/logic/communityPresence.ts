@@ -106,7 +106,7 @@ export function getPresenceAlerts(presence: CommunityPresence | null, players: P
 
   if (setters < 2) alerts.push('Poucos levantadores presentes.');
   if (total > 0 && total % 2 !== 0 && total % 3 !== 0)
-    alerts.push('O numero de presentes pode dificultar times iguais.');
+    alerts.push('O número de presentes pode dificultar times iguais.');
   if (groups.present.some((player) => player.status.lesionado || player.status.limitacaoFisica))
     alerts.push('Ha atletas com limitacao fisica.');
   if (netPlayers < 2) alerts.push('Poucos jogadores de rede presentes.');

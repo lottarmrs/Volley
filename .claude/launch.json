@@ -4,14 +4,34 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "dev-3100",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "3100", "--strictPort"],
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "3100",
+        "--strictPort"
+      ],
       "port": 3100
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
+      "port": 4173
     }
   ]
 }

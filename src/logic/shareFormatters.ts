@@ -5,8 +5,8 @@ export function formatCommunitySummaryText(community: Community, summary: Commun
   return [
     `Resumo - ${community.name}`,
     ``,
-    `Local: ${community.defaultLocation || 'Nao informado'}`,
-    `Dia: ${community.defaultDay || 'Nao informado'}`,
+    `Local: ${community.defaultLocation || 'Não informado'}`,
+    `Dia: ${community.defaultDay || 'Não informado'}`,
     `Horario: ${community.defaultStartTime || '--'} ${community.defaultEndTime ? `as ${community.defaultEndTime}` : ''}`.trim(),
     ``,
     `Atletas vinculados: ${summary.totalAthletes}`,

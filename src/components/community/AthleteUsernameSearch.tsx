@@ -91,6 +91,7 @@ export function AthleteUsernameSearch({
       <form onSubmit={handleSearch} className="join w-full">
         <input
           className="input input-bordered join-item flex-1"
+          aria-label="Buscar atleta por username"
           placeholder="@username"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

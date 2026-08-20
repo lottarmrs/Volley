@@ -17,6 +17,7 @@
  *     npx tsx scripts/backfill-global-from-backup.ts <backup.json>
  */
 import { readFileSync } from 'node:fs';
+import { resolve, extname } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { Community, Player } from '../src/types';
 import { mapCommunityToDb } from '../src/infra/supabase/communityCloudService';
@@ -35,8 +36,12 @@ function parseArgs(argv: string[]) {
   return { dryRun, backupPath };
 }
 
-function loadBackup(path: string): Backup {
-  return JSON.parse(readFileSync(path, 'utf8'));
+function loadBackup(inputPath: string): Backup {
+  const resolvedPath = resolve(process.cwd(), inputPath);
+  if (extname(resolvedPath).toLowerCase() !== '.json') {
+    throw new Error('Invalid backup file format: must be a .json file.');
+  }
+  return JSON.parse(readFileSync(resolvedPath, 'utf8'));
 }
 
 async function main() {

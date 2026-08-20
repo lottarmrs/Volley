@@ -70,12 +70,12 @@ export function AuthSessionProvider({
     let active = true;
     // getSession() rejeita quando o refresh token esta expirado/invalido. Sem
     // este catch a promise fica pendente, o estado nunca sai de 'initializing'
-    // e a tela trava em "Carregando Sessao..." para sempre.
+    // e a tela trava em "Carregando sessão..." para sempre.
     authClient
       .getSession()
       .then((value) => active && reconcile(value))
       .catch((cause) => {
-        console.error('Falha ao restaurar a sessao:', cause);
+        console.error('Falha ao restaurar a sessão:', cause);
         if (active) void reconcile(null);
       });
     const unsubscribe = authClient.onSessionChange((value) => {

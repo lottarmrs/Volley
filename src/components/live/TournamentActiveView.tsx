@@ -118,6 +118,9 @@ export const TournamentActiveView = ({
   games,
 }: Props) => {
   const [preSelectedPlayerId, setPreSelectedPlayerId] = React.useState<string | undefined>();
+  const [activeTab, setActiveTab] = React.useState<
+    'standings' | 'bracket' | 'schedule' | 'scorers'
+  >('standings');
 
   // Levantador nominal do time (pré-seleção da assistência). Só no 5x1; vazio no 6x0.
   const getSetterDefault = (teamId: string): string | undefined => {
@@ -266,7 +269,7 @@ export const TournamentActiveView = ({
             <button
               type="button"
               onClick={onFinishSession}
-              className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase shrink-0"
+              className="btn btn-accent btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] font-bold uppercase shrink-0"
             >
               Encerrar
             </button>
@@ -276,7 +279,7 @@ export const TournamentActiveView = ({
             <button
               type="button"
               onClick={editTournamentInfo}
-              className="btn btn-outline btn-xs font-bold uppercase"
+              className="btn btn-outline btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] font-bold uppercase"
             >
               Editar
             </button>
@@ -284,7 +287,7 @@ export const TournamentActiveView = ({
               <button
                 type="button"
                 onClick={() => setTournamentPaused(true)}
-                className="btn btn-xs font-bold uppercase btn-outline"
+                className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] font-bold uppercase btn-outline"
               >
                 <Pause className="w-3 h-3 mr-1" />
                 Pausar
@@ -294,7 +297,7 @@ export const TournamentActiveView = ({
               <button
                 type="button"
                 onClick={() => setTournamentPaused(false)}
-                className="btn btn-xs font-bold uppercase btn-success btn-soft"
+                className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] font-bold uppercase btn-success btn-soft"
               >
                 <Play className="w-3 h-3 mr-1" />
                 Retomar
@@ -312,7 +315,7 @@ export const TournamentActiveView = ({
                     onFinishSession();
                   }
                 }}
-                className="btn btn-accent btn-xs font-bold uppercase"
+                className="btn btn-accent btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] font-bold uppercase"
               >
                 Encerrar
               </button>
@@ -637,420 +640,510 @@ export const TournamentActiveView = ({
         )}
       </AnimatePresence>
 
-      {/* Bracket Stage Visualization */}
-      {(format === 'knockout' || format === 'groups_knockout') && (
-        <div className="mb-6">
-          <TournamentBracket games={sessionGames} teams={sessionTeams} />
-        </div>
-      )}
-
-      {/* Two-column bottom section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Standings Table */}
-        {format === 'groups_knockout' || format === 'group_stage' ? (
-          <div className="lg:col-span-2 space-y-6">
-            {/* Grupo A Standings */}
-            <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
-              <div className="p-4 bg-base-300/50 border-b border-base-300 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-accent" />
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
-                    Classificação - Grupo A
-                  </h4>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="table table-zebra table-sm text-[10px] font-mono">
-                  <thead>
-                    <tr>
-                      {['#', 'Time', 'J', 'V', 'D', 'PF', 'PC', 'SD', '%', 'Pts'].map((h) => (
-                        <th
-                          key={h}
-                          className="text-left text-[8px] uppercase text-base-content/60 font-bold"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {standingsA.map((s, i) => {
-                      const team = sessionTeams.find((t) => t.id === s.teamId);
-                      const color = getTeamColor(s.teamId);
-                      return (
-                        <tr key={s.teamId}>
-                          <td>
-                            <span
-                              className={`font-bold ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
-                            >
-                              {i + 1}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                              <div>
-                                <span className="font-bold text-base-content uppercase truncate max-w-[100px] block">
-                                  {team?.name}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="text-base-content/60">{s.gamesPlayed}</td>
-                          <td className="text-green-400 font-bold">{s.wins}</td>
-                          <td className="text-red-400">{s.losses}</td>
-                          <td className="text-base-content">{s.pointsFor}</td>
-                          <td className="text-base-content/60">{s.pointsAgainst}</td>
-                          <td
-                            className={`font-bold ${s.pointDifference > 0 ? 'text-green-400' : s.pointDifference < 0 ? 'text-red-400' : 'text-base-content/60'}`}
-                          >
-                            {s.pointDifference > 0 ? '+' : ''}
-                            {s.pointDifference}
-                          </td>
-                          <td className="text-base-content/60">{s.winRate}%</td>
-                          <td className="text-accent font-bold text-sm">
-                            {s.classificationPoints}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Grupo B Standings */}
-            <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
-              <div className="p-4 bg-base-300/50 border-b border-base-300 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-accent" />
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
-                    Classificação - Grupo B
-                  </h4>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="table table-zebra table-sm text-[10px] font-mono">
-                  <thead>
-                    <tr>
-                      {['#', 'Time', 'J', 'V', 'D', 'PF', 'PC', 'SD', '%', 'Pts'].map((h) => (
-                        <th
-                          key={h}
-                          className="text-left text-[8px] uppercase text-base-content/60 font-bold"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {standingsB.map((s, i) => {
-                      const team = sessionTeams.find((t) => t.id === s.teamId);
-                      const color = getTeamColor(s.teamId);
-                      return (
-                        <tr key={s.teamId}>
-                          <td>
-                            <span
-                              className={`font-bold ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
-                            >
-                              {i + 1}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                              <div>
-                                <span className="font-bold text-base-content uppercase truncate max-w-[100px] block">
-                                  {team?.name}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="text-base-content/60">{s.gamesPlayed}</td>
-                          <td className="text-green-400 font-bold">{s.wins}</td>
-                          <td className="text-red-400">{s.losses}</td>
-                          <td className="text-base-content">{s.pointsFor}</td>
-                          <td className="text-base-content/60">{s.pointsAgainst}</td>
-                          <td
-                            className={`font-bold ${s.pointDifference > 0 ? 'text-green-400' : s.pointDifference < 0 ? 'text-red-400' : 'text-base-content/60'}`}
-                          >
-                            {s.pointDifference > 0 ? '+' : ''}
-                            {s.pointDifference}
-                          </td>
-                          <td className="text-base-content/60">{s.winRate}%</td>
-                          <td className="text-accent font-bold text-sm">
-                            {s.classificationPoints}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="lg:col-span-2 card card-border bg-base-200 rounded-2xl overflow-hidden">
-            <div className="p-4 bg-base-300/50 border-b border-base-300 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-3.5 h-3.5 text-accent" />
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
-                  Classificação
-                </h4>
-              </div>
-              <span className="text-[10px] font-mono text-accent/60">
-                {progress.finished}/{progress.total} jogos
-              </span>
-            </div>
-            <p className="px-4 pt-3 text-[9px] font-bold uppercase text-base-content/60">
-              Critérios: pontos, vitórias, saldo, pontos pró, confronto direto e pontos contra.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="table table-zebra table-sm text-[10px] font-mono">
-                <thead>
-                  <tr>
-                    {['#', 'Time', 'J', 'V', 'D', 'PF', 'PC', 'SD', '%', 'Pts'].map((h) => (
-                      <th
-                        key={h}
-                        className="text-left text-[8px] uppercase text-base-content/60 font-bold"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.map((s, i) => {
-                    const team = sessionTeams.find((t) => t.id === s.teamId);
-                    const color = getTeamColor(s.teamId);
-                    return (
-                      <tr key={s.teamId}>
-                        <td>
-                          <span
-                            className={`font-bold ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
-                          >
-                            {i + 1}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                            <div>
-                              <span className="font-bold text-base-content uppercase truncate max-w-[100px] block">
-                                {team?.name}
-                              </span>
-                              {s.tieBreakerReason && (
-                                <span className="text-[7px] text-base-content/60 uppercase">
-                                  por {s.tieBreakerReason}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="text-base-content/60">{s.gamesPlayed}</td>
-                        <td className="text-green-400 font-bold">{s.wins}</td>
-                        <td className="text-red-400">{s.losses}</td>
-                        <td className="text-base-content">{s.pointsFor}</td>
-                        <td className="text-base-content/60">{s.pointsAgainst}</td>
-                        <td
-                          className={`font-bold ${s.pointDifference > 0 ? 'text-green-400' : s.pointDifference < 0 ? 'text-red-400' : 'text-base-content/60'}`}
-                        >
-                          {s.pointDifference > 0 ? '+' : ''}
-                          {s.pointDifference}
-                        </td>
-                        <td className="text-base-content/60">{s.winRate}%</td>
-                        <td className="text-accent font-bold text-sm">{s.classificationPoints}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Right: Schedule + Scorers */}
-        <div className="space-y-6">
-          {/* All matches */}
-          <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
-            <div className="p-4 bg-base-300/50 border-b border-base-300 flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5 text-base-content/60" />
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-base-content/60">
-                Tabela de Jogos
-              </h4>
-            </div>
-            <div className="sm:max-h-64 sm:overflow-y-auto p-2 space-y-1">
-              {Object.entries(gamesByRound).map(([round, roundGames]) => (
-                <div key={round} className="space-y-1">
-                  <p className="px-2 pt-2 pb-1 text-[8px] font-bold uppercase tracking-widest text-accent/70">
-                    Rodada {round}
-                  </p>
-                  {roundGames.map((g) => {
-                    const isActive = g.status === 'active' || g.status === 'paused';
-                    const isDone = g.status === 'finished' || g.status === 'walkover';
-                    const isCancelled = g.status === 'cancelled';
-                    const statusLabel =
-                      g.status === 'active' ? 'Em jogo' : g.status === 'paused' ? 'Pausado' : null;
-                    return (
-                      <div
-                        key={g.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${isActive ? 'bg-primary/15 border border-primary/30' : isCancelled ? 'opacity-50 bg-red-950/15' : 'hover:bg-base-300/50'}`}
-                      >
-                        <div className="flex flex-col items-start shrink-0 min-w-[50px]">
-                          <span className="text-[8px] font-mono text-base-content/60">
-                            #{g.sequenceNumber}
-                          </span>
-                          {statusLabel && (
-                            <span
-                              className={`mt-1 badge badge-xs font-bold uppercase tracking-wider ${
-                                g.status === 'paused'
-                                  ? 'badge-warning badge-soft'
-                                  : 'badge-primary badge-soft'
-                              }`}
-                            >
-                              {statusLabel}
-                            </span>
-                          )}
-                          {g.stage && g.stage !== 'group' && (
-                            <span className="text-[6px] font-bold uppercase text-accent leading-none mt-0.5">
-                              {g.stage === 'semifinal'
-                                ? 'Semi'
-                                : g.stage === 'third_place'
-                                  ? '3º Lugar'
-                                  : 'Final'}
-                            </span>
-                          )}
-                          {g.groupId && (
-                            <span className="text-[6px] font-bold uppercase text-base-content/40 leading-none mt-0.5">
-                              Grupo {g.groupId}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1 flex items-center gap-1 justify-center">
-                          <span
-                            className={`text-[9px] font-bold uppercase truncate max-w-[55px] ${g.winnerTeamId === g.teamAId ? 'text-base-content' : 'text-base-content/60'}`}
-                          >
-                            {getTeamDisplayName(g.teamAId, sessionTeams)}
-                          </span>
-                          {isDone ? (
-                            <div className="flex flex-col items-center">
-                              <span className="text-[9px] font-bold font-mono text-accent mx-1 leading-none">
-                                {g.scoreA}×{g.scoreB}
-                              </span>
-                              {g.sets && g.sets.length > 0 && (
-                                <span className="text-[7px] text-base-content/50 font-mono mt-0.5 scale-90 whitespace-nowrap">
-                                  ({g.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[8px] text-base-content/40 mx-1">vs</span>
-                          )}
-                          <span
-                            className={`text-[9px] font-bold uppercase truncate max-w-[55px] ${g.winnerTeamId === g.teamBId ? 'text-base-content' : 'text-base-content/60'}`}
-                          >
-                            {getTeamDisplayName(g.teamBId, sessionTeams)}
-                          </span>
-                        </div>
-                        <div className="shrink-0">
-                          {g.status === 'active' && (
-                            <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
-                          )}
-                          {g.status === 'paused' && <Pause className="w-3.5 h-3.5 text-warning" />}
-                          {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
-                          {g.status === 'scheduled' && (
-                            <Clock className="w-3.5 h-3.5 text-base-content/30" />
-                          )}
-                          {isCancelled && <XCircle className="w-3.5 h-3.5 text-red-500" />}
-                        </div>
-                        <GameActions
-                          game={g}
-                          teamAName={getTeamDisplayName(g.teamAId, sessionTeams)}
-                          teamBName={getTeamDisplayName(g.teamBId, sessionTeams)}
-                          onStart={() => startNextGame(setActiveSession)}
-                          onShare={() => shareGameToWhatsApp(g.id)}
-                          onCopy={async () => {
-                            const ok = await copyGameToClipboard(g.id);
-                            if (ok) alert('Copiado!');
-                          }}
-                          onWalkoverA={() => registerWalkover(g.id, g.teamAId)}
-                          onWalkoverB={() => registerWalkover(g.id, g.teamBId)}
-                          onCancel={() => cancelGame(g.id)}
-                          onReopen={() => reopenGame(g.id)}
-                          onPause={() => pauseGame(g.id, g.status === 'active')}
-                          onEditScore={(scoreA, scoreB) => updateFinalScore(g.id, scoreA, scoreB)}
-                          onMoveUp={() => reorderScheduledGame(g.id, 'up')}
-                          onMoveDown={() => reorderScheduledGame(g.id, 'down')}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Top scorers */}
-          <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
-            <div className="p-4 bg-base-300/50 border-b border-base-300 flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-accent" />
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-base-content/60">
-                Artilheiros
-              </h4>
-            </div>
-            <div className="p-2 space-y-1">
-              {scoringRanking.slice(0, 5).map((rank, i) => {
-                const p = players.find((pl) => pl.id === rank.playerId);
-                return (
-                  <div
-                    key={rank.playerId}
-                    className="flex items-center justify-between p-2 rounded hover:bg-base-300/50 transition-colors gap-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[9px] font-bold w-4 ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
-                      >
-                        {i + 1}º
-                      </span>
-                      <span className="text-[10px] font-bold text-base-content">
-                        {p?.apelido || p?.nome || '—'}
-                      </span>
-                    </div>
-                    <span className="font-mono font-bold text-base-content text-sm">
-                      {rank.points}
-                    </span>
-                  </div>
-                );
-              })}
-              {scoringRanking.length === 0 && (
-                <p className="text-center py-6 text-[9px] text-base-content/60 italic uppercase opacity-40">
-                  Sem pontuação individual ainda.
-                </p>
-              )}
-            </div>
-          </div>
+      {/* Telemetry Tabs Navigation */}
+      <div className="card card-border bg-base-200 p-2 rounded-2xl border-base-300">
+        <div className="flex flex-wrap gap-1.5 py-0.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab('standings')}
+            className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+              activeTab === 'standings'
+                ? 'btn-primary shadow-lg shadow-primary/20'
+                : 'btn-ghost text-base-content/70 hover:text-base-content'
+            }`}
+          >
+            <Trophy className="w-4 h-4 text-accent" />
+            Classificação
+          </button>
+          {(format === 'knockout' || format === 'groups_knockout') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('bracket')}
+              className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+                activeTab === 'bracket'
+                  ? 'btn-primary shadow-lg shadow-primary/20'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              <Zap className="w-4 h-4 text-warning" />
+              Chaves Mata-Mata
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('schedule')}
+            className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+              activeTab === 'schedule'
+                ? 'btn-primary shadow-lg shadow-primary/20'
+                : 'btn-ghost text-base-content/70 hover:text-base-content'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-info" />
+            Tabela de Jogos ({progress.finished}/{progress.total})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('scorers')}
+            className={`btn btn-sm font-bold uppercase tracking-wider min-h-[44px] px-4 rounded-xl flex items-center gap-2 flex-1 transition-all ${
+              activeTab === 'scorers'
+                ? 'btn-primary shadow-lg shadow-primary/20'
+                : 'btn-ghost text-base-content/70 hover:text-base-content'
+            }`}
+          >
+            <Zap className="w-4 h-4 text-accent" />
+            Artilharia & Prêmios
+          </button>
         </div>
       </div>
 
-      {mvp && (
-        <div className="card card-border bg-base-200 p-5 rounded-2xl border-accent/20">
-          <h4 className="text-[10px] font-bold uppercase text-accent mb-3 flex items-center gap-2">
-            <Zap className="w-3.5 h-3.5" /> MVP parcial
-          </h4>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-bold text-base-content">{mvp.playerName}</p>
-              <p className="text-[10px] text-base-content/60 uppercase">
-                {mvp.teamName || 'Time'} | destaque: {mvp.topReason} | vitórias do time:{' '}
-                {mvp.teamWinRate}%
-              </p>
-            </div>
-            <p className="font-mono text-xl font-bold text-accent">{mvp.totalPoints} pts</p>
-          </div>
-        </div>
+      {/* Tab Panels */}
+      {activeTab === 'bracket' && (format === 'knockout' || format === 'groups_knockout') && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <TournamentBracket games={sessionGames} teams={sessionTeams} />
+        </motion.div>
       )}
 
-      <AwardsPanel awards={awards} sessionName={activeSession.name} title="Premiação Parcial" />
+      {activeTab === 'standings' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {format === 'groups_knockout' || format === 'group_stage' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Grupo A Standings */}
+              <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
+                <div className="p-4 bg-base-300/50 border-b border-base-300 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-3.5 h-3.5 text-accent" />
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
+                      Classificação - Grupo A
+                    </h4>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="table table-zebra table-sm text-[10px] font-mono">
+                    <thead>
+                      <tr>
+                        {['#', 'Time', 'J', 'V', 'D', 'PF', 'PC', 'SD', '%', 'Pts'].map((h) => (
+                          <th
+                            key={h}
+                            className="text-left text-[8px] uppercase text-base-content/60 font-bold"
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {standingsA.map((s, i) => {
+                        const team = sessionTeams.find((t) => t.id === s.teamId);
+                        const color = getTeamColor(s.teamId);
+                        return (
+                          <tr key={s.teamId}>
+                            <td>
+                              <span
+                                className={`font-bold ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
+                              >
+                                {i + 1}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ background: color }}
+                                />
+                                <div>
+                                  <span className="font-bold text-base-content uppercase truncate max-w-[100px] block">
+                                    {team?.name}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-base-content/60">{s.gamesPlayed}</td>
+                            <td className="text-green-400 font-bold">{s.wins}</td>
+                            <td className="text-red-400">{s.losses}</td>
+                            <td className="text-base-content">{s.pointsFor}</td>
+                            <td className="text-base-content/60">{s.pointsAgainst}</td>
+                            <td
+                              className={`font-bold ${s.pointDifference > 0 ? 'text-green-400' : s.pointDifference < 0 ? 'text-red-400' : 'text-base-content/60'}`}
+                            >
+                              {s.pointDifference > 0 ? '+' : ''}
+                              {s.pointDifference}
+                            </td>
+                            <td className="text-base-content/60">{s.winRate}%</td>
+                            <td className="text-accent font-bold text-sm">
+                              {s.classificationPoints}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Grupo B Standings */}
+              <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
+                <div className="p-4 bg-base-300/50 border-b border-base-300 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-3.5 h-3.5 text-accent" />
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
+                      Classificação - Grupo B
+                    </h4>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="table table-zebra table-sm text-[10px] font-mono">
+                    <thead>
+                      <tr>
+                        {['#', 'Time', 'J', 'V', 'D', 'PF', 'PC', 'SD', '%', 'Pts'].map((h) => (
+                          <th
+                            key={h}
+                            className="text-left text-[8px] uppercase text-base-content/60 font-bold"
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {standingsB.map((s, i) => {
+                        const team = sessionTeams.find((t) => t.id === s.teamId);
+                        const color = getTeamColor(s.teamId);
+                        return (
+                          <tr key={s.teamId}>
+                            <td>
+                              <span
+                                className={`font-bold ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
+                              >
+                                {i + 1}
+                              </span>
+                            </td>
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ background: color }}
+                                />
+                                <div>
+                                  <span className="font-bold text-base-content uppercase truncate max-w-[100px] block">
+                                    {team?.name}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-base-content/60">{s.gamesPlayed}</td>
+                            <td className="text-green-400 font-bold">{s.wins}</td>
+                            <td className="text-red-400">{s.losses}</td>
+                            <td className="text-base-content">{s.pointsFor}</td>
+                            <td className="text-base-content/60">{s.pointsAgainst}</td>
+                            <td
+                              className={`font-bold ${s.pointDifference > 0 ? 'text-green-400' : s.pointDifference < 0 ? 'text-red-400' : 'text-base-content/60'}`}
+                            >
+                              {s.pointDifference > 0 ? '+' : ''}
+                              {s.pointDifference}
+                            </td>
+                            <td className="text-base-content/60">{s.winRate}%</td>
+                            <td className="text-accent font-bold text-sm">
+                              {s.classificationPoints}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
+              <div className="p-4 bg-base-300/50 border-b border-base-300 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-3.5 h-3.5 text-accent" />
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent">
+                    Classificação Geral
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono text-accent/60">
+                  {progress.finished}/{progress.total} jogos
+                </span>
+              </div>
+              <p className="px-4 pt-3 text-[9px] font-bold uppercase text-base-content/60">
+                Critérios: pontos, vitórias, saldo, pontos pró, confronto direto e pontos contra.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="table table-zebra table-sm text-[10px] font-mono">
+                  <thead>
+                    <tr>
+                      {['#', 'Time', 'J', 'V', 'D', 'PF', 'PC', 'SD', '%', 'Pts'].map((h) => (
+                        <th
+                          key={h}
+                          className="text-left text-[8px] uppercase text-base-content/60 font-bold"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standings.map((s, i) => {
+                      const team = sessionTeams.find((t) => t.id === s.teamId);
+                      const color = getTeamColor(s.teamId);
+                      return (
+                        <tr key={s.teamId}>
+                          <td>
+                            <span
+                              className={`font-bold ${i === 0 ? 'text-accent' : 'text-base-content/60'}`}
+                            >
+                              {i + 1}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                              <div>
+                                <span className="font-bold text-base-content uppercase truncate max-w-[100px] block">
+                                  {team?.name}
+                                </span>
+                                {s.tieBreakerReason && (
+                                  <span className="text-[7px] text-base-content/60 uppercase">
+                                    por {s.tieBreakerReason}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="text-base-content/60">{s.gamesPlayed}</td>
+                          <td className="text-green-400 font-bold">{s.wins}</td>
+                          <td className="text-red-400">{s.losses}</td>
+                          <td className="text-base-content">{s.pointsFor}</td>
+                          <td className="text-base-content/60">{s.pointsAgainst}</td>
+                          <td
+                            className={`font-bold ${s.pointDifference > 0 ? 'text-green-400' : s.pointDifference < 0 ? 'text-red-400' : 'text-base-content/60'}`}
+                          >
+                            {s.pointDifference > 0 ? '+' : ''}
+                            {s.pointDifference}
+                          </td>
+                          <td className="text-base-content/60">{s.winRate}%</td>
+                          <td className="text-accent font-bold text-sm">
+                            {s.classificationPoints}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {activeTab === 'schedule' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card card-border bg-base-200 rounded-2xl overflow-hidden"
+        >
+          <div className="p-4 bg-base-300/50 border-b border-base-300 flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-base-content/60" />
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-base-content/60">
+              Tabela Completa de Jogos
+            </h4>
+          </div>
+          <div className="p-2 space-y-1">
+            {Object.entries(gamesByRound).map(([round, roundGames]) => (
+              <div key={round} className="space-y-1">
+                <p className="px-2 pt-2 pb-1 text-[8px] font-bold uppercase tracking-widest text-accent/70">
+                  Rodada {round}
+                </p>
+                {roundGames.map((g) => {
+                  const isActive = g.status === 'active' || g.status === 'paused';
+                  const isDone = g.status === 'finished' || g.status === 'walkover';
+                  const isCancelled = g.status === 'cancelled';
+                  const statusLabel =
+                    g.status === 'active' ? 'Em jogo' : g.status === 'paused' ? 'Pausado' : null;
+                  return (
+                    <div
+                      key={g.id}
+                      className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors ${isActive ? 'bg-primary/15 border border-primary/30' : isCancelled ? 'opacity-50 bg-red-950/15' : 'hover:bg-base-300/50'}`}
+                    >
+                      <div className="flex flex-col items-start shrink-0 min-w-[50px]">
+                        <span className="text-[8px] font-mono text-base-content/60">
+                          #{g.sequenceNumber}
+                        </span>
+                        {statusLabel && (
+                          <span
+                            className={`mt-1 badge badge-xs font-bold uppercase tracking-wider ${
+                              g.status === 'paused'
+                                ? 'badge-warning badge-soft'
+                                : 'badge-primary badge-soft'
+                            }`}
+                          >
+                            {statusLabel}
+                          </span>
+                        )}
+                        {g.stage && g.stage !== 'group' && (
+                          <span className="text-[6px] font-bold uppercase text-accent leading-none mt-0.5">
+                            {g.stage === 'semifinal'
+                              ? 'Semi'
+                              : g.stage === 'third_place'
+                                ? '3º Lugar'
+                                : 'Final'}
+                          </span>
+                        )}
+                        {g.groupId && (
+                          <span className="text-[6px] font-bold uppercase text-base-content/40 leading-none mt-0.5">
+                            Grupo {g.groupId}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 flex items-center gap-1 justify-center">
+                        <span
+                          className={`text-[10px] font-bold uppercase truncate max-w-[80px] ${g.winnerTeamId === g.teamAId ? 'text-base-content' : 'text-base-content/60'}`}
+                        >
+                          {getTeamDisplayName(g.teamAId, sessionTeams)}
+                        </span>
+                        {isDone ? (
+                          <div className="flex flex-col items-center">
+                            <span className="text-[10px] font-bold font-mono text-accent mx-1.5 leading-none">
+                              {g.scoreA}×{g.scoreB}
+                            </span>
+                            {g.sets && g.sets.length > 0 && (
+                              <span className="text-[7px] text-base-content/50 font-mono mt-0.5 scale-90 whitespace-nowrap">
+                                ({g.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(', ')})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[9px] text-base-content/40 mx-1 font-bold">vs</span>
+                        )}
+                        <span
+                          className={`text-[10px] font-bold uppercase truncate max-w-[80px] ${g.winnerTeamId === g.teamBId ? 'text-base-content' : 'text-base-content/60'}`}
+                        >
+                          {getTeamDisplayName(g.teamBId, sessionTeams)}
+                        </span>
+                      </div>
+                      <div className="shrink-0">
+                        {g.status === 'active' && (
+                          <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+                        )}
+                        {g.status === 'paused' && <Pause className="w-3.5 h-3.5 text-warning" />}
+                        {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
+                        {g.status === 'scheduled' && (
+                          <Clock className="w-3.5 h-3.5 text-base-content/30" />
+                        )}
+                        {isCancelled && <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                      </div>
+                      <GameActions
+                        game={g}
+                        teamAName={getTeamDisplayName(g.teamAId, sessionTeams)}
+                        teamBName={getTeamDisplayName(g.teamBId, sessionTeams)}
+                        onStart={() => startNextGame(setActiveSession)}
+                        onShare={() => shareGameToWhatsApp(g.id)}
+                        onCopy={async () => {
+                          const ok = await copyGameToClipboard(g.id);
+                          if (ok) alert('Copiado!');
+                        }}
+                        onWalkoverA={() => registerWalkover(g.id, g.teamAId)}
+                        onWalkoverB={() => registerWalkover(g.id, g.teamBId)}
+                        onCancel={() => cancelGame(g.id)}
+                        onReopen={() => reopenGame(g.id)}
+                        onPause={() => pauseGame(g.id, g.status === 'active')}
+                        onEditScore={(scoreA, scoreB) => updateFinalScore(g.id, scoreA, scoreB)}
+                        onMoveUp={() => reorderScheduledGame(g.id, 'up')}
+                        onMoveDown={() => reorderScheduledGame(g.id, 'down')}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {activeTab === 'scorers' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Top scorers */}
+            <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
+              <div className="p-4 bg-base-300/50 border-b border-base-300 flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-accent" />
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-base-content/60">
+                  Ranking de Artilharia
+                </h4>
+              </div>
+              <div className="p-3 space-y-1.5">
+                {scoringRanking.map((rank, i) => {
+                  const p = players.find((pl) => pl.id === rank.playerId);
+                  return (
+                    <div
+                      key={rank.playerId}
+                      className="flex items-center justify-between p-2.5 rounded-xl hover:bg-base-300/50 transition-colors gap-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-[10px] font-bold w-5 ${i === 0 ? 'text-accent' : i === 1 ? 'text-secondary' : i === 2 ? 'text-warning' : 'text-base-content/60'}`}
+                        >
+                          {i + 1}º
+                        </span>
+                        <span className="text-xs font-bold text-base-content">
+                          {p?.apelido || p?.nome || '—'}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-accent text-base">
+                        {rank.points} pts
+                      </span>
+                    </div>
+                  );
+                })}
+                {scoringRanking.length === 0 && (
+                  <p className="text-center py-6 text-[9px] text-base-content/60 italic uppercase opacity-40">
+                    Sem pontuação individual ainda.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* MVP Card */}
+            {mvp && (
+              <div className="card card-border bg-base-200 p-5 rounded-2xl border-accent/20 flex flex-col justify-between">
+                <h4 className="text-[10px] font-bold uppercase text-accent mb-3 flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-accent" /> MVP Parcial do Torneio
+                </h4>
+                <div className="flex items-center gap-4 p-4 bg-accent/10 rounded-xl border border-accent/20 flex-1">
+                  <div className="text-3xl">⚡</div>
+                  <div>
+                    <p className="font-bold text-lg text-white leading-none mb-1">
+                      {mvp.playerName}
+                    </p>
+                    <p className="text-[10px] text-base-content/60 uppercase font-bold">
+                      {mvp.teamName || 'Time'}
+                    </p>
+                    <p className="text-[10px] text-base-content/60 uppercase mt-1 leading-relaxed">
+                      Destaque principal:{' '}
+                      <span className="text-accent font-bold">{mvp.topReason}</span> <br />
+                      Vitórias da equipe: {mvp.teamWinRate}%
+                    </p>
+                    <p className="text-xs font-mono font-bold text-accent mt-2">
+                      {mvp.totalPoints} Pontos Registrados
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <AwardsPanel awards={awards} sessionName={activeSession.name} title="Premiação Parcial" />
+        </motion.div>
+      )}
 
       {/* Point log */}
       <div className="card card-border bg-base-200 rounded-2xl overflow-hidden">
@@ -1275,7 +1368,7 @@ function GameActions({
             onClick={() => {
               if (confirm('Reabrir este jogo?')) onReopen();
             }}
-            className="btn btn-xs btn-blue-500/10 text-blue-400 font-bold uppercase"
+            className="btn btn-xs btn-outline btn-info font-bold uppercase"
           >
             Reabrir
           </button>

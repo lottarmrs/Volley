@@ -63,7 +63,7 @@ export function ShareActions({
       {variant === 'menu' ? (
         <div className="dropdown dropdown-end">
           <button type="button" className="btn btn-outline btn-sm">
-            <Share2 className="w-4 h-4" /> Acoes
+            <Share2 className="w-4 h-4" /> Ações
           </button>
           <ul className="menu dropdown-content bg-base-200 rounded-box z-20 mt-2 w-56 p-2 shadow-xl border border-base-300">
             <li>

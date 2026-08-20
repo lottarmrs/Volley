@@ -89,6 +89,15 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     sourceTeamId: string;
   } | null>(null);
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage((current) => (current === message ? null : current));
+    }, 3000);
+  };
+
   useEffect(() => {
     if (activeSession?.communityId) {
       setCommunityFilter(activeSession.communityId);
@@ -113,7 +122,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
       playerPositions,
     });
     const ok = await copyToClipboard(text);
-    if (ok) alert('Sorteio copiado!');
+    if (ok) showToast('Sorteio copiado com sucesso!');
   };
 
   const handleShareSchedule = () => {
@@ -192,7 +201,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     ].join('\n');
 
     const ok = await copyToClipboard(text);
-    if (ok) alert('Tabela copiada!');
+    if (ok) showToast('Tabela de jogos copiada!');
   };
 
   const filteredPlayers = useMemo(() => {
@@ -327,7 +336,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     isLocked?: boolean,
   ) => {
     if (isLocked) {
-      alert('Este atleta está fixado e não pode ser movido.');
+      showToast('Atleta fixado: remova o bloqueio para mover.');
       return;
     }
 
@@ -359,8 +368,8 @@ export function SessionWizard({ contract }: SessionWizardProps) {
         const nextTargetSize = targetTeam.playerIds.length + 1;
         const nextSourceSize = sourceTeam.playerIds.length - 1;
         if (nextTargetSize - nextSourceSize > 1) {
-          alert(
-            'Não é possível mover: os times precisam manter a mesma quantidade de atletas (ou diferença máxima de 1). Use a troca de atletas.',
+          showToast(
+            'Limite de tamanho: os times precisam manter tamanho equilibrado (diferença máxima 1).',
           );
           return;
         }
@@ -381,7 +390,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     const targetPlayerIsLocked =
       activeSession?.config?.balanceConstraints?.lockedPlayerIdxs?.[targetPlayerId] !== undefined;
     if (targetPlayerIsLocked) {
-      alert('Este atleta está fixado e não pode ser movido.');
+      showToast('Atleta destino fixado: remova o bloqueio para trocar.');
       return;
     }
 
@@ -557,75 +566,47 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               ))}
             </div>
 
-            {/* Filters Card */}
-            <div className="card card-border bg-base-200">
-              <div className="card-body p-5 space-y-4">
-                {/* Search & Selector Dropdowns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Search Input */}
-                  <label className="input input-bordered flex items-center gap-2 w-full">
-                    <Search className="w-4 h-4 opacity-70" />
+            {/* Distilled Filters & Quick Action Bar */}
+            <div className="card card-border bg-base-200 overflow-hidden">
+              <div className="p-4 space-y-3">
+                {/* Search Bar & Primary Action */}
+                <div className="flex gap-2 items-center">
+                  <label className="input input-bordered flex items-center gap-2 flex-1 min-h-[44px]">
+                    <Search className="w-4 h-4 opacity-70 text-primary" />
                     <input
                       type="text"
                       value={playerSearch}
                       onChange={(e) => setPlayerSearch(e.target.value)}
                       placeholder="Buscar atleta por nome..."
-                      className="grow text-xs"
+                      className="grow text-xs font-medium"
                     />
+                    {playerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPlayerSearch('')}
+                        className="btn btn-ghost btn-xs btn-circle"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </label>
-
-                  {/* Dropdowns */}
-                  <div className="flex flex-wrap sm:flex-nowrap gap-3">
-                    {/* Position Filter */}
-                    <div className="flex-1 min-w-[130px] fieldset">
-                      <label className="fieldset-legend text-[9px] font-bold uppercase text-text-muted">
-                        Posição
-                      </label>
-                      <select
-                        value={positionFilter}
-                        onChange={(e) => setPositionFilter(e.target.value as 'all' | Position)}
-                        className="select select-bordered w-full select-sm uppercase text-[10px]"
-                      >
-                        <option value="all">Todas</option>
-                        <option value="levantador">Levantador</option>
-                        <option value="oposto">Oposto</option>
-                        <option value="ponteiro">Ponteiro</option>
-                        <option value="central">Central</option>
-                        <option value="libero">Líbero</option>
-                        <option value="all-rounder">Coringa</option>
-                      </select>
-                    </div>
-
-                    {/* Community Filter */}
-                    <div className="flex-1 min-w-[130px] fieldset">
-                      <label className="fieldset-legend text-[9px] font-bold uppercase text-text-muted">
-                        Comunidade
-                      </label>
-                      <select
-                        value={communityFilter}
-                        onChange={(e) => setCommunityFilter(e.target.value)}
-                        disabled={communities.length === 0}
-                        className="select select-bordered w-full select-sm uppercase text-[10px]"
-                      >
-                        <option value="all">Todas</option>
-                        {communities.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowGuestModal(true)}
+                    className="btn btn-primary min-h-[44px] px-4 font-bold uppercase text-xs tracking-wider shrink-0"
+                  >
+                    + Convidado
+                  </button>
                 </div>
 
-                {/* Segmented Button Filters & Quick Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-base-300">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* Gender Filter */}
-                    <div className="join">
+                {/* Filter Pills Row */}
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-base-300">
+                  <div className="flex flex-wrap items-center gap-2 py-1 max-w-full">
+                    {/* Gender Filter Pills */}
+                    <div className="join bg-base-300/40 p-1 rounded-lg border border-base-300 shrink-0">
                       {(
                         [
-                          ['all', 'Todos Gêneros'],
+                          ['all', 'Todos'],
                           ['M', 'Masc'],
                           ['F', 'Fem'],
                         ] as const
@@ -634,43 +615,64 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                           key={g}
                           type="button"
                           onClick={() => setGenderFilter(g)}
-                          className={`btn btn-xs join-item ${genderFilter === g ? 'btn-active btn-neutral' : 'btn-ghost'}`}
+                          className={`btn btn-xs join-item font-bold uppercase tracking-wider ${
+                            genderFilter === g ? 'btn-primary' : 'btn-ghost text-base-content/60'
+                          }`}
                         >
                           {label}
                         </button>
                       ))}
                     </div>
 
-                    {/* Status Filter */}
-                    <div className="join">
-                      {(
-                        [
-                          ['all', 'Todos Status'],
-                          ['active', 'Saudáveis'],
-                          ['injured', 'Lesionados'],
-                        ] as const
-                      ).map(([s, label]) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setStatusFilter(s)}
-                          className={`btn btn-xs join-item ${statusFilter === s ? 'btn-active btn-neutral' : 'btn-ghost'}`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                    {/* Position Selector */}
+                    <select
+                      value={positionFilter}
+                      onChange={(e) => setPositionFilter(e.target.value as 'all' | Position)}
+                      className="select select-bordered select-xs uppercase font-bold text-[10px] min-h-[32px] rounded-lg shrink-0"
+                    >
+                      <option value="all">Todas Posições</option>
+                      <option value="levantador">Levantador</option>
+                      <option value="oposto">Oposto</option>
+                      <option value="ponteiro">Ponteiro</option>
+                      <option value="central">Central</option>
+                      <option value="libero">Líbero</option>
+                      <option value="all-rounder">Coringa</option>
+                    </select>
 
-                  {/* Quick Actions */}
-                  <div className="flex items-center gap-2">
+                    {/* Community Selector */}
+                    {communities.length > 0 && (
+                      <select
+                        value={communityFilter}
+                        onChange={(e) => setCommunityFilter(e.target.value)}
+                        className="select select-bordered select-xs uppercase font-bold text-[10px] min-h-[32px] rounded-lg shrink-0 max-w-[140px]"
+                      >
+                        <option value="all">Todas Comunidades</option>
+                        {communities.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* Status Toggle Pill */}
                     <button
                       type="button"
-                      onClick={() => setShowGuestModal(true)}
-                      className="btn btn-xs btn-primary font-bold uppercase"
+                      onClick={() =>
+                        setStatusFilter((prev) => (prev === 'injured' ? 'all' : 'injured'))
+                      }
+                      className={`btn btn-xs font-bold uppercase tracking-wider rounded-lg shrink-0 ${
+                        statusFilter === 'injured'
+                          ? 'btn-error'
+                          : 'btn-ghost text-base-content/60 border border-base-300'
+                      }`}
                     >
-                      + Convidado
+                      {statusFilter === 'injured' ? '⚠️ Só Lesionados' : 'Lesionados'}
                     </button>
+                  </div>
+
+                  {/* Batch Selection Controls */}
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -798,9 +800,9 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                   </div>
                   <div>
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <h4 className="card-title font-bold uppercase text-lg text-base-content">
+                      <h3 className="card-title font-bold uppercase text-lg text-base-content">
                         Jogo Livre
-                      </h4>
+                      </h3>
                       <span className="badge badge-accent badge-sm uppercase font-bold">
                         Recomendado
                       </span>
@@ -853,9 +855,9 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                   </div>
                   <div>
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <h4 className="card-title font-bold uppercase text-lg text-base-content">
+                      <h3 className="card-title font-bold uppercase text-lg text-base-content">
                         Torneio
-                      </h4>
+                      </h3>
                       <span className="badge badge-primary badge-sm uppercase font-bold">Novo</span>
                     </div>
                     <p className="text-xs text-text-muted uppercase font-bold leading-relaxed max-w-xs mx-auto">
@@ -1167,15 +1169,15 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                           [
                             {
                               id: 'direct_3',
-                              icon: <Target className="w-3.5 h-3.5" />,
+                              icon: <Target className="w-3.5 h-3.5 text-accent" />,
                               label: '3 Direto',
-                              tip: 'Quando empatar perto do ponto final, joga até 3 pontos extras.',
+                              tip: 'Empate no set point encerra ao abrir 3 pontos extras ou atingir o limite.',
                             },
                             {
                               id: 'win_by_2',
-                              icon: <Scale className="w-3.5 h-3.5" />,
-                              label: 'Vai a 2',
-                              tip: 'O jogo só termina quando um time abrir 2 pontos de vantagem.',
+                              icon: <Scale className="w-3.5 h-3.5 text-primary" />,
+                              label: 'Vai a 2 (Vantagem)',
+                              tip: 'Set point exige 2 pontos consecutivos de vantagem para finalizar.',
                             },
                           ] as const
                         ).map((m) => (
@@ -1510,9 +1512,9 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                                   },
                                 })
                               }
-                              className={`btn btn-sm text-left h-auto block p-2 ${activeSession.config?.balanceMode === m.id || (!activeSession.config?.balanceMode && m.id === 'balanced') ? 'btn-accent' : 'btn-neutral'}`}
+                              className={`btn btn-sm text-left min-h-[44px] flex flex-col justify-center p-2.5 rounded-xl transition-all ${activeSession.config?.balanceMode === m.id || (!activeSession.config?.balanceMode && m.id === 'balanced') ? 'btn-accent shadow-md shadow-accent/20' : 'btn-neutral'}`}
                             >
-                              <span className="text-[9px] font-bold uppercase block">
+                              <span className="text-[9px] font-bold uppercase block leading-tight">
                                 {m.label}
                               </span>
                               <span className="text-[7px] lowercase opacity-70 block mt-0.5 leading-none">
@@ -1557,11 +1559,13 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                                   },
                                 })
                               }
-                              className={`btn btn-sm text-left h-auto block p-2 ${
-                                rotationType === r.id ? 'btn-accent' : 'btn-neutral'
+                              className={`btn btn-sm text-left min-h-[44px] flex flex-col justify-center p-2.5 rounded-xl transition-all ${
+                                rotationType === r.id
+                                  ? 'btn-accent shadow-md shadow-accent/20'
+                                  : 'btn-neutral'
                               }`}
                             >
-                              <span className="text-[9px] font-bold uppercase block">
+                              <span className="text-[9px] font-bold uppercase block leading-tight">
                                 {r.label}
                               </span>
                               <span className="text-[7px] lowercase opacity-70 block mt-0.5 leading-none">
@@ -2432,17 +2436,22 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={handleShareSchedule}
-                      className="btn btn-sm btn-success btn-soft text-success"
+                      className="btn btn-sm btn-success btn-soft text-success min-h-[44px] px-3 font-bold uppercase tracking-wider flex items-center gap-1.5"
                     >
-                      <Share2 className="w-3.5 h-3.5" />{' '}
+                      <Share2 className="w-4 h-4" />{' '}
                       <span className="hidden sm:inline">Compartilhar Tabela</span>
                     </button>
-                    <button onClick={handleCopySchedule} className="btn btn-sm btn-outline">
-                      <Copy className="w-3.5 h-3.5" />{' '}
+                    <button
+                      type="button"
+                      onClick={handleCopySchedule}
+                      className="btn btn-sm btn-outline min-h-[44px] px-3 font-bold uppercase tracking-wider flex items-center gap-1.5"
+                    >
+                      <Copy className="w-4 h-4" />{' '}
                       <span className="hidden sm:inline">Copiar Tabela</span>
                     </button>
-                    <Trophy className="w-5 h-5 text-accent" />
+                    <Trophy className="w-5 h-5 text-accent shrink-0 ml-1" />
                   </div>
                 </div>
 
@@ -2513,15 +2522,16 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               <button
                 type="button"
                 onClick={() => dispatch({ kind: 'prev' })}
-                className="btn btn-ghost flex-1 text-xs"
+                className="btn btn-ghost flex-1 text-xs font-bold uppercase tracking-wider min-h-[44px]"
               >
                 Voltar aos times
               </button>
               <button
+                type="button"
                 onClick={() => dispatch({ kind: 'startGeneratedTournament' })}
-                className="btn btn-primary flex-[2]"
+                className="btn btn-primary flex-[2] font-bold uppercase tracking-wider min-h-[44px] shadow-lg shadow-primary/20"
               >
-                Iniciar torneio
+                Iniciar Torneio
               </button>
             </div>
           </div>
@@ -2897,6 +2907,20 @@ export function SessionWizard({ contract }: SessionWizardProps) {
         }
         defaultCommunityId={activeSession?.communityId}
       />
+
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-base-300/90 text-base-content border border-accent/40 backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-wider"
+          >
+            <Sparkles className="w-4 h-4 text-accent animate-pulse" />
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

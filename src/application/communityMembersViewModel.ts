@@ -52,6 +52,19 @@ export const COMMUNITY_ROLE_LABELS: Record<CommunityMemberRole, string> = {
   member: 'Membro',
 };
 
+/**
+ * O que cada papel passa a poder fazer. Serve à confirmação de troca de papel:
+ * "Admin" não diz nada a quem está decidindo; poder aprovar membro e editar
+ * regras, sim.
+ */
+export const COMMUNITY_ROLE_POWERS: Record<CommunityMemberRole, string> = {
+  owner: 'Controla tudo, inclusive excluir a comunidade e limpar o histórico.',
+  admin: 'Pode gerenciar membros, editar as regras e avaliar atletas.',
+  moderator: 'Pode aprovar quem pede para entrar e criar sessões.',
+  organizador: 'Pode criar sessões e tocar a pelada.',
+  member: 'Participa da comunidade, sem poder de administração.',
+};
+
 export const COMMUNITY_ROLE_BADGE_CLASSES: Record<CommunityMemberRole, string> = {
   owner: 'badge-primary',
   admin: 'badge-accent badge-soft',

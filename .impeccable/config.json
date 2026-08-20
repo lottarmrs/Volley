@@ -1,0 +1,30 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-08-17T18:12:20.984Z",
+        "reason": "DESIGN.md Typography names Inter explicitly as the display/body face, pareada com JetBrains Mono para numerais; escolha documentada do projeto, nao drift"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "src/index.css"
+        ],
+        "createdAt": "2026-08-17T18:12:34.197Z",
+        "reason": "A classe e .vut-style-court-floor: textura do piso de uma quadra de volei no card VUT, ou seja, a superficie literal que a regra isenta"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "animate-bounce",
+        "createdAt": "2026-08-20T17:13:57.762Z",
+        "reason": "Falso positivo: em src/index.css a string aparece como seletor dentro de @media (prefers-reduced-motion: reduce) declarando animation:none — a regra desliga o salto, nao o aplica. O unico uso real de animate-bounce (VutRevealModal) foi removido nesta sessao."
+      }
+    ]
+  }
+}

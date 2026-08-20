@@ -4,6 +4,7 @@ import {
   buildSyncIssueSummary,
   buildRecoverableSyncActions,
   clearResolvedSyncIssues,
+  formatSyncIssueError,
   recordSyncIssue,
   resolveSyncIssuesForOperation,
   type SyncIssueEntry,
@@ -219,4 +220,19 @@ test('buildRecoverableSyncActions returns no primary action for a clean ledger',
   assert.equal(actions.canRetryDownload, false);
   assert.equal(actions.primaryAction, null);
   assert.equal(actions.primaryActionLabel, null);
+});
+
+test('formatSyncIssueError handles Error instances, strings, and Supabase Postgrest error objects', () => {
+  assert.equal(formatSyncIssueError(new Error('connection timeout')), 'connection timeout');
+  assert.equal(formatSyncIssueError('network failed'), 'network failed');
+  assert.equal(
+    formatSyncIssueError({ code: 'PGRST116', message: 'The result contains 0 rows' }),
+    '[PGRST116] The result contains 0 rows',
+  );
+  assert.equal(
+    formatSyncIssueError({ details: 'Foreign key constraint violated' }),
+    'Foreign key constraint violated',
+  );
+  assert.equal(formatSyncIssueError({ unknown: 123 }), '{"unknown":123}');
+  assert.equal(formatSyncIssueError(null), 'Falha desconhecida');
 });

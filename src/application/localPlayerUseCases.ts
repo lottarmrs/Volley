@@ -42,7 +42,7 @@ export function buildDefaultCommunityPlayer(input: {
       classe: 'Atleta',
       arquetipo: 'Versatil',
       especialidade: 'Em avaliacao',
-      fraqueza: 'Nao informado',
+      fraqueza: 'Não informado',
     },
     formaAtual: { valor: 0, observacao: 'Em avaliacao', ultimasPartidas: [] },
     status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
@@ -169,15 +169,31 @@ export function applyLocalPlayerSave(input: {
   return { players, savedPlayer };
 }
 
+/**
+ * O que de fato aconteceu ao "criar" um atleta.
+ *
+ * `linked` existe porque nome repetido não cria ninguém: vincula o atleta que
+ * já estava no elenco da conta a esta comunidade. Sem esse discriminante a tela
+ * dizia "criado" para os três casos — inclusive para o nome vazio, que não fazia
+ * nada.
+ */
+export type PlayerCreationResult = {
+  players: Player[];
+  createdPlayerId: string | null;
+  outcome: 'created' | 'linked' | 'empty';
+  /** Nome como deve aparecer na confirmação. */
+  name: string;
+};
+
 export function applyPlayerCreationForCommunity(input: {
   players: Player[];
   name: string;
   communityId: string;
   now: string;
   createId: () => string;
-}): { players: Player[]; createdPlayerId: string | null } {
+}): PlayerCreationResult {
   const name = input.name.trim();
-  if (!name) return { players: input.players, createdPlayerId: null };
+  if (!name) return { players: input.players, createdPlayerId: null, outcome: 'empty', name: '' };
 
   const duplicate = findDuplicatePlayerByProfile(input.players, {
     id: '',
@@ -188,6 +204,8 @@ export function applyPlayerCreationForCommunity(input: {
   });
   if (duplicate) {
     return {
+      outcome: 'linked',
+      name: duplicate.apelido || duplicate.nome,
       createdPlayerId: duplicate.id,
       players: input.players.map((player) =>
         player.id === duplicate.id
@@ -210,7 +228,12 @@ export function applyPlayerCreationForCommunity(input: {
     communityId: input.communityId,
     now: input.now,
   });
-  return { players: [...input.players, player], createdPlayerId: player.id };
+  return {
+    players: [...input.players, player],
+    createdPlayerId: player.id,
+    outcome: 'created',
+    name,
+  };
 }
 
 export function applyGuestPlayerUpsert(

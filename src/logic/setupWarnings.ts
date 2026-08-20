@@ -34,7 +34,7 @@ export function getSessionSetupWarnings(session: Session, selectedPlayers: Playe
   }
 
   if (session.type === 'tournament' && teamCount >= 6) {
-    warnings.push('O torneio tera muitos jogos para uma unica sessao.');
+    warnings.push('O torneio terá muitos jogos para uma única sessão.');
   }
 
   return warnings;

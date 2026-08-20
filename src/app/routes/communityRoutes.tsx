@@ -191,7 +191,7 @@ export function CommunityPerformanceRoute() {
 
   return (
     <div className="space-y-5">
-      <div role="tablist" className="tabs tabs-box overflow-x-auto flex-nowrap justify-start">
+      <div role="tablist" className="tabs tabs-box flex-wrap justify-start">
         <button
           type="button"
           role="tab"

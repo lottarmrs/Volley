@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Plus, Search } from 'lucide-react';
+import { ChevronLeft, Plus, Search, Users } from 'lucide-react';
 import type { Player } from '@shared/types';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { PlayersViewModel } from '@app/screens/playersView/playersViewModel';
@@ -8,6 +8,7 @@ import { PlayerItem } from './PlayerComponents';
 import { GuestPlayerModal } from './GuestPlayerModal';
 import { FutCardModal } from './FutCardModal';
 import { matchesSearch } from '../../logic/textNormalization';
+import { EmptyState } from '../../ui/EmptyState';
 
 export const PlayersView = ({
   contract,
@@ -115,13 +116,45 @@ export const PlayersView = ({
             onViewVutCard={(p) => setSelectedVutPlayer(p)}
           />
         ))}
-        {visiblePlayers.length === 0 && (
-          <div className="col-span-full py-20 text-center card bg-base-200 border border-base-300 border-dashed shadow-md">
-            <p className="text-base-content/50 uppercase text-xs font-bold italic">
-              Nenhum atleta encontrado nesta lista.
-            </p>
-          </div>
-        )}
+        {visiblePlayers.length === 0 &&
+          (players.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                icon={Users}
+                title="O elenco começa aqui"
+                description="Cada atleta cadastrado carrega os fundamentos que o sorteio usa para equilibrar os times — saque, recepção, levantamento, ataque, bloqueio e defesa. Sem elenco não há sorteio, e é por isso que este é o primeiro passo."
+              >
+                <button
+                  type="button"
+                  onClick={() => dispatch({ kind: 'addPlayer' })}
+                  className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+                >
+                  <Plus className="h-5 w-5" /> Cadastrar o primeiro atleta
+                </button>
+              </EmptyState>
+            </div>
+          ) : (
+            /* O elenco existe; foi o filtro que não bateu. Outra mensagem, outra saída. */
+            <div className="col-span-full card bg-base-200 border border-base-300 border-dashed py-12 text-center space-y-3">
+              <Search className="mx-auto h-8 w-8 text-base-content/30" />
+              <p className="text-sm text-base-content/70">
+                Nenhum atleta bate com esse filtro.{' '}
+                {players.length === 1 ? 'Existe 1 atleta' : `Existem ${players.length} atletas`}{' '}
+                fora deste recorte.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCommunityId('all');
+                  setShowInactive(true);
+                }}
+                className="btn btn-outline btn-sm mx-auto min-h-[44px] w-fit px-5 font-bold uppercase tracking-wider"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          ))}
       </div>
 
       {/* Guest Modal */}

@@ -25,7 +25,7 @@ test('cloud health asks for attention when open sync issues exist', () => {
   });
 
   assert.equal(health.level, 'attention');
-  assert.equal(health.title, 'Requer atencao');
+  assert.equal(health.title, 'Requer atenção');
   assert.equal(health.detail, '2 falha(s) aberta(s), 5 ocorrencia(s)');
 });
 
@@ -41,7 +41,7 @@ test('cloud health reports operational when configured and clean', () => {
 
   assert.equal(health.level, 'operational');
   assert.equal(health.title, 'Operacional');
-  assert.equal(health.detail, 'Ultima sincronizacao registrada');
+  assert.equal(health.detail, 'Última sincronização registrada');
 });
 
 test('cloud health asks for attention when last sync is stale', () => {
@@ -56,5 +56,5 @@ test('cloud health asks for attention when last sync is stale', () => {
 
   assert.equal(health.level, 'attention');
   assert.equal(health.title, 'Backup desatualizado');
-  assert.equal(health.detail, 'Ultima sincronizacao ha mais de 48h');
+  assert.equal(health.detail, 'Última sincronização há mais de 48h');
 });

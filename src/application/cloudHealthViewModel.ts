@@ -20,7 +20,7 @@ export function buildCloudHealthViewModel(input: CloudHealthInput): CloudHealthV
     return {
       level: 'offline',
       title: 'Nuvem indisponivel',
-      detail: 'Supabase nao configurado',
+      detail: 'Supabase não configurado',
     };
   }
 
@@ -35,7 +35,7 @@ export function buildCloudHealthViewModel(input: CloudHealthInput): CloudHealthV
   if (input.openIssueCount > 0) {
     return {
       level: 'attention',
-      title: 'Requer atencao',
+      title: 'Requer atenção',
       detail: `${input.openIssueCount} falha(s) aberta(s), ${input.totalOpenOccurrences} ocorrencia(s)`,
     };
   }
@@ -44,7 +44,7 @@ export function buildCloudHealthViewModel(input: CloudHealthInput): CloudHealthV
     return {
       level: 'attention',
       title: 'Backup desatualizado',
-      detail: 'Ultima sincronizacao ha mais de 48h',
+      detail: 'Última sincronização há mais de 48h',
     };
   }
 
@@ -52,7 +52,7 @@ export function buildCloudHealthViewModel(input: CloudHealthInput): CloudHealthV
     level: 'operational',
     title: 'Operacional',
     detail: input.lastSyncedAt
-      ? 'Ultima sincronizacao registrada'
+      ? 'Última sincronização registrada'
       : 'Pronto para primeira sincronizacao',
   };
 }

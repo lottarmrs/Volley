@@ -83,7 +83,7 @@ export async function fetchCommunityMembersQuery(
     return appOk({ members });
   } catch (error) {
     return appOk({ members: [] }, [
-      recoverableIssue('cloud_unavailable', 'Nao foi possivel carregar os membros.', error),
+      recoverableIssue('cloud_unavailable', 'Não foi possível carregar os membros.', error),
     ]);
   }
 }
@@ -109,7 +109,7 @@ export async function inviteCommunityMemberCommand(
     return productError('invalid_input', 'Informe um e-mail ou username para adicionar.');
   }
   if (input.role === 'owner') {
-    return productError('permission_denied', 'O papel de dono nao pode ser atribuido por convite.');
+    return productError('permission_denied', 'O papel de dono não pode ser atribuído por convite.');
   }
 
   const managerResult = ensureManagingCurrentMember(
@@ -139,7 +139,7 @@ export async function inviteCommunityMemberCommand(
     if (pgError?.code === '22023' && pgError.message?.trim()) {
       return productError('invalid_input', pgError.message.trim());
     }
-    return technicalError('Nao foi possivel adicionar o membro.', error);
+    return technicalError('Não foi possível adicionar o membro.', error);
   }
 }
 
@@ -154,7 +154,7 @@ export async function changeCommunityMemberRoleCommand(
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ member: CommunityMember }>> {
   if (input.role === 'owner') {
-    return productError('permission_denied', 'O papel de dono nao pode ser atribuido pela UI.');
+    return productError('permission_denied', 'O papel de dono não pode ser atribuído por aqui.');
   }
 
   const managerResult = ensureManagingCurrentMember(
@@ -174,7 +174,7 @@ export async function changeCommunityMemberRoleCommand(
     const member = await gateway.updateRole(input.memberId, input.role);
     return appOk({ member });
   } catch (error) {
-    return technicalError('Nao foi possivel alterar o papel do membro.', error);
+    return technicalError('Não foi possível alterar o papel do membro.', error);
   }
 }
 
@@ -204,7 +204,7 @@ export async function removeCommunityMemberCommand(
     await gateway.removeMember(input.memberId);
     return appOk({ removedMemberId: input.memberId });
   } catch (error) {
-    return technicalError('Nao foi possivel remover o membro.', error);
+    return technicalError('Não foi possível remover o membro.', error);
   }
 }
 
@@ -231,7 +231,7 @@ export async function approveCommunityJoinRequestCommand(
     await gateway.approveRequest(input.memberId);
     return appOk({ memberId: input.memberId });
   } catch (error) {
-    return technicalError('Nao foi possivel aprovar o pedido.', error);
+    return technicalError('Não foi possível aprovar o pedido.', error);
   }
 }
 
@@ -258,7 +258,7 @@ export async function rejectCommunityJoinRequestCommand(
     await gateway.rejectRequest(input.memberId);
     return appOk({ memberId: input.memberId });
   } catch (error) {
-    return technicalError('Nao foi possivel rejeitar o pedido.', error);
+    return technicalError('Não foi possível rejeitar o pedido.', error);
   }
 }
 
@@ -285,7 +285,7 @@ export async function generateCommunityJoinCodeCommand(
     const joinCode = await gateway.generateJoinCode(cloudIdResult.value.communityCloudId);
     return appOk({ joinCode });
   } catch (error) {
-    return technicalError('Nao foi possivel gerar o codigo.', error);
+    return technicalError('Não foi possível gerar o código.', error);
   }
 }
 
@@ -312,7 +312,7 @@ export async function disableCommunityJoinCodeCommand(
     await gateway.disableJoinCode(cloudIdResult.value.communityCloudId);
     return appOk({});
   } catch (error) {
-    return technicalError('Nao foi possivel desativar o codigo.', error);
+    return technicalError('Não foi possível desativar o código.', error);
   }
 }
 
@@ -323,17 +323,20 @@ export async function leaveCommunityCommand(
   const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
   if (cloudIdResult.ok === false) return cloudIdResult;
   if (!input.currentMember) {
-    return productError('not_found', 'Sua participacao nesta comunidade nao foi encontrada.');
+    return productError('not_found', 'Sua participação nesta comunidade não foi encontrada.');
   }
   if (input.currentMember.role === 'owner') {
-    return productError('permission_denied', 'O dono nao pode sair da comunidade por este fluxo.');
+    return productError(
+      'permission_denied',
+      'O dono não pode sair da comunidade. Passe o comando para outra pessoa antes de sair.',
+    );
   }
 
   try {
     await gateway.leaveCommunity(cloudIdResult.value.communityCloudId);
     return appOk({});
   } catch (error) {
-    return technicalError('Nao foi possivel sair da comunidade.', error);
+    return technicalError('Não foi possível sair da comunidade.', error);
   }
 }
 
@@ -345,7 +348,7 @@ export async function searchPublicCommunitiesQuery(
     const communities = await discoveryGateway.searchPublic(input.query.trim());
     return appOk({ communities });
   } catch (error) {
-    return technicalError('Nao foi possivel buscar comunidades.', error);
+    return technicalError('Não foi possível buscar comunidades.', error);
   }
 }
 
@@ -360,7 +363,7 @@ export async function requestPublicCommunityJoinCommand(
     await discoveryGateway.requestToJoinPublic(cloudIdResult.value.communityCloudId);
     return appOk({});
   } catch (error) {
-    return technicalError('Nao foi possivel enviar o pedido.', error);
+    return technicalError('Não foi possível enviar o pedido.', error);
   }
 }
 
@@ -369,16 +372,16 @@ export async function previewCommunityJoinByCodeQuery(
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ community: CommunityJoinPreview }>> {
   const code = input.code.trim().toUpperCase();
-  if (!code) return productError('invalid_input', 'Informe o codigo da comunidade.');
+  if (!code) return productError('invalid_input', 'Informe o código da comunidade.');
 
   try {
     const community = await gateway.findByCode(code);
     if (!community) {
-      return productError('not_found', 'Codigo de convite invalido ou comunidade nao encontrada.');
+      return productError('not_found', 'Código de convite inválido ou comunidade não encontrada.');
     }
     return appOk({ community });
   } catch (error) {
-    return technicalError('Nao foi possivel buscar a comunidade.', error);
+    return technicalError('Não foi possível buscar a comunidade.', error);
   }
 }
 
@@ -387,13 +390,13 @@ export async function requestCommunityJoinByCodeCommand(
   gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
 ): Promise<AppResult<{ member: CommunityMember }>> {
   const code = input.code.trim().toUpperCase();
-  if (!code) return productError('invalid_input', 'Informe o codigo da comunidade.');
+  if (!code) return productError('invalid_input', 'Informe o código da comunidade.');
 
   try {
     const member = await gateway.requestToJoin(code, input.communityLocalId);
     return appOk({ member });
   } catch (error) {
-    return technicalError('Nao foi possivel enviar o pedido.', error);
+    return technicalError('Não foi possível enviar o pedido.', error);
   }
 }
 
@@ -417,7 +420,7 @@ function findCurrentMember(
   const member = members.find((candidate) => candidate.userId === currentUserId);
   return member
     ? appOk({ member })
-    : productError('not_found', 'Sua participacao nesta comunidade nao foi encontrada.');
+    : productError('not_found', 'Sua participação nesta comunidade não foi encontrada.');
 }
 
 function ensureManagingCurrentMember(
@@ -431,7 +434,7 @@ function ensureManagingCurrentMember(
   if (globalRole === 'programmer') {
     return productError(
       'permission_denied',
-      'Voce nao tem permissao para gerenciar membros desta comunidade.',
+      'Você não tem permissão para gerenciar membros desta comunidade.',
     );
   }
   if (globalRole === 'master') return appOk({});
@@ -443,13 +446,13 @@ function ensureManagingCurrentMember(
   if ((currentMember.status ?? 'active') !== 'active') {
     return productError(
       'permission_denied',
-      'Sua participacao ainda nao permite gerenciar membros.',
+      'Sua participação ainda não permite gerenciar membros.',
     );
   }
   if (currentMember.role !== 'owner' && currentMember.role !== 'admin') {
     return productError(
       'permission_denied',
-      'Voce nao tem permissao para gerenciar membros desta comunidade.',
+      'Você não tem permissão para gerenciar membros desta comunidade.',
     );
   }
   return appOk({});
@@ -466,7 +469,7 @@ function ensureApprovingCurrentMember(
   if (globalRole === 'programmer') {
     return productError(
       'permission_denied',
-      'Voce nao tem permissao para avaliar pedidos desta comunidade.',
+      'Você não tem permissão para avaliar pedidos desta comunidade.',
     );
   }
   if (globalRole === 'master') return appOk({});
@@ -476,7 +479,7 @@ function ensureApprovingCurrentMember(
 
   const currentMember = currentMemberResult.value.member;
   if ((currentMember.status ?? 'active') !== 'active') {
-    return productError('permission_denied', 'Sua participacao ainda nao permite avaliar pedidos.');
+    return productError('permission_denied', 'Sua participação ainda não permite avaliar pedidos.');
   }
   // owner / admin / moderator podem avaliar pedidos. Outras roles (member, organizador)
   // continuam barradas, alinhado com a capability 'approve_members' do banco.
@@ -487,7 +490,7 @@ function ensureApprovingCurrentMember(
   ) {
     return productError(
       'permission_denied',
-      'Voce nao tem permissao para avaliar pedidos desta comunidade.',
+      'Você não tem permissão para avaliar pedidos desta comunidade.',
     );
   }
   return appOk({});
@@ -498,7 +501,7 @@ function findTargetMember(
   memberId: string,
 ): AppResult<{ member: CommunityMember }> {
   const member = members.find((candidate) => candidate.id === memberId);
-  return member ? appOk({ member }) : productError('not_found', 'Membro nao encontrado.');
+  return member ? appOk({ member }) : productError('not_found', 'Membro não encontrado.');
 }
 
 function ensureEditableMember(
@@ -506,12 +509,12 @@ function ensureEditableMember(
   currentUserId: string | null,
 ): AppResult<Record<string, never>> {
   if (member.role === 'owner') {
-    return productError('permission_denied', 'O dono nao pode ser alterado por este fluxo.');
+    return productError('permission_denied', 'O dono não pode ser alterado por aqui.');
   }
   if (member.userId === currentUserId) {
     return productError(
       'permission_denied',
-      'Voce nao pode alterar sua propria participacao aqui.',
+      'Você não pode alterar sua própria participação aqui.',
     );
   }
   return appOk({});

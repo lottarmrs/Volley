@@ -1,20 +1,71 @@
-# Conferir `schema.sql` contra o banco real
+# Schema Drift Diagnostics — Historical Procedure / Current Supporting Check
 
-`supabase/migrations/schema.sql` é o retrato consolidado do banco. Ele não é gerado
-automaticamente, então diverge em silêncio: uma migration aplicada em produção não
-atualiza o arquivo sozinha. Um arquivo consolidado que mente é pior que nenhum — quem
-reconstrói o banco confia nele.
+> Status: `TRANSITIONAL / DIAGNOSTIC — NOT SCHEMA AUTHORITY`
+>
+> Owner: `Data + Platform Operations`
+>
+> Last reviewed: `2026-08-26 / C7-R3`
+>
+> Current reconstruction authority: [`database-reconstruction-contract.md`](./database-reconstruction-contract.md).
+>
+> Governing target: [`N2.14-data-architecture.md`](../architecture/platform/N2.14-data-architecture.md) + [`N2.21-operations-deploy.md`](../architecture/operations/N2.21-operations-deploy.md).
 
-Não dá para automatizar isso no `npm test`. O ambiente de desenvolvimento tem apenas a
-URL e a chave anônima; comparar exige ler `pg_proc`, o que precisa de acesso privilegiado.
-O procedimento abaixo é manual, via MCP do Supabase.
+---
 
-## Quando rodar
+# 0. C7 correction
 
-Antes de qualquer corte ou reconstrução de banco, e depois de uma sequência de migrations
-aplicadas direto em produção.
+Historically, this document treated `supabase/migrations/schema.sql` as a consolidated representation that had to be manually synchronized with production.
 
-## Passo 1 — tirar as assinaturas do banco
+That model is no longer an accepted source-of-truth policy.
+
+Current rule:
+
+```text
+schema change
+→ versioned migration
+→ reviewed deploy
+→ production
+```
+
+not:
+
+```text
+production drift
+→ manually edit schema.sql to match
+```
+
+During the transitional W0 period, `schema.sql` is treated as a **frozen legacy baseline segment** required by the historical reconstruction chain, not a continuously edited consolidated current snapshot. See `database-reconstruction-contract.md`.
+
+The diagnostic techniques below remain valuable because they exposed real gaps such as missing functions/event triggers and differences between repository artifacts and deployed schema.
+
+---
+
+# 1. What this diagnostic can answer
+
+It can help answer:
+
+```text
+Did selected deployed function bodies diverge from the repository artifact being inspected?
+```
+
+It cannot, by itself, answer:
+
+```text
+Is the whole database schema correct?
+Is reconstruction from empty valid?
+Are RLS/grants/indexes/triggers/event triggers correct?
+Is production free from all drift?
+```
+
+A silent result from the function-body comparison is therefore **not** a full schema-integrity certificate.
+
+---
+
+# 2. Historical function-body comparison
+
+The historical procedure queried function bodies from `pg_proc` and compared normalized hashes.
+
+Example query preserved for diagnostic/reference use:
 
 ```sql
 select string_agg(p.proname || '|' ||
@@ -24,16 +75,11 @@ select string_agg(p.proname || '|' ||
  where n.nspname = 'public' and p.prokind = 'f';
 ```
 
-A normalização remove espaço, comentário e acento **de propósito**. Sem isso o
-resultado afoga em ruído: numa conferência de 2026-07-30, 13 das 16 divergências
-aparentes eram só acento e comentário, e as 3 reais quase passaram despercebidas.
+The normalization intentionally ignores whitespace/comments/selected accents to reduce noise.
 
-## Passo 2 — comparar com o arquivo
-
-Salve a saída como `prod.txt` (uma linha `nome|hash`) e rode:
+Historical comparison helper:
 
 ```js
-// node compara.cjs prod.txt
 const fs = require('fs'), crypto = require('crypto');
 const s = fs.readFileSync('supabase/migrations/schema.sql', 'utf8');
 const re = /create\s+(?:or\s+replace\s+)?function\s+public\.([a-z_0-9]+)\s*\([\s\S]*?\bas\s+(\$[a-z_]*\$)([\s\S]*?)\2/gi;
@@ -50,26 +96,98 @@ for (const linha of fs.readFileSync(process.argv[2], 'utf8').trim().split('\n'))
 }
 ```
 
-Silêncio significa que as duas fontes concordam.
+After C7, this helper should be read as **historical diagnostic code**, because `schema.sql` is no longer the conceptual current-schema authority to synchronize manually.
 
-## Passo 3 — cuidado com o que a comparação NÃO cobre
+---
 
-Ela olha só o corpo das funções. Ficam de fora: tabelas, colunas, políticas RLS, grants,
-índices, triggers comuns e **event triggers**. Foi justamente um event trigger
-(`ensure_rls`) que passou despercebido por mais tempo — a função `rls_auto_enable`
-nunca tinha sido versionada, e com ela sumiria a rede que liga RLS em toda tabela nova.
+# 3. The critical limitation discovered by this procedure
 
-Para grants e políticas, prefira consultar `has_table_privilege` e `pg_policies`
-diretamente quando o assunto for sensível.
+Function-body comparison does not cover:
 
-## Última conferência
+```text
+tables
+columns
+constraints
+RLS policies
+grants
+indexes
+ordinary triggers
+event triggers
+extensions
+function attributes/security posture
+```
 
-2026-07-30 — 56 funções em produção, 56 batendo. Três correções aplicadas ao arquivo
-naquele dia (`handle_new_user` sem o recálculo de carreira no claim, `reset_product_data`
-apontando para uma tabela inexistente, `rls_auto_enable` e seu event trigger ausentes),
-todas cobertas por teste em `src/infra/supabase/schema.test.ts`.
+A previous investigation found that an event trigger (`ensure_rls`) and `rls_auto_enable` had escaped the narrow function-body comparison.
 
-Divergência conhecida e deliberadamente não corrigida: as mensagens de erro em produção
-estão sem acento (`'O papel so pode ser alterado...'`) enquanto o `schema.sql` as tem
-acentuadas. É texto que o usuário vê. Corrigir mexe em várias funções de uma vez e é
-decisão de produto, não de sincronização.
+That lesson becomes a target invariant for W0:
+
+```text
+FRESH RECONSTRUCTION VERIFICATION
+MUST INSPECT MORE THAN FUNCTION TEXT
+```
+
+---
+
+# 4. Current drift policy
+
+Normal production differences from the repository migration history are not “fixed” by editing a snapshot.
+
+If unplanned drift is found:
+
+```text
+1 identify exact deployed difference
+2 classify emergency/manual vs expected provider-managed state
+3 create/reconcile a forward migration where repository ownership applies
+4 test reconstruction in isolated environment
+5 verify RLS/grants/constraints/functions/triggers as applicable
+6 deploy through normal change process
+7 close the drift record
+```
+
+Do not rewrite already-applied migrations retroactively.
+
+---
+
+# 5. Current check matrix
+
+For sensitive changes, use checks appropriate to the object class:
+
+| Object | Preferred evidence |
+|---|---|
+| table/column | catalog query + migration replay |
+| FK/check/unique | catalog query + negative DB test |
+| RLS enabled | `pg_class`/catalog query |
+| RLS policy | `pg_policies` + actor tests |
+| grant/revoke | privilege catalog / `has_*_privilege` checks |
+| SECURITY DEFINER | function catalog + source review + authorization tests |
+| trigger | catalog + behavior test |
+| event trigger | `pg_event_trigger` + behavior test |
+| index | catalog + query-plan evidence where relevant |
+| RPC semantics | real DB integration/authorization/concurrency test |
+
+---
+
+# 6. Historical last comparison
+
+The previous document recorded a 2026-07-30 comparison in which 56 functions were checked and three repository gaps were corrected, including `rls_auto_enable`/event-trigger coverage.
+
+That remains useful historical evidence.
+
+It does **not** establish that the present target schema, current production database or future migration chain is fully reconciled.
+
+---
+
+# 7. W0 replacement
+
+C6 W0 should replace this manual diagnostic as the primary confidence mechanism with:
+
+```text
+empty isolated DB
+→ canonical baseline/history
+→ all forward migrations
+→ structural catalog assertions
+→ RLS/RPC/security tests
+→ representative concurrency tests
+```
+
+A drift utility may continue to exist as a support tool, but it must never become a second schema authority.

@@ -1,13 +1,67 @@
 # Reset de Produção — Runbook do Cutover (Plano 5, Fase 1)
 
+> Status: `HISTORICAL / COMPLETED RUNBOOK — SUPERSEDED AS GENERAL MIGRATION PATH`
+>
+> Owner: `Operations + Migration`
+>
+> Last reviewed: `2026-08-26 / C7-R2-R3`
+>
+> Historical execution: `2026-07-31 → 2026-08-03`.
+>
+> Current migration authority: [`docs/architecture/migration/N2.22-migration-strangler.md`](../architecture/migration/N2.22-migration-strangler.md) + [`docs/architecture/execution/C6-EXECUTION-MASTER.md`](../architecture/execution/C6-EXECUTION-MASTER.md).
+>
+> Current operations authority: [`docs/architecture/operations/N2.21-operations-deploy.md`](../architecture/operations/N2.21-operations-deploy.md).
+>
+> **DO NOT execute this document as the default Current→Target migration procedure.** It is preserved as historical operational evidence of a completed destructive reset. Any future destructive reset requires a new explicitly approved `BREAK-GLASS`/exception runbook with current schema/security/backup/recovery review.
+
+## C7 interpretation notice
+
+The historical body below intentionally preserves what was actually rehearsed and executed at the time, including statements such as:
+
+```text
+schema.sql base → numbered migrations
+SECURITY DEFINER SET search_path = public
+reset as a product-data cutover mechanism
+```
+
+Those statements are **historical evidence, not current target policy**.
+
+Current target policy is:
+
+```text
+versioned migration chain
+=
+authoritative schema history
+
+consolidated schema snapshot
+=
+derived / verified artifact only
+
+SECURITY DEFINER target
+=
+search_path = ''
++ fully-qualified references
++ explicit grants/revokes
++ server-derived actor/capability checks
+
+Current→Target migration baseline
+=
+strangler / authority transfer
+NOT destructive reset
+```
+
+The detailed record remains below so lessons, defects, validation steps and incident knowledge are not lost.
+
+---
+
 > Documento operacional. Cada passo do ensaio e do cutover é marcado conforme
 > concluído. O reset **não** toca produção antes do ensaio completo em branch
 > isolado (regra do programa, spec base seção 17).
 
-**Referências:**
+**Referências históricas:**
 - Spec base seção 17 (9 passos de cutover): `docs/superpowers/specs/2026-07-22-scalable-product-restructure-design.md:439-461`
 - Scaffold corrigido: `supabase/migrations/20260730110000_reset_product_data_drop_missing_table.sql`
-- Definição consolidada: `supabase/migrations/schema.sql:498-539`
+- Definição consolidada histórica: `supabase/migrations/schema.sql:498-539`
 - Plano de implementação: `docs/superpowers/plans/2026-07-31-plano-5-fase-1-reset-cutover.md`
 
 ---
@@ -24,6 +78,8 @@ A função (security definer, `set search_path = public`) valida capability + AA
 de qualquer DELETE. Revoques para `public`, `anon` e `authenticated` aplicados; grant
 de execute apenas para `authenticated` — como é `security definer`, a checagem de
 capability é quem decide, não o grant.
+
+> **C7 note:** `set search_path = public` above describes the historical implementation. It is not the target hardening pattern for privileged functions.
 
 ---
 
@@ -71,7 +127,9 @@ saem antes das mães referenciais. Players e communities são escopadas por
 > de branch. Mesmo valor de ensaio, sem custo de plano. Projeto deletado ao final.
 
 **Projeto de ensaio:** `plano-5-rehearsal` (ref `ypuwjblcsudlaqakyro`, org `tyjlibpitvnthrqiojgn`, região `sa-east-1`, Free).
-**Aplicação:** `schema.sql` (base consolidada) → 53 migrations numeradas em ordem (mesmo fluxo que o `HANDOFF.md` documenta para provisionar do zero).
+**Aplicação histórica:** `schema.sql` (base consolidada) → 53 migrations numeradas em ordem (mesmo fluxo que o `HANDOFF.md` documentava para provisionar do zero).
+
+> **C7 note:** this reconstruction sequence is historical. The current target reconstruction contract is migration-chain authoritative and is documented separately under `docs/operations/database-reconstruction-contract.md`.
 
 ### Passo 1: Criar projeto isolado
 
@@ -93,8 +151,10 @@ saem antes das mães referenciais. Players e communities são escopadas por
 
 ### Passo 1b: Aplicar schema.sql (base consolidada)
 
-`supabase/migrations/schema.sql` é o snapshot consolidado ("paste directly into
-SQL Editor"). As migrations numeradas assumem essa base.
+`supabase/migrations/schema.sql` era o snapshot consolidado ("paste directly into
+SQL Editor"). As migrations numeradas daquele período assumiam essa base.
+
+> **C7 note:** retained only as historical execution evidence; this is not the target source-of-truth rule.
 
 ### Passo 1c: Aplicar migrations numeradas (53 arquivos, ordem alfabética = cronológica)
 
@@ -368,10 +428,12 @@ qualquer conta pronta**. Todos corrigidos na migration
    `modification_logs` existentes permanecem, e o reset é uma operação
    deliberada e rastreável por outras vias).
 
-> **Padrão:** `app.allow_reset_bypass` é a única chamada autorizada (master +
+> **Padrão histórico:** `app.allow_reset_bypass` foi a chamada autorizada (master +
 > AAL2) a desativar pontualmente, dentro da própria transação, os guards de
-> integridade de membership e a auditoria. O reset é transactional e fail-safe:
-> se qualquer statement falhar, nada é alterado.
+> integridade de membership e a auditoria. O reset era transactional e fail-safe:
+> se qualquer statement falhasse, nada era alterado.
+>
+> **C7 note:** this bypass is not automatically an accepted reusable target pattern. Any retained privileged bypass must be inventoried, threat-reviewed and either hardened or removed through W0/W14 governance.
 
 ### Ensaio — observações finais
 
@@ -384,11 +446,10 @@ qualquer conta pronta**. Todos corrigidos na migration
 
 ---
 
-## Cutover em Produção (9 Passos)
+## Cutover em Produção (9 Passos) — HISTORICAL EXECUTION RECORD
 
-> **Pré-requisito:** Ensaio (Tasks 1-6) concluído com sucesso.
-> **WARNING:** Irreversível sem restore do backup. Confirmar com usuário master
-> em dois pontos (Passos 1 e 5).
+> **Historical prerequisite:** Ensaio (Tasks 1-6) concluído com sucesso.
+> **Historical warning:** irreversível sem restore do backup. Este bloco registra o que foi executado em 2026-08-03; não é autorização atual para repetir a operação.
 
 ### Passo 1: Confirmar com o usuário que o ensaio foi validado
 
@@ -437,7 +498,7 @@ qualquer conta pronta**. Todos corrigidos na migration
 
 ### Passo 5: Executar reset
 
-> **WARNING irreversível.** Última confirmação do usuário (dada).
+> **HISTORICAL irreversible action — executed 2026-08-03. Do not replay from this document.**
 
 - [x] Executado (2026-08-03) na conta `<master-account-uuid…>` (testeadm) com JWT master+AAL2:
       ```sql
@@ -520,9 +581,9 @@ usando o mesmo bypass. Estado final consistente (members = 0).
 
 ---
 
-## Caminho de Rollback
+## Caminho de Rollback — HISTORICAL
 
-| Situação | Ação |
+| Situação | Ação registrada na época |
 |----------|------|
 | **Pré-reset** | `pg_dump` completo + snapshot de usernames (`SELECT id, username, owner_id FROM players WHERE deleted_at IS NULL`) |
 | **Reset falha durante execução** | `pg_restore --dbname=... --clean --file=backup-pre-reset.dump` |
@@ -530,7 +591,7 @@ usando o mesmo bypass. Estado final consistente (members = 0).
 | **Bootstrap quebra** | `handle_new_user` é idempotente — re-login cria o player canônico se sumiu |
 | **RLS quebra** | Backup disponível; migrations de RLS podem ser reaplicadas manualmente |
 
-Comandos de referência:
+Comandos históricos de referência:
 ```bash
 # Backup
 pg_dump --dbname="<production-url>" --format=custom --file=backup-pre-reset.dump
@@ -542,9 +603,11 @@ pg_restore --dbname="<production-url>" --clean backup-pre-reset.dump
 pg_restore --dbname="<production-url>" --table=players --table=communities backup-pre-reset.dump
 ```
 
+> **C7 note:** current restore/recovery procedure must follow N2.17/N2.21 and a current runbook; do not infer present-day recovery guarantees from this historical table.
+
 ---
 
-## Gate de Conclusão da Fase 1
+## Gate de Conclusão da Fase 1 — HISTORICAL
 
 - [x] Ensaio no projeto `plano-5-rehearsal` concluído (Tasks 1-6)
 - [x] Cutover em produção validado (Tasks 7-8)
@@ -572,3 +635,21 @@ pg_restore --dbname="<production-url>" --table=players --table=communities backu
 | 2026-08-02 | Ensaio executado e validado (Passos 3-8); defeito 3 (auditoria) descoberto e corrigido; migration `20260801120000` estendida | reset funciona, gates passam, negação RLS ok |
 | 2026-08-03 | Cutover em produção (Tasks 7-8); defeito 7 (bypass BEFORE DELETE) corrigido mid-op; reset executado e validado; contagens, FK e auth.users preservados | produção estável, Fase 1 fechada |
 | 2026-08-03 | Gate de conclusão fechado (Task 9): HANDOFF + programa mestre atualizados; typecheck/eslint/test/build verde (608+136 testes); eslint fix em `useCloudSync.ts` | Fase 1 concluída |
+
+---
+
+# Current status after C7
+
+```text
+This runbook
+=
+historical evidence
+
+Default migration path
+=
+C6 W0 → W14 strangler
+
+Future destructive reset
+=
+new explicit exception / break-glass decision + current rehearsal
+```

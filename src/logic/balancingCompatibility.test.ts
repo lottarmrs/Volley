@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Attributes, FreePlayConfig, Player } from '../types';
+import type { Attributes, Player } from '../types';
 import {
   computeAttributeFallback,
   mapPlayerToBalanceSnapshot,
@@ -33,21 +33,6 @@ const player = {
   formaAtual: { valor: 10 },
   status: { lesionado: true },
 } as Player;
-
-const compatibilityConfig: FreePlayConfig = {
-  type: 'free_play',
-  teamCount: 2,
-  maxPoints: 15,
-  tieBreakMethod: 'win_by_2',
-  rotationSystem: 'winner_stays',
-  initialCourtTeams: ['', ''],
-  initialQueue: [],
-  queuePolicy: 'fifo',
-  balanceSpeed: 'fast',
-  balanceSeed: 91,
-};
-
-void compatibilityConfig;
 
 test('mapPlayerToBalanceSnapshot emits only canonical participant facts', () => {
   const snapshot = mapPlayerToBalanceSnapshot(player, 'levantador');
@@ -94,5 +79,31 @@ test('mapPlayersToBalanceSnapshots resolves missing dimensions before the bounda
   assert.equal(snapshots[1].attack, 9);
   assert.equal(snapshots[1].serve, 6);
   assert.equal(snapshots[1].position, 'central');
+  assert.equal(snapshots[1].isEstimated, true);
+});
+
+test('mapPlayersToBalanceSnapshots replaces non-finite dimensions with finite fallback values', () => {
+  const mixed = {
+    ...player,
+    id: 'player-2',
+    atributos: { ...attributes, ataque: Number.NaN, saque: Number.POSITIVE_INFINITY, defesa: Number.NaN },
+  } as Player;
+  const allNonFinite = {
+    ...player,
+    id: 'player-3',
+    atributos: Object.fromEntries(
+      Object.keys(attributes).map((key) => [key, Number.NaN]),
+    ) as unknown as Attributes,
+  } as Player;
+
+  const fallback = computeAttributeFallback([mixed, allNonFinite]);
+  const snapshots = mapPlayersToBalanceSnapshots([mixed, allNonFinite]);
+
+  assert.equal(fallback.ataque, 5);
+  assert.equal(fallback.defesa, 5);
+  assert.equal(snapshots[0].attack, 5);
+  assert.equal(snapshots[0].serve, 5);
+  assert.equal(snapshots[0].defense, 5);
+  assert.equal(snapshots[0].isEstimated, false);
   assert.equal(snapshots[1].isEstimated, true);
 });

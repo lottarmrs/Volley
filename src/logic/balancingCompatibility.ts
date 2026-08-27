@@ -30,7 +30,9 @@ export function computeAttributeFallback(players: Player[]): Attributes {
 }
 
 export function isPlayerEstimated(player: Player): boolean {
-  return !ATTRIBUTE_KEYS.some((key) => typeof player.atributos?.[key] === 'number');
+  return !ATTRIBUTE_KEYS.some(
+    (key) => typeof player.atributos?.[key] === 'number' && Number.isFinite(player.atributos[key]),
+  );
 }
 
 export function mapPlayerToBalanceSnapshot(
@@ -39,7 +41,11 @@ export function mapPlayerToBalanceSnapshot(
   fallback?: Attributes,
 ): PlayerBalanceSnapshot {
   const resolve = (key: (typeof ATTRIBUTE_KEYS)[number]) =>
-    player.atributos?.[key] ?? fallback?.[key] ?? MID_SCALE;
+    (typeof player.atributos?.[key] === 'number' && Number.isFinite(player.atributos[key])
+      ? player.atributos[key]
+      : undefined) ??
+    (typeof fallback?.[key] === 'number' && Number.isFinite(fallback[key]) ? fallback[key] : undefined) ??
+    MID_SCALE;
 
   return {
     participantId: player.id,

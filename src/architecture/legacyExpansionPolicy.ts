@@ -25,7 +25,7 @@ import { join } from 'node:path';
 
 export interface LegacyExpansionRule {
   readonly id: string;
-  readonly slice: 'XS-W0-01' | 'XS-W1-01';
+  readonly slice: 'XS-W0-01' | 'XS-W1-01' | 'XS-W1-02';
   readonly title: string;
   /** Path prefixes to scan. Empty means the whole source tree. */
   readonly include: readonly string[];

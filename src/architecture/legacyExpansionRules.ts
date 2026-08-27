@@ -155,6 +155,48 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
       'GINV-BAL-001 / ADR-BAL-001: canonical Team Formation is attribute-driven and Overall is a post-selection display projection only.',
     baseline: {},
   },
+  {
+    id: 'AF-FREEZE-009',
+    slice: 'XS-W1-02',
+    title: 'Factual career statistics stay free of rating and Overall',
+    include: [
+      'src/logic/career.ts',
+      'src/logic/careerProjection.ts',
+      'src/logic/statistics.ts',
+      'src/shared/types/career.ts',
+      'src/infra/supabase/careerCloudService.ts',
+    ],
+    exclude: [],
+    // Any binding that would pull a subjective value into the factual pipeline. Display
+    // surfaces may combine facts and ratings; the FACTUAL modules may not compute with them.
+    pattern:
+      /[Oo]verall|OVR|VutCard|buildVutCard|calculateSessionRating|autoFormFromHistory|from\s+['"][^'"]*\/(?:rating|futCards)['"]/,
+    rationale:
+      'GINV-STAT-001: factual statistics and subjective rating/evaluation are separate pipelines. N2.22 additionally forbids importing legacy rating/overall fields embedded in career artifacts into factual statistics. The pipeline is clean today, so this freezes a TARGET boundary.',
+    baseline: {},
+  },
+  {
+    id: 'AF-FREEZE-010',
+    slice: 'XS-W1-02',
+    title: 'No new consumer couples to the legacy career aggregate',
+    include: [],
+    // The boundary module and its own test are the sanctioned place to touch the legacy
+    // projection: the adapter must call it, and the test must pin its current behaviour.
+    exclude: [
+      'src/logic/career.ts',
+      'src/logic/careerProjection.ts',
+      'src/logic/careerProjection.test.ts',
+    ],
+    pattern: /(?:careerStatsFromTotals|resolveCareer)/,
+    rationale:
+      'XS-W1-02 exit gate: W9 must be able to replace the legacy projection without another domain consumer having coupled to it meanwhile. New readers go through readLegacyCareerProjection, which preserves missing != zero.',
+    baseline: {
+      // The single production consumer at the time of the freeze. W9 migrates it.
+      'src/components/player/FutCardModal.tsx': 2,
+      // Tests pinning current legacy behaviour; they retire with their subject.
+      'src/logic/career.test.ts': 12,
+    },
+  },
 ];
 
 /**

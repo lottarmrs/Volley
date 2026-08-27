@@ -144,6 +144,26 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
       'Replace only with an equal or stronger GINV-BAL-001 contract that preserves structural exclusion plus the Overall-only differential property.',
   },
   {
+    id: 'AF-FREEZE-009',
+    slice: 'XS-W1-02',
+    owner: 'Statistics / History',
+    lifecycle: 'TARGET',
+    protects:
+      'The factual career/statistics pipeline computes with facts only. Derived aggregate scores, card tiers and session ratings are display projections and may not enter career.ts, careerProjection.ts, statistics.ts, the career contracts or the career cloud adapter.',
+    removalOrReplacementTrigger:
+      'Replace only with an equal or stronger GINV-STAT-001 contract when W9 lands the target statistics model. The empty allowlist must stay empty.',
+  },
+  {
+    id: 'AF-FREEZE-010',
+    slice: 'XS-W1-02',
+    owner: 'Statistics / History / Migration W9',
+    lifecycle: 'TRANSITIONAL',
+    protects:
+      'The legacy career aggregate gains no new consumers while W9 is still future. New readers go through readLegacyCareerProjection, which keeps "unrecorded" distinct from "zero".',
+    removalOrReplacementTrigger:
+      'Drop the FutCardModal entry when W9 migrates it to the target projection; drop the career.test.ts entry when the legacy projection and its tests are removed. Delete the rule once careerStatsFromTotals/resolveCareer no longer exist.',
+  },
+  {
     id: 'AF-LEDGER-001',
     slice: 'XS-W0-02',
     owner: 'Migration / Architecture Governance',

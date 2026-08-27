@@ -22,10 +22,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Checkout repository without submodule initialization
+        shell: bash
+        run: |
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c submodule.recurse=false fetch --depth=1 origin "${GITHUB_SHA}"
+          git -c submodule.recurse=false checkout --detach FETCH_HEAD
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

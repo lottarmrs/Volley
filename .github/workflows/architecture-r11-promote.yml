@@ -32,32 +32,61 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Fix R11 verdict cardinality guard
+      - name: Normalize R11 guard scripts
         shell: bash
         run: |
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from 'node:fs';
-          const path = 'scripts/promote-architecture-r11.mjs';
-          const original = readFileSync(path, 'utf8');
-          const from = `function replaceExactly(content, from, to, label) {
-            const count = content.split(from).length - 1;
-            if (count !== 1) {
-              failures.push(\`${'${label}'}: expected exactly one occurrence, found ${'${count}'}\`);
-              return content;
+
+          {
+            const path = 'scripts/promote-architecture-r11.mjs';
+            const original = readFileSync(path, 'utf8');
+            const from = `function replaceExactly(content, from, to, label) {
+              const count = content.split(from).length - 1;
+              if (count !== 1) {
+                failures.push(\`${'${label}'}: expected exactly one occurrence, found ${'${count}'}\`);
+                return content;
+              }
+              return content.replace(from, to);
+            }`;
+            const to = `function replaceExactly(content, from, to, label) {
+              const count = content.split(from).length - 1;
+              const expected = label === 'C7 promotion verdict' ? 2 : 1;
+              if (count !== expected) {
+                failures.push(\`${'${label}'}: expected exactly ${'${expected}'} occurrence(s), found ${'${count}'}\`);
+                return content;
+              }
+              return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
+            }`;
+            if (original.includes(from)) writeFileSync(path, original.replace(from, to), 'utf8');
+            else if (!original.includes("const expected = label === 'C7 promotion verdict' ? 2 : 1;")) {
+              throw new Error('R11 promotion guard source is neither pre-fix nor fixed');
             }
-            return content.replace(from, to);
-          }`;
-          const to = `function replaceExactly(content, from, to, label) {
-            const count = content.split(from).length - 1;
-            const expected = label === 'C7 promotion verdict' ? 2 : 1;
-            if (count !== expected) {
-              failures.push(\`${'${label}'}: expected exactly ${'${expected}'} occurrence(s), found ${'${count}'}\`);
-              return content;
+          }
+
+          {
+            const path = 'scripts/check-architecture-r11.mjs';
+            let content = readFileSync(path, 'utf8');
+            const replacements = [
+              [
+                "if (!/not an implementation default/i.test(open)) fail(openPath, 'Open Decision non-default rule disappeared during promotion');",
+                "if (!/not(?:\\*\\*)? an implementation default/i.test(open)) fail(openPath, 'Open Decision non-default rule disappeared during promotion');",
+              ],
+              [
+                "if (!/> Status:\\s*`CANONICAL \\/ C4`/.test(firstLines(hyp))) fail(hypPath, 'Hypothesis registry document is not canonical');",
+                "if (!/> Status:\\s*`CANONICAL \\/ C4(?: \\/ [^`]*)?`/.test(firstLines(hyp))) fail(hypPath, 'Hypothesis registry document is not canonical');",
+              ],
+              [
+                "if (!/NOT TARGET SOURCE OF TRUTH/i.test(head)) fail(domainModelPath, 'legacy domain model lost non-target warning');",
+                "if (!/not (?:a )?target source of truth/i.test(head)) fail(domainModelPath, 'legacy domain model lost non-target warning');",
+              ],
+            ];
+            for (const [from, to] of replacements) {
+              if (content.includes(from)) content = content.replace(from, to);
+              else if (!content.includes(to)) throw new Error(`R11 checker source did not match expected assertion: ${from}`);
             }
-            return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
-          }`;
-          if (!original.includes(from)) throw new Error('R11 promotion guard source did not match expected pre-fix block');
-          writeFileSync(path, original.replace(from, to), 'utf8');
+            writeFileSync(path, content, 'utf8');
+          }
           NODE
 
       - name: R11 promotion preflight

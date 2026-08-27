@@ -1,16 +1,20 @@
-import { Player, TournamentConfig, FreePlayConfig, Division } from '../types';
-import { PartnershipMatrix } from './partnershipHistory';
+import type {
+  BalanceCandidate,
+  FreePlayConfig,
+  PlayerBalanceSnapshot,
+  TournamentConfig,
+} from '../types';
+import type { PartnershipMatrix } from './partnershipHistory';
 
 export interface BalanceRequest {
   type: 'balance';
-  players: Player[];
+  snapshots: PlayerBalanceSnapshot[];
   numTeams: number;
-  sessionId: string;
   config?: TournamentConfig | FreePlayConfig;
   partnershipMatrix?: PartnershipMatrix;
 }
 
 export type BalanceResponse =
-  | { type: 'progress'; percent: number; bestScore: number; partial?: Division }
-  | { type: 'done'; divisions: Division[] }
+  | { type: 'progress'; percent: number; bestScore: number }
+  | { type: 'done'; candidates: BalanceCandidate[] }
   | { type: 'error'; message: string };

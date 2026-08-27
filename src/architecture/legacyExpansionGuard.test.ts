@@ -8,12 +8,13 @@ import {
 } from './legacyExpansionPolicy';
 import {
   FROZEN_BALANCE_WEIGHT_KEYS,
+  FROZEN_PLAYER_BALANCE_SNAPSHOT_KEYS,
   FROZEN_SOLVER_IMPORTS,
   FROZEN_STORAGE_KEYS,
   FROZEN_TEAM_METRIC_KEYS,
   legacyExpansionRules,
 } from './legacyExpansionRules';
-import { getArchitectureFitness } from './fitnessManifest';
+import { architectureFitnessManifest, getArchitectureFitness } from './fitnessManifest';
 
 /**
  * XS-W0-01 exit gate:
@@ -49,7 +50,7 @@ test('XS-W0-01: every freeze rule is registered in the fitness manifest', () => 
   for (const rule of legacyExpansionRules) {
     const fitness = getArchitectureFitness(rule.id);
 
-    assert.equal(fitness.slice, 'XS-W0-01');
+    assert.equal(fitness.slice, rule.slice);
     assert.ok(fitness.owner.length > 0, `${rule.id} must declare an owner`);
     assert.ok(
       fitness.removalOrReplacementTrigger.length > 0,
@@ -118,19 +119,29 @@ test('AF-FREEZE-008: the solver dependency surface is frozen', () => {
   }
 });
 
-test('AF-FREEZE-008: the solver imports Overall from exactly the known sites', () => {
-  // Pins the full Overall dependency that XS-W1-01 has to remove: the two derivation
-  // functions plus the scale constant the objective divides by at balancing.ts. If a
-  // further Overall entry point appears, the diff that adds it fails here.
-  const overallEntryPoints = Object.values(FROZEN_SOLVER_IMPORTS)
+test('AF-FREEZE-008: canonical Team Formation has zero Overall entry points', () => {
+  const rule = legacyExpansionRules.find((item) => item.id === 'AF-FREEZE-008');
+  assert.ok(rule);
+  assert.deepEqual(censusFor(rule), {});
+
+  const overallImports = Object.values(FROZEN_SOLVER_IMPORTS)
     .flat()
     .filter((binding) => /overall/i.test(binding));
+  assert.deepEqual(overallImports, []);
+});
 
-  assert.deepEqual(overallEntryPoints, [
-    './balancingConstants:OVERALL_SCALE',
-    './calculations:calculateGeneralOverall',
-    './calculations:calculatePositionOverall',
-  ]);
+test('AF-FREEZE-008: target snapshot excludes aggregate optimizer authority', () => {
+  const observed = interfaceKeys('src/shared/types/session.ts', 'PlayerBalanceSnapshot');
+  assert.deepEqual(observed, [...FROZEN_PLAYER_BALANCE_SNAPSHOT_KEYS]);
+  assert.equal(
+    observed.some((key) => /overall/i.test(key)),
+    false,
+  );
+});
+
+test('AF-FREEZE-008: Overall exclusion is now a target fitness contract', () => {
+  const fitness = architectureFitnessManifest.find((item) => item.id === 'AF-FREEZE-008');
+  assert.equal(fitness?.lifecycle, 'TARGET');
 });
 
 test('AF-FREEZE-008: Overall remains display-only outside the solver', () => {

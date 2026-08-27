@@ -32,11 +32,12 @@ export type {
   RotationType,
 } from './shared/types/player';
 export type {
-  AthleteVector,
+  BalanceCandidate,
   BalanceConstraints,
   BalanceDiagnostics,
   BalanceQuality,
   BalanceWeights,
+  CanonicalBalanceDiagnostics,
   Championship,
   ChampionshipRecurrenceRule,
   ChampionshipRound,

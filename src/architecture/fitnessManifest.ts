@@ -23,7 +23,8 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     id: 'AF-TARGET-002',
     owner: 'Architecture Governance / UI',
     lifecycle: 'TARGET',
-    protects: 'Shared UI primitives live under src/ui rather than regrowing the deprecated components/common path.',
+    protects:
+      'Shared UI primitives live under src/ui rather than regrowing the deprecated components/common path.',
     removalOrReplacementTrigger:
       'Replace only if the canonical UI module boundary changes through architecture review.',
   },
@@ -39,7 +40,8 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     id: 'AF-TARGET-004',
     owner: 'Architecture Governance / Domain owners',
     lifecycle: 'TARGET',
-    protects: 'Shared domain contracts remain in explicit domain-oriented shared modules rather than UI/IO modules.',
+    protects:
+      'Shared domain contracts remain in explicit domain-oriented shared modules rather than UI/IO modules.',
     removalOrReplacementTrigger:
       'Replace if domain contracts move to a new canonical package/module model with equivalent dependency protection.',
   },
@@ -47,7 +49,8 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     id: 'AF-TRANS-001',
     owner: 'Migration W13 / Architecture Governance',
     lifecycle: 'TRANSITIONAL',
-    protects: 'Current generic sync remains discoverable while C6 W13 removes its consumers deliberately.',
+    protects:
+      'Current generic sync remains discoverable while C6 W13 removes its consumers deliberately.',
     removalOrReplacementTrigger:
       'Delete this fitness record and its transitional assertion when W13 proves zero target reads/writes through syncService and W14 contracts the artifact.',
   },
@@ -55,7 +58,8 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     id: 'AF-TRANS-002',
     owner: 'Session W3/W14 / Architecture Governance',
     lifecycle: 'TRANSITIONAL',
-    protects: 'Legacy Session selectedPlayerIds/teamIds remain explicitly classified until RosterRevision/TeamDraw compatibility is cut over.',
+    protects:
+      'Legacy Session selectedPlayerIds/teamIds remain explicitly classified until RosterRevision/TeamDraw compatibility is cut over.',
     removalOrReplacementTrigger:
       'Delete this fitness record and its transitional assertion once W3/W6 target contracts own all supported reads/writes and W14 removes the legacy fields.',
   },
@@ -131,13 +135,13 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
   },
   {
     id: 'AF-FREEZE-008',
-    slice: 'XS-W0-01',
+    slice: 'XS-W1-01',
     owner: 'Team Formation',
-    lifecycle: 'TRANSITIONAL',
+    lifecycle: 'TARGET',
     protects:
-      'Overall influence on the Team Formation solver cannot grow, across three independent routes: a census of literal Overall text in the solver modules, the frozen BalanceWeights/TeamMetrics key sets that block a renamed aggregate, and the frozen solver import surface that blocks a neutrally named rating module being pulled in. Overall stays legal as a display value elsewhere.',
+      'Canonical Team Formation accepts only participant snapshots with explicit attributes and constraints. Overall is absent from the input, objective, initialization, candidate selection, Worker contract and canonical diagnostics; display adapters remain outside the guarded modules.',
     removalOrReplacementTrigger:
-      'XS-W1-01 removes Overall from solver influence. At that point drop overall from FROZEN_BALANCE_WEIGHT_KEYS/FROZEN_TEAM_METRIC_KEYS, remove the three Overall bindings from FROZEN_SOLVER_IMPORTS (OVERALL_SCALE, calculateGeneralOverall, calculatePositionOverall), lower the census to zero, and replace this record with the GINV-BAL-001 target property test.',
+      'Replace only with an equal or stronger GINV-BAL-001 contract that preserves structural exclusion plus the Overall-only differential property.',
   },
   {
     id: 'AF-LEDGER-001',

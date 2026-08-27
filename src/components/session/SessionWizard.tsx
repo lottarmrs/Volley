@@ -24,12 +24,12 @@ import {
   Copy,
 } from 'lucide-react';
 import { Player, Team, Position, Game, RotationType, TournamentFormat } from '../../types';
+import { resolveComposition } from '../../logic/balancing';
 import {
-  resolveComposition,
-  mapPlayerToAthleteVector,
+  mapPlayerToBalanceSnapshot,
   recalculateDivisionDiagnostics,
   isPlayerEstimated,
-} from '../../logic/balancing';
+} from '../../logic/balancingCompatibility';
 import { buildRosterIntegrityIssues } from '../../application/sessionLifecycleUseCases';
 import { TournamentBracket } from '../tournament/TournamentBracket';
 import { SessionWizardProgress } from './SessionWizardProgress';
@@ -251,7 +251,9 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     const teamCount = activeSession?.config?.teamCount ?? 0;
     if (teamCount <= 0 || selectedPlayers.length === 0) return null;
     // Respeita as posições ajustadas para a sessão na prévia da composição.
-    const vectors = selectedPlayers.map((p) => mapPlayerToAthleteVector(p, playerPositions[p.id]));
+    const vectors = selectedPlayers.map((p) =>
+      mapPlayerToBalanceSnapshot(p, playerPositions[p.id]),
+    );
     return resolveComposition(vectors, teamCount);
   }, [rotationType, activeSession?.config?.teamCount, selectedPlayers, playerPositions]);
 

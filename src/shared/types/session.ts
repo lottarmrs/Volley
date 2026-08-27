@@ -529,7 +529,6 @@ export interface PointEvent {
 }
 
 export interface BalanceWeights {
-  overall: number;
   attack: number;
   defense: number;
   setting: number;
@@ -574,38 +573,9 @@ export interface PlayerBalanceSnapshot {
   readonly isEstimated: boolean;
 }
 
-export interface AthleteVector {
-  id: string;
-  name: string;
-  overall: number;
-  attack: number;
-  defense: number;
-  serve: number;
-  reception: number;
-  setting: number;
-  block: number;
-  speed: number;
-  stamina: number;
-  gameVision: number;
-  consistency: number;
-  emotionalControl: number;
-  heightCm: number | null;
-  // Nulos de verdade: jogador criado junto com a conta nasce sem genero e sem
-  // posicao. Todos os consumidores comparam por igualdade ('M'/'F', 'central'...),
-  // entao um nulo simplesmente nao entra em nenhuma contagem — que e o comportamento
-  // correto, o mesmo de SessionSetupSummary.
-  gender: Gender | null;
-  position: string | null;
-  secondaryPositions?: string[];
-  isInjured: boolean;
-  currentForm: number;
-  isEstimated: boolean;
-}
-
 export interface TeamMetrics {
   teamIndex: number;
   size: number;
-  overall: number;
   attack: number;
   defense: number;
   serve: number;
@@ -625,19 +595,17 @@ export interface TeamMetrics {
   hasStrongAttacker: boolean;
   hasDefensiveReference: boolean;
   netPresence: number;
-  averageForm: number;
 }
 
 export interface TeamSolution {
-  teams: AthleteVector[][];
+  teams: PlayerBalanceSnapshot[][];
 }
 
 export type BalanceQuality = 'EXCELLENT' | 'GOOD' | 'ACCEPTABLE' | 'UNBALANCED';
 
-export interface BalanceDiagnostics {
+export interface CanonicalBalanceDiagnostics {
   objectiveScore: number;
   qualityLabel: BalanceQuality;
-  overallSpread: number;
   attackSpread: number;
   defenseSpread: number;
   settingSpread: number;
@@ -648,10 +616,24 @@ export interface BalanceDiagnostics {
   genderSpread: number;
   injuredPenalty: number;
   injuredSpread: number;
-  formSpread: number;
   roleCoveragePenalty: number;
   teamSizePenalty: number;
   warnings: string[];
+}
+
+export interface BalanceCandidate {
+  solution: TeamSolution;
+  score: number;
+  diagnostics: CanonicalBalanceDiagnostics;
+  algorithm: string;
+  seed: number;
+  iterations: number;
+  runtimeMillis: number;
+}
+
+export interface BalanceDiagnostics extends CanonicalBalanceDiagnostics {
+  overallSpread: number;
+  formSpread: number;
 }
 
 export interface Division {

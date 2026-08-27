@@ -185,7 +185,7 @@ test('community rules mapper preserves community ids and rule payloads', () => {
     defaultFormat: 'free_play',
     freePlay: { maxPoints: 12, teamCount: 3 },
     tournament: { maxPoints: 21 },
-    balanceWeights: { overall: 2 },
+    balanceWeights: { attack: 2 },
     defaultTeamNames: ['Azul', 'Verde'],
     defaultTeamColors: ['blue', 'green'],
     updatedAt: now,

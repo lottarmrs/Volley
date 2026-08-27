@@ -217,7 +217,7 @@ export function useSessionWizard({
     applyGenerationStatusState(start.generationStatus);
 
     worker.onmessage = (e: MessageEvent<BalanceResponse>) => {
-      const action = buildDivisionWorkerMessageResult(e.data);
+      const action = buildDivisionWorkerMessageResult(e.data, plan);
       if (action.type === 'progress') {
         setProgress(action.percent);
       } else if (action.type === 'done') {

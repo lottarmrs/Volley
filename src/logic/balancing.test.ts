@@ -2,19 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { players } from '../data/players';
 import {
-  balanceTeams,
   getQualityLabel,
   resolveComposition,
-  mapPlayerToAthleteVector,
   solutionDistance,
   selectPortfolio,
   ObjectiveScorer,
-  recalculateDivisionDiagnostics,
+} from './balancing';
+import {
+  balanceTeams,
   computeAttributeFallback,
   findRosterDivergence,
-} from './balancing';
+  mapPlayerToBalanceSnapshot,
+  recalculateDivisionDiagnostics,
+} from './balancingCompatibility';
 import { QUALITY } from './balancingConstants';
-import { Attributes, FreePlayConfig, Player, Position, Division, BalanceWeights } from '../types';
+import {
+  Attributes,
+  BalanceCandidate,
+  BalanceWeights,
+  Division,
+  FreePlayConfig,
+  Player,
+  Position,
+} from '../types';
 
 const selectedPlayers = players.slice(0, 12) as Player[];
 
@@ -140,7 +150,7 @@ test('competitive mode separates equal-overall players by fundamentals', () => {
   assert.notEqual(teamIndexOf(best, 'B'), teamIndexOf(best, 'D'));
 });
 
-test('changing balanceMode from social to competitive changes the division', () => {
+test('changing balanceMode from social to competitive changes the candidate portfolio', () => {
   // With normalized scales the weight profiles have real, divergent effects:
   // social leans on gender/injury/size while competitive leans on fundamentals.
   const pool = players.slice(0, 10) as Player[];
@@ -153,7 +163,7 @@ test('changing balanceMode from social to competitive changes the division', () 
     balanceMode: 'competitive',
   });
 
-  assert.notEqual(divisionFingerprint(social[0]), divisionFingerprint(competitive[0]));
+  assert.notDeepEqual(social.map(divisionFingerprint), competitive.map(divisionFingerprint));
 });
 
 // ─── Phase B: rotation 6x0 / 5x1 and composition ──────────────────────────────
@@ -164,7 +174,7 @@ test('resolveComposition uses 1 libero per team when enough liberos exist', () =
     makePlayer('l2', { posicao: 'libero' }),
     makePlayer('p1', { posicao: 'ponteiro' }),
     makePlayer('p2', { posicao: 'ponteiro' }),
-  ].map((p) => mapPlayerToAthleteVector(p));
+  ].map((p) => mapPlayerToBalanceSnapshot(p));
 
   const { perTeam, warnings } = resolveComposition(athletes, 2);
   assert.equal(perTeam.libero, 1);
@@ -179,7 +189,7 @@ test('resolveComposition falls back to 2 centrals / 0 libero with a warning', ()
   const athletes = [
     makePlayer('l1', { posicao: 'libero' }),
     makePlayer('p1', { posicao: 'ponteiro' }),
-  ].map((p) => mapPlayerToAthleteVector(p));
+  ].map((p) => mapPlayerToBalanceSnapshot(p));
 
   const { perTeam, warnings } = resolveComposition(athletes, 2);
   assert.equal(perTeam.libero, 0);
@@ -229,9 +239,7 @@ test('getQualityLabel maps scores to labels per QUALITY thresholds', () => {
 
 test('solutionDistance correctly calculates the number of players that changed teams', () => {
   const p1 = {
-    id: '1',
-    name: 'P1',
-    overall: 5,
+    participantId: '1',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -247,13 +255,10 @@ test('solutionDistance correctly calculates the number of players that changed t
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p2 = {
-    id: '2',
-    name: 'P2',
-    overall: 5,
+    participantId: '2',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -269,13 +274,10 @@ test('solutionDistance correctly calculates the number of players that changed t
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p3 = {
-    id: '3',
-    name: 'P3',
-    overall: 5,
+    participantId: '3',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -291,13 +293,10 @@ test('solutionDistance correctly calculates the number of players that changed t
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p4 = {
-    id: '4',
-    name: 'P4',
-    overall: 5,
+    participantId: '4',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -313,7 +312,6 @@ test('solutionDistance correctly calculates the number of players that changed t
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
 
@@ -351,9 +349,7 @@ test('solutionDistance correctly calculates the number of players that changed t
 
 test('selectPortfolio selects diverse candidates and falls back when not enough distinct', () => {
   const p1 = {
-    id: '1',
-    name: 'P1',
-    overall: 5,
+    participantId: '1',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -369,13 +365,10 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p2 = {
-    id: '2',
-    name: 'P2',
-    overall: 5,
+    participantId: '2',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -391,13 +384,10 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p3 = {
-    id: '3',
-    name: 'P3',
-    overall: 5,
+    participantId: '3',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -413,13 +403,10 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p4 = {
-    id: '4',
-    name: 'P4',
-    overall: 5,
+    participantId: '4',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -435,7 +422,6 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
 
@@ -458,12 +444,14 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
     ],
   };
 
-  const mockDiv = (sol: any, score: number, seed: number): Division => ({
-    teams: [],
-    penalty: score,
+  const mockDiv = (solution: any, score: number, seed: number): BalanceCandidate => ({
+    solution,
     score,
     seed,
-    rawSolution: sol,
+    diagnostics: {} as BalanceCandidate['diagnostics'],
+    algorithm: 'test',
+    iterations: 0,
+    runtimeMillis: 0,
   });
 
   const candidates = [mockDiv(solA, 10, 1), mockDiv(solB, 12, 2), mockDiv(solC, 15, 3)];
@@ -476,9 +464,7 @@ test('selectPortfolio selects diverse candidates and falls back when not enough 
 
 test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => {
   const p1 = {
-    id: '1',
-    name: 'P1',
-    overall: 5,
+    participantId: '1',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -494,13 +480,10 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p2 = {
-    id: '2',
-    name: 'P2',
-    overall: 5,
+    participantId: '2',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -516,13 +499,10 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p3 = {
-    id: '3',
-    name: 'P3',
-    overall: 5,
+    participantId: '3',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -538,13 +518,10 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
   const p4 = {
-    id: '4',
-    name: 'P4',
-    overall: 5,
+    participantId: '4',
     attack: 5,
     defense: 5,
     serve: 5,
@@ -560,7 +537,6 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
     gender: 'M' as const,
     position: 'ponteiro',
     isInjured: false,
-    currentForm: 5,
     isEstimated: false,
   };
 
@@ -572,7 +548,6 @@ test('ObjectiveScorer applies repetition penalty with partnershipMatrix', () => 
   };
 
   const weights: BalanceWeights = {
-    overall: 1,
     attack: 1,
     defense: 1,
     setting: 1,
@@ -741,10 +716,9 @@ test('atleta sem atributos nao produz NaN no vetor e e marcado como estimado', (
     status: {},
     perfil: {},
   } as unknown as Player;
-  const v = mapPlayerToAthleteVector(semAvaliacao, undefined, fallback);
+  const v = mapPlayerToBalanceSnapshot(semAvaliacao, undefined, fallback);
   assert.equal(v.isEstimated, true);
   for (const k of [
-    'overall',
     'attack',
     'defense',
     'serve',

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Attributes, Player } from '../types';
+import type { Attributes, FreePlayConfig, Player } from '../types';
+import { balanceSnapshots } from './balancing';
 import {
+  adaptBalanceCandidatesToDivisions,
+  balanceTeams,
   computeAttributeFallback,
   mapPlayerToBalanceSnapshot,
   mapPlayersToBalanceSnapshots,
@@ -33,6 +36,28 @@ const player = {
   formaAtual: { valor: 10 },
   status: { lesionado: true },
 } as Player;
+
+const compatibilityConfig: FreePlayConfig = {
+  type: 'free_play',
+  teamCount: 2,
+  maxPoints: 15,
+  tieBreakMethod: 'win_by_2',
+  rotationSystem: 'winner_stays',
+  initialCourtTeams: ['', ''],
+  initialQueue: [],
+  queuePolicy: 'fifo',
+  balanceSpeed: 'fast',
+  balanceSeed: 77,
+};
+
+function divisionFingerprints(divisions: ReturnType<typeof balanceTeams>): string[] {
+  return divisions.map((division) =>
+    division.teams
+      .map((team) => [...team.playerIds].sort().join(','))
+      .sort()
+      .join('|'),
+  );
+}
 
 test('mapPlayerToBalanceSnapshot emits only canonical participant facts', () => {
   const snapshot = mapPlayerToBalanceSnapshot(player, 'levantador');
@@ -86,7 +111,12 @@ test('mapPlayersToBalanceSnapshots replaces non-finite dimensions with finite fa
   const mixed = {
     ...player,
     id: 'player-2',
-    atributos: { ...attributes, ataque: Number.NaN, saque: Number.POSITIVE_INFINITY, defesa: Number.NaN },
+    atributos: {
+      ...attributes,
+      ataque: Number.NaN,
+      saque: Number.POSITIVE_INFINITY,
+      defesa: Number.NaN,
+    },
   } as Player;
   const allNonFinite = {
     ...player,
@@ -106,4 +136,75 @@ test('mapPlayersToBalanceSnapshots replaces non-finite dimensions with finite fa
   assert.equal(snapshots[0].defense, 5);
   assert.equal(snapshots[0].isEstimated, false);
   assert.equal(snapshots[1].isEstimated, true);
+});
+
+test('changing only derived Overall inputs cannot change candidate assignments', () => {
+  const roster = ['a', 'b', 'c', 'd'].map((id, index) => ({
+    ...player,
+    id,
+    atributos: { ...attributes, ataque: index + 4 },
+    formaAtual: { valor: 0 },
+  })) as Player[];
+  const changedForm = roster.map((item, index) => ({
+    ...item,
+    formaAtual: { ...item.formaAtual, valor: index === 0 ? 10 : 0 },
+  }));
+  const localConfig = { ...compatibilityConfig, teamCount: 2, balanceSeed: 91 };
+
+  const baseline = balanceTeams(roster, 2, 'session-1', localConfig);
+  const changed = balanceTeams(changedForm, 2, 'session-1', localConfig);
+
+  assert.deepEqual(divisionFingerprints(changed), divisionFingerprints(baseline));
+  assert.notEqual(
+    changed[0].teams.find((team) => team.playerIds.includes('a'))?.strengthSnapshot?.overall,
+    baseline[0].teams.find((team) => team.playerIds.includes('a'))?.strengthSnapshot?.overall,
+  );
+});
+
+test('display adaptation preserves assignments and exposes Overall diagnostics afterward', () => {
+  const divisions = balanceTeams(
+    ['a', 'b', 'c', 'd'].map((id) => ({ ...player, id })) as Player[],
+    2,
+    'session-1',
+    compatibilityConfig,
+  );
+
+  assert.equal(typeof divisions[0].diagnostics?.overallSpread, 'number');
+  assert.ok(
+    divisions[0].teams.every(
+      (team) =>
+        typeof team.strengthSnapshot?.overall === 'number' &&
+        Number.isFinite(team.strengthSnapshot.overall),
+    ),
+  );
+  assert.ok(divisions[0].rawSolution?.teams.flat().every((item) => !('overall' in item)));
+});
+
+test('different display projections cannot change fixed candidate assignments or order', () => {
+  const roster = ['a', 'b', 'c', 'd'].map((id) => ({ ...player, id })) as Player[];
+  const candidates = balanceSnapshots(mapPlayersToBalanceSnapshots(roster), 2, compatibilityConfig);
+  const low = adaptBalanceCandidatesToDivisions({
+    candidates,
+    players: roster,
+    sessionId: 'session-1',
+    config: compatibilityConfig,
+    overallProjection: (item) => (item.id === 'a' ? 10 : 20),
+  });
+  const high = adaptBalanceCandidatesToDivisions({
+    candidates,
+    players: roster,
+    sessionId: 'session-1',
+    config: compatibilityConfig,
+    overallProjection: (item) => (item.id === 'a' ? 90 : 20),
+  });
+
+  assert.deepEqual(divisionFingerprints(high), divisionFingerprints(low));
+  assert.deepEqual(
+    high.map(({ score, seed, iterations }) => ({ score, seed, iterations })),
+    low.map(({ score, seed, iterations }) => ({ score, seed, iterations })),
+  );
+  assert.notEqual(
+    high[0].teams.find((team) => team.playerIds.includes('a'))?.strengthSnapshot?.overall,
+    low[0].teams.find((team) => team.playerIds.includes('a'))?.strengthSnapshot?.overall,
+  );
 });

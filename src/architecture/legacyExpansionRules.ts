@@ -141,8 +141,8 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
   },
   {
     id: 'AF-FREEZE-008',
-    slice: 'XS-W0-01',
-    title: 'No new Overall coupling inside the Team Formation solver',
+    slice: 'XS-W1-01',
+    title: 'Overall is absent from canonical Team Formation',
     include: [
       'src/logic/balancing.ts',
       'src/logic/balancer.worker.ts',
@@ -152,11 +152,8 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
     exclude: [],
     pattern: /[Oo]verall/,
     rationale:
-      'GINV-BAL-001 / ADR-BAL-001: Overall is display-only and must never influence the solver. The current objective still weights it; XS-W1-01 removes that. This census freezes the coupling so it cannot grow first. Overall stays legal outside these solver modules.',
-    baseline: {
-      'src/logic/balancing.ts': 69,
-      'src/logic/balancingConstants.ts': 1,
-    },
+      'GINV-BAL-001 / ADR-BAL-001: canonical Team Formation is attribute-driven and Overall is a post-selection display projection only.',
+    baseline: {},
   },
 ];
 
@@ -167,7 +164,7 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
  * the rename attack: any newly named aggregate that wants solver influence must surface as
  * an objective weight or a team metric, and both sets are pinned.
  */
-export const FROZEN_BALANCE_WEIGHT_KEYS: readonly string[] = [
+export const FROZEN_BALANCE_WEIGHT_KEYS = [
   'attack',
   'block',
   'consistency',
@@ -177,18 +174,16 @@ export const FROZEN_BALANCE_WEIGHT_KEYS: readonly string[] = [
   'height',
   'injured',
   'netPresence',
-  'overall',
   'reception',
   'repetition',
   'roleCoverage',
   'serve',
   'setting',
   'teamSize',
-];
+] as const;
 
-export const FROZEN_TEAM_METRIC_KEYS: readonly string[] = [
+export const FROZEN_TEAM_METRIC_KEYS = [
   'attack',
-  'averageForm',
   'averageHeight',
   'block',
   'consistency',
@@ -202,7 +197,6 @@ export const FROZEN_TEAM_METRIC_KEYS: readonly string[] = [
   'injuredCount',
   'maleCount',
   'netPresence',
-  'overall',
   'reception',
   'serve',
   'setting',
@@ -210,59 +204,59 @@ export const FROZEN_TEAM_METRIC_KEYS: readonly string[] = [
   'speed',
   'stamina',
   'teamIndex',
-];
+] as const;
 
-/**
- * AF-FREEZE-008 dependency contract.
- *
- * The census sees literal `overall` text and the key sets see new objective inputs, but
- * neither can see a NEW, neutrally named module that computes a composite rating and is
- * imported into the solver. Freezing the solver's whole import surface closes that route:
- * any new binding reaching Team Formation is an explicit, reviewed decision.
- *
- * The two Overall entry points are `./calculations:calculateGeneralOverall` and
- * `./calculations:calculatePositionOverall`. XS-W1-01 removes both, which will fail this
- * contract and force a deliberate update rather than a silent one.
- */
+export const FROZEN_PLAYER_BALANCE_SNAPSHOT_KEYS = [
+  'attack',
+  'block',
+  'consistency',
+  'defense',
+  'emotionalControl',
+  'gameVision',
+  'gender',
+  'heightCm',
+  'isEstimated',
+  'isInjured',
+  'participantId',
+  'position',
+  'reception',
+  'secondaryPositions',
+  'serve',
+  'setting',
+  'speed',
+  'stamina',
+] as const;
+
 export const FROZEN_SOLVER_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   'src/logic/balancing.ts': [
-    '../types:AthleteVector',
-    '../types:Attributes',
+    '../types:BalanceCandidate',
     '../types:BalanceConstraints',
-    '../types:BalanceDiagnostics',
     '../types:BalanceQuality',
     '../types:BalanceWeights',
-    '../types:Division',
+    '../types:CanonicalBalanceDiagnostics',
     '../types:FreePlayConfig',
-    '../types:Player',
-    '../types:Position',
+    '../types:PlayerBalanceSnapshot',
     '../types:RoleComposition',
     '../types:RotationType',
-    '../types:Team',
     '../types:TeamMetrics',
     '../types:TeamSolution',
-    '../types:TeamStrengthSnapshot',
     '../types:TournamentConfig',
-    './balancingConstants:OVERALL_SCALE',
     './balancingConstants:PENALTIES',
     './balancingConstants:QUALITY',
     './balancingConstants:THRESHOLDS',
     './calculations:calculateGenderDistribution',
-    './calculations:calculateGeneralOverall',
-    './calculations:calculatePositionOverall',
     './calculations:calculateTeamSizes',
     './partnershipHistory:PartnershipMatrix',
-    './uuid:generateUUID',
   ],
   'src/logic/balancer.worker.ts': [
     './balancerMessages:BalanceRequest',
     './balancerMessages:BalanceResponse',
-    './balancing:balanceTeams',
+    './balancing:balanceSnapshots',
   ],
   'src/logic/balancerMessages.ts': [
-    '../types:Division',
+    '../types:BalanceCandidate',
     '../types:FreePlayConfig',
-    '../types:Player',
+    '../types:PlayerBalanceSnapshot',
     '../types:TournamentConfig',
     './partnershipHistory:PartnershipMatrix',
   ],

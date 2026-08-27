@@ -1,6 +1,3 @@
-// Fator de normalização: overall (0–100) → mesma faixa dos fundamentos (0–10)
-export const OVERALL_SCALE = 10;
-
 export const PENALTIES = {
   forbiddenPair: 10000,
   togetherPair: 10000,

@@ -6,6 +6,7 @@ import type {
   Game,
   GameReport,
   Player,
+  PlayerBalanceSnapshot,
   PointEvent,
   Session,
   SessionReport,
@@ -13,7 +14,12 @@ import type {
   TournamentConfig,
 } from '../types';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
-import { balanceTeams, findRosterDivergence } from '../logic/balancing';
+import { balanceSnapshots } from '../logic/balancing';
+import {
+  adaptBalanceCandidatesToDivisions,
+  findRosterDivergence,
+  mapPlayersToBalanceSnapshots,
+} from '../logic/balancingCompatibility';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
   addPlayerPairConstraint,
@@ -465,7 +471,9 @@ export function buildWizardCancelApplicationResult(
 }
 
 export type DivisionGenerationPlan = {
+  sessionId: string;
   sessionPlayers: Player[];
+  snapshots: PlayerBalanceSnapshot[];
   updatedConfig: FreePlayConfig | TournamentConfig;
   sessionPatch: Pick<Session, 'config'>;
   request: BalanceRequest;
@@ -487,38 +495,31 @@ export function buildDivisionGenerationPlan(input: {
     ...activeSession.config,
     balanceSeed: input.seed,
   };
+  const snapshots = mapPlayersToBalanceSnapshots(
+    sessionPlayers,
+    updatedConfig.playerPositions ?? {},
+  );
 
   return {
+    sessionId: activeSession.id,
     sessionPlayers,
+    snapshots,
     updatedConfig,
     sessionPatch: { config: updatedConfig },
     request: {
       type: 'balance',
-      players: sessionPlayers,
+      snapshots,
       numTeams: updatedConfig.teamCount,
-      sessionId: activeSession.id,
       config: updatedConfig,
       partnershipMatrix: input.partnershipMatrix,
     },
   };
 }
 
-export function buildDivisionFallbackBalanceInput(plan: DivisionGenerationPlan | null): {
-  players: Player[];
-  numTeams: number;
-  sessionId: string;
-  config: FreePlayConfig | TournamentConfig;
-  partnershipMatrix?: PartnershipMatrix;
-} | null {
-  if (!plan || !plan.request.config) return null;
-
-  return {
-    players: plan.request.players,
-    numTeams: plan.request.numTeams,
-    sessionId: plan.request.sessionId,
-    config: plan.request.config,
-    partnershipMatrix: plan.request.partnershipMatrix,
-  };
+export function buildDivisionFallbackBalanceInput(
+  plan: DivisionGenerationPlan | null,
+): BalanceRequest | null {
+  return plan?.request ?? null;
 }
 
 export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan | null): {
@@ -527,15 +528,20 @@ export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan 
   const input = buildDivisionFallbackBalanceInput(plan);
   if (!input) return null;
 
+  const candidates = balanceSnapshots(
+    input.snapshots,
+    input.numTeams,
+    input.config,
+    undefined,
+    input.partnershipMatrix,
+  );
   return {
-    divisions: balanceTeams(
-      input.players,
-      input.numTeams,
-      input.sessionId,
-      input.config,
-      undefined,
-      input.partnershipMatrix,
-    ),
+    divisions: adaptBalanceCandidatesToDivisions({
+      candidates,
+      players: plan!.sessionPlayers,
+      sessionId: plan!.sessionId,
+      config: plan!.updatedConfig,
+    }),
   };
 }
 
@@ -645,6 +651,7 @@ export function buildDivisionWorkerUnavailableApplicationResult(): {
 
 export function buildDivisionWorkerMessageResult(
   message: BalanceResponse,
+  plan: DivisionGenerationPlan | null,
 ):
   | { type: 'progress'; percent: number }
   | { type: 'done'; divisions: Division[] }
@@ -653,7 +660,16 @@ export function buildDivisionWorkerMessageResult(
     return { type: 'progress', percent: message.percent };
   }
   if (message.type === 'done') {
-    return { type: 'done', divisions: message.divisions };
+    if (!plan) return { type: 'fallback', message: 'Plano de geração indisponível.' };
+    return {
+      type: 'done',
+      divisions: adaptBalanceCandidatesToDivisions({
+        candidates: message.candidates,
+        players: plan.sessionPlayers,
+        sessionId: plan.sessionId,
+        config: plan.updatedConfig,
+      }),
+    };
   }
   return { type: 'fallback', message: message.message };
 }

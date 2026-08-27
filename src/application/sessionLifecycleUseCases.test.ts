@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { balanceSnapshots } from '../logic/balancing';
 import {
   buildActiveSessionClearResult,
   buildDivisionConfirmationApplicationResult,
@@ -654,12 +655,17 @@ test('buildDivisionGenerationPlan prepares selected players and seeded balance r
   assert.deepEqual(result?.sessionPatch, { config: result?.updatedConfig });
   assert.deepEqual(result?.request, {
     type: 'balance',
-    players: result.sessionPlayers,
+    snapshots: result.snapshots,
     numTeams: 2,
-    sessionId: 'session-1',
     config: result.updatedConfig,
     partnershipMatrix: { 'player-1|player-3': 2 },
   });
+  assert.deepEqual(
+    result?.request.snapshots.map((snapshot) => snapshot.participantId),
+    ['player-1', 'player-3'],
+  );
+  assert.equal('players' in result!.request, false);
+  assert.equal('sessionId' in result!.request, false);
 });
 
 test('buildDivisionGenerationResult stores generated divisions and resets generation state', () => {
@@ -797,15 +803,10 @@ test('buildDivisionFallbackBalanceInput reuses the generation request for sync b
     partnershipMatrix: { 'player-1|player-2': 1 },
   });
 
-  const result = buildDivisionFallbackBalanceInput(plan);
+  const input = buildDivisionFallbackBalanceInput(plan);
 
-  assert.deepEqual(result, {
-    players: plan?.request.players,
-    numTeams: 2,
-    sessionId: 'session-1',
-    config: plan?.request.config,
-    partnershipMatrix: { 'player-1|player-2': 1 },
-  });
+  assert.equal(input?.snapshots, plan?.request.snapshots);
+  assert.deepEqual(input, plan?.request);
 });
 
 test('buildDivisionFallbackBalanceResult runs sync balancing from the generation plan', () => {
@@ -839,26 +840,33 @@ test('buildDivisionFallbackBalanceResult runs sync balancing from the generation
 });
 
 test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions', () => {
-  const divisions = [
-    {
-      teams: [makeTeam('team-a', 'session-1', []), makeTeam('team-b', 'session-1', [])],
-      penalty: 0,
-      score: 100,
-    },
-  ];
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1', 'player-2'],
+    config: { ...makeSession('config-source').config!, teamCount: 2 },
+  });
+  const plan = buildDivisionGenerationPlan({
+    activeSession,
+    players: [makePlayer('player-1'), makePlayer('player-2')],
+    seed: 123,
+  });
+  const candidates = balanceSnapshots(plan!.snapshots, 2, plan!.updatedConfig);
 
   assert.deepEqual(
-    buildDivisionWorkerMessageResult({ type: 'progress', percent: 45, bestScore: 88 }),
+    buildDivisionWorkerMessageResult({ type: 'progress', percent: 45, bestScore: 88 }, plan),
     {
       type: 'progress',
       percent: 45,
     },
   );
-  assert.deepEqual(buildDivisionWorkerMessageResult({ type: 'done', divisions }), {
-    type: 'done',
-    divisions,
-  });
-  assert.deepEqual(buildDivisionWorkerMessageResult({ type: 'error', message: 'boom' }), {
+  const action = buildDivisionWorkerMessageResult({ type: 'done', candidates }, plan);
+  assert.equal(action.type, 'done');
+  if (action.type === 'done') {
+    assert.deepEqual(action.divisions[0].teams.flatMap((team) => team.playerIds).sort(), [
+      'player-1',
+      'player-2',
+    ]);
+  }
+  assert.deepEqual(buildDivisionWorkerMessageResult({ type: 'error', message: 'boom' }, plan), {
     type: 'fallback',
     message: 'boom',
   });

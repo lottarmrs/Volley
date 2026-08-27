@@ -617,7 +617,7 @@ C7 audits:
 - missing owner/source;
 - stale Open/Hypothesis portrayed as accepted behavior;
 - unsupported legacy writers;
-- Q0/I0/I1 gaps in executable evidence;
+- I0/I1 invariant-evidence gaps or under-tested Q0/Q1 QA-risk families;
 - cross-context circular dependency;
 - incorrect public/offline/realtime exposure;
 - missing deprecation/removal gate.

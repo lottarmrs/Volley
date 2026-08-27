@@ -1,6 +1,6 @@
 # Hypothesis Catalog — Volley
 
-> Status: `DRAFT-CANONICAL / C4`
+> Status: `DRAFT-CANONICAL / C4 / C7-R5-UPDATED`
 >
 > Owner: `Architecture Governance + listed hypothesis owners`
 >
@@ -105,7 +105,7 @@ For I0/I1 safety/correctness boundaries, an unvalidated hypothesis may influence
 
 | ID | Claim | Evidence expected | Review trigger |
 |---|---|---|---|
-| `HYP-STAT-001` | `PlayerMatchStatContribution` is an appropriate canonical persisted contribution name/entity | C5 Entity Catalog/domain-language review | C5 naming pass; rename before schema freeze if ambiguity remains |
+| `HYP-STAT-001` | **SUPPORTED / RESOLVED-NAMING (C7-R5):** `PlayerMatchStatContribution` is the canonical architecture term for the per-Player, per-Match rebuildable statistical contribution | C5 Entity Catalog + C7 domain-language review completed; Glossary normalized | Resolved 2026-08-26; reopen only if implementation evidence reveals a materially misleading boundary before physical schema freeze |
 | `HYP-STAT-002` | Typed core stat columns plus versioned metadata is more practical than pure EAV | Query evolution/performance/schema-change analysis | Before stats projection schema freeze |
 | `HYP-STAT-003` | Hot global/player Career projections should be materialized; rarer filters may query contributions on demand | Query frequency/latency measurements | After first production stats usage baseline |
 | `HYP-STAT-004` | StatisticalEligibility can be deterministic with materialized current result/checkpoint where useful | Eligibility policy complexity and rebuild tests | Before official ranking/report eligibility implementation |

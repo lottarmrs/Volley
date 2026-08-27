@@ -870,6 +870,23 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
     type: 'fallback',
     message: 'boom',
   });
+  assert.deepEqual(
+    buildDivisionWorkerMessageResult(
+      {
+        type: 'error',
+        message: 'Não existe solução viável para as restrições obrigatórias.',
+      },
+      plan,
+    ),
+    {
+      type: 'infeasible',
+      message: 'Não existe solução viável para as restrições obrigatórias.',
+      generationStatus: {
+        nextIsGenerating: false,
+        nextProgress: 0,
+      },
+    },
+  );
 });
 
 test('buildDivisionWorkerFallbackApplicationResult routes worker failures to sync fallback', () => {

@@ -194,8 +194,21 @@ export function useSessionWizard({
       if (result.nextWizardStep !== null) setWizardStep(result.nextWizardStep);
     };
     const runFallback = () => {
-      const result = buildDivisionFallbackBalanceResult(plan);
-      if (result) finish(result.divisions);
+      try {
+        const result = buildDivisionFallbackBalanceResult(plan);
+        if (result) finish(result.divisions);
+      } catch (error) {
+        const action = buildDivisionWorkerMessageResult(
+          {
+            type: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          },
+          plan,
+        );
+        if (action.type !== 'infeasible') throw error;
+        applyGenerationStatusState(action.generationStatus);
+        setValidationErrors((current) => ({ ...current, generation: action.message }));
+      }
     };
     // Encerra qualquer cálculo anterior ainda em andamento.
     terminateWorker(workerRef.current);
@@ -223,6 +236,10 @@ export function useSessionWizard({
       } else if (action.type === 'done') {
         terminateWorker(worker);
         finish(action.divisions);
+      } else if (action.type === 'infeasible') {
+        terminateWorker(worker);
+        applyGenerationStatusState(action.generationStatus);
+        setValidationErrors((current) => ({ ...current, generation: action.message }));
       } else {
         // erro: encerra e cai no cálculo síncrono para não travar o fluxo.
         const fallback = buildDivisionWorkerFallbackApplicationResult({

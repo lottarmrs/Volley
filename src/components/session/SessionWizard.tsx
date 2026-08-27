@@ -1705,6 +1705,12 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               </div>
             </div>
 
+            {validationErrors.generation && (
+              <div role="alert" className="alert alert-error alert-soft text-xs font-semibold">
+                {validationErrors.generation}
+              </div>
+            )}
+
             {isGenerating ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

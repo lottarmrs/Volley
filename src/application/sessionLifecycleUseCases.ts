@@ -655,6 +655,11 @@ export function buildDivisionWorkerMessageResult(
 ):
   | { type: 'progress'; percent: number }
   | { type: 'done'; divisions: Division[] }
+  | {
+      type: 'infeasible';
+      message: string;
+      generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
+    }
   | { type: 'fallback'; message: string } {
   if (message.type === 'progress') {
     return { type: 'progress', percent: message.percent };
@@ -669,6 +674,13 @@ export function buildDivisionWorkerMessageResult(
         sessionId: plan.sessionId,
         config: plan.updatedConfig,
       }),
+    };
+  }
+  if (message.message === 'Não existe solução viável para as restrições obrigatórias.') {
+    return {
+      type: 'infeasible',
+      message: message.message,
+      generationStatus: buildDivisionGenerationStatusApplicationResult('cancel'),
     };
   }
   return { type: 'fallback', message: message.message };

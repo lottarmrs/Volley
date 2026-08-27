@@ -34,7 +34,9 @@ export default tseslint.config(
     },
   },
   {
-    files: ['vite.config.ts', '**/*.test.ts'],
+    // `scripts/**/*.mjs` runs on Node, not in the browser. Without this the repository
+    // tooling reports `process`/`console` as undefined in every script.
+    files: ['vite.config.ts', '**/*.test.ts', '**/*.dbtest.ts', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: { ...globals.node },
     },

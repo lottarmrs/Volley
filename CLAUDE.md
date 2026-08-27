@@ -29,12 +29,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Unit (Node runner): `node --import tsx --test src/logic/balancing.test.ts` — pass the file path explicitly.
 - UI (Vitest): `npx vitest run src/hooks/useLiveSession.spec.tsx` — pass the file path to `vitest run`.
 
-## Two test runners — do not confuse
+## Three test runners — do not confuse
 
 Glob patterns enforce naming:
 
 - `.test.ts` → unit tests, Node's built-in runner + tsx, pure logic/domain, **zero DOM**.
 - `.spec.ts(x)` → UI tests, Vitest + jsdom + Testing Library. Config in `vitest.config.ts`; `globals: true` is required so RTL auto-cleanup runs in `afterEach`.
+- `.dbtest.ts` → PostgreSQL/RLS/concurrency suites under `src/test/db/`, run by `npm run test:db` against a **real** database. The distinct suffix keeps them out of the `test:unit` glob; naming one `.test.ts` would drag it into every unit run and fail it.
+
+`test:db` needs a database and never mocks one (QA-INV-003/004). It resolves `VOLLEY_TEST_DATABASE_URL`, falling back to a running `supabase start` stack, and exits non-zero with instructions when neither exists — a green run without a database would be a false pass. CI orchestration is deliberately undecided (`OPEN-QA-002`), so the runner accepts any Postgres you point it at.
 
 ## Environment
 

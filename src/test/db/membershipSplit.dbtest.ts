@@ -60,6 +60,16 @@ if (!isTestDatabaseConfigured()) {
       'insert into public.communities (name, owner_id) values ($1, $2) returning id',
       [name, ownerId],
     );
+    // GINV-COM-001, enforced from XS-W2-04 onward by a deferred constraint trigger: a
+    // community touching community_memberships must end the transaction with exactly one
+    // active owner. Fixtures that added members without an owner were building a state the
+    // invariant forbids.
+    await client.query(
+      `insert into public.community_memberships (community_id, user_id, role, status)
+       values ($1, $2, 'owner', 'active')
+       on conflict (community_id, user_id) do nothing`,
+      [rows[0].id, ownerId],
+    );
     return rows[0].id;
   }
 
@@ -167,8 +177,8 @@ if (!isTestDatabaseConfigured()) {
 
     // And that Player has no governance access anywhere.
     const governance = await client.query(
-      'select 1 from public.community_memberships where community_id = $1',
-      [community],
+      'select 1 from public.community_memberships where community_id = $1 and user_id <> $2',
+      [community, owner],
     );
     assert.equal(governance.rowCount, 0, 'a sports relation must not create governance');
   });
@@ -403,8 +413,8 @@ if (!isTestDatabaseConfigured()) {
     );
 
     const governance = await client.query(
-      'select 1 from public.community_memberships where community_id = $1',
-      [community],
+      'select 1 from public.community_memberships where community_id = $1 and user_id <> $2',
+      [community, owner],
     );
     assert.equal(
       governance.rowCount,

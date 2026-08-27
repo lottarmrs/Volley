@@ -370,6 +370,42 @@ export async function asIdentity<T>(
   }
 }
 
+/**
+ * Like `asIdentity`, but COMMITS.
+ *
+ * `asIdentity` always rolls back, which is right for read and deny assertions and silently
+ * useless for testing a command that must persist: the write happens, the assertion reads
+ * the pre-state, and the test fails for a reason that has nothing to do with the code under
+ * test. Any suite exercising a mutating semantic command needs this variant instead.
+ *
+ * The identity settings are still transaction-scoped, so they end with the transaction
+ * either way; only the durability of the work differs.
+ */
+export async function asIdentityCommitting<T>(
+  client: PoolClient | Client,
+  userId: string | null,
+  work: () => Promise<T>,
+): Promise<T> {
+  const role = userId ? 'authenticated' : 'anon';
+
+  await client.query('begin');
+  try {
+    await client.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', userId ?? '']);
+    await client.query('select set_config($1, $2, true)', ['request.jwt.claim.role', role]);
+    await client.query('select set_config($1, $2, true)', [
+      'request.jwt.claims',
+      JSON.stringify({ sub: userId, role }),
+    ]);
+    await client.query(`set local role ${role}`);
+    const result = await work();
+    await client.query('commit');
+    return result;
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined);
+    throw error;
+  }
+}
+
 /** Opens a transaction and always rolls back, so suites cannot leak state into each other. */
 export async function inRolledBackTransaction<T>(
   pool: Pool,

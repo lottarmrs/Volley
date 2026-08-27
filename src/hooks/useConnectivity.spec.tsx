@@ -39,13 +39,22 @@ describe('useConnectivity', () => {
   });
 
   it('onlineAt muda quando a rede volta, para servir de gatilho', () => {
+    // onlineAt sai de Date.now(). No relogio real, montar o hook e reconectar caem
+    // no mesmo milissegundo com frequencia, e o teste falha sem nada estar quebrado.
+    // Aqui o relogio e do teste: a passagem de tempo vira parte do roteiro.
+    let agora = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => agora);
+
     const { result } = renderHook(() => useConnectivity());
     act(() => result.current.reportOutcome('network_failure'));
     const antes = result.current.onlineAt;
+
     act(() => {
+      agora += 1;
       setBrowserOnline(true);
       window.dispatchEvent(new Event('online'));
     });
+
     expect(result.current.onlineAt).not.toBe(antes);
   });
 });

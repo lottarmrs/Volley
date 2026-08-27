@@ -553,6 +553,27 @@ export interface BalanceConstraints {
   pairsSeparated?: [string, string][];
 }
 
+export interface PlayerBalanceSnapshot {
+  readonly participantId: string;
+  readonly attack: number;
+  readonly defense: number;
+  readonly serve: number;
+  readonly reception: number;
+  readonly setting: number;
+  readonly block: number;
+  readonly speed: number;
+  readonly stamina: number;
+  readonly gameVision: number;
+  readonly consistency: number;
+  readonly emotionalControl: number;
+  readonly heightCm: number | null;
+  readonly gender: Gender | null;
+  readonly position: string | null;
+  readonly secondaryPositions?: readonly string[];
+  readonly isInjured: boolean;
+  readonly isEstimated: boolean;
+}
+
 export interface AthleteVector {
   id: string;
   name: string;

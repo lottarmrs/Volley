@@ -54,6 +54,7 @@ export type {
   GameStatus,
   GameWinner,
   OverallMetric,
+  PlayerBalanceSnapshot,
   PointEvent,
   PointReason,
   PointType,

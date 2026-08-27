@@ -1,0 +1,36 @@
+name: Architecture Reference Check
+
+on:
+  push:
+    branches:
+      - docs/architecture-consolidation
+  pull_request:
+    paths:
+      - 'docs/architecture/**'
+      - 'docs/operations/**'
+      - 'scripts/check-architecture-references.mjs'
+      - 'src/architecture/**'
+      - 'package.json'
+      - '.github/workflows/architecture-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  architecture-reference-check:
+    name: Architecture references
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check canonical architecture references
+        run: npm run check:architecture

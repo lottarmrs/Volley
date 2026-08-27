@@ -186,7 +186,9 @@ if (!isTestDatabaseConfigured()) {
     );
     const player = auto[0].id;
 
-    await membership(community, person, 'moderator');
+    // 'admin' rather than 'moderator': XS-W2-03 narrowed the governance axis to
+    // OWNER | ADMIN | MEMBER and moved moderator off it entirely.
+    await membership(community, person, 'admin');
     await communityPlayer(community, player, owner);
 
     const governance = await client.query<{ role: string }>(
@@ -198,7 +200,7 @@ if (!isTestDatabaseConfigured()) {
       [community, player],
     );
 
-    assert.equal(governance.rows[0].role, 'moderator');
+    assert.equal(governance.rows[0].role, 'admin');
     assert.equal(sports.rowCount, 1);
 
     // The point is INDEPENDENCE: removing one must not remove the other.

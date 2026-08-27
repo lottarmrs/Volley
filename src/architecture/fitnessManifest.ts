@@ -115,9 +115,9 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     owner: 'Application + Data / Migration W13',
     lifecycle: 'TRANSITIONAL',
     protects:
-      'updated_at cannot be reintroduced as a conflict resolver; optimistic concurrency uses semantic revision/sequence/epoch.',
+      'updated_at cannot be reintroduced as a conflict resolver; optimistic concurrency uses semantic revision/sequence/epoch. Censuses conversion of an update timestamp to a comparable number, which is the precondition for LWW and cannot be evaded by assigning to a variable before comparing.',
     removalOrReplacementTrigger:
-      'Drop the syncService entry when W13 removes the generic merge; keep the classified non-merge entry pinned until its aggregation moves to a target read model.',
+      'Drop the syncService and operationalCloudService entries when W13 removes the generic merge; the evaluation entries when W5 lands hierarchical aggregation; the drafts entry when W12 moves drafts to IndexedDB; the migrations entry when W14 retires the legacy importer.',
   },
   {
     id: 'AF-FREEZE-007',

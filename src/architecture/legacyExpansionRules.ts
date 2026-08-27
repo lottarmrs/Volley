@@ -90,16 +90,36 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
     title: 'No new updated_at timestamp used as conflict authority',
     include: [],
     exclude: [],
+    // Censuses the PRECONDITION for timestamp-LWW -- converting an update timestamp into a
+    // comparable number -- rather than the shape of the comparison itself. Matching the
+    // comparison is trivially evaded by assigning to a variable first, which is exactly how
+    // the primary merge in mergeEntityLists escaped the original rule. Pure display
+    // formatting (toLocaleDateString, toISOString) does not convert to a number and stays
+    // legal.
     pattern:
-      /(?:timestampMs|Date\.parse|new Date)\s*\([^)]*[Uu]pdatedAt[^)]*\)(?:\s*\.\s*getTime\s*\(\s*\))?\s*[<>]=?/,
+      /\b(?:timestampMs|getSyncTimestamp)\s*\(|\bgetUpdatedAt\s*\(|Date\.parse\s*\([^)]*(?:[Uu]pdatedAt|updated_at|atualizadoEm)[^)]*\)|new Date\s*\([^)]*(?:[Uu]pdatedAt|updated_at|atualizadoEm)[^)]*\)\s*\.\s*getTime\s*\(\s*\)/,
     rationale:
-      'GINV-API-004 / ADR-API-007 / ADR-OFF-009: stale writers are detected by semantic revision/sequence/epoch, never wall clock. Retired by C6 W13.',
+      'GINV-API-004 / ADR-API-007 / ADR-OFF-009: stale writers are detected by semantic revision/sequence/epoch, never wall clock. Every allowlisted site below is a real timestamp-ordering decision that a named wave retires.',
     baseline: {
-      // The actual legacy last-write-wins merge. Retired with syncService in W13.
-      'src/infra/supabase/syncService.ts': 2,
-      // Classified NOT a conflict resolver: selects the most recent evaluation for display
-      // aggregation. Pinned so it cannot silently grow into one.
-      'src/logic/playerEvaluations.ts': 1,
+      // Newest-wins selection: sorts by updatedAt descending and takes the first draft.
+      // Retired when drafts move to structured local storage in W12.
+      'src/application/localWhatsAppListUseCases.ts': 2,
+      // The generic last-write-wins merge machinery: timestampMs/getSyncTimestamp helpers
+      // plus every comparison site in mergeEntityLists. Retired with syncService in W13.
+      'src/infra/supabase/syncService.ts': 22,
+      // LWW dedup of operational rows by updated_at before upsert. Retired in W13.
+      'src/infra/supabase/operationalCloudService.ts': 3,
+      // LWW dedup of evaluations per evaluator. Replaced by the hierarchical attribute
+      // aggregation in W5.
+      'src/infra/supabase/playerEvaluationCloudService.ts': 3,
+      // Timestamp-ordered dedup inside the legacy import path. Retired in W14.
+      'src/logic/migrations.ts': 5,
+      // Latest-evaluation selection for display aggregation. Classified NOT a conflict
+      // resolver, but pinned so it cannot silently become one. Revisited in W5.
+      'src/logic/playerEvaluations.ts': 2,
+      // Tests asserting current legacy behaviour; they retire with their subjects.
+      'src/infra/supabase/mappers.test.ts': 1,
+      'src/infra/supabase/selfEvaluationCloudService.test.ts': 1,
     },
   },
   {

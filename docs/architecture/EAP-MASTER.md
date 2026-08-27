@@ -1,6 +1,6 @@
 # EAP MASTER — Arquitetura do Volley
 
-> Status: `DRAFT-CANONICAL / C1 / C7-R1-RECONCILED`
+> Status: `DRAFT-CANONICAL / C1 / C7-R1-R5-RECONCILED`
 >
 > Branch de consolidação: `docs/architecture-consolidation`
 >
@@ -8,7 +8,7 @@
 >
 > Escopo: índice arquitetural canônico da reconstrução do Volley.
 >
-> Última reconciliação estrutural: `C7 / R1`.
+> Última reconciliação: `C7 / R1 structural authority + R5 Player Skill Profile ownership`.
 
 ---
 
@@ -16,7 +16,7 @@
 
 Este documento é a árvore mestre **N1/N2** da arquitetura do Volley.
 
-Após o audit C7, a autoridade foi deliberadamente separada para eliminar duas árvores N3 manualmente editáveis:
+Após o audit C7, a autoridade foi separada para eliminar duas árvores N3 manualmente editáveis:
 
 ```text
 EAP-MASTER.md
@@ -25,6 +25,7 @@ N1 / N2 identity
 + N2 owner
 + N2 scope
 + canonical document path
++ named sub-owner where needed
 + cross-context anchors
 + dependency / wave navigation
 
@@ -40,28 +41,19 @@ Portanto:
 EAP DOES NOT DUPLICATE THE N3 TREE
 ```
 
-Se um capítulo N2 alterar, adicionar, dividir ou renomear um N3, a mudança ocorre no documento N2 proprietário. O EAP só precisa mudar quando houver alteração material de:
+Se um capítulo N2 alterar, adicionar, dividir ou renomear um N3, a mudança ocorre no documento N2 proprietário. O EAP muda quando houver alteração material de:
 
 - identidade/scope de N2;
-- ownership principal;
+- ownership principal ou sub-owner arquitetural;
 - canonical path;
 - dependency/wave architecture;
 - cross-context anchor.
-
-Essa é a resolução C7 para `C7-F-001` e corresponde à opção:
-
-```text
-EAP owns N2 scope/owner
-N2 owns detailed N3 decomposition
-```
 
 O EAP não substitui, resume nem elimina o conteúdo integral dos documentos N2.01–N2.23.
 
 ---
 
 # 1. Convenção N1 → N10
-
-Os níveis continuam com função semântica fixa:
 
 ```text
 N1  — Produto / Sistema
@@ -76,9 +68,7 @@ N9  — Observabilidade, performance, operação e migração
 N10 — Cenários adversariais, provas, testes e critérios de aceite
 ```
 
-A decomposição N3+ é lida no N2 proprietário.
-
-A gramática N4→N10 é aplicada somente quando semanticamente válida; não existe obrigação de criar nós vazios para completar uma árvore estética.
+A decomposição N3+ é lida no N2 proprietário. A gramática N4→N10 é aplicada somente onde semanticamente válida.
 
 ---
 
@@ -112,6 +102,8 @@ N1 — VOLLEY
 └── N2.23 — Architecture Governance
 ```
 
+`Rating` is **not** an additional N2. The evaluation/skill-profile pipeline is owned as a named subdomain of N2.02.
+
 ---
 
 # 3. Canonical N2 registry
@@ -142,27 +134,54 @@ N1 — VOLLEY
 | N2.22 | Migration / Strangler | Architecture Migration / Cross-context | Transitional | `docs/architecture/migration/N2.22-migration-strangler.md` |
 | N2.23 | Architecture Governance | Architecture / Cross-context | Governance | `docs/architecture/governance/N2.23-architecture-governance.md` |
 
-## 3.1 Rating / Skill Profile ownership
+## 3.1 Player Skill Profile sub-owner — resolution of `C7-F-006`
 
-O C7 detectou que `PlayerEvaluation`, `CommunityPlayerSkillProfile`, `GlobalPlayerSkillProfile` e `Derived Overall` possuem pipeline definido, mas o label de owner `Rating` apareceu em C5 sem existir como N2 no registry acima.
-
-Até R5 resolver esse finding:
+Canonical ownership:
 
 ```text
-RATING / SKILL PROFILE OWNER
-=
-OPEN GOVERNANCE ASSIGNMENT
+N2.02 — Identity / Player
+└── Player Skill Profile
 ```
 
-Nenhum schema/API deve inferir ownership permanente apenas pelo primeiro módulo que implementar a feature.
+Detailed ownership addendum:
 
-Team Formation continua dono do **consumo** de `PlayerBalanceSnapshot` e do solver; isso não decide sozinho quem é dono da semântica de avaliação/perfil.
+`docs/architecture/contexts/N2.02-player-skill-profile-ownership.md`
+
+The sub-owner owns:
+
+```text
+PlayerEvaluation semantics/revisions
+CommunityPlayerSkillProfile
+GlobalPlayerSkillProfile
+aggregation/profile versioning
+confidence / missing-state semantics
+Derived Overall formula/version
+profile rebuild semantics
+```
+
+The existing shorthand `Rating`, `Rating projection` or `Rating/display` in C2/C4/C5 means this sub-owner; it is not a separate authority.
+
+Boundary split:
+
+```text
+Community
+→ evaluator authorization / Community context
+
+N2.02 / Player Skill Profile
+→ evaluation + profile semantics
+
+N2.06 / Team Formation
+→ PlayerBalanceSnapshot + solver + candidates + TeamDraw
+
+N2.09 / Statistics
+→ factual Match-derived statistics
+```
+
+`OPEN-RATING-001` and `OPEN-RATING-002` remain open parameters under the now-resolved owner. Ownership is closed; estimator policy is not.
 
 ---
 
 # 4. Scope e anchors por N2
-
-O EAP não repete o N3 detalhado. Ele registra somente o boundary que ajuda navegação e ownership.
 
 ## N2.01 — Product Experience / Product Model
 
@@ -176,7 +195,7 @@ Anchors:
 
 ## N2.02 — Identity / Players
 
-Purpose: User, Player, Participant, Guest, account link, global Player, CommunityPlayer, merge, privacy e historical identity.
+Purpose: User, Player, Participant, Guest, account link, global Player, CommunityPlayer, merge, privacy, historical identity e ownership do Player Skill Profile.
 
 Anchors:
 
@@ -186,6 +205,8 @@ CommunityMembership ≠ CommunityPlayer
 Guest participation ≠ automatic Player creation
 Account deletion ≠ sports-history deletion
 Global Player ≠ public global directory
+Player Skill Profile ≠ factual Statistics
+Player Skill Profile ≠ Team Formation solver
 ```
 
 ## N2.03 — Communities
@@ -238,6 +259,13 @@ TEAM BALANCER INPUT
 ATTRIBUTE VECTOR + EXPLICIT CONSTRAINTS
 
 NEVER OVERALL
+```
+
+Ownership boundary:
+
+```text
+N2.06 consumes skill-profile-derived snapshots
+N2.06 does not own PlayerEvaluation / profile aggregation semantics
 ```
 
 ## N2.07 — Live Match
@@ -428,6 +456,8 @@ CONSOLIDATED SNAPSHOT
 DERIVED / VERIFIED ARTIFACT
 ```
 
+Current transitional reconstruction details are governed by `docs/operations/database-reconstruction-contract.md` until W0 baseline normalization completes.
+
 ## N2.22 — Migration / Strangler
 
 Purpose: Current→Target mapping, expand/shadow/cutover/backfill/verification/contract, provenance, domain waves, legacy adapters and sync/localStorage retirement.
@@ -459,6 +489,8 @@ Decisions + Constraints + Evidence + Ownership + Evolution Rules
 ```text
 Identity / Player
       │
+      ├──── Player Skill Profile ─────► Team Formation input resolution
+      │
       ├──────────────► Community
       │                   │
       │                   ▼
@@ -481,7 +513,7 @@ Identity / Player
                           └──────────► Reports
 ```
 
-Rating / Skill Profile ownership is intentionally marked OPEN until C7 R5 closes `C7-F-006`; its outputs feed Team Formation but its ownership must not be inferred from this arrow diagram.
+The skill-profile arrow means data consumption, not Team Formation ownership.
 
 Cross-cutting contexts:
 
@@ -521,13 +553,7 @@ ANCHOR-09  Source Fact ≠ Projection
 ANCHOR-10  No generic global sync in target architecture
 ```
 
-Normative invariant identity and severity come from:
-
-```text
-docs/architecture/catalogs/INVARIANT-CATALOG.md
-```
-
-not from these anchor labels.
+Normative invariant identity and severity come from `docs/architecture/catalogs/INVARIANT-CATALOG.md`.
 
 ---
 
@@ -541,7 +567,7 @@ W1  Pure Domain Corrections
 W2  Community + Authorization
 W3  Session Backbone
 W4  Registration
-W5  Rating Pipeline
+W5  Player Skill Profile / Rating Pipeline
 W6  Team Formation + Voting
 W7  Match + Realtime + required Offline protocol
 W8  Competition
@@ -553,9 +579,9 @@ W13 Global Sync Retirement
 W14 Contract / Legacy Removal
 ```
 
-Wave number is dependency guidance, not a license for big-bang cutover.
+`W5 Rating Pipeline` means the N2.02 Player Skill Profile capability; it does not introduce a Rating bounded context.
 
-C6 execution packs are authoritative for slice/gate order.
+Wave number is dependency guidance, not a license for big-bang cutover. C6 execution packs are authoritative for slice/gate order.
 
 ---
 
@@ -563,28 +589,30 @@ C6 execution packs are authoritative for slice/gate order.
 
 ```text
 docs/architecture/
-├── EAP-MASTER.md                         # N1/N2 index + ownership/navigation
-├── PRINCIPLES.md                         # high-stability constraints
-├── GLOSSARY.md                           # canonical vocabulary
-├── adr/ADR-CATALOG.md                    # canonical decision identities
+├── EAP-MASTER.md
+├── PRINCIPLES.md
+├── GLOSSARY.md
+├── adr/ADR-CATALOG.md
 ├── catalogs/
 │   ├── C4-INDEX.md
 │   ├── INVARIANT-CATALOG.md
 │   ├── OPEN-DECISIONS.md
 │   └── HYPOTHESES.md
-├── contexts/                             # N2.01..N2.11; owner N3 decomposition
-├── platform/                             # N2.12..N2.19 except security
-├── security/                             # N2.16
-├── quality/                              # N2.20
-├── operations/                           # N2.21
-├── migration/                            # N2.22
-├── governance/                           # N2.23
-├── matrices/                             # C5 cross-cutting navigation
-├── execution/                            # C6 authority-transfer program
-└── audit/                                # C7 findings/remediation/verdict
+├── contexts/
+│   ├── N2.01..N2.11 owner chapters
+│   └── N2.02-player-skill-profile-ownership.md  # C7 ownership addendum
+├── platform/
+├── security/
+├── quality/
+├── operations/
+├── migration/
+├── governance/
+├── matrices/
+├── execution/
+└── audit/
 ```
 
-Documents under `docs/operations/`, `docs/superpowers/` and legacy architecture files remain historical/current implementation evidence unless explicitly promoted by the authority matrix below.
+Documents under `docs/operations/`, `docs/superpowers/` and legacy architecture files remain historical/current implementation evidence unless explicitly classified by the architecture authority matrix.
 
 ---
 
@@ -595,6 +623,7 @@ Documents under `docs/operations/`, `docs/superpowers/` and legacy architecture 
 | Termo significa o quê? | `GLOSSARY.md` |
 | Quais constraints globais governam design? | `PRINCIPLES.md` |
 | Qual N2 existe, qual scope e quem é owner? | `EAP-MASTER.md` |
+| Qual sub-owner explicitamente resolvido por governança? | `EAP-MASTER.md` + linked ownership addendum |
 | Qual decomposição N3/N4..N10 de um contexto? | owner N2 document |
 | Por que uma decisão target foi tomada e qual seu status? | `ADR-CATALOG.md` + owner N2 rationale |
 | Qual invariant é obrigatório? | C4 invariant catalog + owner N2 |
@@ -602,7 +631,7 @@ Documents under `docs/operations/`, `docs/superpowers/` and legacy architecture 
 | Qual hipótese ainda precisa evidência? | C4 `HYPOTHESES.md` |
 | Como contexts se cruzam para implementação? | C5 matrices |
 | Como Current vira Target? | N2.22 + C6 execution program |
-| Qual schema é aplicado? | versioned migration chain |
+| Qual schema é aplicado? | current reconstruction contract → target versioned migration authority |
 | Qual comportamento está realmente implantado? | deployed code/schema + telemetry |
 | Qual operação/runbook é atual? | documento explicitamente marcado `CURRENT-OPERATIONAL` ou `BREAK-GLASS`, subordinado ao target architecture |
 
@@ -624,13 +653,13 @@ record contradiction
 # 10. C1 → C7 consolidation status
 
 ```text
-C1  EAP master / N2 ownership                ✓  R1 authority reconciled
+C1  EAP master / N2 ownership                ✓  R1 + R5 reconciled
 C2  23 owner chapters                        ✓  DRAFT-CANONICAL
 C3  ADR canonicalization                     ✓  post-C6 delta review pending C7 R6
 C4  invariants / open / hypotheses           ✓  lifecycle cleanup pending findings
-C5  cross-cutting matrices                   ✓  normalization findings remain
+C5  cross-cutting matrices                   ✓  visible-label normalization remains
 C6  Current → Target execution program       ✓
-C7  contradiction / completeness audit       ✓  promotion blocked until remediation
+C7  contradiction / completeness audit       ✓  promotion blocked until remaining remediation
 ```
 
 Current promotion state:
@@ -649,59 +678,43 @@ BLOCKED UNTIL C7 REMEDIATION PASSES
 
 # 11. R1 reconciliation record
 
-C7 verified concrete heading drift in N2.09 and N2.10 and required a 23/23 governance-safe solution.
-
-The resolution is structural rather than a one-time title synchronization:
+C7 resolved N3 drift structurally:
 
 ```text
 23 / 23 N2 documents
-→ remain sole detailed N3 authorities
+→ sole detailed N3 authorities
 
 EAP
-→ no longer stores a second detailed N3 tree
+→ no second detailed N3 tree
 ```
 
-Therefore the previous drift classes:
-
-```text
-TITLE_DRIFT
-MISSING_IN_EAP
-MISSING_IN_N2
-ID_SHIFT
-```
-
-cannot recur merely because a legitimate owner N2 decomposes its own capabilities.
-
-Duplicate N3 IDs **inside a single owner N2** remain invalid and belong to the architecture reference/structure fitness check introduced by C7 R4.
-
-Exit semantics for R1:
-
-```text
-one manually edited N3 authority per N2
-=
-owner N2 document
-
-EAP duplicate N3 authority
-=
-removed
-```
+Duplicate N3 IDs inside one owner N2 remain invalid and belong to architecture structure/reference fitness checks.
 
 ---
 
-# 12. Non-loss rule
+# 12. R5 ownership record
 
-Removing duplicated N3 trees from this index does **not** remove any architecture detail.
+`C7-F-006` is resolved without creating a new bounded context:
 
-The detailed capability decomposition, decisions, invariants and N10 scenarios remain in the 23 owner N2 documents.
+```text
+Rating / Skill Profile
+→ N2.02 / Player Skill Profile
+```
 
-The architecture should now be navigated as:
+Team Formation remains owner of optimization, not evaluation meaning. Statistics remains owner of factual Match-derived statistics, not skill evaluation. Community remains owner of contextual authorization, not the aggregation semantics.
+
+---
+
+# 13. Non-loss rule
+
+Removing duplicated N3 trees or normalizing owner labels does **not** remove architecture detail.
+
+Navigate as:
 
 ```text
 EAP
 → choose N2 / owner
-→ owner N2
+→ owner N2 + explicit ownership addendum where present
 → N3..N10 detail
 → ADR / C4 / C5 / C6 as needed
 ```
-
-not by maintaining two competing copies of the same decomposition.

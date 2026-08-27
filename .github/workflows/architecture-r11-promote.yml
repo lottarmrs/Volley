@@ -32,53 +32,8 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Normalize R11 guard scripts
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-
-          {
-            const path = 'scripts/promote-architecture-r11.mjs';
-            let content = readFileSync(path, 'utf8');
-            if (!content.includes("const expected = label === 'C7 promotion verdict' ? 2 : 1;")) {
-              const pattern = /function replaceExactly\(content, from, to, label\) \{[\s\S]*?return content\.replace\(from, to\);\n\}/;
-              const replacement = `function replaceExactly(content, from, to, label) {
-  const count = content.split(from).length - 1;
-  const expected = label === 'C7 promotion verdict' ? 2 : 1;
-  if (count !== expected) {
-    failures.push(\`${'${label}'}: expected exactly ${'${expected}'} occurrence(s), found ${'${count}'}\`);
-    return content;
-  }
-  return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
-}`;
-              if (!pattern.test(content)) throw new Error('Could not locate replaceExactly implementation');
-              content = content.replace(pattern, replacement);
-              writeFileSync(path, content, 'utf8');
-            }
-          }
-
-          {
-            const path = 'scripts/check-architecture-r11.mjs';
-            let content = readFileSync(path, 'utf8');
-            content = content.replace(
-              /if \(!\/not an implementation default\/i\.test\(open\)\)/,
-              'if (!/not(?:\\*\\*)? an implementation default/i.test(open))',
-            );
-            content = content.replace(
-              /if \(!\/> Status:\\\\s\*`CANONICAL \\\\/ C4`\/\.test\(firstLines\(hyp\)\)\)/,
-              'if (!/> Status:\\s*`CANONICAL \\/ C4(?: \\/ [^`]*)?`/.test(firstLines(hyp)))',
-            );
-            content = content.replace(
-              /if \(!\/NOT TARGET SOURCE OF TRUTH\/i\.test\(head\)\)/,
-              'if (!/not (?:a )?target source of truth/i.test(head))',
-            );
-            if (!content.includes('not(?:\\*\\*)? an implementation default')) throw new Error('Open Decision R11 assertion was not normalized');
-            if (!content.includes('CANONICAL \\/ C4(?: \\/ [^`]*)?')) throw new Error('Hypothesis R11 status assertion was not normalized');
-            if (!content.includes('not (?:a )?target source of truth')) throw new Error('Legacy domain-model R11 assertion was not normalized');
-            writeFileSync(path, content, 'utf8');
-          }
-          NODE
+      - name: Normalize R11 guard sources
+        run: node scripts/fix-r11-sources.mjs
 
       - name: R11 promotion preflight
         run: node scripts/promote-architecture-r11.mjs

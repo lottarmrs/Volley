@@ -30,7 +30,10 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Apply deterministic C7 R4/R5 remediation
-        run: node scripts/c7-r4-r5-remediation.mjs
+        shell: bash
+        run: |
+          sed -i 's/C5\.02-COMMAND-QUERY-EVENT-CAPABILITY-MATRIX\.md/C5.02-COMMAND-QUERY-TRANSACTION-MATRIX.md/g' scripts/c7-r4-r5-remediation.mjs
+          node scripts/c7-r4-r5-remediation.mjs
 
       - name: Commit remediation result
         shell: bash

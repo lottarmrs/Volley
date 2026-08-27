@@ -1,8 +1,10 @@
 # Canonical Glossary — Volley
 
-> Status: `DRAFT-CANONICAL / C2.00`
+> Status: `DRAFT-CANONICAL / C2.00 / C7-R5-NORMALIZED`
 >
 > Este glossário define a linguagem canônica da arquitetura. Termos legados podem continuar existindo durante a migração, mas devem ser explicitamente marcados como `Legacy*` quando conflitam com estes significados.
+>
+> C7 R5 normalization: `PlayerMatchStatContribution`, `StandingsProjection`, `RevertMatchEvent` and the execution/correlation ID taxonomy are canonical terms.
 
 ---
 
@@ -305,6 +307,23 @@ Não deve necessariamente ser um lifecycle status persistido.
 
 ## 4. Ratings / Skills
 
+### Player Skill Profile
+
+Subdomínio de `N2.02 — Identity / Player` que possui a semântica de avaliação e das projeções de skill do Player.
+
+É owner de:
+
+```text
+PlayerEvaluation
+CommunityPlayerSkillProfile
+GlobalPlayerSkillProfile
+Derived Overall
+```
+
+Não é um N2 independente e não possui o solver de Team Formation.
+
+---
+
 ### PlayerEvaluation
 
 Avaliação subjetiva realizada por um evaluator autorizado sobre um Player dentro de uma Community.
@@ -329,13 +348,13 @@ Exemplos dependem da rubrica vigente, como ataque, saque, recepção, levantamen
 
 ---
 
-### Community Skill Profile
+### Community Skill Profile / CommunityPlayerSkillProfile
 
 Projection consolidada por atributo das avaliações de um Player dentro de uma Community.
 
 ---
 
-### Global Skill Profile
+### Global Skill Profile / GlobalPlayerSkillProfile
 
 Projection consolidada por atributo a partir dos Community Skill Profiles de um Player.
 
@@ -343,7 +362,7 @@ Não é calculada agregando diretamente todas as avaliações individuais globai
 
 ---
 
-### Overall
+### Overall / Derived Overall
 
 Valor derivado/resumo calculado a partir de skill attributes conforme fórmula versionada.
 
@@ -546,6 +565,16 @@ FinishMatch
 
 ---
 
+### RevertMatchEvent
+
+Command canônico para reverter semanticamente um MatchEvent por meio de uma correção append-oriented.
+
+Não significa hard-delete do evento original.
+
+O alias genérico `RevertEvent` não é nome canônico de target.
+
+---
+
 ### MatchEvent
 
 Fato append-oriented produzido pelo Match Engine e ordenado por `sequence` dentro da Match.
@@ -675,11 +704,13 @@ Não produz PointEvents fictícios para simular a partida.
 
 ---
 
-### StandingProjection
+### StandingsProjection
 
-Classificação derivada de OfficialCompetitionResults + Penalties segundo StandingPolicy versionada.
+Classificação derivada de `OfficialCompetitionResult[] + CompetitionPenalty[]` segundo policy versionada.
 
 Não deve ser diretamente editável.
+
+O antigo singular `StandingProjection` é apenas alias textual legado e não deve ser usado para novos nomes de tabela/type/API.
 
 ---
 
@@ -699,11 +730,13 @@ Não é PlayerEvaluation subjetiva.
 
 ---
 
-### PlayerMatchStats
+### PlayerMatchStatContribution
 
-Projection/contribution estatística de um Player em uma única Match.
+Projection/contribuição rebuildable de um Player/MatchParticipation em uma única Match.
 
-Funciona como boundary de performance para aggregates de carreira.
+É derivada de MatchParticipation + MatchEvents efetivos + MatchResult/eligibility/coverage e funciona como unidade canônica do pipeline estatístico e boundary de performance para aggregates de carreira.
+
+O antigo termo `PlayerMatchStats` não é nome canônico de entidade target.
 
 ---
 
@@ -837,19 +870,67 @@ Operação que observa estado/read model sem alterar domínio.
 
 ---
 
-### Command ID
+### Command ID / `command_id`
 
-Identificador estável de uma intenção lógica mutante, usado para idempotência.
+Identificador estável de uma intenção lógica mutante, usado para idempotência e unknown-outcome recovery.
 
-Retries do mesmo command preservam command ID.
+Retries do mesmo Command preservam o mesmo `command_id`.
+
+Um `command_id` pode corresponder a várias tentativas técnicas de request.
 
 ---
 
-### Request ID / Correlation ID
+### Request ID / `request_id`
 
-Identificador de uma tentativa técnica de execução/comunicação.
+Identificador de **uma tentativa técnica de request/transporte**.
 
-Um command pode ter várias requests durante retry.
+Um retry cria novo `request_id`, mesmo quando preserva o mesmo `command_id`.
+
+Para execução remota, o boundary confiável do servidor gera ou garante esse identificador e pode ecoar uma forma segura ao client.
+
+---
+
+### Trace ID / `trace_id`
+
+Identificador do trace de observabilidade distribuída.
+
+Pertence à instrumentação, não à idempotência de domínio.
+
+Retries podem produzir traces distintos; sampling pode significar que nem todo request possui trace retido.
+
+---
+
+### Reference ID / `reference_id`
+
+Identificador opaco e seguro para referência de erro/suporte apresentada ao usuário quando necessário.
+
+Pode ser mapeado server-side para request/trace/error context.
+
+Não é autorização, não é `command_id` e não precisa ser igual a `request_id` ou `trace_id`.
+
+O `correlationId` client-side atual é vocabulário transitional; target prefere `reference_id` para a referência de suporte.
+
+---
+
+### Job ID / `job_id`
+
+Identidade de uma unidade lógica de processamento assíncrono.
+
+Attempts/retries podem compartilhar o mesmo `job_id` enquanto possuem metadata de tentativa distinta.
+
+---
+
+### Release ID / `release_id`
+
+Identidade da versão/artefato implantado usada para correlacionar comportamento operacional com um release.
+
+---
+
+### Correlation
+
+Relação entre sinais/identidades como `command_id`, `request_id`, `trace_id`, `reference_id`, `job_id` e `release_id`.
+
+`correlation_id` não é um identificador canônico universal no target.
 
 ---
 
@@ -1133,11 +1214,44 @@ Target usa `MatchEvent(match_id, sequence, ...)`.
 
 ---
 
+### `PlayerMatchStats`
+
+Alias antigo para a contribuição estatística por Match.
+
+Target usa `PlayerMatchStatContribution`.
+
+---
+
+### `StandingProjection`
+
+Alias singular antigo.
+
+Target usa `StandingsProjection`.
+
+---
+
+### `RevertEvent`
+
+Alias genérico antigo de correção/reversão.
+
+Target Match usa `RevertMatchEvent`.
+
+---
+
+### `correlationId` / `correlation_id` como catch-all
+
+Vocabulário transitional que misturava request, trace e referência de suporte.
+
+Target usa IDs distintos (`request_id`, `trace_id`, `reference_id`) conforme a função.
+
+---
+
 ## 12. Regras de uso do glossário
 
 1. Um termo canônico possui um significado principal.
-2. Se o código legacy usa a mesma palavra com semântica diferente, adicionar prefixo `Legacy` durante a migração.
+2. Se o código legacy usa a mesma palavra com semântica diferente, adicionar prefixo `Legacy` ou registrar alias transitional durante a migração.
 3. Novas features devem reutilizar termos canônicos antes de criar sinônimos.
 4. Alteração semântica material deste glossário exige revisar documentos/ADRs relacionados.
 5. `V2`, `New` e `Final` são nomes transitórios; após Contract o nome canônico volta a ser o domínio normal.
 6. Termos de UI podem ser mais amigáveis que nomes internos, desde que não alterem a semântica arquitetural.
+7. `correlation` descreve relação entre sinais; não autoriza criar um único `correlation_id` universal para todos os usos.

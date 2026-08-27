@@ -68,6 +68,10 @@ const testArgs = [
   '--import',
   'tsx',
   '--test',
+  // MUST be serial. Each suite drops and rebuilds `public`, so running suite files in
+  // parallel -- node --test's default -- makes them race and fail with
+  // `schema "public" already exists`. The database is shared global state, not per-file.
+  '--test-concurrency=1',
   filter ? `src/test/db/${filter}` : 'src/test/db/*.dbtest.ts',
 ];
 

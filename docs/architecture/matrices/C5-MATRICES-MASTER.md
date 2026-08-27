@@ -478,7 +478,7 @@ M5-CONFLICT-MIGRATION
 legacy adapter/write path survives after target cutover
 
 M5-CONFLICT-EVIDENCE
-Q0/I0/I1 rule has no adequate executable evidence
+I0/I1 invariant or Q0/Q1 QA-risk family has no adequate executable evidence
 ```
 
 Do not resolve the conflict inside a matrix cell. Register it for C7 and fix the owning normative source/ADR.

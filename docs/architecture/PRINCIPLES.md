@@ -328,7 +328,7 @@ Cliente envia intenção como:
 AwardPoint
 PauseMatch
 ResumeMatch
-RevertEvent
+RevertMatchEvent
 FinishMatch
 ```
 

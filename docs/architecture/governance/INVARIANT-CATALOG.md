@@ -1,6 +1,14 @@
-# Canonical Invariant Catalog — Volley
+# Superseded Invariant Catalog — Volley (Pre-Catalog)
 
-> Status: `DRAFT-CANONICAL / C4`
+> Status: `SUPERSEDED / PRE-CATALOG C4`
+>
+> Canonical-ID namespace: `HISTORICAL-SOURCE-ALIASES`
+>
+> Current invariant authority: [`../catalogs/INVARIANT-CATALOG.md`](../catalogs/INVARIANT-CATALOG.md).
+>
+> The `GINV-001...` identities and `Q*` criticality labels below are historical pre-catalog vocabulary. Current global invariant identities/severity live only in the current catalog.
+>
+> This file is retained only as consolidation provenance.
 >
 > Owner: `Architecture + bounded-context owners`
 >

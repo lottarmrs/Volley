@@ -171,7 +171,7 @@ For I0/I1 safety/correctness boundaries, an unvalidated hypothesis may influence
 | ID | Claim | Evidence expected | Review trigger |
 |---|---|---|---|
 | `HYP-QA-001` | Local Supabase/PostgreSQL harness integrated into CI offers best DB/RLS/RPC fidelity/cost trade-off | Fidelity comparison, CI runtime, provider delta list | `OPEN-QA-002` implementation spike |
-| `HYP-QA-002` | TypeScript property-based testing materially improves confidence in Registration/Balancer/Match/Rating | Defects/counterexamples found, maintenance/runtime cost | After pilot on Q0/Q1 invariants |
+| `HYP-QA-002` | TypeScript property-based testing materially improves confidence in Registration/Balancer/Match/Rating | Defects/counterexamples found, maintenance/runtime cost | After pilot on I0/I1 invariants in Q0/Q1 QA-risk families |
 | `HYP-QA-003` | DB integration/concurrency gates can run on PR/merge without unacceptable feedback time if tests isolate aggregate data/parallelize safely | CI duration/flakiness/resource metrics | Before making all such suites blocking |
 
 ---

@@ -597,7 +597,7 @@ Legacy removal impact:
 A rollout is paused when any of these occur:
 
 ```text
-Q0/I0 invariant violation
+I0 invariant violation
 sports source-fact corruption
 cross-Community authorization leak
 registration capacity/FIFO violation
@@ -621,7 +621,7 @@ number of target aggregates still entering generic sync decreases
 number of localStorage domain keys decreases
 number of generic cloud CRUD writers decreases
 number of target semantic commands increases
-number of Q0/Q1 invariants with executable evidence increases
+number of I0/I1 invariants with executable evidence increases
 number of legacy fields with active readers/writers decreases
 old-client/cohort legacy traffic trends to zero before contract
 migration anomaly queue is owned and bounded
@@ -721,7 +721,7 @@ C6-INV-004  Active Session is not silently moved between incompatible authority 
 C6-INV-005  Legacy data ambiguity is recorded, not guessed away.
 C6-INV-006  Backfill never fabricates domain history that source data cannot support.
 C6-INV-007  Same logical command retry preserves command_id.
-C6-INV-008  Q0/I0 authority/security/fairness cutovers require executable owner-layer evidence.
+C6-INV-008  I0 authority/security/fairness cutovers require executable owner-layer evidence.
 C6-INV-009  Feature flag is not authorization and does not reverse already-transferred authority.
 C6-INV-010  Contract/destructive removal waits for legacy writer/reader/old-client evidence.
 C6-INV-011  Generic sync loses entities by subtraction; no second universal sync framework is introduced.

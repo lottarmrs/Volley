@@ -53,7 +53,9 @@ const forbiddenTargetLexemes = [
   { label: 'deprecated singular StandingProjection', re: /\bStandingProjection\b/g },
   { label: 'deprecated PlayerMatchStats entity alias', re: /\bPlayerMatchStats\b/g },
   { label: 'ambiguous Request ID / Correlation ID heading', re: /Request ID\s*\/\s*Correlation ID/g },
-  { label: 'undefined Q0/Q1 invariant severity', re: /\bQ[01]\b/g },
+  { label: 'ambiguous Q0/I0 severity fusion', re: /\bQ0\s*\/\s*I0\b/g },
+  { label: 'ambiguous Q1/I1 severity fusion', re: /\bQ1\s*\/\s*I1\b/g },
+  { label: 'Q* used as invariant severity rather than QA risk tier', re: /\bQ[01]\s+(?:global\/local\s+)?invariants?\b/gi },
   { label: 'orphan Rating projection owner label', re: /\bRating projection\b/g },
   { label: 'orphan Rating\/display owner label', re: /\bRating\/display\b/g },
   { label: 'orphan Rating \/ Identity sports evaluation owner label', re: /\bRating \/ Identity sports evaluation\b/g },
@@ -96,7 +98,7 @@ for (const file of operationsFiles) {
   if (!/TRANSITIONAL \/ LEGACY CURRENT-MODEL REFERENCE/.test(head)) {
     fail(file, 'legacy domain model lost TRANSITIONAL classification');
   }
-  if (!/NOT TARGET SOURCE OF TRUTH/.test(head)) {
+  if (!/not (?:a )?target source of truth/i.test(head)) {
     fail(file, 'legacy domain model lost NOT TARGET SOURCE OF TRUTH warning');
   }
 }

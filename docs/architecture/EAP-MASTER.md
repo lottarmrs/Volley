@@ -159,7 +159,7 @@ Derived Overall formula/version
 profile rebuild semantics
 ```
 
-The existing shorthand `Rating`, `Rating projection` or `Rating/display` in C2/C4/C5 means this sub-owner; it is not a separate authority.
+The existing shorthand `Rating`, `Player Skill Profile projection` or `Player Skill Profile/display` in C2/C4/C5 means this sub-owner; it is not a separate authority.
 
 Boundary split:
 

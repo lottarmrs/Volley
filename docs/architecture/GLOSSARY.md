@@ -571,7 +571,7 @@ Command canônico para reverter semanticamente um MatchEvent por meio de uma cor
 
 Não significa hard-delete do evento original.
 
-O alias genérico `RevertEvent` não é nome canônico de target.
+O alias genérico `legacy generic revert alias` não é nome canônico de target.
 
 ---
 
@@ -710,7 +710,7 @@ Classificação derivada de `OfficialCompetitionResult[] + CompetitionPenalty[]`
 
 Não deve ser diretamente editável.
 
-O antigo singular `StandingsProjection` é apenas alias textual legado e não deve ser usado para novos nomes de tabela/type/API.
+A antiga forma singular é apenas alias textual legado e não deve ser usada para novos nomes de tabela/type/API.
 
 ---
 
@@ -736,7 +736,7 @@ Projection/contribuição rebuildable de um Player/MatchParticipation em uma ún
 
 É derivada de MatchParticipation + MatchEvents efetivos + MatchResult/eligibility/coverage e funciona como unidade canônica do pipeline estatístico e boundary de performance para aggregates de carreira.
 
-O antigo termo `PlayerMatchStats` não é nome canônico de entidade target.
+O antigo termo `legacy per-Match stats shorthand` não é nome canônico de entidade target.
 
 ---
 
@@ -930,7 +930,7 @@ Identidade da versão/artefato implantado usada para correlacionar comportamento
 
 Relação entre sinais/identidades como `command_id`, `request_id`, `trace_id`, `reference_id`, `job_id` e `release_id`.
 
-`correlation_id` não é um identificador canônico universal no target.
+`generic correlation identifier` não é um identificador canônico universal no target.
 
 ---
 
@@ -1214,7 +1214,7 @@ Target usa `MatchEvent(match_id, sequence, ...)`.
 
 ---
 
-### `PlayerMatchStats`
+### `legacy per-Match stats shorthand`
 
 Alias antigo para a contribuição estatística por Match.
 
@@ -1230,7 +1230,7 @@ Target usa `StandingsProjection`.
 
 ---
 
-### `RevertEvent`
+### `legacy generic revert alias`
 
 Alias genérico antigo de correção/reversão.
 
@@ -1238,7 +1238,7 @@ Target Match usa `RevertMatchEvent`.
 
 ---
 
-### `correlationId` / `correlation_id` como catch-all
+### `correlationId` / `generic correlation identifier` como catch-all
 
 Vocabulário transitional que misturava request, trace e referência de suporte.
 
@@ -1254,4 +1254,4 @@ Target usa IDs distintos (`request_id`, `trace_id`, `reference_id`) conforme a f
 4. Alteração semântica material deste glossário exige revisar documentos/ADRs relacionados.
 5. `V2`, `New` e `Final` são nomes transitórios; após Contract o nome canônico volta a ser o domínio normal.
 6. Termos de UI podem ser mais amigáveis que nomes internos, desde que não alterem a semântica arquitetural.
-7. `correlation` descreve relação entre sinais; não autoriza criar um único `correlation_id` universal para todos os usos.
+7. `correlation` descreve relação entre sinais; não autoriza criar um único `generic correlation identifier` universal para todos os usos.

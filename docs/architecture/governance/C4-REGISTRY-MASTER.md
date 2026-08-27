@@ -1,6 +1,12 @@
-# C4 — Architecture Registries Master
+# Superseded C4 — Architecture Registries Master (Pre-Catalog)
 
-> Status: `DRAFT-CANONICAL / C4`
+> Status: `SUPERSEDED / PRE-CATALOG C4`
+>
+> Canonical-ID namespace: `HISTORICAL-SOURCE-ALIASES`
+>
+> Current registry authority: [`C4-INDEX.md`](../catalogs/C4-INDEX.md), [`INVARIANT-CATALOG.md`](../catalogs/INVARIANT-CATALOG.md), [`OPEN-DECISIONS.md`](../catalogs/OPEN-DECISIONS.md), [`HYPOTHESES.md`](../catalogs/HYPOTHESES.md).
+>
+> This file is retained only as consolidation provenance and must not be used as the current C4 source of truth.
 >
 > Owner: `Architecture + bounded-context owners`
 >

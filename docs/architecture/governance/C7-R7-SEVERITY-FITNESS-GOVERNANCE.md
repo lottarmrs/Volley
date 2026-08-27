@@ -21,9 +21,18 @@ I2
 I3
 ```
 
-Meaning and ownership remain in C4.
+Meaning and ownership remain in the current C4 invariant catalog.
 
-The accidental `Q0/Q1` notation found in C6 is **not** a synonym and must not survive as an architecture-severity vocabulary.
+N2.20 separately defines QA risk/evidence tiers:
+
+```text
+Q0  integrity-critical evidence
+Q1  authoritative-workflow evidence
+Q2  derived/read/recovery evidence
+Q3  presentation/low-risk evidence
+```
+
+This Q-axis is legitimate only as **Quality Engineering test/evidence planning vocabulary**. It is not invariant severity and must not appear in a `Severity`/`Criticality` field as a substitute for `I*`.
 
 Audit priority remains independently:
 
@@ -34,17 +43,20 @@ AP2
 AP3
 ```
 
-These taxonomies answer different questions:
+The three axes answer different questions:
 
 ```text
 I0..I3
 → how critical is preserving an invariant?
 
+Q0..Q3
+→ how much / what kind of QA evidence should a changed risk family receive?
+
 AP0..AP3
 → how urgently must an audit finding be remediated?
 ```
 
-Do not infer a numerical mapping such as `AP0 = I0`.
+They are not aliases and have no automatic numerical mapping. A critical `I0` invariant commonly demands Q0-grade evidence, but that relationship is assigned by the test/release plan rather than encoded as `Q0/I0`.
 
 ---
 
@@ -229,11 +241,11 @@ A future fitness-test reporter may surface lifecycle metadata explicitly, but no
 # 7. C7 exit assessment
 
 ```text
-C7-F-014 undefined Q0/Q1 severity
-→ canonical decision resolved; C6 gate source normalized to I0/I1
+C7-F-014 Q0/Q1 used as invariant severity
+→ resolved: invariant severity is I0..I3; Q0..Q3 remains a distinct QA risk/evidence tier and C6/C5 must name the axes separately
 
 C7-F-015 fitness test freezes legacy without lifecycle
 → architecture test split + executable manifest + removal triggers added
 ```
 
-A final R10 lexical/reference rerun must still confirm no stray architecture-critical `Q0/Q1` use remains elsewhere before promotion.
+A final R10 lexical/reference rerun must confirm there is no ambiguous `Q*/I*` fusion or use of `Q*` as invariant severity; explicit QA-risk use remains valid.

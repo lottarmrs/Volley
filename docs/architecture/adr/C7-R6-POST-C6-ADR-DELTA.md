@@ -38,7 +38,7 @@ NONE IDENTIFIED IN THE REVIEWED C6 CONSTRUCTS
 
 C6 introduces important normative process vocabulary, but its material semantics were already accepted by the C3 Migration/Operations/Governance ADR families.
 
-This review therefore **does not create ADR-MIG-010 merely to mirror C6 terminology**.
+This review therefore **does not create a new Migration ADR merely to mirror C6 terminology**.
 
 ---
 

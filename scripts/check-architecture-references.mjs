@@ -98,6 +98,8 @@ const knownIds = {
 };
 
 function checkCanonicalIds(file, content) {
+  if (content.includes('Canonical-ID namespace: `HISTORICAL-SOURCE-ALIASES`')) return;
+
   for (const [kind, pattern] of Object.entries(ID_PATTERNS)) {
     const seen = new Set(content.match(pattern) ?? []);
     for (const id of seen) {

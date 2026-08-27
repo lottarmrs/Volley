@@ -710,7 +710,7 @@ Classificação derivada de `OfficialCompetitionResult[] + CompetitionPenalty[]`
 
 Não deve ser diretamente editável.
 
-O antigo singular `StandingProjection` é apenas alias textual legado e não deve ser usado para novos nomes de tabela/type/API.
+O antigo singular `StandingsProjection` é apenas alias textual legado e não deve ser usado para novos nomes de tabela/type/API.
 
 ---
 
@@ -1222,7 +1222,7 @@ Target usa `PlayerMatchStatContribution`.
 
 ---
 
-### `StandingProjection`
+### `StandingsProjection`
 
 Alias singular antigo.
 

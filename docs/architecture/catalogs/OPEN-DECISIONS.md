@@ -107,9 +107,9 @@ Primary owner: Registration.
 
 ---
 
-# 6. Team Formation / Rating / Voting Open Decisions
+# 6. Team Formation / Player Skill Profile / Voting Open Decisions
 
-Primary owner: Team Formation, except cross-context Rating questions that C5/C7 must assign to an explicit Skill Profile owner.
+Primary owner: Team Formation for balancing/voting; Identity / Player — Player Skill Profile for `OPEN-RATING-*` aggregation/profile questions.
 
 | ID | Question | Current safe behavior | Evidence / trigger |
 |---|---|---|---|

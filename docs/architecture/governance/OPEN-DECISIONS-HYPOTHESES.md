@@ -1,6 +1,12 @@
-# Canonical Open Decision / Hypothesis Registry — Volley
+# Superseded Open Decision / Hypothesis Registry — Volley
 
-> Status: `DRAFT-CANONICAL / C4`
+> Status: `SUPERSEDED / PRE-CATALOG C4`
+>
+> Canonical-ID namespace: `HISTORICAL-SOURCE-ALIASES`
+>
+> Current authorities: [`OPEN-DECISIONS.md`](../catalogs/OPEN-DECISIONS.md) and [`HYPOTHESES.md`](../catalogs/HYPOTHESES.md).
+>
+> This file is preserved only as consolidation provenance. Its local `HYP-*` labels are historical source aliases unless the exact ID also exists in the current canonical catalog.
 >
 > Owner: `Architecture + bounded-context owners`
 >
@@ -8,7 +14,7 @@
 >
 > Decision registry: [`ADR-CATALOG.md`](../adr/ADR-CATALOG.md)
 >
-> Normative detail: C2.01–C2.23 `OPEN`, `STRONG HYPOTHESIS`, `HYPOTHESES`, and equivalent sections.
+> Historical source detail: C2.01–C2.23 `OPEN`, `STRONG HYPOTHESIS`, `HYPOTHESES`, and equivalent sections as they existed before the current C4 catalogs superseded this registry.
 
 ---
 

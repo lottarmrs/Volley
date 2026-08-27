@@ -1,20 +1,22 @@
 # C7 — Remediation Status
 
-> Status: `REMEDIATION-IN-PROGRESS`
+> Status: `R10-PASS / READY-FOR-R11`
 >
 > Owner: `Architecture Governance + finding owners`
 >
-> Last updated: `2026-08-26`
+> Last updated: `2026-08-27`
 >
 > Audit source: [`C7-FINDINGS-LEDGER.md`](./C7-FINDINGS-LEDGER.md)
 >
 > Plan: [`C7-CORRECTIONS-REQUIRED.md`](./C7-CORRECTIONS-REQUIRED.md)
+>
+> R10 evidence: [`C7-R10-RERUN.md`](./C7-R10-RERUN.md)
 
 ---
 
 # 0. Reading rule
 
-The findings ledger preserves what C7 found. This file tracks what has since been remediated.
+The findings ledger preserves what the original C7 audit found. This file tracks the **current remediation state**.
 
 ```text
 ORIGINAL FINDING
@@ -22,399 +24,303 @@ ORIGINAL FINDING
 CURRENT REMEDIATION STATUS
 ```
 
-Promotion remains blocked until the rerun gates in R10/R11 pass.
+Likewise:
+
+```text
+TARGET ARCHITECTURE READY FOR PROMOTION
+≠
+PRODUCTION RUNTIME ALREADY MIGRATED
+```
+
+Runtime Current→Target work remains owned by C6 W0→W14.
 
 ---
 
 # 1. Remediation summary
 
-| Step | Status | Result |
+| Step | Current status | Result |
 |---|---|---|
-| R0 promotion freeze | DONE | corpus remains DRAFT-CANONICAL / promotion blocked |
-| R1 EAP decomposition authority | DONE | EAP owns N2/scope/owner; owner N2 owns detailed N3 tree |
-| R2 legacy/current document classification | PARTIAL-DONE | `domain-model.md` and destructive reset runbook visibly classified; broader banner sweep remains R10 hygiene |
-| R3 operational schema/security authority | DONE-DOC / RUNTIME-W0 | reconstruction contract published; schema drift demoted to diagnostics; privileged-function inventory seed created |
-| R4 references + checker | IN-PROGRESS / NOT-YET-CI-GATED | strict checker + npm command created; known N2.10/N2.11 physical link corrections and a proved clean execution remain |
-| R5 ownership/status/naming blockers | DECISIONS-DONE / PROPAGATION-CLEANUP | Skill Profile owner, stat contribution, standings, correlation IDs and Match reversal command resolved; owner docs/C5 visible aliases still need mechanical cleanup where present |
-| R6 post-C6 ADR delta | DONE | C6 execution constructs classified; no new ADR identity required |
-| R7 severity/fitness governance | DONE / R10-LEXICAL-CHECK | I0..I3 is sole invariant severity; target vs transitional fitness lifecycle implemented |
-| R8 truth-class normalization | DONE-ARCHITECTURE | one persisted artifact = one primary truth class; mixed conceptual rows decomposed before schema freeze |
-| R9 live execution tracking | NOT-YET-REQUIRED | concrete Authority Ledger representation required before first CUTOVER_ACTIVE |
-| R10 rerun | BLOCKED | needs R4 completion + propagation/lexical/reference execution + R9 only if cutover is approaching |
-| R11 canonical promotion | BLOCKED | only after successful rerun |
+| R0 promotion freeze | DONE | no premature piecemeal canonical promotion occurred |
+| R1 EAP decomposition authority | DONE | EAP owns N2 identity/scope/owner; owner N2 owns detailed N3 decomposition |
+| R2 legacy/current classification | DONE for audited scope | domain model + operations documents have explicit lifecycle/authority banners |
+| R3 operational schema/security authority | DONE-DOC / RUNTIME-W0 | reconstruction authority and privileged-function posture clarified; runtime hardening remains C6 W0 |
+| R4 references + checker | DONE | physical links repaired; permanent CI architecture check passes on clean HEAD |
+| R5 ownership/status/naming blockers | DONE | Skill Profile owner, stat contribution, standings, observability IDs and Match reversal vocabulary normalized |
+| R6 post-C6 ADR delta | DONE | C6 execution mechanisms classified; no unowned material post-C3 decision remains |
+| R7 severity/fitness governance | DONE | `I0..I3`, `Q0..Q3`, `AP0..AP3` separated; transitional fitness lifecycle explicit |
+| R8 truth-class normalization | DONE-ARCHITECTURE | one persisted artifact has one primary truth class before physical schema freeze |
+| R9 execution tracking | SATISFIED-AS-PREREQUISITE | concrete Authority Ledger implementation still required before first `CUTOVER_ACTIVE`; no cutover claimed yet |
+| R10 machine + semantic rerun | DONE / PASS-WITH-NON-BLOCKING-FINDING | mechanical CI green; 20/20 semantic anchors pass; one AP2 repository-hygiene finding added |
+| R11 canonical promotion | NEXT | promotion may proceed as a deliberate reviewable change |
 
 ---
 
-# 2. AP0 finding status
+# 2. Mechanical R10 evidence
 
-## C7-F-001 — EAP N3 drift
+Permanent command:
+
+```text
+npm run check:architecture
+```
+
+Clean-HEAD proof:
+
+```text
+workflow: Architecture Reference Check
+run:      33037151307
+job:      98402233360
+commit:   529b7081841af7e212964f359293b547c2497c88
+result:   SUCCESS
+```
+
+Reported checks:
+
+```text
+64 Markdown files
+canonical IDs and N3 headings validated
+46 target architecture docs
+5 operational docs
+1,152 local invariant IDs
+101 C6 slice IDs
+```
+
+Therefore:
+
+```text
+R4 = CLOSED
+R10 MECHANICAL = PASS
+```
+
+---
+
+# 3. AP0 finding status
+
+| Finding | Current status | Resolution |
+|---|---|---|
+| C7-F-001 EAP N3 drift | `REMEDIATED` | EAP N2 authority + owner-N2 detailed decomposition rule, mechanically checked |
+| C7-F-002 legacy domain-model authority | `REMEDIATED` | explicitly transitional / not target source of truth |
+| C7-F-003 reset runbook authority | `REMEDIATED` | historical/completed; C6/N2.22 are current migration authority |
+| C7-F-004 schema authority collision | `REMEDIATED-DOC / W0-RUNTIME` | migration/reconstruction contract clarified; `schema.sql` legacy-baseline semantics explicit |
+| C7-F-005 SECURITY DEFINER operational collision | `REMEDIATED-DOC / W0-RUNTIME` | target hardening guidance corrected; privileged-function inventory owns runtime work |
+| C7-F-006 Rating/Skill ownership | `REMEDIATED` | Player Skill Profile is explicit N2.02 sub-owner |
+
+```text
+UNRESOLVED AP0
+= 0
+```
+
+---
+
+# 4. AP1 finding status
+
+| Finding | Current status | Resolution |
+|---|---|---|
+| C7-F-007 Notifications links | `REMEDIATED` | physical canonical links repaired and CI checked |
+| C7-F-008 Media links | `REMEDIATED` | physical canonical links repaired and CI checked |
+| C7-F-009 statistical contribution naming | `REMEDIATED` | canonical `PlayerMatchStatContribution` |
+| C7-F-010 standings naming | `REMEDIATED` | canonical `StandingsProjection` |
+| C7-F-011 observability correlation taxonomy | `REMEDIATED` | command/request/trace/reference/job/release IDs separated by purpose |
+| C7-F-012 Match correction command | `REMEDIATED` | canonical `RevertMatchEvent` |
+| C7-F-013 post-C6 ADR delta | `REMEDIATED` | C6 process mechanisms vs material ADR decisions explicitly classified |
+| C7-F-015 legacy fitness lifecycle | `REMEDIATED` | TARGET vs TRANSITIONAL tests + owner/removal metadata |
+| C7-F-016 mixed truth classes | `REMEDIATED-ARCHITECTURE` | physical artifacts must each have one primary truth class |
+| C7-F-017 HYP-STAT-001 lifecycle | `REMEDIATED` | naming review outcome propagated to registry |
+| C7-F-018 Authority Ledger live artifact | `PREREQUISITE-BEFORE-CUTOVER` | not overdue; must materialize before first `CUTOVER_ACTIVE` |
+
+`C7-F-018` is no longer a promotion/freezing blocker because no authority cutover is being claimed by C1–C7 documentation work.
+
+```text
+UNRESOLVED AP1 FREEZING BLOCKERS
+= 0
+```
+
+---
+
+# 5. AP2/AP3 status
+
+## C7-F-014 — Q/I severity ambiguity
 
 ```text
 REMEDIATED
 ```
 
-Resolution:
+Canonical separation:
 
 ```text
-EAP = sole N2 identity/scope/owner index
-owner N2 = sole detailed N3 authority
+I0..I3
+→ invariant criticality
+
+Q0..Q3
+→ QA risk / evidence depth
+
+AP0..AP3
+→ audit remediation priority
 ```
 
-Duplicate N3 IDs inside one owner N2 are checked by the new architecture reference checker once it is executed/gated.
-
----
-
-## C7-F-002 — `domain-model.md` authority collision
-
-```text
-REMEDIATED
-```
-
-The document now declares itself transitional/legacy and not target source of truth.
-
----
-
-## C7-F-003 — reset runbook looked like current default migration
-
-```text
-REMEDIATED
-```
-
-The runbook is historical/completed and superseded as a general migration path. N2.22 + C6 govern Current→Target migration.
-
----
-
-## C7-F-004 — `schema.sql` vs migration-chain authority
-
-```text
-REMEDIATED AT DOCUMENT/AUTHORITY LEVEL
-RUNTIME NORMALIZATION OWNED BY W0
-```
-
-During transition:
-
-```text
-schema.sql
-=
-frozen legacy baseline segment
-
-numbered migrations
-=
-forward delta segments
-```
-
-It is no longer a manually synchronized second current-schema authority.
-
----
-
-## C7-F-005 — SECURITY DEFINER operational target collision
-
-```text
-REMEDIATED AT DOCUMENT/POLICY LEVEL
-RUNTIME HARDENING OWNED BY W0/WAVES
-```
-
-Historical `search_path = public` remains evidence only. Target hardening remains `search_path=''` + qualified references + explicit grants/revokes + trusted authorization.
-
----
-
-## C7-F-006 — Rating / Skill Profile ownership
-
-```text
-REMEDIATED
-```
-
-Resolution:
-
-```text
-N2.02 — Identity / Player
-└── Player Skill Profile sub-owner
-```
-
-Owned semantics:
-
-```text
-PlayerEvaluation
-CommunityPlayerSkillProfile
-GlobalPlayerSkillProfile
-aggregation/profile versions
-confidence/missing semantics
-Derived Overall formula/version
-profile rebuild
-```
-
-Boundaries:
-
-```text
-Community
-→ evaluator authorization/context
-
-N2.02 / Player Skill Profile
-→ evaluation/profile meaning
-
-N2.06 Team Formation
-→ PlayerBalanceSnapshot + solver/candidates/TeamDraw
-
-N2.09 Statistics
-→ factual Match-derived statistics
-```
-
-`OPEN-RATING-001/002` remain open under the resolved owner; ownership resolution did not invent an estimator or credibility policy.
-
-Evidence:
-
-- `docs/architecture/EAP-MASTER.md`
-- `docs/architecture/contexts/N2.02-player-skill-profile-ownership.md`
-
----
-
-# 3. AP1 / AP2 remediation status
-
-## C7-F-007 / C7-F-008 — broken Notifications/Media links
-
-```text
-OPEN — PHYSICAL SOURCE CORRECTION STILL REQUIRED
-```
-
-A strict checker now detects broken relative Markdown links, but the known header links in N2.10/N2.11 still need direct source correction before R4 can close.
-
-Do not add redirect stub files merely to make the checker green; canonical links must point to the real owner documents.
-
----
-
-## C7-F-009 — statistical contribution naming
-
-```text
-REMEDIATED DECISION
-```
-
-Canonical term:
-
-```text
-PlayerMatchStatContribution
-```
-
-`PlayerMatchStats` and generic `MatchStatContribution` are non-canonical aliases.
-
-Evidence:
-
-- `docs/architecture/governance/C7-R5-NAMING-RESOLUTIONS.md`
-- `docs/architecture/GLOSSARY.md`
-- `HYP-STAT-001` supported/resolved naming state
-
-N2.09/C5 physical wording must converge during propagation cleanup before schema/API freeze.
-
----
-
-## C7-F-010 — StandingsProjection naming
-
-```text
-REMEDIATED DECISION
-```
-
-Canonical term:
-
-```text
-StandingsProjection
-```
-
-Singular `StandingProjection` is a legacy/text alias only.
-
----
-
-## C7-F-011 — correlation terminology
-
-```text
-REMEDIATED DECISION / OWNER-DOC PROPAGATION PENDING
-```
-
-Canonical taxonomy:
-
-```text
-command_id   logical mutating intent / stable across retry
-request_id   one transport attempt
-trace_id     tracing identity
-reference_id safe user/support reference
-job_id       logical async unit
-release_id   deployed artifact/version
-```
-
-`correlation` is the relationship among signals; there is no universal target `correlation_id` catch-all.
-
----
-
-## C7-F-012 — Match correction command name
-
-```text
-REMEDIATED DECISION
-```
-
-Canonical target command:
-
-```text
-RevertMatchEvent
-```
-
-`OPEN-MATCH-003` still controls broader post-finish/result-changing correction authority; naming does not grant that capability.
-
----
-
-## C7-F-013 — post-C6 ADR delta
-
-```text
-REMEDIATED
-```
-
-Review artifact:
-
-`docs/architecture/adr/C7-R6-POST-C6-ADR-DELTA.md`
-
-Result:
-
-```text
-XS-*                 process mechanism
-slice lifecycle      process mechanism
-Authority Ledger     implementation mechanism of accepted authority ADRs
-G0..G7               governance/release mechanism
-cutover no auto-back → material semantic already owned by ADR-MIG-009
-```
-
-No new ADR identity was required.
-
----
-
-## C7-F-014 — undefined Q0/Q1 invariant severity
-
-```text
-REMEDIATED AT GOVERNING SOURCE
-```
-
-Canonical invariant severity is only:
-
-```text
-I0 I1 I2 I3
-```
-
-`C6.06` has been normalized. R10 must still search the wider corpus for stray `Q0/Q1` wording and distinguish unrelated terminology if any.
-
----
-
-## C7-F-015 — architecture fitness functions crystallize legacy
-
-```text
-REMEDIATED
-```
-
-Current structure:
-
-```text
-src/architecture/fitnessManifest.ts
-src/architecture/importAliases.test.ts
-src/architecture/legacyContracts.transitional.test.ts
-```
-
-Target and transitional assertions now have owner, protected intent, lifecycle and removal/replacement trigger.
-
----
-
-## C7-F-016 — mixed truth classes
-
-```text
-REMEDIATED AT ARCHITECTURE/DATA-PLANNING LEVEL
-```
-
-Artifact:
-
-`docs/architecture/data/C7-R8-TRUTH-CLASS-NORMALIZATION.md`
-
-Rule:
-
-```text
-ONE PERSISTED ARTIFACT
-HAS ONE PRIMARY TRUTH CLASS
-```
-
-Current/history or source/projection concepts must map to separate physical artifacts/pointers/revisions rather than one ambiguous mutable row.
-
----
-
-## C7-F-017 — HYP-STAT-001 lifecycle
-
-```text
-REMEDIATED
-```
-
-The C5/C7 naming review supported `PlayerMatchStatContribution`; the hypothesis registry now records the outcome rather than leaving the trigger consumed but status unvalidated.
-
----
-
-## C7-F-018 — Authority Ledger not yet materialized
-
-```text
-OPEN BEFORE FIRST CUTOVER — NOT A DESIGN BLOCKER TODAY
-```
-
-R9 remains mandatory before the first slice reaches `CUTOVER_ACTIVE`.
-
----
+These dimensions are orthogonal and the R10 checker rejects ambiguous fusion language in target sources.
 
 ## C7-F-019 — executable reference integrity
 
 ```text
-PARTIALLY REMEDIATED
+REMEDIATED
 ```
 
-Created:
+Architecture reference/R10 checks are permanent CI behavior and passed on clean HEAD.
+
+## C7-F-020 — platform-role vocabulary ambiguity
 
 ```text
-scripts/check-architecture-references.mjs
-npm run check:architecture
+REMEDIATED-DOC / LEGACY-RUNTIME-MAY-REMAIN
 ```
 
-Checks include:
+`master`/`programmer` vocabulary is explicitly platform/staff authorization where retained and is never Community OWNER/ADMIN/MEMBER/ORGANIZER inheritance.
+
+## C7-F-021 — legacy status banner convention
 
 ```text
-relative Markdown file links
-canonical ADR refs
-GINV refs
-OPEN refs
-HYP refs
-EAP canonical file paths
-duplicate N3 heading IDs per N2
+REMEDIATED FOR AUDITED ARCHITECTURE/OPERATIONS SCOPE
 ```
 
-It is deliberately **not yet wired into CI** because this session could not execute a repository checkout/networked validation and known physical links remain unfixed. R4 closes only after a clean run and CI gate installation.
+The permanent R10 checker verifies required operational metadata for the audited operations corpus.
+
+## C7-F-022 — `schema.sql` location/source ambiguity
+
+```text
+REMEDIATED-DOC / W0-RUNTIME-NORMALIZATION
+```
+
+The colocated migrations README makes the frozen legacy-baseline status explicit. Physical normalization/tooling remains Data+Operations W0 work.
+
+## C7-F-023 — orphan `9router` gitlink
+
+```text
+NEW IN R10
+AP2
+NON-BLOCKING / CORRECTION_REQUIRED
+```
+
+Repository tree evidence:
+
+```text
+9router
+mode = 160000
+type = commit
+.gitmodules = absent
+```
+
+Impact:
+
+- standard checkout/submodule-aware tooling can fail;
+- CI portability is reduced;
+- the architecture workflow currently uses manual checkout with submodule recursion disabled.
+
+Required correction:
+
+```text
+remove stale/accidental gitlink
+OR
+restore a valid intentional submodule declaration
+```
+
+Then return CI to ordinary checkout semantics where possible.
+
+This is repository/CI hygiene, not a target-domain architecture contradiction, so it does not freeze R11.
 
 ---
 
-# 4. Promotion state
+# 6. Current → Target runtime mismatches
 
-AP0 architecture/document authority blockers have been addressed.
+The runtime still contains expected transition mechanisms. R10 verified that they are not unexplained architecture drift.
 
-However:
+| Current mismatch | Classification | C6 owner |
+|---|---|---|
+| broad `syncService` / LocalSyncPayload reconciliation | `EXPECTED_TRANSITION` | W13 entity-by-entity retirement + W14 contract removal |
+| broad domain persistence in localStorage | `EXPECTED_TRANSITION` | W12 IndexedDB/local authority + W13/W14 retirement |
+| generic/direct CRUD cloud adapters | `EXPECTED_TRANSITION` | bounded-context target waves W2–W11, then W13/W14 removal |
+| legacy Session/Game/Point schema and control | `EXPECTED_TRANSITION` | W3/W6/W7, then W13/W14 |
+| `schema.sql` legacy baseline segment | `EXPECTED_TRANSITION` | W0 Data/Operations normalization |
+| privileged functions needing runtime hardening | `EXPECTED_TRANSITION` | W0 Security/Data/Operations |
+| Authority Ledger not yet live | `EXECUTION_PREREQUISITE` | before first `CUTOVER_ACTIVE` |
 
 ```text
-CANONICAL PROMOTION
-=
-STILL BLOCKED
+UNEXPLAINED CURRENT→TARGET MISMATCH
+= 0
 ```
-
-because at minimum the following remain before R10/R11:
-
-```text
-1. physically repair N2.10/N2.11 known canonical links;
-2. execute strict architecture checker and fix all reported issues;
-3. wire clean checker into CI;
-4. propagate R5 normalized vocabulary into remaining owner docs/C5 cells;
-5. run wider lexical check for undefined Q0/Q1/correlation aliases;
-6. perform R10 semantic rerun;
-7. materialize R9 Authority Ledger before any actual CUTOVER_ACTIVE slice (if implementation reaches that point before promotion rerun).
-```
-
-R9 is a cutover prerequisite, not a reason to block W0 safety/tooling work.
 
 ---
 
-# 5. Next action
+# 7. Semantic R10 result
 
-The next remediation batch should finish **R4 physical reference repair + execution**, then perform the remaining **R5 propagation cleanup**. After that the corpus is ready for a focused R10 machine/semantic audit rerun, except for R9 which is tied to first real authority cutover.
+The full semantic evidence is in [`C7-R10-RERUN.md`](./C7-R10-RERUN.md).
+
+Result:
+
+```text
+20/20 HIGH-RISK SEMANTIC ANCHORS
+= PASS
+```
+
+This includes identity separation, Organizer/governance, Registration FIFO, hierarchical Rating, no Overall in balancing, Session/Match/Competition boundaries, Match sequence/epoch/reconciliation, Stats vs Rating, offline authority, Realtime role, schema/data authority, security posture, history retention and strangler authority transfer.
+
+No R1–R9 remediation introduced a new target contradiction.
+
+---
+
+# 8. Promotion state
+
+```text
+AP0 OPEN
+= 0
+
+AP1 FREEZING BLOCKERS
+= 0
+
+MECHANICAL REFERENCE / LEXICAL CHECK
+= PASS
+
+SEMANTIC R10
+= PASS
+
+OPEN/HYP LIFECYCLE
+= COHERENT / INTENTIONALLY UNRESOLVED ITEMS REMAIN OPEN
+
+NEW AP2 NON-FREEZING FINDING
+= C7-F-023
+```
+
+Therefore:
+
+```text
+R10
+= DONE / PASS_WITH_NON_BLOCKING_FINDING
+
+R11
+= READY TO BEGIN
+```
+
+The corpus remains `DRAFT-CANONICAL` until R11 performs one deliberate promotion review/change.
+
+---
+
+# 9. Next action
+
+R11 should promote the corpus in a reviewable sequence:
+
+```text
+1 PRINCIPLES / GLOSSARY
+2 EAP
+3 owner N2 chapters
+4 ADR catalog
+5 C4 registries
+6 C5 matrices
+7 C6 execution program
+8 C7 verdict/status
+```
+
+R11 must preserve:
+
+- all intentional OPEN/HYPOTHESIS states;
+- transitional/current evidence labels;
+- C6 runtime-migration obligations;
+- `C7-F-023` as tracked AP2 repository hygiene;
+- the rule that canonical target status does not assert production parity.

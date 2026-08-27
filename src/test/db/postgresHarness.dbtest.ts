@@ -374,7 +374,12 @@ if (!isTestDatabaseConfigured()) {
         'If this now succeeds, deletion semantics changed and this test must be rewritten ' +
         'to assert that sports history survives (GINV-ID-005, ADR-SEC-011).',
     );
-    assert.match((attempt as Error).message, /cannot be deleted/i);
+    // Either guard is a valid refusal, and WHICH one fires changed in XS-W2-08. Before it,
+    // players.owner_id cascaded, so the delete guard caught it ("cannot be deleted"). Now
+    // that owner_id anonymises, the SET NULL on players.user_id trips the immutability
+    // guard first ("is immutable"). The invariant is unchanged: canonical account identity
+    // is protected and the account survives.
+    assert.match((attempt as Error).message, /cannot be deleted|is immutable/i);
 
     const stillThere = await client.query('select 1 from auth.users where id = $1', [userId]);
     assert.equal(stillThere.rowCount, 1, 'the refused delete must leave the identity intact');

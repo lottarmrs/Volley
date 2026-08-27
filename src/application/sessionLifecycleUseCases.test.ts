@@ -866,7 +866,10 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
       'player-2',
     ]);
   }
-  assert.deepEqual(buildDivisionWorkerMessageResult({ type: 'error', message: 'boom' }, plan), {
+  assert.deepEqual(buildDivisionWorkerMessageResult(
+      { type: 'error', code: 'TECHNICAL_ERROR', message: 'boom' },
+      plan,
+    ), {
     type: 'fallback',
     message: 'boom',
   });
@@ -874,13 +877,14 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
     buildDivisionWorkerMessageResult(
       {
         type: 'error',
-        message: 'Não existe solução viável para as restrições obrigatórias.',
+        code: 'INFEASIBLE_CONSTRAINTS',
+        message: 'As regras informadas não admitem uma divisão.',
       },
       plan,
     ),
     {
       type: 'infeasible',
-      message: 'Não existe solução viável para as restrições obrigatórias.',
+      message: 'As regras informadas não admitem uma divisão.',
       generationStatus: {
         nextIsGenerating: false,
         nextProgress: 0,

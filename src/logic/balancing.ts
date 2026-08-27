@@ -16,6 +16,24 @@ import { PENALTIES, QUALITY, THRESHOLDS } from './balancingConstants';
 import { calculateGenderDistribution, calculateTeamSizes } from './calculations';
 import { PartnershipMatrix } from './partnershipHistory';
 
+/**
+ * Raised when the mandatory constraints admit no valid division at all.
+ *
+ * This is a DOMAIN REJECTION, not a technical failure: the solver worked correctly and the
+ * answer is "no such division exists". Carrying a stable `code` lets the transport and the
+ * UI distinguish it from a crashed worker without parsing the message, which is what
+ * XS-W0-05 means by bounded-context stable error codes. The message stays user-facing
+ * pt-BR; the code is the contract.
+ */
+export class InfeasibleConstraintsError extends Error {
+  readonly code = 'INFEASIBLE_CONSTRAINTS' as const;
+
+  constructor(message = 'Não existe solução viável para as restrições obrigatórias.') {
+    super(message);
+    this.name = 'InfeasibleConstraintsError';
+  }
+}
+
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
 // `gender` respeita um piso de GENDER_WEIGHT_FLOOR em todos os perfis (Fase B).
@@ -1096,7 +1114,7 @@ export class SimulatedAnnealingBalancer {
     }
 
     if (!best) {
-      throw new Error('Não existe solução viável para as restrições obrigatórias.');
+      throw new InfeasibleConstraintsError();
     }
 
     return { solution: best, score: this.scorer.score(best, constraints, true), iterations };

@@ -1,4 +1,5 @@
 import { balanceSnapshots } from './balancing';
+import { buildBalanceErrorResponse } from './balancerMessages';
 import type { BalanceRequest, BalanceResponse } from './balancerMessages';
 
 self.onmessage = (event: MessageEvent<BalanceRequest>) => {
@@ -14,6 +15,7 @@ self.onmessage = (event: MessageEvent<BalanceRequest>) => {
     );
     post({ type: 'done', candidates });
   } catch (error) {
-    post({ type: 'error', message: (error as Error).message });
+    // Classified once, at the boundary, so every consumer receives the same stable code.
+    post(buildBalanceErrorResponse(error));
   }
 };

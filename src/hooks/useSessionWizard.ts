@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Player, Team, Division, Game } from '../types';
+import { buildBalanceErrorResponse } from '../logic/balancerMessages';
 import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
@@ -179,6 +180,14 @@ export function useSessionWizard({
     });
     if (!plan) return;
 
+    // A retry starts clean. Leaving the previous generation error on screen made a
+    // successful second attempt still look failed.
+    setValidationErrors((current) => {
+      if (current.generation === undefined) return current;
+      const { generation: _cleared, ...rest } = current;
+      return rest;
+    });
+
     updateSession(plan.sessionPatch);
 
     const finish = (divisions: Division[]) => {
@@ -198,16 +207,27 @@ export function useSessionWizard({
         const result = buildDivisionFallbackBalanceResult(plan);
         if (result) finish(result.divisions);
       } catch (error) {
-        const action = buildDivisionWorkerMessageResult(
-          {
-            type: 'error',
-            message: error instanceof Error ? error.message : String(error),
-          },
-          plan,
+        // Same classifier the worker uses, so the synchronous fallback path and the worker
+        // path cannot disagree about whether a failure is a domain refusal or a crash.
+        const action = buildDivisionWorkerMessageResult(buildBalanceErrorResponse(error), plan);
+
+        if (action.type === 'infeasible') {
+          // A domain refusal: the constraints admit no division, so say exactly that.
+          applyGenerationStatusState(action.generationStatus);
+          setValidationErrors((current) => ({ ...current, generation: action.message }));
+          return;
+        }
+
+        // The fallback itself failed. Rethrowing here escaped into React's event handler
+        // and left the wizard spinning with no message, so the user saw nothing happen.
+        // Surface a recoverable message instead and stop generating.
+        applyGenerationStatusState(
+          buildDivisionGenerationCancelApplicationResult(null).generationStatus,
         );
-        if (action.type !== 'infeasible') throw error;
-        applyGenerationStatusState(action.generationStatus);
-        setValidationErrors((current) => ({ ...current, generation: action.message }));
+        setValidationErrors((current) => ({
+          ...current,
+          generation: 'Não foi possível gerar os times. Tente novamente.',
+        }));
       }
     };
     // Encerra qualquer cálculo anterior ainda em andamento.

@@ -5,6 +5,21 @@ import { makePlayer, makeSession } from '../test/fixtures';
 import type { Player, Session } from '../types';
 import { useSessionWizard } from './useSessionWizard';
 
+const fallbackControl = vi.hoisted(() => ({ error: null as Error | null }));
+
+vi.mock('../application/sessionLifecycleUseCases', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../application/sessionLifecycleUseCases')>();
+  return {
+    ...actual,
+    buildDivisionFallbackBalanceResult: (
+      ...args: Parameters<typeof actual.buildDivisionFallbackBalanceResult>
+    ) => {
+      if (fallbackControl.error) throw fallbackControl.error;
+      return actual.buildDivisionFallbackBalanceResult(...args);
+    },
+  };
+});
+
 class FakeWorker {
   static instances: FakeWorker[] = [];
 
@@ -54,6 +69,7 @@ describe('useSessionWizard division generation failures', () => {
     vi.stubGlobal('Worker', FakeWorker);
     vi.spyOn(Math, 'random').mockReturnValue(0.123);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fallbackControl.error = null;
   });
 
   afterEach(() => {
@@ -85,6 +101,7 @@ describe('useSessionWizard division generation failures', () => {
       act(() =>
         worker.emitMessage({
           type: 'error',
+          code: 'INFEASIBLE_CONSTRAINTS',
           message: 'Não existe solução viável para as restrições obrigatórias.',
         }),
       );
@@ -112,9 +129,84 @@ describe('useSessionWizard division generation failures', () => {
 
     act(() => result.current.generateDivisions());
     const worker = FakeWorker.instances[0];
-    act(() => worker.emitMessage({ type: 'error', message: 'Falha técnica temporária.' }));
+    act(() =>
+      worker.emitMessage({
+        type: 'error',
+        code: 'TECHNICAL_ERROR',
+        message: 'Falha técnica temporária.',
+      }),
+    );
 
     expect(worker.terminated).toBe(true);
+    expect(result.current.isGenerating).toBe(false);
+    expect(result.current.validationErrors.generation).toBeUndefined();
+    expect(result.current.bestDivisions.length).toBeGreaterThan(0);
+  });
+
+  it('encerra com mensagem em português quando o Worker e o fallback técnico falham', () => {
+    const players = ['a', 'b', 'c', 'd'].map((id) => makePlayer(id));
+    const activeSession = makeSession('session-1', {
+      selectedPlayerIds: players.map((player) => player.id),
+      config: {
+        ...makeSession('config-source').config!,
+        balanceSpeed: 'fast',
+      },
+    });
+    const { result } = renderWizard(activeSession, players);
+
+    act(() => result.current.generateDivisions());
+    const worker = FakeWorker.instances[0];
+    fallbackControl.error = new Error('Falha síncrona inesperada.');
+
+    expect(() => {
+      act(() =>
+        worker.emitMessage({
+          type: 'error',
+          code: 'TECHNICAL_ERROR',
+          message: 'Falha técnica temporária.',
+        }),
+      );
+    }).not.toThrow();
+
+    expect(worker.terminated).toBe(true);
+    expect(result.current.isGenerating).toBe(false);
+    expect(result.current.validationErrors.generation).toBe(
+      'Não foi possível gerar os times. Tente novamente.',
+    );
+    expect(result.current.bestDivisions).toEqual([]);
+  });
+
+  it('limpa o erro de inviabilidade ao tentar novamente e concluir pelo fallback', () => {
+    const players = ['a', 'b', 'c', 'd'].map((id) => makePlayer(id));
+    const activeSession = makeSession('session-1', {
+      selectedPlayerIds: players.map((player) => player.id),
+      config: {
+        ...makeSession('config-source').config!,
+        balanceSpeed: 'fast',
+      },
+    });
+    const { result } = renderWizard(activeSession, players);
+
+    act(() => result.current.generateDivisions());
+    act(() =>
+      FakeWorker.instances[0].emitMessage({
+        type: 'error',
+        code: 'INFEASIBLE_CONSTRAINTS',
+        message: 'Não existe solução viável para as restrições obrigatórias.',
+      }),
+    );
+    expect(result.current.validationErrors.generation).toBeDefined();
+
+    act(() => result.current.generateDivisions());
+    expect(result.current.validationErrors.generation).toBeUndefined();
+
+    act(() =>
+      FakeWorker.instances[1].emitMessage({
+        type: 'error',
+        code: 'TECHNICAL_ERROR',
+        message: 'Falha técnica temporária.',
+      }),
+    );
     expect(result.current.isGenerating).toBe(false);
     expect(result.current.validationErrors.generation).toBeUndefined();
     expect(result.current.bestDivisions.length).toBeGreaterThan(0);

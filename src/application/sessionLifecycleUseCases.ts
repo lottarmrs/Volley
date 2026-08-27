@@ -13,6 +13,7 @@ import type {
   Team,
   TournamentConfig,
 } from '../types';
+import { INFEASIBLE_CONSTRAINTS } from '../logic/balancerMessages';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
 import { balanceSnapshots } from '../logic/balancing';
 import {
@@ -676,7 +677,10 @@ export function buildDivisionWorkerMessageResult(
       }),
     };
   }
-  if (message.message === 'Não existe solução viável para as restrições obrigatórias.') {
+  // Branch on the stable CODE, never on the pt-BR text. Matching the translated sentence
+  // meant that rewording it silently reclassified a domain refusal as a technical fallback,
+  // and the user would have been offered a retry for a division that cannot exist.
+  if (message.code === INFEASIBLE_CONSTRAINTS) {
     return {
       type: 'infeasible',
       message: message.message,

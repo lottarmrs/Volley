@@ -251,6 +251,7 @@ export const FROZEN_SOLVER_IMPORTS: Readonly<Record<string, readonly string[]>> 
   'src/logic/balancer.worker.ts': [
     './balancerMessages:BalanceRequest',
     './balancerMessages:BalanceResponse',
+    './balancerMessages:buildBalanceErrorResponse',
     './balancing:balanceSnapshots',
   ],
   'src/logic/balancerMessages.ts': [
@@ -258,6 +259,7 @@ export const FROZEN_SOLVER_IMPORTS: Readonly<Record<string, readonly string[]>> 
     '../types:FreePlayConfig',
     '../types:PlayerBalanceSnapshot',
     '../types:TournamentConfig',
+    './balancing:InfeasibleConstraintsError',
     './partnershipHistory:PartnershipMatrix',
   ],
   'src/logic/balancingConstants.ts': [],

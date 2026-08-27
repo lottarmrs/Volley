@@ -142,3 +142,52 @@ export function objectLiteralKeys(file: string, constName: string): string[] {
     .map((match) => match[1])
     .sort();
 }
+
+/**
+ * Every binding a module imports, as sorted `source:binding` pairs.
+ *
+ * Freezing this for the Team Formation solver closes the route that a census of literal
+ * `overall` text cannot see: a new, neutrally named module that computes a composite
+ * rating and is imported into the objective. `*` marks a namespace import and a bare
+ * `source:` marks a side-effect import.
+ */
+export function moduleImports(file: string): string[] {
+  const source = readFileSync(file, 'utf8');
+  const pairs: string[] = [];
+
+  const statement =
+    /import\s+(?:type\s+)?([\s\S]*?)\s*from\s*['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]/g;
+
+  for (const match of source.matchAll(statement)) {
+    const [, clause, from, sideEffect] = match;
+    if (sideEffect) {
+      pairs.push(`${sideEffect}:`);
+      continue;
+    }
+
+    const named = clause.match(/\{([\s\S]*)\}/);
+    if (named) {
+      for (const raw of named[1].split(',')) {
+        const binding = raw
+          .replace(/\btype\b/g, '')
+          .trim()
+          .split(/\s+as\s+/)[0]
+          .trim();
+        if (binding) pairs.push(`${from}:${binding}`);
+      }
+    }
+
+    const namespace = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/);
+    if (namespace) pairs.push(`${from}:*`);
+
+    const defaultBinding = clause
+      .replace(/\{[\s\S]*\}/, '')
+      .replace(/\*\s+as\s+[A-Za-z_$][\w$]*/, '');
+    for (const raw of defaultBinding.split(',')) {
+      const binding = raw.trim();
+      if (binding && /^[A-Za-z_$][\w$]*$/.test(binding)) pairs.push(`${from}:${binding}`);
+    }
+  }
+
+  return Array.from(new Set(pairs)).sort();
+}

@@ -135,9 +135,9 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     owner: 'Team Formation',
     lifecycle: 'TRANSITIONAL',
     protects:
-      'Overall influence on the Team Formation solver cannot grow. Pins the solver census plus the BalanceWeights/TeamMetrics key sets so a renamed aggregate cannot reach the objective. Overall stays legal as a display value elsewhere.',
+      'Overall influence on the Team Formation solver cannot grow, across three independent routes: a census of literal Overall text in the solver modules, the frozen BalanceWeights/TeamMetrics key sets that block a renamed aggregate, and the frozen solver import surface that blocks a neutrally named rating module being pulled in. Overall stays legal as a display value elsewhere.',
     removalOrReplacementTrigger:
-      'XS-W1-01 removes Overall from solver influence. At that point drop overall from FROZEN_BALANCE_WEIGHT_KEYS/FROZEN_TEAM_METRIC_KEYS, lower the census to zero, and replace this record with the GINV-BAL-001 target property test.',
+      'XS-W1-01 removes Overall from solver influence. At that point drop overall from FROZEN_BALANCE_WEIGHT_KEYS/FROZEN_TEAM_METRIC_KEYS, remove the three Overall bindings from FROZEN_SOLVER_IMPORTS (OVERALL_SCALE, calculateGeneralOverall, calculatePositionOverall), lower the census to zero, and replace this record with the GINV-BAL-001 target property test.',
   },
 ] as const;
 

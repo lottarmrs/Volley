@@ -212,6 +212,63 @@ export const FROZEN_TEAM_METRIC_KEYS: readonly string[] = [
   'teamIndex',
 ];
 
+/**
+ * AF-FREEZE-008 dependency contract.
+ *
+ * The census sees literal `overall` text and the key sets see new objective inputs, but
+ * neither can see a NEW, neutrally named module that computes a composite rating and is
+ * imported into the solver. Freezing the solver's whole import surface closes that route:
+ * any new binding reaching Team Formation is an explicit, reviewed decision.
+ *
+ * The two Overall entry points are `./calculations:calculateGeneralOverall` and
+ * `./calculations:calculatePositionOverall`. XS-W1-01 removes both, which will fail this
+ * contract and force a deliberate update rather than a silent one.
+ */
+export const FROZEN_SOLVER_IMPORTS: Readonly<Record<string, readonly string[]>> = {
+  'src/logic/balancing.ts': [
+    '../types:AthleteVector',
+    '../types:Attributes',
+    '../types:BalanceConstraints',
+    '../types:BalanceDiagnostics',
+    '../types:BalanceQuality',
+    '../types:BalanceWeights',
+    '../types:Division',
+    '../types:FreePlayConfig',
+    '../types:Player',
+    '../types:Position',
+    '../types:RoleComposition',
+    '../types:RotationType',
+    '../types:Team',
+    '../types:TeamMetrics',
+    '../types:TeamSolution',
+    '../types:TeamStrengthSnapshot',
+    '../types:TournamentConfig',
+    './balancingConstants:OVERALL_SCALE',
+    './balancingConstants:PENALTIES',
+    './balancingConstants:QUALITY',
+    './balancingConstants:THRESHOLDS',
+    './calculations:calculateGenderDistribution',
+    './calculations:calculateGeneralOverall',
+    './calculations:calculatePositionOverall',
+    './calculations:calculateTeamSizes',
+    './partnershipHistory:PartnershipMatrix',
+    './uuid:generateUUID',
+  ],
+  'src/logic/balancer.worker.ts': [
+    './balancerMessages:BalanceRequest',
+    './balancerMessages:BalanceResponse',
+    './balancing:balanceTeams',
+  ],
+  'src/logic/balancerMessages.ts': [
+    '../types:Division',
+    '../types:FreePlayConfig',
+    '../types:Player',
+    '../types:TournamentConfig',
+    './partnershipHistory:PartnershipMatrix',
+  ],
+  'src/logic/balancingConstants.ts': [],
+};
+
 /** AF-FREEZE-007 structural contract: the broad domain localStorage surface cannot grow. */
 export const FROZEN_STORAGE_KEYS: readonly string[] = [
   'activeCommunityId',

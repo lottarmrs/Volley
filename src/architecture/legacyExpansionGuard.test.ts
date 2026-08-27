@@ -1,8 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { censusFor, interfaceKeys, objectLiteralKeys } from './legacyExpansionPolicy';
+import {
+  censusFor,
+  interfaceKeys,
+  moduleImports,
+  objectLiteralKeys,
+} from './legacyExpansionPolicy';
 import {
   FROZEN_BALANCE_WEIGHT_KEYS,
+  FROZEN_SOLVER_IMPORTS,
   FROZEN_STORAGE_KEYS,
   FROZEN_TEAM_METRIC_KEYS,
   legacyExpansionRules,
@@ -95,6 +101,36 @@ test('AF-FREEZE-008: team metrics cannot gain a new aggregate the objective coul
     [...FROZEN_TEAM_METRIC_KEYS],
     explain('AF-FREEZE-008', 'TeamMetrics feeds the solver objective'),
   );
+});
+
+test('AF-FREEZE-008: the solver dependency surface is frozen', () => {
+  for (const [file, frozen] of Object.entries(FROZEN_SOLVER_IMPORTS)) {
+    assert.deepEqual(
+      moduleImports(file),
+      [...frozen],
+      explain(
+        'AF-FREEZE-008',
+        `${file} changed its imports. A new binding reaching Team Formation must be reviewed: ` +
+          'it is the one route by which a renamed or newly computed rating can influence the ' +
+          'solver without appearing in the census or the objective key sets',
+      ),
+    );
+  }
+});
+
+test('AF-FREEZE-008: the solver imports Overall from exactly the known sites', () => {
+  // Pins the full Overall dependency that XS-W1-01 has to remove: the two derivation
+  // functions plus the scale constant the objective divides by at balancing.ts. If a
+  // further Overall entry point appears, the diff that adds it fails here.
+  const overallEntryPoints = Object.values(FROZEN_SOLVER_IMPORTS)
+    .flat()
+    .filter((binding) => /overall/i.test(binding));
+
+  assert.deepEqual(overallEntryPoints, [
+    './balancingConstants:OVERALL_SCALE',
+    './calculations:calculateGeneralOverall',
+    './calculations:calculatePositionOverall',
+  ]);
 });
 
 test('AF-FREEZE-008: Overall remains display-only outside the solver', () => {

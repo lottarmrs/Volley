@@ -1,0 +1,186 @@
+import React, { useState } from 'react';
+import { ChevronLeft, Plus, Search, Users } from 'lucide-react';
+import type { Player } from '@shared/types';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type { PlayersViewModel } from '@app/screens/playersView/playersViewModel';
+import type { PlayersViewIntent } from '@app/screens/playersView/playersViewIntents';
+import { PlayerItem } from './PlayerComponents';
+import { GuestPlayerModal } from './GuestPlayerModal';
+import { FutCardModal } from './FutCardModal';
+import { matchesSearch } from '../../logic/textNormalization';
+import { EmptyState } from '../../ui/EmptyState';
+
+export const PlayersView = ({
+  contract,
+}: {
+  contract: ScreenContract<PlayersViewModel, PlayersViewIntent>;
+}) => {
+  const { model, dispatch } = contract;
+  const { players, communities, games, pointEvents, teams, sessions } = model;
+  const [showInactive, setShowInactive] = useState(false);
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [selectedVutPlayer, setSelectedVutPlayer] = useState<Player | null>(null);
+
+  const visiblePlayers = players
+    .filter((player) => (showInactive ? true : player.ativo))
+    .filter((player) =>
+      selectedCommunityId === 'all'
+        ? true
+        : (player.communityIds ?? []).includes(selectedCommunityId),
+    )
+    .filter(
+      (player) =>
+        matchesSearch(player.nome, searchQuery) || matchesSearch(player.apelido, searchQuery),
+    );
+
+  return (
+    <div className="space-y-6">
+      {/* Header and Controls */}
+      <div className="flex flex-col gap-3 bg-base-200 p-3 sm:p-4 rounded-xl border border-base-300 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => dispatch({ kind: 'back' })}
+            className="btn btn-ghost btn-sm gap-1 sm:gap-2 text-xs font-bold uppercase tracking-wider"
+          >
+            <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Voltar</span>
+          </button>
+          <button
+            onClick={() => setShowInactive((prev) => !prev)}
+            className="btn btn-outline btn-sm text-[10px] sm:text-xs font-bold uppercase"
+          >
+            {showInactive ? 'Ocultar inativos' : 'Mostrar inativos'}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap justify-end">
+          <button
+            type="button"
+            onClick={() => setShowGuestModal(true)}
+            className="btn btn-outline btn-accent btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
+          >
+            <Plus className="w-4 h-4" /> Convidado
+          </button>
+          <button
+            onClick={() => dispatch({ kind: 'addPlayer' })}
+            className="btn btn-primary btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
+          >
+            <Plus className="w-4 h-4" /> Cadastrar
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search Panel */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-base-200 p-4 rounded-xl border border-base-300 shadow-sm">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50" />
+          <input
+            type="text"
+            placeholder="Pesquisar atleta por nome..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input input-bordered pl-10 w-full"
+          />
+        </div>
+
+        {communities.length > 0 && (
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold uppercase text-base-content/70 tracking-wider shrink-0">
+              Comunidade:
+            </span>
+            <select
+              value={selectedCommunityId}
+              onChange={(e) => setSelectedCommunityId(e.target.value)}
+              className="select select-bordered select-sm w-full font-bold uppercase"
+            >
+              <option value="all">Todas as Comunidades</option>
+              {communities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Players List Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visiblePlayers.map((player) => (
+          <PlayerItem
+            key={player.id}
+            player={player}
+            onToggle={() => dispatch({ kind: 'editPlayer', player })}
+            onViewVutCard={(p) => setSelectedVutPlayer(p)}
+          />
+        ))}
+        {visiblePlayers.length === 0 &&
+          (players.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                icon={Users}
+                title="O elenco começa aqui"
+                description="Cada atleta cadastrado carrega os fundamentos que o sorteio usa para equilibrar os times — saque, recepção, levantamento, ataque, bloqueio e defesa. Sem elenco não há sorteio, e é por isso que este é o primeiro passo."
+              >
+                <button
+                  type="button"
+                  onClick={() => dispatch({ kind: 'addPlayer' })}
+                  className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+                >
+                  <Plus className="h-5 w-5" /> Cadastrar o primeiro atleta
+                </button>
+              </EmptyState>
+            </div>
+          ) : (
+            /* O elenco existe; foi o filtro que não bateu. Outra mensagem, outra saída. */
+            <div className="col-span-full card bg-base-200 border border-base-300 border-dashed py-12 text-center space-y-3">
+              <Search className="mx-auto h-8 w-8 text-base-content/30" />
+              <p className="text-sm text-base-content/70">
+                Nenhum atleta bate com esse filtro.{' '}
+                {players.length === 1 ? 'Existe 1 atleta' : `Existem ${players.length} atletas`}{' '}
+                fora deste recorte.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCommunityId('all');
+                  setShowInactive(true);
+                }}
+                className="btn btn-outline btn-sm mx-auto min-h-[44px] w-fit px-5 font-bold uppercase tracking-wider"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          ))}
+      </div>
+
+      {/* Guest Modal */}
+      <GuestPlayerModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        players={players}
+        onAddGuestPlayer={(p, editDetails) =>
+          dispatch({ kind: 'addGuestPlayer', player: p, editDetails })
+        }
+        defaultCommunityId={selectedCommunityId !== 'all' ? selectedCommunityId : null}
+      />
+
+      {/* VUT Card Modal */}
+      {selectedVutPlayer && (
+        <FutCardModal
+          isOpen={!!selectedVutPlayer}
+          onClose={() => setSelectedVutPlayer(null)}
+          player={selectedVutPlayer}
+          players={players}
+          sessions={sessions}
+          teams={teams}
+          games={games}
+          pointEvents={pointEvents}
+        />
+      )}
+    </div>
+  );
+};

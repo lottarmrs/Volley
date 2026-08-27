@@ -1,0 +1,140 @@
+import { generateUUID } from '../logic/uuid';
+
+export const STORAGE_KEYS = {
+  players: 'vpg_players',
+  sessions: 'vpg_sessions',
+  activeSession: 'vpg_active_session',
+  teams: 'vpg_teams',
+  games: 'vpg_games',
+  points: 'vpg_points',
+  gameReports: 'vpg_game_reports',
+  sessionReports: 'vpg_session_reports',
+  bestDivisions: 'vpg_best_divisions',
+  selectedDivisionIndex: 'vpg_selected_division_index',
+  sessionDraft: 'vpg_session_draft',
+  lastSelectedPlayerIds: 'vpg_last_selected_player_ids',
+  lastSessionConfig: 'vpg_last_session_config',
+  communities: 'vpg_communities',
+  communityPresence: 'vpg_community_presence',
+  whatsAppListTemplates: 'vpg_whatsapp_list_templates',
+  whatsAppListDrafts: 'vpg_whatsapp_list_drafts',
+  communityRules: 'vpg_community_rules',
+  championships: 'vpg_championships',
+  championshipTeams: 'vpg_championship_teams',
+  championshipRounds: 'vpg_championship_rounds',
+  championshipRequests: 'vpg_championship_requests',
+  syncIssueLedger: 'vpg_sync_issue_ledger',
+  activeCommunityId: 'vpg_active_community_id',
+  dismissedHints: 'vpg_dismissed_hints',
+};
+
+export const LOCAL_CACHE_OWNER_KEY = 'vpg_cache_owner_id';
+
+/**
+ * Identidade do APARELHO, nao do usuario.
+ *
+ * Fica de proposito FORA de STORAGE_KEYS: `clearLocalDomainCache` varre aquela lista
+ * na troca de conta, e o aparelho nao muda porque a pessoa mudou. Mesmo tratamento de
+ * LOCAL_CACHE_OWNER_KEY.
+ *
+ * Serve apenas para um aviso informativo ("voce esta com esta sessao aberta em outro
+ * aparelho"). NUNCA bloqueia nada — se o id se perder na limpeza do navegador, o pior
+ * que acontece e o aviso deixar de aparecer.
+ */
+export const DEVICE_ID_KEY = 'vpg_device_id';
+
+export const STORAGE_METADATA_KEYS = [
+  LOCAL_CACHE_OWNER_KEY,
+  'vpg_last_synced_at',
+  'vpg_uuid_migration_completed',
+  'vpg_players_schema_version',
+  'vpg_selected_division_index',
+  'vpg_sync_issue_ledger',
+];
+
+export function getLocalCacheOwnerId(): string | null {
+  try {
+    return localStorage.getItem(LOCAL_CACHE_OWNER_KEY);
+  } catch (err) {
+    console.error(`Error loading ${LOCAL_CACHE_OWNER_KEY} from storage:`, err);
+    return null;
+  }
+}
+
+export function markLocalCacheOwner(userId: string | null | undefined) {
+  try {
+    if (userId) {
+      localStorage.setItem(LOCAL_CACHE_OWNER_KEY, userId);
+    } else {
+      localStorage.removeItem(LOCAL_CACHE_OWNER_KEY);
+    }
+  } catch (err) {
+    console.error(`Error saving ${LOCAL_CACHE_OWNER_KEY} to storage:`, err);
+  }
+}
+
+export function loadFromStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (err) {
+    console.error(`Error loading ${key} from storage:`, err);
+    return fallback;
+  }
+}
+
+export function saveToStorage<T>(key: string, value: T) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error(`Error saving ${key} to storage:`, err);
+  }
+}
+
+export function removeFromStorage(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch (err) {
+    console.error(`Error removing ${key} from storage:`, err);
+  }
+}
+
+export function validateCacheOwner(currentUserId: string, cacheOwnerId: string | null): boolean {
+  if (!cacheOwnerId) return true;
+  return cacheOwnerId === currentUserId;
+}
+
+/**
+ * Apaga todo o cache de dominio da conta anterior. Chamado quando o dono do cache
+ * nao e o usuario atual: a nuvem e autoritativa, entao o local vai fora antes de
+ * aplicar o resultado baixado.
+ *
+ * `vpg_players_schema_version` e preservado de proposito — os dados que chegam da
+ * nuvem ja estao na versao corrente, e apagar a marca faria `usePlayers` re-rodar
+ * as migracoes de escala sobre dados que nao precisam delas.
+ */
+export function clearLocalDomainCache() {
+  try {
+    for (const key of Object.values(STORAGE_KEYS)) {
+      localStorage.removeItem(key);
+    }
+    localStorage.removeItem('vpg_last_synced_at');
+  } catch (err) {
+    console.error('Error clearing local domain cache:', err);
+  }
+}
+
+export function getOrCreateDeviceId(): string {
+  try {
+    const existente = localStorage.getItem(DEVICE_ID_KEY);
+    if (existente) return existente;
+    const novo = generateUUID();
+    localStorage.setItem(DEVICE_ID_KEY, novo);
+    return novo;
+  } catch (err) {
+    console.error('Error resolving device id:', err);
+    // Sem storage, devolve um id efemero: o aviso de aparelho para de funcionar,
+    // nada mais quebra.
+    return generateUUID();
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "name": "panelinha-team-balancer",
+  "private": true,
+  "version": "1.0.0",
+  "description": "App para balancear times de vôlei misto e registrar partidas semanais.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "clean": "node --input-type=module -e \"import{rmSync}from'node:fs';rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint:eslint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:architecture": "node scripts/check-architecture-references.mjs && node scripts/check-architecture-r10.mjs && node scripts/check-architecture-r11.mjs",
+    "check:architecture:references": "node scripts/check-architecture-references.mjs",
+    "check:architecture:r10": "node scripts/check-architecture-r10.mjs",
+    "test": "npm run test:unit && npm run test:ui",
+    "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:ui": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "check:architecture:r11": "node scripts/check-architecture-r11.mjs"
+  },
+  "dependencies": {
+    "@daypilot/daypilot-lite-react": "^5.10.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@marsidev/react-turnstile": "^1.5.3",
+    "@supabase/supabase-js": "^2.108.0",
+    "html-to-image": "^1.11.13",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-is": "^19.2.6",
+    "react-router": "^7.17.0",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/vite": "^4.1.14",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.5",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.4.21",
+    "daisyui": "^5.5.20",
+    "eslint": "^10.4.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.0.0",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.8.4",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.23.1",
+    "typescript": "~5.8.2",
+    "typescript-eslint": "^8.61.1",
+    "vite": "^6.2.0",
+    "vitest": "^4.1.8"
+  },
+  "allowScripts": {
+    "esbuild": false
+  }
+}

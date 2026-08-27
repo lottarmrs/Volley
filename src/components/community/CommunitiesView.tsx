@@ -1,0 +1,3482 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
+import {
+  AlertTriangle,
+  ArrowRight,
+  BarChart3,
+  Calendar,
+  ChevronLeft,
+  Clock,
+  Copy,
+  FileText,
+  MapPin,
+  KeyRound,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  ShieldAlert,
+  Trash2,
+  Trophy,
+  CheckCircle2,
+  ClipboardCheck,
+  MessageCircle,
+  Circle,
+  Lock,
+  Users,
+  Volleyball,
+} from 'lucide-react';
+import { paths } from '@app/appRoutes';
+import { matchesSearch } from '../../logic/textNormalization';
+import {
+  AuthRole,
+  Championship,
+  ChampionshipRound,
+  ChampionshipTeam,
+  Community,
+  CommunityPresenceStatus,
+  CommunityRankingFilter,
+  CommunityRules,
+  Game,
+  Player,
+  PointEvent,
+  Position,
+  Session,
+  SessionReport,
+  ShareBlock,
+  Team,
+  WhatsAppListDraft,
+  WhatsAppListTemplate,
+} from '../../types';
+import type { AppResult } from '../../application/appResult';
+import type { CreateChampionshipInput } from '../../application/championshipUseCases';
+import { getSeasonAwards, getSeasonStandings } from '../../application/championshipUseCases';
+import { generateUUID } from '../../logic/uuid';
+import type { AwardWinner } from '../../logic/tournament';
+import { calculateGeneralOverall } from '../../logic/calculations';
+import {
+  getCommunityFrequency,
+  getCommunityPlayers,
+  getCommunityRanking,
+  getCommunitySessions,
+  getCommunitySummary,
+  getPlayerDisplayName,
+} from '../../logic/community';
+import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
+import {
+  formatPresenceText,
+  getPresenceAlerts,
+  getPresenceGroups,
+  getPresenceStatus,
+  getPresenceSummary,
+} from '../../logic/communityPresence';
+import { formatLocalDateInput } from '../../logic/date';
+import {
+  createDefaultTemplate,
+  createDraftFromTemplate,
+  formatMainListSection,
+  formatOpenSlotsMessage,
+  formatPaymentInfo,
+  formatPaymentReminder,
+  formatReserveSection,
+  formatSettersSection,
+  formatShortCallMessage,
+  formatWhatsAppHeader,
+  formatWhatsAppList,
+} from '../../logic/whatsappList';
+import {
+  formatCommunityPlayersText,
+  formatCommunityRankingText,
+  formatCommunitySessionsText,
+  formatCommunitySummaryText,
+} from '../../logic/shareFormatters';
+import { ShareActions } from '../share/ShareActions';
+import { CommunityMembersPanel } from './CommunityMembersPanel';
+import { JoinCommunityByCode } from './JoinCommunityByCode';
+import { CommunityDiscovery } from './CommunityDiscovery';
+import { CreateCommunityModal } from './CreateCommunityModal';
+import { UnsavedGuardProvider, useUnsavedGuard, type UnsavedGuard } from './unsavedGuard';
+import { EmptyState } from '../../ui/EmptyState';
+import { AthleteUsernameSearch } from './AthleteUsernameSearch';
+import type { ScreenContract } from '@app/screens/screenContract';
+import type {
+  CommunitiesViewModel,
+  CommunityTab,
+} from '@app/screens/communitiesView/communitiesViewModel';
+import type { CommunitiesViewIntent } from '@app/screens/communitiesView/communitiesViewIntents';
+
+type PlayerFilter =
+  | 'all'
+  | 'active'
+  | 'inactive'
+  | 'frequent'
+  | 'absent'
+  | 'setters'
+  | 'central'
+  | 'wing'
+  | 'libero'
+  | 'limited';
+
+interface CommunityPresenceApi {
+  getPresence: (communityId: string) => import('../../types').CommunityPresence | null;
+  setPresenceStatus: (
+    communityId: string,
+    playerId: string,
+    status: CommunityPresenceStatus,
+  ) => void;
+  clearPresence: (communityId: string) => void;
+  selectFrequentPlayers: (communityId: string, players: Player[]) => void;
+  useLastPresence: (communityId: string) => void;
+  addGuest: (communityId: string, temporaryName: string) => void;
+  getPresentPlayers: (communityId: string, players: Player[]) => Player[];
+}
+
+interface WhatsAppApi {
+  saveTemplate: (template: WhatsAppListTemplate) => void;
+  saveDraft: (draft: WhatsAppListDraft) => void;
+  getCommunityTemplates: (communityId: string) => WhatsAppListTemplate[];
+  getLatestDraft: (communityId: string) => WhatsAppListDraft | undefined;
+}
+
+interface RulesApi {
+  getRules: (community: Community) => CommunityRules;
+  saveRules: (rules: CommunityRules, allowed?: boolean) => void;
+  removeRules: (communityId: string) => void;
+}
+
+interface CommunitiesViewProps {
+  communities: Community[];
+  players: Player[];
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  teams: Team[];
+  sessionReports: SessionReport[];
+  championships: Championship[];
+  championshipTeams: ChampionshipTeam[];
+  championshipRounds: ChampionshipRound[];
+  presenceApi: CommunityPresenceApi;
+  whatsAppApi: WhatsAppApi;
+  rulesApi: RulesApi;
+  onBack: () => void;
+  onAddCommunity: (input: Partial<Community>) => Community;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
+  onDeleteCommunity: (communityId: string) => void;
+  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
+  onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
+  onCreatePlayer: (name: string, communityId: string) => void;
+  onCreateSession: (community: Community, playerIds: string[], rules: CommunityRules) => void;
+  onViewSession: (sessionId: string) => void;
+  onClearCommunityHistory: (communityId: string) => void;
+  onCreateChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
+  onMaterializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  onDeleteChampionship: (championshipId: string) => void;
+  onRescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
+  onSetRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;
+  onUpdateChampionshipRecurrence: (
+    championshipId: string,
+    recurrenceRule: Championship['recurrenceRule'],
+  ) => AppResult<unknown>;
+  currentUserId: string | null;
+  isSupabaseConfigured: boolean;
+  globalRole: AuthRole | null;
+  onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
+}
+
+const TAB_ITEMS: Array<{ id: CommunityTab; label: string }> = [
+  { id: 'summary', label: 'Resumo' },
+  { id: 'players', label: 'Atletas' },
+  { id: 'presence', label: 'Presença' },
+  { id: 'whatsapp', label: 'Lista WhatsApp' },
+  { id: 'sessions', label: 'Sessões' },
+  { id: 'championships', label: 'Ligas' },
+  { id: 'ranking', label: 'Ranking' },
+  { id: 'members', label: 'Membros' },
+  { id: 'rules', label: 'Regras' },
+  { id: 'data', label: 'Dados' },
+];
+
+const POSITION_LABELS: Record<Position, string> = {
+  levantador: 'Levantador',
+  oposto: 'Oposto',
+  ponteiro: 'Ponteiro',
+  central: 'Central',
+  libero: 'Libero',
+  'all-rounder': 'Versatil',
+};
+
+function formatDate(date?: string) {
+  if (!date) return '-';
+  return new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function formatFormat(type?: string) {
+  return type === 'tournament' ? 'Campeonato' : 'Jogo Livre';
+}
+
+export function CommunitiesView({
+  contract,
+}: {
+  contract: ScreenContract<CommunitiesViewModel, CommunitiesViewIntent>;
+}) {
+  const { model, dispatch } = contract;
+  const {
+    communities,
+    players,
+    sessions,
+    games,
+    pointEvents,
+    teams,
+    sessionReports,
+    championships,
+    championshipTeams,
+    championshipRounds,
+    presenceApi,
+    whatsAppApi,
+    rulesApi,
+    currentUserId,
+    isSupabaseConfigured,
+    globalRole,
+    selectedCommunityId,
+    initialCommunityTab,
+    addCommunity,
+    updateCommunity,
+    createChampionship,
+    materializeRound,
+    rescheduleRound,
+    setRoundSkipped,
+    updateChampionshipRecurrence,
+  } = model;
+  const setSelectedCommunityId = (communityId: string | null) => {
+    void dispatch({ kind: 'selectCommunity', communityId });
+  };
+
+  const [showArchived, setShowArchived] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showDiscovery, setShowDiscovery] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const selectedCommunity =
+    communities.find((community) => community.id === selectedCommunityId) || null;
+
+  const visibleCommunities = useMemo(
+    () => communities.filter((community) => showArchived || !community.archived),
+    [communities, showArchived],
+  );
+
+  const handleAdd = () => setShowCreateModal(true);
+
+  const handleCreate = (input: Partial<Community>) => {
+    const community = addCommunity(input);
+    setShowCreateModal(false);
+    setSelectedCommunityId(community.id);
+  };
+
+  if (selectedCommunity) {
+    return (
+      <CommunityDetailView
+        community={selectedCommunity}
+        initialTab={initialCommunityTab}
+        players={players}
+        sessions={sessions}
+        games={games}
+        pointEvents={pointEvents}
+        teams={teams}
+        sessionReports={sessionReports}
+        championships={championships}
+        championshipTeams={championshipTeams}
+        championshipRounds={championshipRounds}
+        presenceApi={presenceApi}
+        whatsAppApi={whatsAppApi}
+        rulesApi={rulesApi}
+        onBack={() => setSelectedCommunityId(null)}
+        onUpdateCommunity={updateCommunity}
+        onDeleteCommunity={(communityId) => void dispatch({ kind: 'deleteCommunity', communityId })}
+        onDuplicateCommunity={(communityId, includeAthletes) =>
+          void dispatch({ kind: 'duplicateCommunity', communityId, includeAthletes })
+        }
+        onUpdatePlayerCommunities={(communityId, playerIds) =>
+          void dispatch({ kind: 'updatePlayerCommunities', communityId, playerIds })
+        }
+        onCreatePlayer={(name, communityId) =>
+          void dispatch({ kind: 'createPlayer', name, communityId })
+        }
+        onCreateSession={(community, playerIds, rules) =>
+          void dispatch({ kind: 'createSession', community, playerIds, rules })
+        }
+        onViewSession={(sessionId) => void dispatch({ kind: 'viewSession', sessionId })}
+        onClearCommunityHistory={(communityId) =>
+          void dispatch({ kind: 'clearCommunityHistory', communityId })
+        }
+        onCreateChampionship={createChampionship}
+        onMaterializeRound={materializeRound}
+        onDeleteChampionship={(championshipId) =>
+          void dispatch({ kind: 'deleteChampionship', championshipId })
+        }
+        onRescheduleRound={rescheduleRound}
+        onSetRoundSkipped={setRoundSkipped}
+        onUpdateChampionshipRecurrence={updateChampionshipRecurrence}
+        currentUserId={currentUserId}
+        isSupabaseConfigured={isSupabaseConfigured}
+        globalRole={globalRole}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5 pb-24">
+      {/* Quatro controles não cabem em 375px lado a lado: sem wrap a página
+          inteira ganhava rolagem horizontal. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => dispatch({ kind: 'back' })}
+          className="btn btn-ghost btn-sm"
+        >
+          <ChevronLeft className="w-4 h-4" /> Voltar
+        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label className="label cursor-pointer gap-2 text-xs font-bold uppercase">
+            <span>Arquivadas</span>
+            <input
+              type="checkbox"
+              className="toggle toggle-sm"
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+            />
+          </label>
+          {isSupabaseConfigured && currentUserId && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowDiscovery(true)}
+                className="btn btn-ghost btn-sm"
+              >
+                <Search className="w-4 h-4" /> Procurar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowJoinModal(true)}
+                className="btn btn-ghost btn-sm"
+              >
+                <KeyRound className="w-4 h-4" /> Entrar com código
+              </button>
+            </>
+          )}
+          <button type="button" onClick={handleAdd} className="btn btn-primary btn-sm">
+            <Plus className="w-4 h-4" /> Nova
+          </button>
+        </div>
+      </div>
+
+      {showJoinModal && <JoinCommunityByCode onClose={() => setShowJoinModal(false)} />}
+      {showDiscovery && <CommunityDiscovery onClose={() => setShowDiscovery(false)} />}
+      {showCreateModal && (
+        <CreateCommunityModal onClose={() => setShowCreateModal(false)} onCreate={handleCreate} />
+      )}
+
+      <div>
+        <h2 className="text-2xl font-black uppercase tracking-tight">Comunidades</h2>
+        <p className="text-sm text-base-content/60">
+          Central local dos grupos recorrentes de vôlei.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {visibleCommunities.map((community) => (
+          <React.Fragment key={community.id}>
+            <CommunityCard
+              community={community}
+              players={players}
+              sessions={sessions}
+              games={games}
+              pointEvents={pointEvents}
+              sessionReports={sessionReports}
+              onOpen={() => setSelectedCommunityId(community.id)}
+              onCreateSession={() =>
+                void dispatch({
+                  kind: 'createSession',
+                  community,
+                  playerIds: getCommunityPlayers(community.id, players)
+                    .filter((player) => player.ativo)
+                    .map((player) => player.id),
+                  rules: rulesApi.getRules(community),
+                })
+              }
+              onUpdateCommunity={updateCommunity}
+              onDuplicateCommunity={(communityId, includeAthletes) =>
+                void dispatch({ kind: 'duplicateCommunity', communityId, includeAthletes })
+              }
+              onDeleteCommunity={(communityId) =>
+                void dispatch({ kind: 'deleteCommunity', communityId })
+              }
+            />
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Quem chega aqui vazio pode ser o organizador do grupo ou o atleta que foi
+          convidado. Os dois precisam de porta própria, senão um deles fica parado. */}
+      {visibleCommunities.length === 0 && (
+        <EmptyState
+          icon={Volleyball}
+          title="A comunidade é a sua pelada por inteiro"
+          description="É onde moram o elenco, as presenças, as regras da casa e o histórico de todas as sessões. Quem organiza cria a sua; quem foi chamado entra na do grupo e já aparece na lista da próxima."
+        >
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="btn btn-primary min-h-[48px] flex-1 gap-2 px-6 font-black uppercase tracking-wider"
+            >
+              <Plus className="h-5 w-5" /> Criar minha comunidade
+            </button>
+            {isSupabaseConfigured && currentUserId && (
+              <button
+                type="button"
+                onClick={() => setShowDiscovery(true)}
+                className="btn btn-outline min-h-[48px] flex-1 gap-2 px-6 font-bold uppercase tracking-wider"
+              >
+                <Search className="h-5 w-5" /> Procurar minha turma
+              </button>
+            )}
+          </div>
+
+          {isSupabaseConfigured && currentUserId && (
+            <p className="text-xs leading-relaxed text-base-content/60">
+              Recebeu um código de convite no grupo?{' '}
+              <button
+                type="button"
+                onClick={() => setShowJoinModal(true)}
+                className="link link-primary font-bold"
+              >
+                Entrar com código
+              </button>
+              .
+            </p>
+          )}
+        </EmptyState>
+      )}
+    </div>
+  );
+}
+
+function CommunityCard({
+  community,
+  players,
+  sessions,
+  games,
+  pointEvents,
+  sessionReports,
+  onOpen,
+  onCreateSession,
+  onUpdateCommunity,
+  onDuplicateCommunity,
+  onDeleteCommunity,
+}: {
+  community: Community;
+  players: Player[];
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  sessionReports: SessionReport[];
+  onOpen: () => void;
+  onCreateSession: () => void;
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
+  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
+  onDeleteCommunity: (communityId: string) => void;
+}) {
+  const permissions = useCommunityPermissions(community);
+  const summary = getCommunitySummary({
+    community,
+    players,
+    sessions,
+    games,
+    pointEvents,
+    sessionReports,
+  });
+
+  return (
+    <div className="card card-border bg-base-200">
+      <div className="card-body gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`badge badge-${community.archived ? 'neutral' : 'primary'} badge-soft`}
+              >
+                {community.archived ? 'Arquivada' : formatFormat(community.defaultFormat)}
+              </span>
+              <span className="badge badge-outline">{summary.activeAthletes} atletas</span>
+            </div>
+            <h3 className="card-title mt-2 text-lg uppercase">{community.name}</h3>
+            <p className="text-sm text-base-content/60 line-clamp-2">
+              {community.description || 'Sem descrição.'}
+            </p>
+          </div>
+          <div className="dropdown dropdown-end">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              aria-label="Ações da comunidade"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            <ul className="menu dropdown-content bg-base-200 rounded-box z-20 w-52 p-2 shadow-xl border border-base-300">
+              <li>
+                <button type="button" onClick={onOpen}>
+                  Editar / abrir
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => onDuplicateCommunity(community.id, true)}>
+                  Duplicar com atletas
+                </button>
+              </li>
+              {permissions.canEditRules && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateCommunity(community.id, { archived: !community.archived })
+                    }
+                  >
+                    {community.archived ? 'Desarquivar' : 'Arquivar'}
+                  </button>
+                </li>
+              )}
+              <li>
+                <button type="button" onClick={() => exportCommunity(community, players, sessions)}>
+                  Exportar
+                </button>
+              </li>
+              {permissions.canDeleteCommunity && (
+                <li>
+                  <button
+                    type="button"
+                    className="text-error"
+                    onClick={() => onDeleteCommunity(community.id)}
+                  >
+                    Excluir
+                  </button>
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+
+        <div className="text-xs text-base-content/60 flex flex-col gap-1">
+          <span className="inline-flex items-center gap-2">
+            <MapPin className="w-3.5 h-3.5" /> {community.defaultLocation || 'Local não informado'}
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5" /> {community.defaultDay || 'Dia não definido'}{' '}
+            {community.defaultStartTime ? `- ${community.defaultStartTime}` : ''}
+            {community.defaultEndTime ? ` as ${community.defaultEndTime}` : ''}
+          </span>
+        </div>
+
+        <div className="stats stats-vertical sm:stats-horizontal bg-base-100">
+          <div className="stat">
+            <div className="stat-title">Sessões</div>
+            <div className="stat-value text-lg">{summary.totalSessions}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Última sessão</div>
+            <div className="stat-value text-lg">{formatDate(summary.lastSession?.date)}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Último MVP</div>
+            <div className="stat-value text-sm">{summary.lastMvpName || '-'}</div>
+          </div>
+        </div>
+
+        <div className="card-actions grid grid-cols-2 gap-2">
+          <button type="button" onClick={onOpen} className="btn btn-outline btn-sm">
+            Abrir
+          </button>
+          <button
+            type="button"
+            onClick={onCreateSession}
+            disabled={!permissions.canCreateSession}
+            className="btn btn-primary btn-sm"
+          >
+            Criar sessão
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommunityDetailView({
+  community,
+  initialTab,
+  players,
+  sessions,
+  games,
+  pointEvents,
+  teams,
+  sessionReports,
+  championships,
+  championshipTeams,
+  championshipRounds,
+  presenceApi,
+  whatsAppApi,
+  rulesApi,
+  onBack,
+  onUpdateCommunity,
+  onDeleteCommunity,
+  onDuplicateCommunity,
+  onUpdatePlayerCommunities,
+  onCreatePlayer,
+  onLinkedCloudPlayer,
+  onCreateSession,
+  onViewSession,
+  onClearCommunityHistory,
+  onCreateChampionship,
+  onMaterializeRound,
+  onDeleteChampionship,
+  onRescheduleRound,
+  onSetRoundSkipped,
+  onUpdateChampionshipRecurrence,
+  currentUserId,
+  isSupabaseConfigured,
+  globalRole,
+}: Omit<CommunitiesViewProps, 'communities' | 'onAddCommunity'> & {
+  community: Community;
+  initialTab?: CommunityTab;
+}) {
+  const [activeTab, setActiveTab] = useState<CommunityTab>(initialTab ?? 'summary');
+
+  // Guarda de rascunho: a aba ativa registra aqui se tem trabalho não salvo.
+  const guardaRef = useRef<UnsavedGuard | null>(null);
+  const registrarGuarda = useCallback((guard: UnsavedGuard | null) => {
+    guardaRef.current = guard;
+  }, []);
+  // O rótulo entra no estado junto do destino: ler a ref durante o render
+  // deixaria o diálogo à mercê de quando a aba se desregistra.
+  const [abaPendente, setAbaPendente] = useState<{
+    destino: CommunityTab;
+    origem: string;
+  } | null>(null);
+
+  const pedirTroca = (proxima: CommunityTab) => {
+    if (proxima === activeTab) return;
+    const guarda = guardaRef.current;
+    if (guarda?.dirty) {
+      setAbaPendente({ destino: proxima, origem: guarda.label });
+      return;
+    }
+    setActiveTab(proxima);
+  };
+
+  const resolverTroca = (acao: 'salvar' | 'descartar') => {
+    if (!abaPendente) return;
+    if (acao === 'salvar') guardaRef.current?.save();
+    guardaRef.current = null;
+    setActiveTab(abaPendente.destino);
+    setAbaPendente(null);
+  };
+
+  const summary = getCommunitySummary({
+    community,
+    players,
+    sessions,
+    games,
+    pointEvents,
+    sessionReports,
+  });
+  const communityPlayers = getCommunityPlayers(community.id, players);
+  const rules = rulesApi.getRules(community);
+
+  const permissions = useCommunityPermissions(community);
+
+  const visibleTabs = TAB_ITEMS.filter((tab) => {
+    if (tab.id === 'members') {
+      return permissions.role !== null;
+    }
+    return true;
+  });
+
+  return (
+    <UnsavedGuardProvider value={registrarGuarda}>
+      <div className="space-y-5 pb-24">
+        {abaPendente && (
+          <div className="modal modal-open" role="dialog" aria-labelledby="rascunho-titulo">
+            <div className="modal-box max-w-md space-y-5">
+              <div className="space-y-2">
+                <h3 id="rascunho-titulo" className="text-lg font-black uppercase tracking-tight">
+                  Você tem alterações não salvas
+                </h3>
+                <p className="text-sm leading-relaxed text-base-content/70">
+                  O que você digitou em <strong>{abaPendente.origem}</strong> ainda não foi salvo.
+                  Sair da aba agora descarta essas alterações.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => resolverTroca('salvar')}
+                  className="btn btn-primary min-h-[48px] flex-1 px-6 font-black uppercase tracking-wider"
+                >
+                  Salvar e sair
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resolverTroca('descartar')}
+                  className="btn btn-outline btn-error min-h-[48px] flex-1 px-6 font-bold uppercase tracking-wider"
+                >
+                  Descartar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbaPendente(null)}
+                  className="btn btn-ghost min-h-[48px] flex-1 px-6 font-bold uppercase tracking-wider"
+                >
+                  Voltar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <button type="button" onClick={onBack} className="btn btn-ghost btn-sm">
+            <ChevronLeft className="w-4 h-4" /> Comunidades
+          </button>
+          <ShareActions
+            title={community.name}
+            text={formatCommunitySummaryText(community, summary)}
+            variant="icon"
+            blocks={[
+              {
+                id: 'summary',
+                label: 'Resumo',
+                text: formatCommunitySummaryText(community, summary),
+              },
+              {
+                id: 'players',
+                label: 'Atletas',
+                text: formatCommunityPlayersText(community, communityPlayers),
+              },
+            ]}
+          />
+        </div>
+
+        <div className="card card-border bg-base-200">
+          <div className="card-body gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <span className="badge badge-primary badge-soft">
+                    {formatFormat(community.defaultFormat)}
+                  </span>
+                  {community.archived && <span className="badge badge-neutral">Arquivada</span>}
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-tight">{community.name}</h2>
+                <p className="text-sm text-base-content/60">
+                  {community.description || 'Sem descrição.'}
+                </p>
+                <div className="mt-3 text-xs text-base-content/60 space-y-1">
+                  <p className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5" />{' '}
+                    {community.defaultLocation || 'Local não informado'}
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5" />{' '}
+                    {community.defaultDay || 'Dia não definido'}{' '}
+                    {community.defaultStartTime ? `${community.defaultStartTime}` : ''}
+                    {community.defaultEndTime ? ` as ${community.defaultEndTime}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onCreateSession(
+                    community,
+                    communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+                    rules,
+                  )
+                }
+                disabled={!permissions.canCreateSession}
+                className="btn btn-primary btn-block sm:btn-wide"
+              >
+                <Plus className="w-4 h-4" /> Criar sessão com esta comunidade
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div role="tablist" className="tabs tabs-box flex-wrap justify-start">
+          {visibleTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`tab whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : ''}`}
+              onClick={() => pedirTroca(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'summary' && (
+          <CommunitySummaryTab
+            community={community}
+            players={players}
+            sessions={sessions}
+            games={games}
+            pointEvents={pointEvents}
+            sessionReports={sessionReports}
+            onCreateSession={() =>
+              onCreateSession(
+                community,
+                communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+                rules,
+              )
+            }
+            onGoToWhatsApp={() => setActiveTab('whatsapp')}
+            onGoToPlayers={() => setActiveTab('players')}
+            canCreateSession={permissions.canCreateSession}
+            canManageRoster={permissions.canEditPlayerProfile}
+          />
+        )}
+        {activeTab === 'players' && (
+          <CommunityPlayersTab
+            community={community}
+            currentUserId={currentUserId}
+            isSupabaseConfigured={isSupabaseConfigured}
+            players={players}
+            sessions={sessions}
+            onUpdatePlayerCommunities={onUpdatePlayerCommunities}
+            onCreatePlayer={onCreatePlayer}
+            onLinkedCloudPlayer={onLinkedCloudPlayer}
+            canManageMembers={permissions.canManageMembers}
+          />
+        )}
+        {activeTab === 'presence' && (
+          <CommunityPresenceTab
+            community={community}
+            players={communityPlayers}
+            presenceApi={presenceApi}
+            onCreateSession={() =>
+              onCreateSession(
+                community,
+                presenceApi
+                  .getPresentPlayers(community.id, communityPlayers)
+                  .map((player) => player.id),
+                rules,
+              )
+            }
+            canCreateSession={permissions.canCreateSession}
+          />
+        )}
+        {activeTab === 'whatsapp' && (
+          <CommunityWhatsAppListTab
+            community={community}
+            players={communityPlayers}
+            whatsAppApi={whatsAppApi}
+            canCreateSession={permissions.canCreateSession}
+            canEditRules={permissions.canEditRules}
+          />
+        )}
+        {activeTab === 'sessions' && (
+          <CommunitySessionsTab
+            community={community}
+            sessions={sessions}
+            games={games}
+            pointEvents={pointEvents}
+            sessionReports={sessionReports}
+            onViewSession={onViewSession}
+            onRepeatSession={(session) =>
+              onCreateSession(community, session.selectedPlayerIds, rules)
+            }
+          />
+        )}
+        {activeTab === 'championships' && (
+          <ChampionshipsTab
+            community={community}
+            players={communityPlayers}
+            games={games}
+            pointEvents={pointEvents}
+            sessionTeams={teams}
+            championships={championships}
+            championshipTeams={championshipTeams}
+            championshipRounds={championshipRounds}
+            canManage={permissions.canEditRules}
+            onCreateChampionship={onCreateChampionship}
+            onMaterializeRound={onMaterializeRound}
+            onDeleteChampionship={onDeleteChampionship}
+            onRescheduleRound={onRescheduleRound}
+            onSetRoundSkipped={onSetRoundSkipped}
+            onUpdateChampionshipRecurrence={onUpdateChampionshipRecurrence}
+          />
+        )}
+        {activeTab === 'ranking' && (
+          <CommunityRankingTab
+            community={community}
+            players={players}
+            sessions={sessions}
+            games={games}
+            pointEvents={pointEvents}
+            teams={teams}
+            sessionReports={sessionReports}
+          />
+        )}
+        {activeTab === 'members' && (
+          <CommunityMembersPanel
+            community={community}
+            currentUserId={currentUserId}
+            isSupabaseConfigured={isSupabaseConfigured}
+            globalRole={globalRole}
+            players={communityPlayers}
+          />
+        )}
+        {activeTab === 'rules' && (
+          <CommunityRulesTab
+            rules={rules}
+            onSave={(draftRules) => {
+              try {
+                rulesApi.saveRules(draftRules, permissions.canEditRules);
+              } catch (err: any) {
+                if (err.message === 'PERMISSION_DENIED') {
+                  alert('Erro: Ação não autorizada pelo nível de permissão.');
+                }
+              }
+            }}
+            canEditRules={permissions.canEditRules}
+          />
+        )}
+        {activeTab === 'data' && (
+          <CommunityDataTab
+            community={community}
+            players={players}
+            sessions={sessions}
+            onUpdateCommunity={(id, patch) => {
+              try {
+                return onUpdateCommunity(id, patch, permissions.canEditRules);
+              } catch (err: any) {
+                if (err.message === 'PERMISSION_DENIED') {
+                  alert('Erro: Ação não autorizada pelo nível de permissão.');
+                }
+                return false;
+              }
+            }}
+            onDeleteCommunity={(id) => {
+              if (!permissions.canDeleteCommunity) {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+                return;
+              }
+              onDeleteCommunity(id);
+            }}
+            onDuplicateCommunity={onDuplicateCommunity}
+            onClearCommunityHistory={(id) => {
+              if (!permissions.canClearHistory) {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+                return;
+              }
+              onClearCommunityHistory(id);
+            }}
+            canEditRules={permissions.canEditRules}
+            canDeleteCommunity={permissions.canDeleteCommunity}
+            canClearHistory={permissions.canClearHistory}
+          />
+        )}
+      </div>
+    </UnsavedGuardProvider>
+  );
+}
+
+/**
+ * Primeiro uso de uma comunidade. A sequência não é enfeite: sem atletas o
+ * sorteio não roda, então marcar pelada fica travado até o elenco existir.
+ */
+function CommunityFirstRun({
+  community,
+  onGoToPlayers,
+  canManageRoster,
+}: {
+  community: Community;
+  onGoToPlayers: () => void;
+  canManageRoster: boolean;
+}) {
+  const passos = [
+    {
+      estado: 'feito' as const,
+      titulo: `"${community.name}" criada`,
+      detalhe: 'Nome e regras você ajusta a qualquer momento na aba Regras.',
+    },
+    {
+      estado: 'agora' as const,
+      titulo: 'Chamar o elenco',
+      detalhe:
+        'Cadastre quem joga com você. Os fundamentos de cada atleta alimentam o sorteio equilibrado.',
+    },
+    {
+      estado: 'depois' as const,
+      titulo: 'Marcar a primeira pelada',
+      detalhe: 'Com elenco na mão, o sorteio monta os times e o placar entra no ar.',
+    },
+  ];
+
+  return (
+    <EmptyState
+      icon={Volleyball}
+      title="Sua comunidade está de pé"
+      description="Falta o que faz ela existir: gente. Assim que o elenco entrar, o sorteio equilibrado, o placar ao vivo e o ranking passam a funcionar sozinhos."
+    >
+      <ol className="flex flex-col gap-3">
+        {passos.map((passo) => (
+          <li
+            key={passo.titulo}
+            className={`flex gap-3 rounded-xl border p-4 ${
+              passo.estado === 'agora'
+                ? 'border-primary/30 bg-primary/5'
+                : 'border-base-300 bg-base-300/25'
+            }`}
+          >
+            <span className="mt-0.5 shrink-0">
+              {passo.estado === 'feito' ? (
+                <CheckCircle2 className="h-5 w-5 text-success" />
+              ) : passo.estado === 'agora' ? (
+                <Circle className="h-5 w-5 text-primary" />
+              ) : (
+                <Lock className="h-5 w-5 text-base-content/30" />
+              )}
+            </span>
+            <div className="min-w-0 space-y-1">
+              <p
+                className={`text-sm font-bold uppercase tracking-wide ${
+                  passo.estado === 'depois' ? 'text-base-content/45' : 'text-white'
+                }`}
+              >
+                {passo.titulo}
+              </p>
+              <p className="text-xs leading-relaxed text-base-content/60">{passo.detalhe}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <button
+        type="button"
+        onClick={onGoToPlayers}
+        disabled={!canManageRoster}
+        className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+      >
+        <Users className="h-5 w-5" /> Cadastrar atletas
+      </button>
+      {!canManageRoster && (
+        <p className="text-xs leading-relaxed text-base-content/60">
+          Seu papel nesta comunidade ainda não permite montar o elenco. Peça a quem administra.
+        </p>
+      )}
+    </EmptyState>
+  );
+}
+
+function CommunitySummaryTab({
+  community,
+  players,
+  sessions,
+  games,
+  pointEvents,
+  sessionReports,
+  onCreateSession,
+  onGoToWhatsApp,
+  onGoToPlayers,
+  canCreateSession = true,
+  canManageRoster = true,
+}: {
+  community: Community;
+  players: Player[];
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  sessionReports: SessionReport[];
+  onCreateSession: () => void;
+  onGoToWhatsApp: () => void;
+  onGoToPlayers: () => void;
+  canCreateSession?: boolean;
+  canManageRoster?: boolean;
+}) {
+  const summary = getCommunitySummary({
+    community,
+    players,
+    sessions,
+    games,
+    pointEvents,
+    sessionReports,
+  });
+  const text = formatCommunitySummaryText(community, summary);
+
+  // Comunidade recém-criada: um painel de zeros e quatro "Sem dados" não contam
+  // o que fazer. A ordem aqui é real — sem elenco não há sorteio.
+  if (summary.totalAthletes === 0) {
+    return (
+      <CommunityFirstRun
+        community={community}
+        onGoToPlayers={onGoToPlayers}
+        canManageRoster={canManageRoster}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="stats stats-vertical sm:stats-horizontal w-full bg-base-200">
+        <div className="stat">
+          <div className="stat-title">Atletas</div>
+          <div className="stat-value">{summary.totalAthletes}</div>
+          <div className="stat-desc">{summary.activeAthletes} ativos</div>
+        </div>
+        <div className="stat">
+          <div className="stat-title">Sessões</div>
+          <div className="stat-value">{summary.totalSessions}</div>
+          <div className="stat-desc">{summary.totalMatches} partidas</div>
+        </div>
+        <div className="stat">
+          <div className="stat-title">Pontos</div>
+          <div className="stat-value">{summary.totalPoints}</div>
+          <div className="stat-desc">registrados</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <InfoCard
+          title="Última sessão"
+          value={
+            summary.lastSession
+              ? `${summary.lastSession.name} - ${formatDate(summary.lastSession.date)}`
+              : 'Sem sessões'
+          }
+          icon={<Calendar className="w-4 h-4" />}
+        />
+        <InfoCard
+          title="Último MVP"
+          value={summary.lastMvpName || 'Sem MVP'}
+          icon={<Trophy className="w-4 h-4" />}
+        />
+        <InfoCard
+          title="Atleta frequente"
+          value={summary.mostFrequentPlayerName || 'Sem dados'}
+          icon={<Users className="w-4 h-4" />}
+        />
+        <InfoCard
+          title="Formato mais usado"
+          value={
+            summary.mostUsedFormat
+              ? formatFormat(summary.mostUsedFormat)
+              : formatFormat(community.defaultFormat)
+          }
+          icon={<BarChart3 className="w-4 h-4" />}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={onCreateSession}
+          disabled={!canCreateSession}
+          className="btn btn-primary btn-block"
+        >
+          <Plus className="w-4 h-4" /> Criar sessão
+        </button>
+        <button type="button" onClick={onGoToWhatsApp} className="btn btn-outline btn-block">
+          <FileText className="w-4 h-4" /> Lista WhatsApp
+        </button>
+        <ShareActions
+          title={community.name}
+          text={text}
+          variant="buttons"
+          copyLabel="Copiar resumo"
+          shareLabel="Compartilhar"
+        />
+      </div>
+    </div>
+  );
+}
+
+const WEEKDAYS = [
+  { value: 0, label: 'Domingo' },
+  { value: 1, label: 'Segunda' },
+  { value: 2, label: 'Terça' },
+  { value: 3, label: 'Quarta' },
+  { value: 4, label: 'Quinta' },
+  { value: 5, label: 'Sexta' },
+  { value: 6, label: 'Sábado' },
+];
+
+type ChampionshipTeamDraft = { id: string; name: string; playerIds: string[] };
+
+function makeChampionshipTeamDraft(index: number): ChampionshipTeamDraft {
+  return { id: generateUUID(), name: `Time ${index}`, playerIds: [] };
+}
+
+function formatScheduledDate(value?: string) {
+  if (!value) return 'Data não definida';
+  return new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function RecurrenceControls({
+  championship,
+  canManage,
+  onUpdate,
+  onResult,
+}: {
+  championship: Championship;
+  canManage: boolean;
+  onUpdate: (
+    championshipId: string,
+    recurrenceRule: Championship['recurrenceRule'],
+  ) => AppResult<unknown>;
+  onResult: (message: { kind: 'success' | 'error'; text: string }) => void;
+}) {
+  const [startDate, setStartDate] = useState(championship.recurrenceRule.startDate);
+  const [time, setTime] = useState(championship.recurrenceRule.time);
+  const [days, setDays] = useState(championship.recurrenceRule.daysOfWeek);
+
+  return (
+    <details className="collapse collapse-arrow border border-base-300 bg-base-100">
+      <summary className="collapse-title py-2 min-h-0 text-sm font-bold">
+        Ajustar recorrência
+      </summary>
+      <div className="collapse-content space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Field label="Novo início" type="date" value={startDate} onChange={setStartDate} />
+          <Field label="Novo horário" type="time" value={time} onChange={setTime} />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {WEEKDAYS.map((day) => (
+            <label key={day.value} className="label cursor-pointer gap-1 px-2 py-1">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-xs"
+                checked={days.includes(day.value)}
+                disabled={!canManage}
+                onChange={(event) =>
+                  setDays((current) =>
+                    event.target.checked
+                      ? [...current, day.value]
+                      : current.filter((value) => value !== day.value),
+                  )
+                }
+              />
+              <span className="label-text text-xs">{day.label.slice(0, 3)}</span>
+            </label>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="btn btn-outline btn-xs"
+          disabled={!canManage || !startDate || !time || days.length === 0}
+          onClick={() => {
+            const result = onUpdate(championship.id, {
+              ...championship.recurrenceRule,
+              startDate,
+              time,
+              daysOfWeek: [...days].sort((a, b) => a - b),
+            });
+            onResult(
+              result.ok === true
+                ? {
+                    kind: 'success',
+                    text: 'Calendário futuro atualizado; rodadas materializadas foram preservadas.',
+                  }
+                : { kind: 'error', text: result.error.message },
+            );
+          }}
+        >
+          Atualizar calendário futuro
+        </button>
+      </div>
+    </details>
+  );
+}
+
+export function ChampionshipsTab({
+  community,
+  players,
+  games,
+  pointEvents,
+  sessionTeams,
+  championships,
+  championshipTeams,
+  championshipRounds,
+  canManage,
+  onCreateChampionship,
+  onMaterializeRound,
+  onDeleteChampionship,
+  onRescheduleRound,
+  onSetRoundSkipped,
+  onUpdateChampionshipRecurrence,
+}: {
+  community: Community;
+  players: Player[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  sessionTeams: Team[];
+  championships: Championship[];
+  championshipTeams: ChampionshipTeam[];
+  championshipRounds: ChampionshipRound[];
+  canManage: boolean;
+  onCreateChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
+  onMaterializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  onDeleteChampionship: (championshipId: string) => void;
+  onRescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
+  onSetRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;
+  onUpdateChampionshipRecurrence: (
+    championshipId: string,
+    recurrenceRule: Championship['recurrenceRule'],
+  ) => AppResult<unknown>;
+}) {
+  const communityChampionships = useMemo(
+    () => championships.filter((item) => item.communityId === community.id && !item.deletedAt),
+    [championships, community.id],
+  );
+  const [selectedChampionshipId, setSelectedChampionshipId] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [name, setName] = useState('');
+  const [format, setFormat] = useState<'round_robin' | 'double_round_robin'>('round_robin');
+  const [startDate, setStartDate] = useState(formatLocalDateInput());
+  const [time, setTime] = useState(community.defaultStartTime || '20:00');
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
+  const [teamDrafts, setTeamDrafts] = useState<ChampionshipTeamDraft[]>(() => [
+    makeChampionshipTeamDraft(1),
+    makeChampionshipTeamDraft(2),
+  ]);
+  const [formMessage, setFormMessage] = useState<{
+    kind: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [roundMessage, setRoundMessage] = useState<{
+    kind: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  const selectedChampionship =
+    communityChampionships.find((item) => item.id === selectedChampionshipId) ||
+    communityChampionships[0] ||
+    null;
+  const selectedTeams = selectedChampionship
+    ? championshipTeams.filter((team) => team.championshipId === selectedChampionship.id)
+    : [];
+  const selectedRounds = selectedChampionship
+    ? championshipRounds
+        .filter((round) => round.championshipId === selectedChampionship.id)
+        .sort((a, b) => a.round - b.round || a.scheduledDate.localeCompare(b.scheduledDate))
+    : [];
+  const nextRound = selectedRounds.find((round) => !round.sessionId && !round.skipped);
+  const seasonSessionIds = new Set(
+    selectedRounds.flatMap((round) => (!round.skipped && round.sessionId ? [round.sessionId] : [])),
+  );
+  const seasonSessionTeams = sessionTeams.filter((team) => seasonSessionIds.has(team.sessionId));
+  const seasonGames = games.filter((game) => seasonSessionIds.has(game.sessionId));
+  const seasonPointEvents = pointEvents.filter((event) => seasonSessionIds.has(event.sessionId));
+  const standings = selectedChampionship
+    ? getSeasonStandings({
+        championshipTeamIds: selectedTeams.map((team) => team.id),
+        classificationPoints: selectedChampionship.classificationPoints,
+        sessionTeams: seasonSessionTeams,
+        games: seasonGames,
+      })
+    : [];
+  const seasonAwards = selectedChampionship
+    ? getSeasonAwards(
+        seasonPointEvents,
+        players,
+        seasonSessionTeams,
+        selectedTeams.map((team) => team.id),
+        selectedChampionship.classificationPoints,
+        seasonGames,
+        selectedTeams,
+      )
+    : null;
+
+  const resetForm = () => {
+    setName('');
+    setFormat('round_robin');
+    setStartDate(formatLocalDateInput());
+    setTime(community.defaultStartTime || '20:00');
+    setDaysOfWeek([]);
+    setTeamDrafts([makeChampionshipTeamDraft(1), makeChampionshipTeamDraft(2)]);
+  };
+
+  const togglePlayer = (teamId: string, playerId: string, checked: boolean) => {
+    setTeamDrafts((current) =>
+      current.map((team) => ({
+        ...team,
+        playerIds:
+          team.id === teamId && checked
+            ? [...team.playerIds.filter((id) => id !== playerId), playerId]
+            : team.playerIds.filter((id) => id !== playerId),
+      })),
+    );
+  };
+
+  const submitChampionship = (event: React.FormEvent) => {
+    event.preventDefault();
+    setFormMessage(null);
+    if (!name.trim() || !startDate || !time || daysOfWeek.length === 0) {
+      setFormMessage({ kind: 'error', text: 'Preencha nome, início, horário e recorrência.' });
+      return;
+    }
+    if (teamDrafts.some((team) => !team.name.trim() || team.playerIds.length === 0)) {
+      setFormMessage({ kind: 'error', text: 'Cada time precisa de nome e ao menos um atleta.' });
+      return;
+    }
+
+    const result = onCreateChampionship({
+      communityId: community.id,
+      name: name.trim(),
+      format,
+      classificationPoints: { win: 3, loss: 0, walkoverWin: 3, walkoverLoss: 0 },
+      recurrenceRule: {
+        daysOfWeek: [...daysOfWeek].sort((a, b) => a - b),
+        time,
+        startDate,
+        endDate: null,
+      },
+      teams: teamDrafts.map((team) => ({ ...team, name: team.name.trim() })),
+    });
+    if (result.ok === false) {
+      setFormMessage({ kind: 'error', text: result.error.message });
+      return;
+    }
+
+    setFormMessage({ kind: 'success', text: 'Liga criada e calendário gerado.' });
+    setShowCreateForm(false);
+    resetForm();
+  };
+
+  const awardCards: Array<[string, AwardWinner | undefined]> = seasonAwards
+    ? [
+        ['Ataque', seasonAwards.awards.attack],
+        ['Bloqueio', seasonAwards.awards.block],
+        ['Saque', seasonAwards.awards.serve],
+        ['Levantamento', seasonAwards.awards.setter],
+        ['Defesa', seasonAwards.awards.defense],
+        ['Passe', seasonAwards.awards.reception],
+      ]
+    : [];
+
+  return (
+    <div className="space-y-5">
+      {/* Banner Hub Standalone */}
+      <div className="card card-border bg-gradient-to-r from-primary/10 via-base-200 to-base-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-primary/30 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-black">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="font-black uppercase text-sm">Hub Standalone de Ligas de Vôlei</h4>
+            <p className="text-xs text-base-content/60">
+              Acesse a nova página dedicada com visão de quadra em perspectiva, tabela de
+              aproveitamento e gestão de elencos.
+            </p>
+          </div>
+        </div>
+        <Link to={paths.ligas} className="btn btn-primary btn-sm shrink-0">
+          Abrir Hub de Ligas <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-black uppercase tracking-tight">Ligas por pontos corridos</h3>
+          <p className="text-sm text-base-content/60">
+            Calendário recorrente, classificação e premiações da temporada.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={!canManage}
+          onClick={() => {
+            setShowCreateForm((current) => !current);
+            setFormMessage(null);
+          }}
+        >
+          <Plus className="w-4 h-4" /> Criar liga
+        </button>
+      </div>
+
+      {!canManage && (
+        <div role="alert" className="alert alert-warning alert-soft">
+          <ShieldAlert className="w-4 h-4" />
+          <span>Modo de leitura: apenas gestores podem criar ligas e materializar rodadas.</span>
+        </div>
+      )}
+
+      {showCreateForm && (
+        <form className="card card-border bg-base-200" onSubmit={submitChampionship}>
+          <div className="card-body gap-5">
+            <div>
+              <h4 className="card-title text-base uppercase">Nova liga</h4>
+              <p className="text-xs text-base-content/60">
+                Cada atleta pode pertencer a um único time nesta temporada.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Nome da liga" value={name} onChange={setName} />
+              <label className="form-control">
+                <span className="label-text">Formato</span>
+                <select
+                  className="select select-bordered"
+                  value={format}
+                  onChange={(event) =>
+                    setFormat(event.target.value as 'round_robin' | 'double_round_robin')
+                  }
+                >
+                  <option value="round_robin">Turno único</option>
+                  <option value="double_round_robin">Turno e returno</option>
+                </select>
+              </label>
+              <Field label="Data inicial" type="date" value={startDate} onChange={setStartDate} />
+              <Field label="Horário" type="time" value={time} onChange={setTime} />
+            </div>
+
+            <fieldset>
+              <legend className="text-sm font-bold mb-2">Dias das rodadas</legend>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAYS.map((day) => (
+                  <label
+                    key={day.value}
+                    className="label cursor-pointer gap-2 rounded-box border border-base-300 px-3"
+                  >
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm"
+                      checked={daysOfWeek.includes(day.value)}
+                      onChange={(event) =>
+                        setDaysOfWeek((current) =>
+                          event.target.checked
+                            ? [...current, day.value]
+                            : current.filter((value) => value !== day.value),
+                        )
+                      }
+                    />
+                    <span className="label-text">{day.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-bold">Times e elencos</h4>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  onClick={() =>
+                    setTeamDrafts((current) => [
+                      ...current,
+                      makeChampionshipTeamDraft(current.length + 1),
+                    ])
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar time
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {teamDrafts.map((team, teamIndex) => (
+                  <div
+                    key={team.id}
+                    className="rounded-box border border-base-300 bg-base-100 p-3 space-y-3"
+                  >
+                    <div className="flex items-end gap-2">
+                      <div className="grow">
+                        <Field
+                          label={`Nome do time ${teamIndex + 1}`}
+                          value={team.name}
+                          onChange={(value) =>
+                            setTeamDrafts((current) =>
+                              current.map((item) =>
+                                item.id === team.id ? { ...item, name: value } : item,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      {teamDrafts.length > 2 && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-square btn-sm text-error"
+                          aria-label={`Remover time ${teamIndex + 1}`}
+                          onClick={() =>
+                            setTeamDrafts((current) =>
+                              current.filter((item) => item.id !== team.id),
+                            )
+                          }
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
+                      {players.map((player) => {
+                        const playerName = getPlayerDisplayName(player);
+                        return (
+                          <label
+                            key={player.id}
+                            className="label cursor-pointer justify-start gap-2 py-1"
+                          >
+                            <input
+                              type="checkbox"
+                              className="checkbox checkbox-sm"
+                              aria-label={`${playerName} no time ${teamIndex + 1}`}
+                              checked={team.playerIds.includes(player.id)}
+                              onChange={(event) =>
+                                togglePlayer(team.id, player.id, event.target.checked)
+                              }
+                            />
+                            <span className="label-text">{playerName}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <span className="text-xs text-base-content/50">
+                      {team.playerIds.length} atleta(s)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {formMessage && (
+              <div
+                role="alert"
+                className={`alert ${formMessage.kind === 'error' ? 'alert-error' : 'alert-success'} alert-soft`}
+              >
+                {formMessage.text}
+              </div>
+            )}
+            <div className="card-actions justify-end">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setShowCreateForm(false)}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary">
+                <Save className="w-4 h-4" /> Salvar liga
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {formMessage?.kind === 'success' && !showCreateForm && (
+        <div role="status" className="alert alert-success alert-soft">
+          {formMessage.text}
+        </div>
+      )}
+
+      {communityChampionships.length === 0 ? (
+        <div>
+          <EmptyState
+            icon={Trophy}
+            size="compact"
+            title="Uma temporada dentro da comunidade"
+            description="A liga pega os times que você inscrever e gera os confrontos e as datas sozinha, rodada a rodada. A classificação se atualiza a cada pelada encerrada — você marca ponto como sempre e a tabela anda."
+          />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {communityChampionships.map((item) => {
+              const itemRounds = championshipRounds.filter(
+                (round) => round.championshipId === item.id,
+              );
+              const itemNextRound = itemRounds
+                .filter((round) => !round.sessionId && !round.skipped)
+                .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))[0];
+              const isSelected = item.id === selectedChampionship?.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={isSelected}
+                  className={`card card-border text-left transition-colors ${
+                    isSelected
+                      ? 'border-primary bg-primary/10'
+                      : 'bg-base-200 hover:border-primary/50'
+                  }`}
+                  onClick={() => setSelectedChampionshipId(item.id)}
+                >
+                  <div className="card-body p-4 gap-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="card-title text-base" role="heading">
+                        {item.name}
+                      </h4>
+                      <span className="badge badge-primary badge-soft">Ativa</span>
+                    </div>
+                    <span className="text-xs uppercase font-bold text-base-content/50">
+                      {item.format === 'double_round_robin' ? 'Turno e returno' : 'Turno único'}
+                    </span>
+                    <span className="text-sm inline-flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      {itemNextRound
+                        ? formatScheduledDate(itemNextRound.scheduledDate)
+                        : 'Todas as rodadas materializadas'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedChampionship && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="card card-border bg-base-200">
+                  <div className="card-body p-4 gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="font-black uppercase">Rodadas</h4>
+                      <span className="badge badge-outline">
+                        {selectedRounds.filter((round) => round.sessionId).length}/
+                        {selectedRounds.length}
+                      </span>
+                    </div>
+                    {nextRound && (
+                      <div className="alert alert-info alert-soft">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          Próxima: rodada {nextRound.round} em{' '}
+                          {formatScheduledDate(nextRound.scheduledDate)}
+                        </span>
+                      </div>
+                    )}
+                    <div key={selectedChampionship.id}>
+                      <RecurrenceControls
+                        championship={selectedChampionship}
+                        canManage={canManage}
+                        onUpdate={onUpdateChampionshipRecurrence}
+                        onResult={setRoundMessage}
+                      />
+                    </div>
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {selectedRounds.map((round) => {
+                        const teamA = selectedTeams.find((team) => team.id === round.teamAId);
+                        const teamB = selectedTeams.find((team) => team.id === round.teamBId);
+                        return (
+                          <div
+                            key={round.id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-box border border-base-300 bg-base-100 p-3"
+                          >
+                            <div className="space-y-1">
+                              <p className="font-bold">
+                                R{round.round} · {teamA?.name || 'Time A'} ×{' '}
+                                {teamB?.name || 'Time B'}
+                              </p>
+                              {round.sessionId ? (
+                                <p className="text-xs text-base-content/60">
+                                  {formatScheduledDate(round.scheduledDate)}
+                                </p>
+                              ) : (
+                                <input
+                                  type="datetime-local"
+                                  className="input input-bordered input-xs"
+                                  aria-label={`Data da rodada ${round.round}`}
+                                  value={round.scheduledDate.slice(0, 16)}
+                                  disabled={!canManage}
+                                  onChange={(event) => {
+                                    const result = onRescheduleRound(round.id, event.target.value);
+                                    if (result.ok === false) {
+                                      setRoundMessage({
+                                        kind: 'error',
+                                        text: result.error.message,
+                                      });
+                                    }
+                                  }}
+                                />
+                              )}
+                            </div>
+                            {round.sessionId ? (
+                              <span className="badge badge-success badge-soft">Sessão criada</span>
+                            ) : (
+                              <div className="flex flex-wrap justify-end gap-1">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  disabled={!canManage}
+                                  onClick={() => {
+                                    const result = onSetRoundSkipped(round.id, !round.skipped);
+                                    if (result.ok === false) {
+                                      setRoundMessage({
+                                        kind: 'error',
+                                        text: result.error.message,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {round.skipped ? 'Reativar' : 'Pular'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-xs"
+                                  disabled={!canManage || round.skipped}
+                                  onClick={() => {
+                                    const result = onMaterializeRound(round.id);
+                                    if (result.ok === false) {
+                                      setRoundMessage({
+                                        kind: 'error',
+                                        text: result.error.message,
+                                      });
+                                    } else {
+                                      setRoundMessage({
+                                        kind: 'success',
+                                        text: `Rodada ${round.round} materializada como sessão.`,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Materializar rodada
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {roundMessage && (
+                      <div
+                        role="status"
+                        className={`alert ${roundMessage.kind === 'error' ? 'alert-error' : 'alert-success'} alert-soft`}
+                      >
+                        {roundMessage.text}
+                      </div>
+                    )}
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="btn btn-error btn-outline btn-xs self-start"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              'Excluir esta liga e o calendário ainda não materializado?',
+                            )
+                          ) {
+                            onDeleteChampionship(selectedChampionship.id);
+                            setSelectedChampionshipId(null);
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir liga
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="card card-border bg-base-200">
+                  <div className="card-body p-4 gap-3">
+                    <h4 className="font-black uppercase">Premiações</h4>
+                    <div className="rounded-box bg-base-100 border border-base-300 p-4">
+                      <span className="text-xs uppercase font-bold text-base-content/50">
+                        MVP da temporada
+                      </span>
+                      <p className="text-lg font-black mt-1">
+                        {seasonAwards?.mvp?.playerName || 'Aguardando resultados'}
+                      </p>
+                      {seasonAwards?.mvp && (
+                        <p className="text-xs text-base-content/60">
+                          {seasonAwards.mvp.teamName} · {seasonAwards.mvp.totalPoints} pontos
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {awardCards.map(([label, winner]) => (
+                        <div
+                          key={label as string}
+                          className="rounded-box bg-base-100 border border-base-300 p-3"
+                        >
+                          <span className="text-xs text-base-content/50">{label}</span>
+                          <p className="font-bold text-sm">{winner?.playerName || '—'}</p>
+                          {winner && (
+                            <p className="text-xs text-base-content/50">{winner.teamName}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-box border border-base-300 bg-base-200">
+                <table
+                  className="table table-sm"
+                  aria-label={`Classificação da ${selectedChampionship.name}`}
+                >
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Time</th>
+                      <th>J</th>
+                      <th>V</th>
+                      <th>D</th>
+                      <th>Pts</th>
+                      <th>Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standings.map((standing) => (
+                      <tr key={standing.teamId}>
+                        <td className="font-black">{standing.position}</td>
+                        <td className="font-bold">
+                          {selectedTeams.find((team) => team.id === standing.teamId)?.name ||
+                            'Time'}
+                        </td>
+                        <td>{standing.gamesPlayed}</td>
+                        <td>{standing.wins}</td>
+                        <td>{standing.losses}</td>
+                        <td className="font-black text-primary">{standing.classificationPoints}</td>
+                        <td>{standing.pointDifference}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function InfoCard({ title, value, icon }: { title: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="card card-border bg-base-200">
+      <div className="card-body p-4">
+        <div className="flex items-center gap-2 text-base-content/60 text-xs uppercase font-bold">
+          {icon}
+          {title}
+        </div>
+        <p className="font-black uppercase">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function CommunityPlayersTab({
+  community,
+  players,
+  sessions,
+  onUpdatePlayerCommunities,
+  onCreatePlayer,
+  onLinkedCloudPlayer,
+  currentUserId,
+  isSupabaseConfigured,
+  canManageMembers = true,
+}: {
+  community: Community;
+  players: Player[];
+  sessions: Session[];
+  onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
+  onCreatePlayer: (name: string, communityId: string) => void;
+  onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
+  currentUserId: string | null;
+  isSupabaseConfigured: boolean;
+  canManageMembers?: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<PlayerFilter>('all');
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const communitySessions = getCommunitySessions(community.id, sessions);
+  const selectedIds = useMemo<Set<string>>(
+    () => new Set(getCommunityPlayers(community.id, players).map((player) => player.id)),
+    [community.id, players],
+  );
+
+  const filteredPlayers = useMemo(() => {
+    return players
+      .filter((player) => {
+        const isMember = selectedIds.has(player.id);
+        const found = matchesSearch(player.nome, search) || matchesSearch(player.apelido, search);
+        if (!found) return false;
+        if (filter === 'active') return isMember && player.ativo;
+        if (filter === 'inactive') return isMember && !player.ativo;
+        if (filter === 'frequent') return isMember && player.status.presencaFrequente;
+        if (filter === 'absent')
+          return isMember && getCommunityFrequency(player.id, communitySessions) < 30;
+        if (filter === 'setters') return isMember && player.posicaoPrincipal === 'levantador';
+        if (filter === 'central') return isMember && player.posicaoPrincipal === 'central';
+        if (filter === 'wing')
+          return (
+            isMember &&
+            (player.posicaoPrincipal === 'ponteiro' || player.posicaoPrincipal === 'oposto')
+          );
+        if (filter === 'libero') return isMember && player.posicaoPrincipal === 'libero';
+        if (filter === 'limited')
+          return isMember && Boolean(player.status.limitacaoFisica || player.status.lesionado);
+        return filter === 'all' ? isMember : isMember;
+      })
+      .sort((a, b) => getPlayerDisplayName(a).localeCompare(getPlayerDisplayName(b)));
+  }, [players, selectedIds, search, filter, communitySessions]);
+
+  const togglePlayer = (playerId: string) => {
+    const currentIds: string[] = Array.from(selectedIds);
+    const next: string[] = selectedIds.has(playerId)
+      ? currentIds.filter((id) => id !== playerId)
+      : [...currentIds, playerId];
+    onUpdatePlayerCommunities(community.id, next);
+  };
+
+  const sharePlayers =
+    filteredPlayers.length > 0 ? filteredPlayers : getCommunityPlayers(community.id, players);
+
+  return (
+    <div className="space-y-4">
+      <div className="card card-border bg-base-200">
+        <div className="card-body gap-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <label className="input input-bordered flex items-center gap-2 flex-1">
+              <Search className="w-4 h-4 opacity-60" />
+              <input
+                type="text"
+                className="grow"
+                aria-label="Buscar atleta no elenco"
+                placeholder="Buscar atleta"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <select
+              className="select select-bordered"
+              aria-label="Filtrar elenco"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as PlayerFilter)}
+            >
+              <option value="all">Todos vinculados</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+              <option value="frequent">Mais frequentes</option>
+              <option value="absent">Ausentes recentes</option>
+              <option value="setters">Levantadores</option>
+              <option value="central">Centrais</option>
+              <option value="wing">Pontas/Opostos</option>
+              <option value="libero">Liberos</option>
+              <option value="limited">Com limitacao</option>
+            </select>
+          </div>
+
+          {canManageMembers && (
+            /* <form> para o Enter submeter: é a ação mais repetida da página e o
+               reflexo de quem digita nome atrás de nome. */
+            <form
+              className="space-y-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onCreatePlayer(newPlayerName, community.id);
+                setNewPlayerName('');
+              }}
+            >
+              <label htmlFor="novo-atleta" className="label-text font-bold">
+                Novo atleta
+              </label>
+              <div className="join w-full">
+                <input
+                  id="novo-atleta"
+                  className="input input-bordered join-item flex-1"
+                  placeholder="Ex.: Ana Paula"
+                  value={newPlayerName}
+                  onChange={(event) => setNewPlayerName(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  aria-label="Adicionar atleta ao elenco"
+                  className="btn btn-primary join-item"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          )}
+
+          {canManageMembers && (
+            <AthleteUsernameSearch
+              community={community}
+              currentUserId={currentUserId}
+              isSupabaseConfigured={isSupabaseConfigured}
+              onLinkedPlayer={onLinkedCloudPlayer}
+            />
+          )}
+
+          <ShareActions
+            title={`Atletas - ${community.name}`}
+            text={formatCommunityPlayersText(community, sharePlayers)}
+            variant="menu"
+            blocks={[
+              {
+                id: 'all',
+                label: 'Lista completa',
+                text: formatCommunityPlayersText(
+                  community,
+                  getCommunityPlayers(community.id, players),
+                ),
+              },
+              {
+                id: 'active',
+                label: 'Ativos',
+                text: formatCommunityPlayersText(
+                  community,
+                  getCommunityPlayers(community.id, players).filter((player) => player.ativo),
+                ),
+              },
+              {
+                id: 'setters',
+                label: 'Levantadores',
+                text: formatCommunityPlayersText(
+                  community,
+                  getCommunityPlayers(community.id, players).filter(
+                    (player) => player.posicaoPrincipal === 'levantador',
+                  ),
+                ),
+              },
+              {
+                id: 'limited',
+                label: 'Com limitacao',
+                text: formatCommunityPlayersText(
+                  community,
+                  getCommunityPlayers(community.id, players).filter(
+                    (player) => player.status.lesionado || player.status.limitacaoFisica,
+                  ),
+                ),
+              },
+            ]}
+          />
+        </div>
+      </div>
+
+      {/* Vazio aqui é a comunidade sem elenco vinculado — não importa quantos
+          atletas existam em outras comunidades da conta. */}
+      {filteredPlayers.length === 0 && !search && (
+        <EmptyState
+          icon={Users}
+          size="compact"
+          title="Três formas de montar o elenco"
+          description="Digite o nome no campo acima para criar um atleta do zero. Se a pessoa já usa o Panelinha, busque pelo @username dela. E quem só vai jogar hoje entra como convidado, sem cadastro."
+        />
+      )}
+
+      <div className="list bg-base-200 rounded-box border border-base-300">
+        {filteredPlayers.map((player) => (
+          <div key={player.id} className="list-row">
+            <div className="avatar avatar-placeholder">
+              <div className="bg-primary text-primary-content w-10 rounded-full">
+                <span>{getPlayerDisplayName(player).slice(0, 2).toUpperCase()}</span>
+              </div>
+            </div>
+            <div>
+              <div className="font-bold">{getPlayerDisplayName(player)}</div>
+              <div className="text-xs opacity-60">
+                {player.nome} -{' '}
+                {player.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--'}
+              </div>
+              <progress
+                className="progress progress-primary w-32 h-1 mt-2"
+                value={player.formaAtual.valor + 5}
+                max={10}
+              />
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className="badge badge-accent badge-soft">
+                Indice {calculateGeneralOverall(player)}
+              </span>
+              <span className="badge badge-outline">
+                Freq. {getCommunityFrequency(player.id, communitySessions)}%
+              </span>
+              {(player.status.lesionado || player.status.limitacaoFisica) && (
+                <span className="badge badge-warning">Restricao</span>
+              )}
+            </div>
+            {canManageMembers && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => togglePlayer(player.id)}
+              >
+                Remover
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {canManageMembers && (
+        <div className="collapse collapse-arrow bg-base-200 border border-base-300">
+          <input type="checkbox" />
+          <div className="collapse-title font-bold">Vincular atleta existente</div>
+          <div className="collapse-content">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {players
+                .filter((player) => !selectedIds.has(player.id))
+                .map((player) => (
+                  <button
+                    key={player.id}
+                    type="button"
+                    className="btn btn-outline justify-between"
+                    onClick={() => togglePlayer(player.id)}
+                  >
+                    {getPlayerDisplayName(player)}
+                    <span className="badge">
+                      {player.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--'}
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommunityPresenceTab({
+  community,
+  players,
+  presenceApi,
+  onCreateSession,
+  canCreateSession = true,
+}: {
+  community: Community;
+  players: Player[];
+  presenceApi: CommunityPresenceApi;
+  onCreateSession: () => void;
+  canCreateSession?: boolean;
+}) {
+  const [guestName, setGuestName] = useState('');
+  const presence = presenceApi.getPresence(community.id);
+  const summary = getPresenceSummary(presence, players);
+  const groups = getPresenceGroups(presence, players);
+  const alerts = getPresenceAlerts(presence, players);
+  const text = formatPresenceText(community.name, presence, players);
+
+  // Presença é sobre quem do elenco vem hoje. Sem elenco, a lista de chamada é
+  // uma folha em branco e as estatísticas viram zeros sem sentido.
+  if (getCommunityPlayers(community.id, players).length === 0) {
+    return (
+      <EmptyState
+        icon={ClipboardCheck}
+        size="compact"
+        title="A chamada precisa de elenco"
+        description="Aqui você marca quem confirmou para a pelada de hoje e quem furou. O sorteio usa essa lista para montar os times apenas com quem está em quadra — mas ela só existe depois que os atletas estiverem cadastrados na aba Atletas."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="stats stats-vertical sm:stats-horizontal w-full bg-base-200">
+        <div className="stat">
+          <div className="stat-title">Presentes</div>
+          <div className="stat-value">{summary.presentCount}</div>
+          <div className="stat-desc">media {summary.averageOverall || 0}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-title">Talvez</div>
+          <div className="stat-value">{summary.maybeCount}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-title">Ausentes</div>
+          <div className="stat-value">{summary.absentCount}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-title">Restricoes</div>
+          <div className="stat-value">{summary.restrictedCount}</div>
+          <div className="stat-desc">
+            {summary.averageHeight ? `${summary.averageHeight}cm media` : 'altura sem dados'}
+          </div>
+        </div>
+      </div>
+
+      {alerts.map((alert) => (
+        <div key={alert} role="alert" className="alert alert-warning alert-soft">
+          <AlertTriangle className="w-4 h-4" />
+          <span className="text-sm">{alert}</span>
+        </div>
+      ))}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => presenceApi.selectFrequentPlayers(community.id, players)}
+          disabled={!canCreateSession}
+        >
+          Frequentes
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => presenceApi.useLastPresence(community.id)}
+          disabled={!canCreateSession}
+        >
+          Ultima presenca
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => presenceApi.clearPresence(community.id)}
+          disabled={!canCreateSession}
+        >
+          Limpar
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={onCreateSession}
+          disabled={!canCreateSession}
+        >
+          Criar sessão
+        </button>
+      </div>
+
+      {canCreateSession && (
+        <div className="join w-full">
+          <input
+            className="input input-bordered join-item flex-1"
+            placeholder="Convidado temporario"
+            value={guestName}
+            onChange={(event) => setGuestName(event.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-primary join-item"
+            onClick={() => {
+              presenceApi.addGuest(community.id, guestName);
+              setGuestName('');
+            }}
+          >
+            Adicionar
+          </button>
+        </div>
+      )}
+
+      <ShareActions
+        title={`Presenca - ${community.name}`}
+        text={text}
+        variant="menu"
+        blocks={[
+          { id: 'complete', label: 'Chamada completa', text },
+          {
+            id: 'present',
+            label: 'Presentes',
+            text: formatPresenceText(
+              community.name,
+              {
+                communityId: community.id,
+                date: '',
+                updatedAt: '',
+                items: groups.present.map((player) => ({ playerId: player.id, status: 'present' })),
+              },
+              players,
+            ),
+          },
+          { id: 'alerts', label: 'Alertas', text: alerts.join('\n') || 'Sem alertas.' },
+        ]}
+      />
+
+      <div className="list bg-base-200 rounded-box border border-base-300">
+        {players.map((player) => (
+          <div key={player.id} className="list-row">
+            <div>
+              <div className="font-bold">{getPlayerDisplayName(player)}</div>
+              <div className="text-xs opacity-60">
+                {player.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--'}
+              </div>
+            </div>
+            <PresenceStatusControl
+              status={getPresenceStatus(presence, player.id)}
+              onChange={(status) => presenceApi.setPresenceStatus(community.id, player.id, status)}
+              disabled={!canCreateSession}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PresenceStatusControl({
+  status,
+  onChange,
+  disabled = false,
+}: {
+  status: CommunityPresenceStatus;
+  onChange: (status: CommunityPresenceStatus) => void;
+  disabled?: boolean;
+}) {
+  const items: Array<{ value: CommunityPresenceStatus; label: string }> = [
+    { value: 'present', label: 'Presente' },
+    { value: 'maybe', label: 'Talvez' },
+    { value: 'absent', label: 'Ausente' },
+    { value: 'unmarked', label: 'Limpar' },
+  ];
+
+  return (
+    <div className="join">
+      {items.map((item) => (
+        <button
+          key={item.value}
+          type="button"
+          className={`btn btn-xs join-item ${status === item.value ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => onChange(item.value)}
+          disabled={disabled}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CommunityWhatsAppListTab({
+  community,
+  players,
+  whatsAppApi,
+  canCreateSession = true,
+  canEditRules = true,
+}: {
+  community: Community;
+  players: Player[];
+  whatsAppApi: WhatsAppApi;
+  canCreateSession?: boolean;
+  canEditRules?: boolean;
+}) {
+  const templates = whatsAppApi.getCommunityTemplates(community.id);
+  const initialTemplate = templates[0] || createDefaultTemplate(community.id, community.name);
+  const [template, setTemplate] = useState<WhatsAppListTemplate>(initialTemplate);
+  const [draft, setDraft] = useState<WhatsAppListDraft>(
+    () =>
+      whatsAppApi.getLatestDraft(community.id) ||
+      createDraftFromTemplate(initialTemplate, formatLocalDateInput()),
+  );
+  const text = formatWhatsAppList(draft);
+
+  // `updatedAt` muda a cada tecla, então comparar o objeto inteiro acusaria
+  // sujeira falsa; a referência é o que está persistido, sem o carimbo.
+  const semCarimbo = (valor: WhatsAppListDraft) => JSON.stringify({ ...valor, updatedAt: '' });
+  const persistido = whatsAppApi.getLatestDraft(community.id);
+
+  useUnsavedGuard({
+    dirty: persistido ? semCarimbo(draft) !== semCarimbo(persistido) : true,
+    save: () => {
+      whatsAppApi.saveTemplate(template);
+      whatsAppApi.saveDraft(draft);
+    },
+    label: 'Lista WhatsApp',
+  });
+
+  const updateDraft = (patch: Partial<WhatsAppListDraft>) =>
+    setDraft((prev) => ({ ...prev, ...patch, updatedAt: new Date().toISOString() }));
+
+  const recreateFromTemplate = () => {
+    // Rótulo neutro, ação destrutiva: "Gerar" substitui o rascunho inteiro pelo
+    // modelo e apaga os nomes já digitados.
+    const nomesPreenchidos = [...draft.setters, ...draft.mainSlots, ...draft.reserveSlots].filter(
+      (slot) => slot.displayName?.trim(),
+    ).length;
+    if (nomesPreenchidos > 0) {
+      const confirmado = window.confirm(
+        `Gerar a lista do zero apaga ${nomesPreenchidos} ${
+          nomesPreenchidos === 1 ? 'nome já preenchido' : 'nomes já preenchidos'
+        }. Continuar?`,
+      );
+      if (!confirmado) return;
+    }
+    const next = createDraftFromTemplate(template, draft.date);
+    setDraft(next);
+    whatsAppApi.saveTemplate(template);
+    whatsAppApi.saveDraft(next);
+  };
+
+  const prefillNames = () => {
+    const setters = players
+      .filter((player) => player.posicaoPrincipal === 'levantador')
+      .slice(0, draft.setters.length);
+    const others = players
+      .filter((player) => player.posicaoPrincipal !== 'levantador')
+      .slice(0, draft.mainSlots.length);
+    updateDraft({
+      setters: draft.setters.map((slot, index) => ({
+        ...slot,
+        displayName: setters[index] ? getPlayerDisplayName(setters[index]) : slot.displayName,
+      })),
+      mainSlots: draft.mainSlots.map((slot, index) => ({
+        ...slot,
+        displayName: others[index] ? getPlayerDisplayName(others[index]) : slot.displayName,
+      })),
+    });
+  };
+
+  const blocks: ShareBlock[] = [
+    { id: 'complete', label: 'Lista completa', text },
+    { id: 'header', label: 'Cabecalho', text: formatWhatsAppHeader(draft) },
+    { id: 'payment', label: 'Pagamento', text: formatPaymentInfo(draft) },
+    { id: 'setters', label: 'Levantadores', text: formatSettersSection(draft) },
+    { id: 'main', label: 'Lista principal', text: formatMainListSection(draft) },
+    { id: 'reserve', label: 'Reservas', text: formatReserveSection(draft) },
+    { id: 'short', label: 'Chamada curta', text: formatShortCallMessage(draft) },
+    { id: 'payment-reminder', label: 'Lembrete pagamento', text: formatPaymentReminder(draft) },
+    { id: 'open-slots', label: 'Vagas abertas', text: formatOpenSlotsMessage(draft) },
+  ];
+
+  // A lista que vai para o grupo é a convocatória do elenco. Sem elenco ela sai
+  // vazia, e mandar uma lista em branco no WhatsApp é pior que não mandar.
+  if (getCommunityPlayers(community.id, players).length === 0) {
+    return (
+      <EmptyState
+        icon={MessageCircle}
+        size="compact"
+        title="A convocatória sai daqui"
+        description="Este é o texto pronto para colar no grupo: quem está convocado, quantas vagas sobraram, o local, o horário e a chave PIX. Ele se monta sozinho a partir do elenco e da chamada — que precisam existir primeiro."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card card-border bg-base-200">
+        <div className="card-body gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="form-control">
+              <span className="label-text">Nome do modelo</span>
+              <input
+                className="input input-bordered"
+                value={template.name}
+                onChange={(event) => setTemplate({ ...template, name: event.target.value })}
+                disabled={!canEditRules}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Título</span>
+              <input
+                className="input input-bordered"
+                value={draft.title}
+                onChange={(event) => updateDraft({ title: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Data</span>
+              <input
+                type="date"
+                className="input input-bordered"
+                value={draft.date}
+                onChange={(event) => updateDraft({ date: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Local</span>
+              <input
+                className="input input-bordered"
+                value={draft.location || ''}
+                onChange={(event) => updateDraft({ location: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Inicio</span>
+              <input
+                type="time"
+                className="input input-bordered"
+                value={draft.startTime || ''}
+                onChange={(event) => updateDraft({ startTime: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Fim</span>
+              <input
+                type="time"
+                className="input input-bordered"
+                value={draft.endTime || ''}
+                onChange={(event) => updateDraft({ endTime: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Valor</span>
+              <input
+                type="number"
+                className="input input-bordered"
+                value={draft.value || 0}
+                onChange={(event) => updateDraft({ value: Number(event.target.value) })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Chave Pix</span>
+              <input
+                className="input input-bordered"
+                value={draft.pixKey || ''}
+                onChange={(event) => updateDraft({ pixKey: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Responsável Pix</span>
+              <input
+                className="input input-bordered"
+                value={draft.pixHolder || ''}
+                onChange={(event) => updateDraft({ pixHolder: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Banco</span>
+              <input
+                className="input input-bordered"
+                value={draft.pixBank || ''}
+                onChange={(event) => updateDraft({ pixBank: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Prazo pagamento</span>
+              <input
+                className="input input-bordered"
+                value={draft.paymentDeadline || ''}
+                onChange={(event) => updateDraft({ paymentDeadline: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Observacao pagamento</span>
+              <input
+                className="input input-bordered"
+                value={draft.paymentNote || ''}
+                onChange={(event) => updateDraft({ paymentNote: event.target.value })}
+                disabled={!canCreateSession}
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <CountInput
+              label="Levantadores"
+              value={draft.setters.length}
+              onChange={(count) =>
+                updateDraft({ setters: createSlotsWithCurrent(draft.setters, count) })
+              }
+              disabled={!canCreateSession}
+            />
+            <CountInput
+              label="Lista principal"
+              value={draft.mainSlots.length}
+              onChange={(count) =>
+                updateDraft({ mainSlots: createSlotsWithCurrent(draft.mainSlots, count) })
+              }
+              disabled={!canCreateSession}
+            />
+            <CountInput
+              label="Reservas"
+              value={draft.reserveSlots.length}
+              onChange={(count) =>
+                updateDraft({ reserveSlots: createSlotsWithCurrent(draft.reserveSlots, count) })
+              }
+              disabled={!canCreateSession}
+            />
+          </div>
+
+          <label className="label cursor-pointer justify-start gap-3">
+            <input
+              type="checkbox"
+              className="toggle toggle-primary"
+              checked={draft.showLockIcon}
+              onChange={(event) => updateDraft({ showLockIcon: event.target.checked })}
+              disabled={!canCreateSession}
+            />
+            <span className="label-text">Exibir cadeado entre levantadores e lista principal</span>
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={prefillNames}
+              disabled={!canCreateSession}
+            >
+              Preencher nomes
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={recreateFromTemplate}
+              disabled={!canCreateSession}
+            >
+              <RefreshCw className="w-4 h-4" /> Gerar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => whatsAppApi.saveDraft(draft)}
+              disabled={!canCreateSession}
+            >
+              <Save className="w-4 h-4" /> Salvar lista
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                whatsAppApi.saveTemplate({ ...template, ...templateFromDraft(template, draft) })
+              }
+              disabled={!canEditRules}
+            >
+              Salvar modelo
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <textarea
+        className="textarea textarea-bordered w-full min-h-96 font-mono text-xs"
+        readOnly
+        value={text}
+      />
+      <ShareActions
+        title={`Lista - ${community.name}`}
+        text={text}
+        blocks={blocks}
+        variant="menu"
+      />
+    </div>
+  );
+}
+
+function CountInput({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="form-control">
+      <span className="label-text">{label}</span>
+      <input
+        type="number"
+        min={0}
+        className="input input-bordered"
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        disabled={disabled}
+      />
+    </label>
+  );
+}
+
+function createSlotsWithCurrent(
+  current: Array<{ index: number; displayName?: string; note?: string; paid?: boolean }>,
+  count: number,
+) {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => ({
+    index: index + 1,
+    displayName: current[index]?.displayName,
+    note: current[index]?.note,
+    paid: current[index]?.paid,
+  }));
+}
+
+function templateFromDraft(
+  template: WhatsAppListTemplate,
+  draft: WhatsAppListDraft,
+): WhatsAppListTemplate {
+  return {
+    ...template,
+    title: draft.title,
+    defaultLocation: draft.location,
+    defaultStartTime: draft.startTime,
+    defaultEndTime: draft.endTime,
+    defaultValue: draft.value,
+    pixKey: draft.pixKey,
+    pixHolder: draft.pixHolder,
+    pixBank: draft.pixBank,
+    paymentDeadline: draft.paymentDeadline,
+    paymentNote: draft.paymentNote,
+    settersCount: draft.setters.length,
+    mainSlotsCount: draft.mainSlots.length,
+    reserveSlotsCount: draft.reserveSlots.length,
+    settersSectionTitle: draft.settersSectionTitle,
+    reserveSectionTitle: draft.reserveSectionTitle,
+    showLockIcon: draft.showLockIcon,
+    paymentSymbol: draft.paymentSymbol,
+    extraText: draft.extraText,
+  };
+}
+
+function CommunitySessionsTab({
+  community,
+  sessions,
+  games,
+  pointEvents,
+  sessionReports,
+  onViewSession,
+  onRepeatSession,
+}: {
+  community: Community;
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  sessionReports: SessionReport[];
+  onViewSession: (sessionId: string) => void;
+  onRepeatSession: (session: Session) => void;
+}) {
+  const communitySessions = getCommunitySessions(community.id, sessions);
+  const text = formatCommunitySessionsText(community, communitySessions);
+
+  return (
+    <div className="space-y-4">
+      <ShareActions title={`Sessoes - ${community.name}`} text={text} variant="buttons" />
+      <div className="grid grid-cols-1 gap-4">
+        {communitySessions.map((session) => {
+          const sessionGames = games.filter(
+            (game) =>
+              game.sessionId === session.id &&
+              (game.status === 'finished' || game.status === 'walkover'),
+          );
+          const sessionPoints = pointEvents.filter((point) => point.sessionId === session.id);
+          const report = sessionReports.find((item) => item.sessionId === session.id);
+          return (
+            <div key={session.id} className="card card-border bg-base-200">
+              <div className="card-body gap-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="badge badge-primary badge-soft">
+                      {formatFormat(session.type)}
+                    </span>
+                    <h3 className="card-title mt-2">{session.name}</h3>
+                    <p className="text-xs text-base-content/60">
+                      {formatDate(session.date)} -{' '}
+                      {session.location || community.defaultLocation || 'Local não informado'}
+                    </p>
+                  </div>
+                  <span className="badge badge-outline">{session.status}</span>
+                </div>
+                <div className="stats stats-vertical sm:stats-horizontal bg-base-100">
+                  <div className="stat">
+                    <div className="stat-title">Atletas</div>
+                    <div className="stat-value text-lg">{session.selectedPlayerIds.length}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-title">Partidas</div>
+                    <div className="stat-value text-lg">{sessionGames.length}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-title">Pontos</div>
+                    <div className="stat-value text-lg">{sessionPoints.length}</div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-title">MVP</div>
+                    <div className="stat-value text-sm">
+                      {report?.playerRanking?.[0]?.playerName || '-'}
+                    </div>
+                  </div>
+                </div>
+                <div className="card-actions grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => onViewSession(session.id)}
+                  >
+                    Ver relatorio
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => onRepeatSession(session)}
+                  >
+                    Repetir configuracao
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {communitySessions.length === 0 && (
+        <EmptyState
+          icon={Volleyball}
+          size="compact"
+          title="Toda pelada jogada fica aqui"
+          description="Cada sessão encerrada vira histórico: quem jogou, o placar de cada partida, os destaques e os pontos que alimentam o ranking. A primeira aparece assim que você encerrar uma pelada desta comunidade."
+        />
+      )}
+    </div>
+  );
+}
+
+function CommunityRankingTab({
+  community,
+  players,
+  sessions,
+  games,
+  pointEvents,
+  teams,
+  sessionReports,
+}: {
+  community: Community;
+  players: Player[];
+  sessions: Session[];
+  games: Game[];
+  pointEvents: PointEvent[];
+  teams: Team[];
+  sessionReports: SessionReport[];
+}) {
+  const [filter, setFilter] = useState<CommunityRankingFilter>('all');
+  const ranking = getCommunityRanking({
+    communityId: community.id,
+    filter,
+    players,
+    sessions,
+    games,
+    pointEvents,
+    teams,
+    sessionReports,
+  });
+  const text = formatCommunityRankingText(community, ranking, 10);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-1.5">
+        {(
+          [
+            ['all', 'Geral'],
+            ['month', 'Mês'],
+            ['last5', 'Últimas 5'],
+            ['last10', 'Últimas 10'],
+            ['season', 'Temporada'],
+          ] as Array<[CommunityRankingFilter, string]>
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className={`btn join-item btn-sm ${filter === id ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setFilter(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <ShareActions
+        title={`Ranking - ${community.name}`}
+        text={text}
+        variant="menu"
+        blocks={[
+          { id: 'top3', label: 'Top 3', text: formatCommunityRankingText(community, ranking, 3) },
+          { id: 'top5', label: 'Top 5', text: formatCommunityRankingText(community, ranking, 5) },
+          { id: 'general', label: 'Geral', text },
+        ]}
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {ranking.rows.map((row, index) => (
+          <div key={row.playerId} className="card card-border bg-base-200">
+            <div className="card-body p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="badge badge-primary">#{index + 1}</span>
+                  <h3 className="font-black mt-2">{row.playerName}</h3>
+                  <p className="text-sm text-base-content/60">
+                    {row.totalPoints} pts - {row.mvpCount} MVPs
+                  </p>
+                </div>
+                <Trophy className="w-5 h-5 text-accent" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <span>
+                  Presenca: <b>{row.presenceRate}%</b>
+                </span>
+                <span>
+                  Vitorias: <b>{row.wins}</b>
+                </span>
+                <span>
+                  Aces: <b>{row.aces}</b>
+                </span>
+                <span>
+                  Bloqueios: <b>{row.blocks}</b>
+                </span>
+                <span>
+                  Erros: <b>{row.errors || 0}</b>
+                </span>
+                <span>
+                  Lances: <b>{row.highlights || 0}</b>
+                </span>
+                <span>
+                  Aproveitamento: <b>{row.winRate}%</b>
+                </span>
+                <span>
+                  Regularidade: <b>{row.regularity}</b>
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {ranking.rows.length === 0 &&
+        (filter === 'all' ? (
+          <EmptyState
+            icon={Trophy}
+            size="compact"
+            title="O ranking se escreve jogando"
+            description="Cada ponto marcado numa pelada desta comunidade entra aqui: ataque, bloqueio, ace e vitória viram posição na tabela. Assim que a primeira sessão for encerrada, o elenco aparece ordenado."
+          >
+            <Link
+              to={paths.sessaoNova(community.id)}
+              className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+            >
+              <Plus className="h-5 w-5" /> Marcar a primeira pelada
+            </Link>
+          </EmptyState>
+        ) : (
+          <div className="card card-border bg-base-200 border-dashed">
+            <div className="card-body items-center gap-3 py-10 text-center">
+              <Trophy className="h-8 w-8 text-base-content/30" />
+              <p className="text-sm text-base-content/70">
+                Nenhuma partida deste recorte ainda. Veja o ranking geral da comunidade.
+              </p>
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className="btn btn-outline btn-sm min-h-[44px] px-5 font-bold uppercase tracking-wider"
+              >
+                Ver o geral
+              </button>
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+function CommunityRulesTab({
+  rules,
+  onSave,
+  canEditRules = true,
+}: {
+  rules: CommunityRules;
+  onSave: (rules: CommunityRules) => void;
+  canEditRules?: boolean;
+}) {
+  const [draft, setDraft] = useState<CommunityRules>(rules);
+  // Salvar Regras não escreve mais os campos padrão da comunidade: eles são
+  // editados só na aba Dados. Enquanto os dois lugares gravavam, salvar Regras
+  // reescrevia por cima o que Dados tinha acabado de mudar, com os valores
+  // carregados quando esta aba montou.
+  const save = () => onSave(draft);
+
+  useUnsavedGuard({
+    dirty: JSON.stringify(draft) !== JSON.stringify(rules),
+    save,
+    label: 'Regras',
+  });
+
+  return (
+    <div className="space-y-3">
+      {!canEditRules && (
+        <div role="alert" className="alert alert-warning alert-soft">
+          <ShieldAlert className="w-4 h-4" />
+          <span className="text-sm">
+            Modo de Leitura: Voce nao tem permissao para alterar as regras desta comunidade.
+          </span>
+        </div>
+      )}
+
+      {/* Local, Dia, Inicio, Fim e Formato viviam aqui E na aba Dados, com
+          rotulos divergentes e dois botoes de salvar: ninguem sabia qual era a
+          verdade. Regras ficou so com regra de jogo. */}
+      <div className="rounded-xl border border-base-300 bg-base-200/60 p-4 text-sm leading-relaxed text-base-content/70">
+        Local, dia e horário padrão da comunidade ficam na aba <strong>Dados</strong>, junto do
+        nome. Aqui moram só as regras de jogo.
+      </div>
+
+      <RulesCollapse title="Jogo Livre">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <NumberField
+            label="Times"
+            value={draft.freePlay?.teamCount || 3}
+            onChange={(value) =>
+              setDraft({ ...draft, freePlay: { ...draft.freePlay, teamCount: value } })
+            }
+            disabled={!canEditRules}
+          />
+          <NumberField
+            label="Pontos"
+            value={draft.freePlay?.maxPoints || 15}
+            onChange={(value) =>
+              setDraft({ ...draft, freePlay: { ...draft.freePlay, maxPoints: value } })
+            }
+            disabled={!canEditRules}
+          />
+          <NumberField
+            label="Limite consecutivo"
+            value={draft.freePlay?.maxConsecutiveGames || 3}
+            onChange={(value) =>
+              setDraft({ ...draft, freePlay: { ...draft.freePlay, maxConsecutiveGames: value } })
+            }
+            disabled={!canEditRules}
+          />
+        </div>
+      </RulesCollapse>
+
+      <RulesCollapse title="Campeonato">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <NumberField
+            label="Times"
+            value={draft.tournament?.teamCount || 3}
+            onChange={(value) =>
+              setDraft({ ...draft, tournament: { ...draft.tournament, teamCount: value } })
+            }
+            disabled={!canEditRules}
+          />
+          <NumberField
+            label="Pontos por vitoria"
+            value={draft.tournament?.classificationPoints?.win || 3}
+            onChange={(value) =>
+              setDraft({
+                ...draft,
+                tournament: {
+                  ...draft.tournament,
+                  classificationPoints: {
+                    win: value,
+                    loss: draft.tournament?.classificationPoints?.loss || 0,
+                  },
+                },
+              })
+            }
+            disabled={!canEditRules}
+          />
+          <NumberField
+            label="Pontos por derrota"
+            value={draft.tournament?.classificationPoints?.loss || 0}
+            onChange={(value) =>
+              setDraft({
+                ...draft,
+                tournament: {
+                  ...draft.tournament,
+                  classificationPoints: {
+                    win: draft.tournament?.classificationPoints?.win || 3,
+                    loss: value,
+                  },
+                },
+              })
+            }
+            disabled={!canEditRules}
+          />
+        </div>
+      </RulesCollapse>
+
+      <RulesCollapse title="Times">
+        <textarea
+          className="textarea textarea-bordered w-full"
+          value={(draft.defaultTeamNames || []).join('\n')}
+          onChange={(event) =>
+            setDraft({ ...draft, defaultTeamNames: event.target.value.split('\n').filter(Boolean) })
+          }
+          aria-label="Nomes padrão dos times, um por linha"
+          placeholder="Um nome de time por linha"
+          disabled={!canEditRules}
+        />
+      </RulesCollapse>
+
+      <RulesCollapse title="Algoritmo">
+        <div className="alert alert-info alert-soft">
+          Pesos especificos podem ser ajustados futuramente; por enquanto esta comunidade usa o
+          algoritmo atual do app com as regras padrao salvas acima.
+        </div>
+      </RulesCollapse>
+
+      <button
+        type="button"
+        className="btn btn-primary btn-block"
+        onClick={save}
+        disabled={!canEditRules}
+      >
+        <Save className="w-4 h-4" /> Salvar regras
+      </button>
+    </div>
+  );
+}
+
+function RulesCollapse({
+  title,
+  open,
+  children,
+}: {
+  title: string;
+  open?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="collapse collapse-arrow bg-base-200 border border-base-300">
+      {/* O checkbox é o único jeito de abrir a seção; sem nome, o leitor de tela
+          anunciava só "caixa de seleção" cinco vezes seguidas. */}
+      <input type="checkbox" defaultChecked={open} aria-label={`Abrir ou fechar ${title}`} />
+      <div className="collapse-title font-bold">{title}</div>
+      <div className="collapse-content">{children}</div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  disabled = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  type?: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  error?: string;
+}) {
+  return (
+    <label className="form-control">
+      <span className="label-text">{label}</span>
+      <input
+        type={type}
+        className="input input-bordered"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+      />
+      {error && <span className="label-text-alt text-error">{error}</span>}
+    </label>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="form-control">
+      <span className="label-text">{label}</span>
+      <input
+        type="number"
+        className="input input-bordered"
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        disabled={disabled}
+      />
+    </label>
+  );
+}
+
+function CommunityDataTab({
+  community,
+  players,
+  sessions,
+  onUpdateCommunity,
+  onDeleteCommunity,
+  onDuplicateCommunity,
+  onClearCommunityHistory,
+  canEditRules = true,
+  canDeleteCommunity = true,
+  canClearHistory = true,
+}: {
+  community: Community;
+  players: Player[];
+  sessions: Session[];
+  onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
+  onDeleteCommunity: (communityId: string) => void;
+  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
+  onClearCommunityHistory: (communityId: string) => void;
+  canEditRules?: boolean;
+  canDeleteCommunity?: boolean;
+  canClearHistory?: boolean;
+}) {
+  const [draft, setDraft] = useState<Community>(community);
+  const [confirm, setConfirm] = useState<'delete' | 'history' | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const save = () => {
+    const saved = onUpdateCommunity(community.id, draft);
+    setNameError(saved ? null : 'Ja existe uma comunidade com esse nome.');
+  };
+
+  useUnsavedGuard({
+    dirty: JSON.stringify(draft) !== JSON.stringify(community),
+    save,
+    label: 'Dados',
+  });
+
+  return (
+    <div className="space-y-4">
+      {!canEditRules && (
+        <div role="alert" className="alert alert-warning alert-soft">
+          <ShieldAlert className="w-4 h-4" />
+          <span className="text-sm">
+            Modo de Leitura: Voce nao tem permissao para alterar os dados desta comunidade.
+          </span>
+        </div>
+      )}
+      <div className="card card-border bg-base-200">
+        <div className="card-body gap-3">
+          <Field
+            label="Nome"
+            value={draft.name}
+            onChange={(value) => {
+              setDraft({ ...draft, name: value });
+              setNameError(null);
+            }}
+            disabled={!canEditRules}
+            error={nameError || undefined}
+          />
+          <label className="form-control">
+            <span className="label-text">Descrição</span>
+            <textarea
+              className="textarea textarea-bordered"
+              value={draft.description || ''}
+              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+              disabled={!canEditRules}
+            />
+          </label>
+          <Field
+            label="Local padrao"
+            value={draft.defaultLocation || ''}
+            onChange={(value) => setDraft({ ...draft, defaultLocation: value })}
+            disabled={!canEditRules}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field
+              label="Dia"
+              value={draft.defaultDay || ''}
+              onChange={(value) => setDraft({ ...draft, defaultDay: value })}
+              disabled={!canEditRules}
+            />
+            <Field
+              label="Inicio"
+              type="time"
+              value={draft.defaultStartTime || ''}
+              onChange={(value) => setDraft({ ...draft, defaultStartTime: value })}
+              disabled={!canEditRules}
+            />
+            <Field
+              label="Fim"
+              type="time"
+              value={draft.defaultEndTime || ''}
+              onChange={(value) => setDraft({ ...draft, defaultEndTime: value })}
+              disabled={!canEditRules}
+            />
+          </div>
+          <label className="label cursor-pointer justify-start gap-3">
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={Boolean(draft.archived)}
+              onChange={(event) => setDraft({ ...draft, archived: event.target.checked })}
+              disabled={!canEditRules}
+            />
+            <span className="label-text">Arquivar comunidade</span>
+          </label>
+          <button type="button" className="btn btn-primary" onClick={save} disabled={!canEditRules}>
+            <Save className="w-4 h-4" /> Salvar dados
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => onDuplicateCommunity(community.id, true)}
+        >
+          <Copy className="w-4 h-4" /> Duplicar com atletas
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => exportCommunity(community, players, sessions)}
+        >
+          Exportar comunidade
+        </button>
+        {canClearHistory && (
+          <button type="button" className="btn btn-warning" onClick={() => setConfirm('history')}>
+            <ShieldAlert className="w-4 h-4" /> Limpar historico
+          </button>
+        )}
+        {canDeleteCommunity && (
+          <button type="button" className="btn btn-error" onClick={() => setConfirm('delete')}>
+            <Trash2 className="w-4 h-4" /> Excluir comunidade
+          </button>
+        )}
+      </div>
+
+      {confirm && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Confirmar ação</h3>
+            <p className="py-4">
+              {confirm === 'delete'
+                ? 'Essa ação exclui a comunidade deste aparelho. Os atletas podem ser mantidos no elenco geral.'
+                : 'Essa ação remove o vínculo de histórico das sessões desta comunidade.'}
+            </p>
+            <div className="modal-action">
+              <button type="button" className="btn" onClick={() => setConfirm(null)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-error"
+                onClick={() => {
+                  if (confirm === 'delete') onDeleteCommunity(community.id);
+                  if (confirm === 'history') onClearCommunityHistory(community.id);
+                  setConfirm(null);
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function exportCommunity(community: Community, players: Player[], sessions: Session[]) {
+  const payload = {
+    community,
+    players: getCommunityPlayers(community.id, players),
+    sessions: getCommunitySessions(community.id, sessions),
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${community.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}

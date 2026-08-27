@@ -1,0 +1,534 @@
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadSyncIssueLedger, recordStoredSyncIssue } from '../logic/syncIssueLedger';
+import { syncService, type LocalSyncPayload } from '@infra/supabase/syncService';
+import type { CloudSyncDeps } from './useCloudSync';
+import { useCloudSync } from './useCloudSync';
+
+function emptyPayload(): LocalSyncPayload {
+  return {
+    communities: [],
+    players: [],
+    rules: [],
+    templates: [],
+    sessions: [],
+    teams: [],
+    games: [],
+    pointEvents: [],
+    gameReports: [],
+    sessionReports: [],
+    presenceRecords: [],
+    drafts: [],
+    championships: [],
+    championshipTeams: [],
+    championshipRounds: [],
+  };
+}
+
+function deps(overrides: Partial<CloudSyncDeps> = {}): CloudSyncDeps {
+  return {
+    userId: 'user-1',
+    communities: [],
+    setCommunities: vi.fn(),
+    players: [],
+    setPlayers: vi.fn(),
+    rules: [],
+    setRules: vi.fn(),
+    templates: [],
+    setTemplates: vi.fn(),
+    drafts: [],
+    setDrafts: vi.fn(),
+    sessions: [],
+    setSessions: vi.fn(),
+    teams: [],
+    setTeams: vi.fn(),
+    games: [],
+    setGames: vi.fn(),
+    pointEvents: [],
+    setPointEvents: vi.fn(),
+    gameReports: [],
+    setGameReports: vi.fn(),
+    sessionReports: [],
+    setSessionReports: vi.fn(),
+    presenceRecords: [],
+    setPresenceRecords: vi.fn(),
+    ...overrides,
+  };
+}
+
+describe('useCloudSync issue ledger', () => {
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const originalSyncNow = syncService.syncNow;
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-07T12:00:00.000Z'));
+    syncService.uploadLocalDataToCloud = originalUpload;
+    syncService.syncNow = originalSyncNow;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    syncService.uploadLocalDataToCloud = originalUpload;
+    syncService.syncNow = originalSyncNow;
+  });
+
+  it('records partial upload issues in the local sync issue ledger', async () => {
+    syncService.uploadLocalDataToCloud = async (_payload, _userId, options) => {
+      options?.onIssue?.('atleta "Ana"', new Error('network down'));
+      return emptyPayload();
+    };
+
+    const { result } = renderHook(() => useCloudSync(deps()));
+
+    await act(async () => {
+      await result.current.uploadToCloud();
+    });
+
+    expect(loadSyncIssueLedger()[0]).toMatchObject({
+      operation: 'Envio para a nuvem',
+      context: 'atleta "Ana"',
+      message: 'network down',
+      status: 'open',
+      count: 1,
+      firstSeenAt: '2026-07-07T12:00:00.000Z',
+    });
+    expect(result.current.syncIssueSummary).toMatchObject({
+      openCount: 1,
+      totalOpenOccurrences: 1,
+    });
+    expect(result.current.syncIssues[0]).toMatchObject({
+      context: 'atleta "Ana"',
+      status: 'open',
+    });
+    expect(result.current.recoverableSyncActions).toMatchObject({
+      canRetryUpload: true,
+      primaryAction: 'upload',
+      primaryActionLabel: 'Tentar envio novamente',
+    });
+  });
+
+  it('resolves stored upload issues after a clean upload', async () => {
+    recordStoredSyncIssue({
+      operation: 'Envio para a nuvem',
+      context: 'atleta "Ana"',
+      error: 'network down',
+      occurredAt: '2026-07-07T11:00:00.000Z',
+    });
+    syncService.uploadLocalDataToCloud = async () => emptyPayload();
+
+    const { result } = renderHook(() => useCloudSync(deps()));
+
+    await act(async () => {
+      await result.current.uploadToCloud();
+    });
+
+    expect(loadSyncIssueLedger()[0]).toMatchObject({
+      status: 'resolved',
+      resolvedAt: '2026-07-07T12:00:00.000Z',
+    });
+    expect(result.current.syncIssueSummary.openCount).toBe(0);
+    expect(result.current.syncIssues[0]).toMatchObject({
+      status: 'resolved',
+      resolvedAt: '2026-07-07T12:00:00.000Z',
+    });
+    expect(result.current.recoverableSyncActions.openIssueCount).toBe(0);
+  });
+
+  it('retries the primary recoverable sync action', async () => {
+    recordStoredSyncIssue({
+      operation: 'Sincronização',
+      context: 'proposta de vinculo',
+      error: 'timeout',
+      occurredAt: '2026-07-07T11:00:00.000Z',
+    });
+    const calls: string[] = [];
+    syncService.syncNow = async () => {
+      calls.push('sync');
+      return emptyPayload();
+    };
+    syncService.uploadLocalDataToCloud = async () => {
+      calls.push('upload');
+      return emptyPayload();
+    };
+
+    const { result } = renderHook(() => useCloudSync(deps()));
+
+    expect(result.current.recoverableSyncActions.primaryAction).toBe('sync');
+
+    await act(async () => {
+      await result.current.retryPrimarySyncAction();
+    });
+
+    expect(calls).toEqual(['sync']);
+    expect(result.current.recoverableSyncActions.openIssueCount).toBe(0);
+  });
+});
+
+describe('useCloudSync persistent reentrancy guard', () => {
+  let calls: string[] = [];
+  const originalUpload = syncService.uploadLocalDataToCloud;
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-27T12:00:00.000Z'));
+    calls = [];
+    syncService.uploadLocalDataToCloud = async () => {
+      calls.push('upload');
+      return emptyPayload();
+    };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    syncService.uploadLocalDataToCloud = originalUpload;
+  });
+
+  it('writes vpg_sync_inflight_<userId> on entry and clears it on completion', async () => {
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a' })));
+
+    expect(localStorage.getItem('vpg_sync_inflight_user-a')).toBeNull();
+
+    const uploadPromise = act(async () => {
+      await result.current.uploadToCloud();
+    });
+    const inflightDuringRun = JSON.parse(
+      localStorage.getItem('vpg_sync_inflight_user-a') || 'null',
+    );
+    await uploadPromise;
+    expect(calls).toEqual(['upload']);
+    expect(localStorage.getItem('vpg_sync_inflight_user-a')).toBeNull();
+    void inflightDuringRun;
+  });
+
+  it('blocks a second concurrent sync within the TTL window and toasts', async () => {
+    let resolveUpload!: () => void;
+    syncService.uploadLocalDataToCloud = () =>
+      new Promise<LocalSyncPayload>((resolve) => {
+        resolveUpload = () => resolve(emptyPayload());
+      });
+    const toasts: Array<{ message: string; variant: 'success' | 'error' }> = [];
+    const { result } = renderHook(() =>
+      useCloudSync(
+        deps({
+          userId: 'user-a',
+          onToast: (message, variant) => toasts.push({ message, variant }),
+        }),
+      ),
+    );
+
+    let first: Promise<unknown>;
+    await act(async () => {
+      first = result.current.uploadToCloud();
+      await result.current.uploadToCloud();
+    });
+    expect(toasts.some((t) => t.message === 'Uma sincronização já está em andamento.')).toBe(true);
+    expect(calls).toEqual([]);
+    await act(async () => {
+      resolveUpload();
+      await first;
+    });
+    expect(localStorage.getItem('vpg_sync_inflight_user-a')).toBeNull();
+  });
+
+  it('reassumes if the stored guard is older than 5 minutes (browser crash recovery)', async () => {
+    const stale = { startedAt: '2026-07-27T11:50:00.000Z', ttlMs: 300000 };
+    localStorage.setItem('vpg_sync_inflight_user-a', JSON.stringify(stale));
+
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a' })));
+    await act(async () => {
+      await result.current.uploadToCloud();
+    });
+
+    expect(calls).toEqual(['upload']);
+    expect(localStorage.getItem('vpg_sync_inflight_user-a')).toBeNull();
+  });
+
+  it('survives component remount — guard persists across mounts within TTL', async () => {
+    let resolveUpload!: () => void;
+    syncService.uploadLocalDataToCloud = () =>
+      new Promise<LocalSyncPayload>((resolve) => {
+        resolveUpload = () => resolve(emptyPayload());
+      });
+    const toasts: Array<{ message: string; variant: 'success' | 'error' }> = [];
+    const depsA = () =>
+      deps({ userId: 'user-a', onToast: (m, v) => toasts.push({ message: m, variant: v }) });
+
+    const first = renderHook(() => useCloudSync(depsA()));
+    let firstPromise: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      firstPromise = first.result.current.uploadToCloud();
+      await first.result.current.uploadToCloud();
+    });
+    expect(toasts.some((t) => t.message === 'Uma sincronização já está em andamento.')).toBe(true);
+
+    first.unmount();
+    const toastsAfterRemount: Array<{ message: string; variant: 'success' | 'error' }> = [];
+    const second = renderHook(() =>
+      useCloudSync(
+        deps({
+          userId: 'user-a',
+          onToast: (m, v) => toastsAfterRemount.push({ message: m, variant: v }),
+        }),
+      ),
+    );
+    await act(async () => {
+      await second.result.current.uploadToCloud();
+    });
+    expect(
+      toastsAfterRemount.some((t) => t.message === 'Uma sincronização já está em andamento.'),
+    ).toBe(true);
+
+    await act(async () => {
+      resolveUpload();
+      await firstPromise;
+    });
+  });
+});
+
+describe('useCloudSync cross-account leak guard', () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalSyncNow = syncService.syncNow;
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-29T12:00:00.000Z'));
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.syncNow = originalSyncNow;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.syncNow = originalSyncNow;
+  });
+
+  // O suspeito na troca de conta e o CACHE LOCAL, nao o resultado da nuvem: o
+  // download foi buscado com a sessao do usuario atual, entao e dele. Descartar o
+  // download deixava os dados da conta anterior na tela e no localStorage — e o
+  // proximo upload os enviava para esta conta.
+  it('wipes the previous account cache and applies the cloud result on a download', async () => {
+    localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    localStorage.setItem(
+      'vpg_players',
+      JSON.stringify([{ id: 'p-b', nome: 'Jogador da conta B' }]),
+    );
+    localStorage.setItem('vpg_sessions', JSON.stringify([{ id: 's-b' }]));
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+
+    const setPlayersSpy = vi.fn();
+    const baseDeps = deps({
+      userId: 'user-a',
+      players: [],
+      setPlayers: setPlayersSpy,
+      communities: [],
+      setCommunities: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useCloudSync(baseDeps));
+
+    await act(async () => {
+      await result.current.downloadFromCloud();
+    });
+
+    expect(setPlayersSpy).toHaveBeenCalledWith([]);
+    expect(localStorage.getItem('vpg_players')).toBeNull();
+    expect(localStorage.getItem('vpg_sessions')).toBeNull();
+    expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
+  });
+
+  it('refuses to upload while the local cache still belongs to another account', async () => {
+    localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    let uploaded = false;
+    syncService.uploadLocalDataToCloud = async () => {
+      uploaded = true;
+      return emptyPayload();
+    };
+
+    const onToast = vi.fn();
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a', onToast })));
+
+    await act(async () => {
+      await result.current.uploadToCloud();
+    });
+
+    expect(uploaded).toBe(false);
+    expect(onToast).toHaveBeenCalledWith(expect.stringContaining('outra conta'), 'error');
+  });
+
+  it('refuses a two-way sync while the local cache still belongs to another account', async () => {
+    localStorage.setItem('vpg_cache_owner_id', 'user-b');
+    let synced = false;
+    syncService.syncNow = async () => {
+      synced = true;
+      return emptyPayload();
+    };
+
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a' })));
+
+    await act(async () => {
+      await result.current.sync();
+    });
+
+    expect(synced).toBe(false);
+  });
+});
+
+describe('reenvio automatico', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T12:00:00.000Z'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('reenvia quando a rede volta, apos o debounce', async () => {
+    let chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+    // Uma falha de rede aberta e vencida no ledger e o que torna o reenvio devido.
+    recordStoredSyncIssue({
+      operation: 'Sincronização',
+      context: 'upload',
+      error: new TypeError('Failed to fetch'),
+      occurredAt: '2026-07-31T11:00:00.000Z',
+    });
+
+    renderHook(() => useCloudSync(deps({ userId: 'user-1' })));
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      // Antes do debounce nao pode ter disparado.
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(chamadas).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(chamadas).toBe(1);
+  });
+
+  it('nao reenvia quando so ha erro estrutural', async () => {
+    let chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+    // 42501 e authorization: nao se conserta com o tempo, entao nao tem nextAttemptAt.
+    recordStoredSyncIssue({
+      operation: 'Sincronização',
+      context: 'upload',
+      error: { code: '42501', message: 'permission denied' },
+      occurredAt: '2026-07-31T11:00:00.000Z',
+    });
+
+    renderHook(() => useCloudSync(deps({ userId: 'user-1' })));
+
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(chamadas).toBe(0);
+  });
+
+  it('nao reenvia sem nenhuma falha registrada', async () => {
+    let chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+    renderHook(() => useCloudSync(deps({ userId: 'user-1' })));
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(chamadas).toBe(0);
+  });
+});
+
+describe('deteccao de conflito no caminho real do sync', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    syncService.downloadCloudDataToLocal = originalDownload;
+  });
+
+  const originalDownload = syncService.downloadCloudDataToLocal;
+
+  // Teste de INTEGRACAO, nao de funcao pura. A deteccao de conflito tem teste
+  // unitario verde em syncConflicts.test.ts e mesmo assim nunca dispara no app,
+  // porque o unitario usa chaves consistentes e o caminho real mistura id LOCAL
+  // com id de NUVEM. So um teste que atravessa applyResult pega isso.
+  it('marca os eventos locais quando a sessao esta controlada por outra pessoa', async () => {
+    // Sessao criada no app: id local != cloudId. E o caso normal, nao a excecao.
+    const sessaoDaNuvem = {
+      id: 'sess-local-1',
+      cloudId: '11111111-1111-1111-1111-111111111111',
+      name: 'Terça 19h',
+      controlledByUserId: 'user-ana',
+      controlClaimedAt: '2026-07-31T12:00:00.000Z',
+      controlDeviceId: 'dev-ana',
+    } as any;
+
+    // Um evento que ja veio da nuvem (tem cloudId) = placar da Ana.
+    const eventoDaAna = {
+      id: 'ev-ana',
+      cloudId: 'cloud-ev-ana',
+      sessionId: 'sess-local-1',
+      syncStatus: 'synced',
+    } as any;
+    // E o meu, marcado offline, ainda nao enviado.
+    const meuEvento = {
+      id: 'ev-meu',
+      sessionId: 'sess-local-1',
+      syncStatus: 'pending',
+    } as any;
+
+    syncService.downloadCloudDataToLocal = async () => ({
+      ...emptyPayload(),
+      sessions: [sessaoDaNuvem],
+      pointEvents: [eventoDaAna, meuEvento],
+    });
+
+    const setPointEvents = vi.fn();
+    const { result } = renderHook(() =>
+      useCloudSync(
+        deps({
+          userId: 'user-eu',
+          pointEvents: [meuEvento],
+          setPointEvents,
+          players: [{ id: 'p-ana', userId: 'user-ana', nome: 'Ana' }] as any,
+        }),
+      ),
+    );
+
+    await act(async () => {
+      await result.current.downloadFromCloud();
+    });
+
+    const aplicados = setPointEvents.mock.calls.at(-1)?.[0] ?? [];
+    const meuAplicado = aplicados.find((e: any) => e.id === 'ev-meu');
+    expect(meuAplicado?.conflictStatus).toBe('pending_decision');
+    // O evento da Ana nao e meu conflito: nao pode ser carimbado.
+    expect(aplicados.find((e: any) => e.id === 'ev-ana')?.conflictStatus).toBeUndefined();
+  });
+});

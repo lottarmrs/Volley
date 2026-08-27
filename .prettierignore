@@ -1,0 +1,10 @@
+dist/
+node_modules/
+coverage/
+package-lock.json
+.agents/
+.antigravity/
+.claude/
+graphify-out/
+supabase/migrations/
+docs/

@@ -1,0 +1,521 @@
+import type { AuthRole, CommunityMember, CommunityMemberRole } from '../types';
+import { membershipCloudService } from '@infra/supabase/membershipCloudService';
+import {
+  communityDiscoveryService,
+  type PublicCommunityResult,
+} from '@infra/supabase/communityDiscoveryService';
+import { appOk, productError, recoverableIssue, technicalError } from './appResult';
+import type { AppResult } from './appResult';
+
+export interface CommunityJoinPreview {
+  id: string;
+  name: string;
+  description: string | null;
+  memberCount: number;
+  myStatus: string | null;
+}
+
+export type { PublicCommunityResult };
+
+export interface CommunityMembershipGateway {
+  fetchByCommunity: (
+    communityCloudId: string,
+    communityLocalId?: string,
+  ) => Promise<CommunityMember[]>;
+  /** `identifier` e e-mail ou username — o servidor distingue pela presenca de '@'. */
+  addMemberByIdentifier: (
+    communityCloudId: string,
+    identifier: string,
+    role: CommunityMemberRole,
+    communityLocalId?: string,
+  ) => Promise<CommunityMember>;
+  updateRole: (memberId: string, role: CommunityMemberRole) => Promise<CommunityMember>;
+  removeMember: (memberId: string) => Promise<void>;
+  approveRequest: (memberId: string) => Promise<void>;
+  rejectRequest: (memberId: string) => Promise<void>;
+  generateJoinCode: (communityCloudId: string) => Promise<string>;
+  disableJoinCode: (communityCloudId: string) => Promise<void>;
+  leaveCommunity: (communityCloudId: string) => Promise<void>;
+  findByCode: (code: string) => Promise<CommunityJoinPreview | null>;
+  requestToJoin: (code: string, communityLocalId?: string) => Promise<CommunityMember>;
+}
+
+export interface CommunityDiscoveryGateway {
+  searchPublic: (query: string) => Promise<PublicCommunityResult[]>;
+  requestToJoinPublic: (communityCloudId: string) => Promise<void>;
+}
+
+export const supabaseCommunityMembershipGateway: CommunityMembershipGateway = {
+  fetchByCommunity: (communityCloudId, communityLocalId) =>
+    membershipCloudService.fetchByCommunity(communityCloudId, communityLocalId),
+  addMemberByIdentifier: (communityCloudId, email, role, communityLocalId) =>
+    membershipCloudService.addMemberByIdentifier(communityCloudId, email, role, communityLocalId),
+  updateRole: (memberId, role) => membershipCloudService.updateRole(memberId, role),
+  removeMember: (memberId) => membershipCloudService.removeMember(memberId),
+  approveRequest: (memberId) => membershipCloudService.approveRequest(memberId),
+  rejectRequest: (memberId) => membershipCloudService.rejectRequest(memberId),
+  generateJoinCode: (communityCloudId) => membershipCloudService.generateJoinCode(communityCloudId),
+  disableJoinCode: (communityCloudId) => membershipCloudService.disableJoinCode(communityCloudId),
+  leaveCommunity: (communityCloudId) => membershipCloudService.leaveCommunity(communityCloudId),
+  findByCode: (code) => membershipCloudService.findByCode(code),
+  requestToJoin: (code, communityLocalId) =>
+    membershipCloudService.requestToJoin(code, communityLocalId),
+};
+
+export const supabaseCommunityDiscoveryGateway: CommunityDiscoveryGateway = {
+  searchPublic: (query) => communityDiscoveryService.searchPublic(query),
+  requestToJoinPublic: (communityCloudId) =>
+    communityDiscoveryService.requestToJoinPublic(communityCloudId),
+};
+
+export async function fetchCommunityMembersQuery(
+  input: { communityCloudId?: string; communityLocalId?: string },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ members: CommunityMember[] }>> {
+  const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  try {
+    const members = await gateway.fetchByCommunity(
+      cloudIdResult.value.communityCloudId,
+      input.communityLocalId,
+    );
+    return appOk({ members });
+  } catch (error) {
+    return appOk({ members: [] }, [
+      recoverableIssue('cloud_unavailable', 'Não foi possível carregar os membros.', error),
+    ]);
+  }
+}
+
+export async function inviteCommunityMemberCommand(
+  input: {
+    communityCloudId?: string;
+    communityLocalId?: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    /** E-mail ou username. */
+    identifier: string;
+    role: CommunityMemberRole;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ member: CommunityMember }>> {
+  const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  const identifier = input.identifier.trim().toLowerCase();
+  if (!identifier) {
+    return productError('invalid_input', 'Informe um e-mail ou username para adicionar.');
+  }
+  if (input.role === 'owner') {
+    return productError('permission_denied', 'O papel de dono não pode ser atribuído por convite.');
+  }
+
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (managerResult.ok === false) return managerResult;
+
+  try {
+    const member = await gateway.addMemberByIdentifier(
+      cloudIdResult.value.communityCloudId,
+      identifier,
+      input.role,
+      input.communityLocalId,
+    );
+    return appOk({ member });
+  } catch (error) {
+    // O RPC distingue "nenhum atleta com esse username" de "atleta existe mas sem
+    // conta vinculada, use o codigo de claim" — e essa diferenca so ajuda se chegar na
+    // tela. Engolir tudo numa mensagem generica manda o admin procurar um cadastro que
+    // esta bem ali. Erros 22023 sao de dado informado pelo usuario, nao falha tecnica.
+    // O PostgrestError e um objeto simples, NAO uma instancia de Error — verificado no
+    // app: `error instanceof Error` e false, mas `code` e `message` estao presentes.
+    // Testar por instanceof descartaria silenciosamente toda mensagem do servidor.
+    const pgError = error as { code?: string; message?: string } | null;
+    if (pgError?.code === '22023' && pgError.message?.trim()) {
+      return productError('invalid_input', pgError.message.trim());
+    }
+    return technicalError('Não foi possível adicionar o membro.', error);
+  }
+}
+
+export async function changeCommunityMemberRoleCommand(
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+    role: CommunityMemberRole;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ member: CommunityMember }>> {
+  if (input.role === 'owner') {
+    return productError('permission_denied', 'O papel de dono não pode ser atribuído por aqui.');
+  }
+
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (managerResult.ok === false) return managerResult;
+
+  const targetResult = findTargetMember(input.members, input.memberId);
+  if (targetResult.ok === false) return targetResult;
+
+  const editableResult = ensureEditableMember(targetResult.value.member, input.currentUserId);
+  if (editableResult.ok === false) return editableResult;
+
+  try {
+    const member = await gateway.updateRole(input.memberId, input.role);
+    return appOk({ member });
+  } catch (error) {
+    return technicalError('Não foi possível alterar o papel do membro.', error);
+  }
+}
+
+export async function removeCommunityMemberCommand(
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ removedMemberId: string }>> {
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (managerResult.ok === false) return managerResult;
+
+  const targetResult = findTargetMember(input.members, input.memberId);
+  if (targetResult.ok === false) return targetResult;
+
+  const editableResult = ensureEditableMember(targetResult.value.member, input.currentUserId);
+  if (editableResult.ok === false) return editableResult;
+
+  try {
+    await gateway.removeMember(input.memberId);
+    return appOk({ removedMemberId: input.memberId });
+  } catch (error) {
+    return technicalError('Não foi possível remover o membro.', error);
+  }
+}
+
+export async function approveCommunityJoinRequestCommand(
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ memberId: string }>> {
+  const approverResult = ensureApprovingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (approverResult.ok === false) return approverResult;
+
+  const targetResult = findTargetMember(input.members, input.memberId);
+  if (targetResult.ok === false) return targetResult;
+
+  try {
+    await gateway.approveRequest(input.memberId);
+    return appOk({ memberId: input.memberId });
+  } catch (error) {
+    return technicalError('Não foi possível aprovar o pedido.', error);
+  }
+}
+
+export async function rejectCommunityJoinRequestCommand(
+  input: {
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+    memberId: string;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ memberId: string }>> {
+  const approverResult = ensureApprovingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (approverResult.ok === false) return approverResult;
+
+  const targetResult = findTargetMember(input.members, input.memberId);
+  if (targetResult.ok === false) return targetResult;
+
+  try {
+    await gateway.rejectRequest(input.memberId);
+    return appOk({ memberId: input.memberId });
+  } catch (error) {
+    return technicalError('Não foi possível rejeitar o pedido.', error);
+  }
+}
+
+export async function generateCommunityJoinCodeCommand(
+  input: {
+    communityCloudId?: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ joinCode: string }>> {
+  const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (managerResult.ok === false) return managerResult;
+
+  try {
+    const joinCode = await gateway.generateJoinCode(cloudIdResult.value.communityCloudId);
+    return appOk({ joinCode });
+  } catch (error) {
+    return technicalError('Não foi possível gerar o código.', error);
+  }
+}
+
+export async function disableCommunityJoinCodeCommand(
+  input: {
+    communityCloudId?: string;
+    members: CommunityMember[];
+    currentUserId: string | null;
+    globalRole?: AuthRole | null;
+  },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<Record<string, never>>> {
+  const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  const managerResult = ensureManagingCurrentMember(
+    input.members,
+    input.currentUserId,
+    input.globalRole,
+  );
+  if (managerResult.ok === false) return managerResult;
+
+  try {
+    await gateway.disableJoinCode(cloudIdResult.value.communityCloudId);
+    return appOk({});
+  } catch (error) {
+    return technicalError('Não foi possível desativar o código.', error);
+  }
+}
+
+export async function leaveCommunityCommand(
+  input: { communityCloudId?: string; currentMember: CommunityMember | null },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<Record<string, never>>> {
+  const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
+  if (cloudIdResult.ok === false) return cloudIdResult;
+  if (!input.currentMember) {
+    return productError('not_found', 'Sua participação nesta comunidade não foi encontrada.');
+  }
+  if (input.currentMember.role === 'owner') {
+    return productError(
+      'permission_denied',
+      'O dono não pode sair da comunidade. Passe o comando para outra pessoa antes de sair.',
+    );
+  }
+
+  try {
+    await gateway.leaveCommunity(cloudIdResult.value.communityCloudId);
+    return appOk({});
+  } catch (error) {
+    return technicalError('Não foi possível sair da comunidade.', error);
+  }
+}
+
+export async function searchPublicCommunitiesQuery(
+  input: { query: string },
+  discoveryGateway: CommunityDiscoveryGateway = supabaseCommunityDiscoveryGateway,
+): Promise<AppResult<{ communities: PublicCommunityResult[] }>> {
+  try {
+    const communities = await discoveryGateway.searchPublic(input.query.trim());
+    return appOk({ communities });
+  } catch (error) {
+    return technicalError('Não foi possível buscar comunidades.', error);
+  }
+}
+
+export async function requestPublicCommunityJoinCommand(
+  input: { communityCloudId?: string },
+  discoveryGateway: CommunityDiscoveryGateway = supabaseCommunityDiscoveryGateway,
+): Promise<AppResult<Record<string, never>>> {
+  const cloudIdResult = requireCommunityCloudId(input.communityCloudId);
+  if (cloudIdResult.ok === false) return cloudIdResult;
+
+  try {
+    await discoveryGateway.requestToJoinPublic(cloudIdResult.value.communityCloudId);
+    return appOk({});
+  } catch (error) {
+    return technicalError('Não foi possível enviar o pedido.', error);
+  }
+}
+
+export async function previewCommunityJoinByCodeQuery(
+  input: { code: string },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ community: CommunityJoinPreview }>> {
+  const code = input.code.trim().toUpperCase();
+  if (!code) return productError('invalid_input', 'Informe o código da comunidade.');
+
+  try {
+    const community = await gateway.findByCode(code);
+    if (!community) {
+      return productError('not_found', 'Código de convite inválido ou comunidade não encontrada.');
+    }
+    return appOk({ community });
+  } catch (error) {
+    return technicalError('Não foi possível buscar a comunidade.', error);
+  }
+}
+
+export async function requestCommunityJoinByCodeCommand(
+  input: { code: string; communityLocalId?: string },
+  gateway: CommunityMembershipGateway = supabaseCommunityMembershipGateway,
+): Promise<AppResult<{ member: CommunityMember }>> {
+  const code = input.code.trim().toUpperCase();
+  if (!code) return productError('invalid_input', 'Informe o código da comunidade.');
+
+  try {
+    const member = await gateway.requestToJoin(code, input.communityLocalId);
+    return appOk({ member });
+  } catch (error) {
+    return technicalError('Não foi possível enviar o pedido.', error);
+  }
+}
+
+function requireCommunityCloudId(
+  communityCloudId: string | undefined,
+): AppResult<{ communityCloudId: string }> {
+  const trimmedCloudId = communityCloudId?.trim();
+  return trimmedCloudId
+    ? appOk({ communityCloudId: trimmedCloudId })
+    : productError('cloud_unavailable', 'Sincronize a comunidade com a nuvem antes.');
+}
+
+function findCurrentMember(
+  members: CommunityMember[],
+  currentUserId: string | null,
+): AppResult<{ member: CommunityMember }> {
+  if (!currentUserId) {
+    return productError('not_authenticated', 'Entre na sua conta para gerenciar membros.');
+  }
+
+  const member = members.find((candidate) => candidate.userId === currentUserId);
+  return member
+    ? appOk({ member })
+    : productError('not_found', 'Sua participação nesta comunidade não foi encontrada.');
+}
+
+function ensureManagingCurrentMember(
+  members: CommunityMember[],
+  currentUserId: string | null,
+  globalRole?: AuthRole | null,
+): AppResult<Record<string, never>> {
+  if (!currentUserId) {
+    return productError('not_authenticated', 'Entre na sua conta para gerenciar membros.');
+  }
+  if (globalRole === 'programmer') {
+    return productError(
+      'permission_denied',
+      'Você não tem permissão para gerenciar membros desta comunidade.',
+    );
+  }
+  if (globalRole === 'master') return appOk({});
+
+  const currentMemberResult = findCurrentMember(members, currentUserId);
+  if (currentMemberResult.ok === false) return currentMemberResult;
+
+  const currentMember = currentMemberResult.value.member;
+  if ((currentMember.status ?? 'active') !== 'active') {
+    return productError(
+      'permission_denied',
+      'Sua participação ainda não permite gerenciar membros.',
+    );
+  }
+  if (currentMember.role !== 'owner' && currentMember.role !== 'admin') {
+    return productError(
+      'permission_denied',
+      'Você não tem permissão para gerenciar membros desta comunidade.',
+    );
+  }
+  return appOk({});
+}
+
+function ensureApprovingCurrentMember(
+  members: CommunityMember[],
+  currentUserId: string | null,
+  globalRole?: AuthRole | null,
+): AppResult<Record<string, never>> {
+  if (!currentUserId) {
+    return productError('not_authenticated', 'Entre na sua conta para avaliar pedidos.');
+  }
+  if (globalRole === 'programmer') {
+    return productError(
+      'permission_denied',
+      'Você não tem permissão para avaliar pedidos desta comunidade.',
+    );
+  }
+  if (globalRole === 'master') return appOk({});
+
+  const currentMemberResult = findCurrentMember(members, currentUserId);
+  if (currentMemberResult.ok === false) return currentMemberResult;
+
+  const currentMember = currentMemberResult.value.member;
+  if ((currentMember.status ?? 'active') !== 'active') {
+    return productError('permission_denied', 'Sua participação ainda não permite avaliar pedidos.');
+  }
+  // owner / admin / moderator podem avaliar pedidos. Outras roles (member, organizador)
+  // continuam barradas, alinhado com a capability 'approve_members' do banco.
+  if (
+    currentMember.role !== 'owner' &&
+    currentMember.role !== 'admin' &&
+    currentMember.role !== 'moderator'
+  ) {
+    return productError(
+      'permission_denied',
+      'Você não tem permissão para avaliar pedidos desta comunidade.',
+    );
+  }
+  return appOk({});
+}
+
+function findTargetMember(
+  members: CommunityMember[],
+  memberId: string,
+): AppResult<{ member: CommunityMember }> {
+  const member = members.find((candidate) => candidate.id === memberId);
+  return member ? appOk({ member }) : productError('not_found', 'Membro não encontrado.');
+}
+
+function ensureEditableMember(
+  member: CommunityMember,
+  currentUserId: string | null,
+): AppResult<Record<string, never>> {
+  if (member.role === 'owner') {
+    return productError('permission_denied', 'O dono não pode ser alterado por aqui.');
+  }
+  if (member.userId === currentUserId) {
+    return productError(
+      'permission_denied',
+      'Você não pode alterar sua própria participação aqui.',
+    );
+  }
+  return appOk({});
+}

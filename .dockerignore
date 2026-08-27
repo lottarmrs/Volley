@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+.vscode
+.agents
+.antigravity
+.claude
+.superpowers
+.tmp_*
+*.log
+npm-debug.log*

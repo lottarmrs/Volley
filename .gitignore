@@ -1,0 +1,56 @@
+node_modules/
+build/
+dist/
+coverage/
+test-results/
+playwright-report/
+.worktrees/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Local agent/tool state
+.claude/settings.local.json
+.superpowers/
+
+# Generated audit artifacts
+audit-output/
+graphify-out/
+developer-roadmap/
+tmp/
+
+# Config local de MCP: aponta o project_ref e e por-maquina (a auth e OAuth,
+# nao fica no arquivo). Fora do versionamento por opcao — repo publico.
+.mcp.json
+
+# Config local do OpenCode: aponta um caminho de plugin especifico da maquina.
+.opencode/
+
+# Cache local da CLI do Supabase (linked project refs, versões) — por maquina.
+supabase/.temp/
+
+# Lixo do Windows: redirecionamento `> NUL` no bash cria um arquivo "nul".
+nul
+
+# Snapshots/backup pre-reset de producao — artefatos operacionais locais do
+# master (UUIDs e rows de contas reais). So ficam na maquina do operador, nunca
+# no repo (publico).
+docs/operations/snapshots/
+
+# Estado de runtime do modo live do Impeccable (pid, porta, token, locks).
+.impeccable/live/
+
+# Heavy local agent/tool caches: reinstalled per machine, not project source.
+# Small per-tool configs (.claude/launch.json, .codex/hooks.json, .agents/rules)
+# stay versioned; only the bulky skill/state caches are excluded.
+.antigravity/
+.impeccable/
+.agent/skills/
+.agents/skills/
+.claude/skills/
+.gemini/skills/
+.github/skills/
+
+# Agent session transcripts.
+session-ses_*.md

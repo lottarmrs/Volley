@@ -32,6 +32,34 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Fix R11 verdict cardinality guard
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'scripts/promote-architecture-r11.mjs';
+          const original = readFileSync(path, 'utf8');
+          const from = `function replaceExactly(content, from, to, label) {
+            const count = content.split(from).length - 1;
+            if (count !== 1) {
+              failures.push(\`${'${label}'}: expected exactly one occurrence, found ${'${count}'}\`);
+              return content;
+            }
+            return content.replace(from, to);
+          }`;
+          const to = `function replaceExactly(content, from, to, label) {
+            const count = content.split(from).length - 1;
+            const expected = label === 'C7 promotion verdict' ? 2 : 1;
+            if (count !== expected) {
+              failures.push(\`${'${label}'}: expected exactly ${'${expected}'} occurrence(s), found ${'${count}'}\`);
+              return content;
+            }
+            return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
+          }`;
+          if (!original.includes(from)) throw new Error('R11 promotion guard source did not match expected pre-fix block');
+          writeFileSync(path, original.replace(from, to), 'utf8');
+          NODE
+
       - name: R11 promotion preflight
         run: node scripts/promote-architecture-r11.mjs
 
@@ -56,7 +84,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json docs/architecture scripts/check-architecture-r11.mjs
+          git add package.json docs/architecture scripts/promote-architecture-r11.mjs scripts/check-architecture-r11.mjs
           if git diff --cached --quiet; then
             echo "No R11 promotion changes to commit."
             exit 0

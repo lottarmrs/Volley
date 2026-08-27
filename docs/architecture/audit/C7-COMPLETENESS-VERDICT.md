@@ -1,6 +1,6 @@
 # C7 — Architecture Completeness Verdict
 
-> Status: `R10-PASS / READY-FOR-R11-PROMOTION`
+> Status: `CANONICAL-PROMOTED / R11-COMPLETE`
 >
 > Owner: `Architecture Governance`
 >
@@ -19,7 +19,7 @@ After R1–R9 remediation and the R10 machine + semantic rerun:
 ```text
 TARGET ARCHITECTURE CONTENT
 =
-COMPLETE ENOUGH FOR CANONICAL PROMOTION REVIEW
+CANONICAL / GOVERNING TARGET ARCHITECTURE
 
 R10
 =
@@ -35,7 +35,7 @@ AP1 FREEZING BLOCKERS
 
 CANONICAL PROMOTION
 =
-READY FOR R11
+COMPLETE / R11
 
 PRODUCTION/RUNTIME PARITY
 =
@@ -44,15 +44,7 @@ NOT CLAIMED
 
 The architecture is no longer blocked by the meta-architecture contradictions that caused the original C7 promotion freeze.
 
-R11 remains a distinct deliberate step because:
-
-```text
-R10 PASS
-≠
-SILENT STATUS PROMOTION
-```
-
-The corpus therefore remains `DRAFT-CANONICAL` until R11 performs the reviewable promotion change.
+R11 was executed as a distinct deliberate promotion after R10 PASS. The promoted corpus is now the governing target architecture; this status change does not claim runtime parity or close registered OPEN/HYP items.
 
 ---
 
@@ -325,13 +317,13 @@ One AP2 repository-hygiene finding remains and is explicitly non-freezing.
 Therefore:
 
 ```text
-R11 PROMOTION REVIEW
-= AUTHORIZED TO START
+R11 CANONICAL PROMOTION
+= COMPLETE
 ```
 
 ---
 
-# 9. What R11 may promote
+# 9. What R11 promoted
 
 Recommended promotion sequence remains:
 
@@ -406,7 +398,7 @@ R10 PASS
 
 CANONICAL PROMOTION
 =
-READY FOR R11
+COMPLETE / R11
 
 RUNTIME MIGRATION
 =
@@ -418,7 +410,5 @@ No C8 architecture expansion is required to resolve the current state.
 The next correct step is:
 
 ```text
-R11 DELIBERATE CANONICAL PROMOTION
-→
 EXECUTE C6 SLICES UNDER THE PROMOTED TARGET
 ```

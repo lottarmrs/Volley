@@ -1,6 +1,6 @@
 # C6 — Current → Target Execution Program Master
 
-> Status: `DRAFT-CANONICAL / C6`
+> Status: `CANONICAL / C6`
 >
 > Owner: `Migration + Architecture Governance + bounded-context owners`
 >

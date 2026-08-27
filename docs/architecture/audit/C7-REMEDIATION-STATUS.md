@@ -1,6 +1,6 @@
 # C7 — Remediation Status
 
-> Status: `R10-PASS / READY-FOR-R11`
+> Status: `R11-COMPLETE / CANONICAL-PROMOTED`
 >
 > Owner: `Architecture Governance + finding owners`
 >

@@ -1,6 +1,6 @@
 # EAP MASTER — Arquitetura do Volley
 
-> Status: `DRAFT-CANONICAL / C1 / C7-R1-R5-RECONCILED`
+> Status: `CANONICAL / C1 / C7-R1-R5-RECONCILED`
 >
 > Branch de consolidação: `docs/architecture-consolidation`
 >

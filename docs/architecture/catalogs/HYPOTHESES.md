@@ -1,6 +1,6 @@
 # Hypothesis Catalog — Volley
 
-> Status: `DRAFT-CANONICAL / C4 / C7-R5-UPDATED`
+> Status: `CANONICAL / C4 / C7-R5-UPDATED`
 >
 > Owner: `Architecture Governance + listed hypothesis owners`
 >

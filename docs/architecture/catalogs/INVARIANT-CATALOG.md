@@ -1,6 +1,6 @@
 # Global + Context Invariant Catalog — Volley
 
-> Status: `DRAFT-CANONICAL / C4`
+> Status: `CANONICAL / C4`
 >
 > Owner: `Architecture Governance + invariant owners`
 >

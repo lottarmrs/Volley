@@ -1,6 +1,6 @@
 # C5 — Cross-cutting Architecture Matrices Master
 
-> Status: `DRAFT-CANONICAL / C5`
+> Status: `CANONICAL / C5`
 >
 > Owner: `Architecture Governance + bounded-context owners`
 >

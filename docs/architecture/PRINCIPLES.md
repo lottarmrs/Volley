@@ -1,6 +1,6 @@
 # Architecture Principles — Volley
 
-> Status: `DRAFT-CANONICAL / C2.00`
+> Status: `CANONICAL / C2.00`
 >
 > Este documento define princípios arquiteturais de alta estabilidade. Ele não substitui ADRs nem os documentos N2.01–N2.23. Quando uma decisão futura precisar violar um princípio aqui, ela deve ser tratada explicitamente por ADR e revisão arquitetural.
 

@@ -40,11 +40,12 @@ function isExplicitlyNonTarget(file, content) {
 
 function replaceExactly(content, from, to, label) {
   const count = content.split(from).length - 1;
-  if (count !== 1) {
-    failures.push(`${label}: expected exactly one occurrence, found ${count}`);
+  const expected = label === 'C7 promotion verdict' ? 2 : 1;
+  if (count !== expected) {
+    failures.push(`${label}: expected exactly ${expected} occurrence(s), found ${count}`);
     return content;
   }
-  return content.replace(from, to);
+  return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
 }
 
 function writeChanged(path, original, next) {

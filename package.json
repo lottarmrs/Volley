@@ -17,14 +17,15 @@
     "lint:eslint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:architecture": "node scripts/check-architecture-references.mjs && node scripts/check-architecture-r10.mjs",
+    "check:architecture": "node scripts/check-architecture-references.mjs && node scripts/check-architecture-r10.mjs && node scripts/check-architecture-r11.mjs",
     "check:architecture:references": "node scripts/check-architecture-references.mjs",
     "check:architecture:r10": "node scripts/check-architecture-r10.mjs",
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:ui": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "check:architecture:r11": "node scripts/check-architecture-r11.mjs"
   },
   "dependencies": {
     "@daypilot/daypilot-lite-react": "^5.10.0",

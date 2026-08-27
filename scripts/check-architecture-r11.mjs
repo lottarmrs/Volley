@@ -122,8 +122,8 @@ const hypPath = join(architectureRoot, 'catalogs', 'HYPOTHESES.md');
   const hyp = readFileSync(hypPath, 'utf8');
   if (!/> Status:\s*`CANONICAL \/ C4`/.test(firstLines(open))) fail(openPath, 'Open Decision registry document is not canonical');
   if (!/\bOPEN-[A-Z0-9-]+\b/.test(open)) fail(openPath, 'Open Decision identities disappeared during promotion');
-  if (!/not an implementation default/i.test(open)) fail(openPath, 'Open Decision non-default rule disappeared during promotion');
-  if (!/> Status:\s*`CANONICAL \/ C4`/.test(firstLines(hyp))) fail(hypPath, 'Hypothesis registry document is not canonical');
+  if (!/not(?:\*\*)? an implementation default/i.test(open)) fail(openPath, 'Open Decision non-default rule disappeared during promotion');
+  if (!/> Status:\s*`CANONICAL \/ C4(?: \/ [^`]*)?`/.test(firstLines(hyp))) fail(hypPath, 'Hypothesis registry document is not canonical');
   if (!/\bHYP-[A-Z0-9-]+\b/.test(hyp)) fail(hypPath, 'Hypothesis identities disappeared during promotion');
 }
 
@@ -132,7 +132,7 @@ const domainModelPath = join(architectureRoot, 'domain-model.md');
 {
   const head = firstLines(readFileSync(domainModelPath, 'utf8'), 35);
   if (!/TRANSITIONAL \/ LEGACY CURRENT-MODEL REFERENCE/.test(head)) fail(domainModelPath, 'legacy domain model lost transitional classification');
-  if (!/NOT TARGET SOURCE OF TRUTH/i.test(head)) fail(domainModelPath, 'legacy domain model lost non-target warning');
+  if (!/not (?:a )?target source of truth/i.test(head)) fail(domainModelPath, 'legacy domain model lost non-target warning');
 }
 
 const historicalRegistryPath = join(architectureRoot, 'governance', 'OPEN-DECISIONS-HYPOTHESES.md');

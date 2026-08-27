@@ -1,6 +1,6 @@
 # C4 — Architecture Registries Index
 
-> Status: `DRAFT-CANONICAL / C4`
+> Status: `CANONICAL / C4`
 >
 > Owner: `Architecture Governance + bounded-context owners`
 >

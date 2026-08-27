@@ -1,6 +1,6 @@
 # Canonical Architecture Decision Record Catalog — Volley
 
-> Status: `DRAFT-CANONICAL / C3`
+> Status: `CANONICAL / C3`
 >
 > Owner: `Architecture + bounded-context owners`
 >

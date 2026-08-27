@@ -1,6 +1,6 @@
 # Canonical Glossary — Volley
 
-> Status: `DRAFT-CANONICAL / C2.00 / C7-R5-NORMALIZED`
+> Status: `CANONICAL / C2.00 / C7-R5-NORMALIZED`
 >
 > Este glossário define a linguagem canônica da arquitetura. Termos legados podem continuar existindo durante a migração, mas devem ser explicitamente marcados como `Legacy*` quando conflitam com estes significados.
 >

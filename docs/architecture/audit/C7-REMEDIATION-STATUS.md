@@ -14,12 +14,10 @@
 
 # 0. Reading rule
 
-The findings ledger is the immutable-ish audit record of what C7 found.
-
-This file tracks remediation state.
+The findings ledger preserves what C7 found. This file tracks what has since been remediated.
 
 ```text
-FOUNDING FINDING
+ORIGINAL FINDING
 ≠
 CURRENT REMEDIATION STATUS
 ```
@@ -33,11 +31,11 @@ Promotion remains blocked until the rerun gates in R10/R11 pass.
 | Step | Status | Result |
 |---|---|---|
 | R0 promotion freeze | DONE | corpus remains DRAFT-CANONICAL / promotion blocked |
-| R1 EAP decomposition authority | DONE | EAP now owns N2/scope/owner only; owner N2 owns detailed N3 tree |
-| R2 legacy/current document classification | PARTIAL-DONE | `domain-model.md` and destructive reset runbook visibly classified; wider corpus banner sweep still belongs to R10 hygiene check |
-| R3 operational schema/security authority | DONE-DOC / RUNTIME-W0 | reconstruction contract published; schema drift doc demoted to diagnostics; reset security posture marked historical; privileged-function inventory seed created |
-| R4 references + checker | NEXT | not started in this remediation batch |
-| R5 ownership/status/naming blockers | OPEN | Rating owner and naming/taxonomy findings remain |
+| R1 EAP decomposition authority | DONE | EAP owns N2/scope/owner; owner N2 owns detailed N3 tree |
+| R2 legacy/current document classification | PARTIAL-DONE | `domain-model.md` and destructive reset runbook visibly classified; broader banner sweep remains R10 hygiene |
+| R3 operational schema/security authority | DONE-DOC / RUNTIME-W0 | reconstruction contract published; schema drift demoted to diagnostics; privileged-function inventory seed created |
+| R4 references + checker | NEXT | known broken links + executable checker pending |
+| R5 ownership/status/naming blockers | IN-PROGRESS | Player Skill Profile owner resolved; stats/standings/observability/Match-command naming remain |
 | R6 post-C6 ADR delta | OPEN | pending |
 | R7 severity/fitness governance | OPEN | pending |
 | R8 truth-class normalization | OPEN | pending |
@@ -47,7 +45,7 @@ Promotion remains blocked until the rerun gates in R10/R11 pass.
 
 ---
 
-# 2. Finding status
+# 2. AP0 finding status
 
 ## C7-F-001 — EAP N3 drift
 
@@ -62,13 +60,7 @@ EAP = sole N2 identity/scope/owner index
 owner N2 = sole detailed N3 authority
 ```
 
-The duplicated manually edited N3 trees were removed from EAP rather than synchronized one more time.
-
-Evidence:
-
-- `docs/architecture/EAP-MASTER.md`
-
-Remaining executable guard belongs to R4: duplicate N3 IDs inside owner N2 files should be caught mechanically.
+Duplicate N3 IDs inside one owner N2 remain a future executable reference/structure check.
 
 ---
 
@@ -78,14 +70,7 @@ Remaining executable guard belongs to R4: duplicate N3 IDs inside owner N2 files
 REMEDIATED
 ```
 
-The document now declares:
-
-```text
-TRANSITIONAL / LEGACY CURRENT-MODEL REFERENCE
-NOT TARGET SOURCE OF TRUTH
-```
-
-and preserves legacy statements only as Current→Target evidence.
+The document now declares itself transitional/legacy and not target source of truth.
 
 ---
 
@@ -95,16 +80,7 @@ and preserves legacy statements only as Current→Target evidence.
 REMEDIATED
 ```
 
-The runbook now declares:
-
-```text
-HISTORICAL / COMPLETED RUNBOOK
-SUPERSEDED AS GENERAL MIGRATION PATH
-```
-
-and points to N2.22 + C6 W0–W14 as the current migration authority.
-
-A future destructive reset requires a new explicit exception/break-glass review.
+The runbook is historical/completed and superseded as a general migration path. N2.22 + C6 govern Current→Target migration.
 
 ---
 
@@ -115,27 +91,19 @@ REMEDIATED AT DOCUMENT/AUTHORITY LEVEL
 RUNTIME NORMALIZATION OWNED BY W0
 ```
 
-Resolution:
+During transition:
 
 ```text
 schema.sql
 =
-frozen legacy baseline segment during transition
-NOT manually maintained current-schema authority
+frozen legacy baseline segment
 
-forward numbered migrations
+numbered migrations
 =
-delta history
+forward delta segments
 ```
 
-Target W0 will normalize this into an explicit versioned baseline/history with any consolidated snapshot generated separately.
-
-Evidence:
-
-- `docs/operations/database-reconstruction-contract.md`
-- `docs/operations/schema-drift-check.md`
-
-No claim is made that the numbered migrations already replay from an empty DB without the legacy baseline; that must be proven by W0.
+It is no longer a manually synchronized second current-schema authority.
 
 ---
 
@@ -146,78 +114,95 @@ REMEDIATED AT DOCUMENT/POLICY LEVEL
 RUNTIME HARDENING OWNED BY W0/WAVES
 ```
 
-The historical `search_path = public` posture is no longer presented as target policy.
-
-Target remains:
-
-```text
-SECURITY DEFINER
-SET search_path = ''
-fully-qualified references
-explicit grants/revokes
-trusted actor/capability checks
-```
-
-An inventory seed now records known privileged/security-sensitive functions and requires mechanical W0 enumeration before high-risk cutover.
-
-Evidence:
-
-- `docs/operations/privileged-function-inventory.md`
-- historical reset runbook C7 banner
+Historical `search_path = public` remains evidence only. Target hardening remains `search_path=''` + qualified references + explicit grants/revokes + trusted authorization.
 
 ---
 
 ## C7-F-006 — Rating / Skill Profile ownership
 
 ```text
-OPEN — NEXT AP0
+REMEDIATED
 ```
 
-Do not freeze Rating/Skill Profile schema/API ownership yet.
+Resolution:
 
-The next remediation step must choose one explicit owner/sub-owner and update EAP/C5/C4/ADR relationships consistently.
+```text
+N2.02 — Identity / Player
+└── Player Skill Profile sub-owner
+```
+
+Owned semantics:
+
+```text
+PlayerEvaluation
+CommunityPlayerSkillProfile
+GlobalPlayerSkillProfile
+aggregation/profile versions
+confidence/missing semantics
+Derived Overall formula/version
+profile rebuild
+```
+
+Boundaries:
+
+```text
+Community
+→ evaluator authorization/context
+
+N2.02 / Player Skill Profile
+→ evaluation/profile meaning
+
+N2.06 Team Formation
+→ PlayerBalanceSnapshot + solver/candidates/TeamDraw
+
+N2.09 Statistics
+→ factual Match-derived statistics
+```
+
+`OPEN-RATING-001/002` remain open under the resolved owner; ownership resolution did not invent an estimator or credibility policy.
+
+Evidence:
+
+- `docs/architecture/EAP-MASTER.md`
+- `docs/architecture/contexts/N2.02-player-skill-profile-ownership.md`
+
+C5 visible labels `Rating`, `Rating projection` and `Rating/display` are now interpreted as aliases for this sub-owner and should be normalized during C5 cleanup, but they no longer create an ownership ambiguity.
 
 ---
 
-# 3. Current promotion gate
+# 3. AP0 promotion state
 
 ```text
-AP0 remediation progress
+C7-F-001..C7-F-006
 =
-F001..F005 addressed
-F006 open
+ARCHITECTURE/DOCUMENT AUTHORITY BLOCKERS ADDRESSED
 ```
 
-Therefore:
-
-```text
-CANONICAL PROMOTION
-=
-STILL BLOCKED
-```
-
-Implementation work allowed remains limited by C7 R0:
-
-```text
-W0 safety/test/tooling
-pure non-conflicting W1 corrections
-prototypes/shadow work that do not silently close OPEN decisions
-```
+This does **not** mean canonical promotion is allowed yet. AP1/reference/lifecycle/evidence findings remain and R10 has not rerun.
 
 ---
 
-# 4. Next action
+# 4. Next remediation batch — R4 + R5 AP1
+
+The next batch must address:
 
 ```text
-R5/AP0 first:
-resolve C7-F-006 Rating / Skill Profile owner
-
-then R4/R5 AP1 consistency:
-broken links
-stat contribution naming
-StandingsProjection naming
-observability ID taxonomy
-Match correction command name
+C7-F-007  broken Notifications links
+C7-F-008  broken Media links
+C7-F-009  PlayerMatchStatContribution naming/status
+C7-F-010  StandingsProjection naming
+C7-F-011  command_id/request_id/trace_id/reference taxonomy
+C7-F-012  Match correction command vocabulary
+C7-F-017  HYP-STAT-001 lifecycle
+C7-F-019  executable reference integrity
 ```
 
-R4 reference checker should be implemented before final rerun so the same class of link/index drift becomes executable evidence rather than another manual audit.
+After that, proceed to:
+
+```text
+R6 post-C6 ADR delta
+R7 severity + fitness-function lifecycle
+R8 mixed truth-class normalization
+R9 execution ledger before first cutover
+R10 full rerun
+```

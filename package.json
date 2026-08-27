@@ -17,6 +17,7 @@
     "lint:eslint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "check:architecture": "node scripts/check-architecture-references.mjs",
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:ui": "vitest run",

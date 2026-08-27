@@ -83,3 +83,37 @@ test('balanceSnapshots never returns a candidate that violates a separated pair'
     );
   }
 });
+
+test('balanceSnapshots never returns a candidate that violates a together pair', () => {
+  const snapshots = [snapshot('a', 9), snapshot('b', 8), snapshot('c', 2), snapshot('d', 1)];
+  const candidates = balanceSnapshots(snapshots, 2, {
+    ...config,
+    balanceConstraints: { pairsTogether: [['a', 'b']] },
+  });
+
+  for (const candidate of candidates) {
+    assert.equal(
+      candidate.solution.teams.some((team) => {
+        const ids = team.map((item) => item.participantId);
+        return ids.includes('a') && ids.includes('b');
+      }),
+      true,
+    );
+  }
+});
+
+test('balanceSnapshots rejects together constraints that conflict with locked teams', () => {
+  const snapshots = [snapshot('a', 9), snapshot('b', 8), snapshot('c', 2), snapshot('d', 1)];
+
+  assert.throws(
+    () =>
+      balanceSnapshots(snapshots, 2, {
+        ...config,
+        balanceConstraints: {
+          lockedPlayerIdxs: { a: 0, b: 1 },
+          pairsTogether: [['a', 'b']],
+        },
+      }),
+    /Não existe solução viável para as restrições obrigatórias\./,
+  );
+});

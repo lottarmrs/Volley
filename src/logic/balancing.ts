@@ -1044,8 +1044,8 @@ export class SimulatedAnnealingBalancer {
     let current = this.initialBuilder.buildInitialSolution(athletes, constraints);
     let currentScore = this.scorer.score(current, constraints);
 
-    let best = current;
-    let bestScore = currentScore;
+    let best: TeamSolution | undefined = isFeasible(current, constraints) ? current : undefined;
+    let bestScore = best ? currentScore : Number.POSITIVE_INFINITY;
 
     // Initial temperature: 25% of initial score, clamped between 1.0 and 50.0
     let temperature = Math.min(50.0, Math.max(1.0, currentScore * 0.25));
@@ -1090,9 +1090,13 @@ export class SimulatedAnnealingBalancer {
       temperature *= 0.995;
       iterations++;
 
-      if (onProgress && iterations % progressEvery === 0) {
+      if (onProgress && best && iterations % progressEvery === 0) {
         onProgress(Math.min(1, iterations / maxIterations), bestScore, best);
       }
+    }
+
+    if (!best) {
+      throw new Error('Não existe solução viável para as restrições obrigatórias.');
     }
 
     return { solution: best, score: this.scorer.score(best, constraints, true), iterations };

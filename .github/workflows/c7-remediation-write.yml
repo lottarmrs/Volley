@@ -1,0 +1,46 @@
+name: C7 Remediation Writer
+
+on:
+  push:
+    branches:
+      - docs/architecture-consolidation
+
+permissions:
+  contents: write
+
+jobs:
+  apply-remediation:
+    if: contains(github.event.head_commit.message, '[run-c7-remediation]')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout exact commit without submodule initialization
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git -c submodule.recurse=false fetch --depth=1 origin "${GITHUB_SHA}"
+          git -c submodule.recurse=false checkout --detach FETCH_HEAD
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Apply deterministic C7 R4/R5 remediation
+        run: node scripts/c7-r4-r5-remediation.mjs
+
+      - name: Commit remediation result
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No remediation changes produced."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/architecture scripts/check-architecture-references.mjs
+          git commit -m "docs(architecture): apply C7 R4/R5 deterministic remediation"
+          git push origin HEAD:docs/architecture-consolidation

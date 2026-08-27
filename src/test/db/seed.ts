@@ -89,15 +89,15 @@ async function insertPlayer(
   nome: string,
 ): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    'insert into public.players (nome, owner_id) values ($1, $2) returning id',
+    'insert into public.players (name, owner_id) values ($1, $2) returning id',
     [nome, ownerId],
   );
   const playerId = rows[0].id;
   await db.query(
-    `insert into public.community_players (community_id, player_id)
-     values ($1, $2)
+    `insert into public.community_players (community_id, player_id, owner_id)
+     values ($1, $2, $3)
      on conflict do nothing`,
-    [communityId, playerId],
+    [communityId, playerId, ownerId],
   );
   return playerId;
 }

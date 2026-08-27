@@ -40,51 +40,42 @@ jobs:
 
           {
             const path = 'scripts/promote-architecture-r11.mjs';
-            const original = readFileSync(path, 'utf8');
-            const from = `function replaceExactly(content, from, to, label) {
-              const count = content.split(from).length - 1;
-              if (count !== 1) {
-                failures.push(\`${'${label}'}: expected exactly one occurrence, found ${'${count}'}\`);
-                return content;
-              }
-              return content.replace(from, to);
-            }`;
-            const to = `function replaceExactly(content, from, to, label) {
-              const count = content.split(from).length - 1;
-              const expected = label === 'C7 promotion verdict' ? 2 : 1;
-              if (count !== expected) {
-                failures.push(\`${'${label}'}: expected exactly ${'${expected}'} occurrence(s), found ${'${count}'}\`);
-                return content;
-              }
-              return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
-            }`;
-            if (original.includes(from)) writeFileSync(path, original.replace(from, to), 'utf8');
-            else if (!original.includes("const expected = label === 'C7 promotion verdict' ? 2 : 1;")) {
-              throw new Error('R11 promotion guard source is neither pre-fix nor fixed');
+            let content = readFileSync(path, 'utf8');
+            if (!content.includes("const expected = label === 'C7 promotion verdict' ? 2 : 1;")) {
+              const pattern = /function replaceExactly\(content, from, to, label\) \{[\s\S]*?return content\.replace\(from, to\);\n\}/;
+              const replacement = `function replaceExactly(content, from, to, label) {
+  const count = content.split(from).length - 1;
+  const expected = label === 'C7 promotion verdict' ? 2 : 1;
+  if (count !== expected) {
+    failures.push(\`${'${label}'}: expected exactly ${'${expected}'} occurrence(s), found ${'${count}'}\`);
+    return content;
+  }
+  return expected === 1 ? content.replace(from, to) : content.replaceAll(from, to);
+}`;
+              if (!pattern.test(content)) throw new Error('Could not locate replaceExactly implementation');
+              content = content.replace(pattern, replacement);
+              writeFileSync(path, content, 'utf8');
             }
           }
 
           {
             const path = 'scripts/check-architecture-r11.mjs';
             let content = readFileSync(path, 'utf8');
-            const replacements = [
-              [
-                "if (!/not an implementation default/i.test(open)) fail(openPath, 'Open Decision non-default rule disappeared during promotion');",
-                "if (!/not(?:\\*\\*)? an implementation default/i.test(open)) fail(openPath, 'Open Decision non-default rule disappeared during promotion');",
-              ],
-              [
-                "if (!/> Status:\\s*`CANONICAL \\/ C4`/.test(firstLines(hyp))) fail(hypPath, 'Hypothesis registry document is not canonical');",
-                "if (!/> Status:\\s*`CANONICAL \\/ C4(?: \\/ [^`]*)?`/.test(firstLines(hyp))) fail(hypPath, 'Hypothesis registry document is not canonical');",
-              ],
-              [
-                "if (!/NOT TARGET SOURCE OF TRUTH/i.test(head)) fail(domainModelPath, 'legacy domain model lost non-target warning');",
-                "if (!/not (?:a )?target source of truth/i.test(head)) fail(domainModelPath, 'legacy domain model lost non-target warning');",
-              ],
-            ];
-            for (const [from, to] of replacements) {
-              if (content.includes(from)) content = content.replace(from, to);
-              else if (!content.includes(to)) throw new Error(`R11 checker source did not match expected assertion: ${from}`);
-            }
+            content = content.replace(
+              /if \(!\/not an implementation default\/i\.test\(open\)\)/,
+              'if (!/not(?:\\*\\*)? an implementation default/i.test(open))',
+            );
+            content = content.replace(
+              /if \(!\/> Status:\\\\s\*`CANONICAL \\\\/ C4`\/\.test\(firstLines\(hyp\)\)\)/,
+              'if (!/> Status:\\s*`CANONICAL \\/ C4(?: \\/ [^`]*)?`/.test(firstLines(hyp)))',
+            );
+            content = content.replace(
+              /if \(!\/NOT TARGET SOURCE OF TRUTH\/i\.test\(head\)\)/,
+              'if (!/not (?:a )?target source of truth/i.test(head))',
+            );
+            if (!content.includes('not(?:\\*\\*)? an implementation default')) throw new Error('Open Decision R11 assertion was not normalized');
+            if (!content.includes('CANONICAL \\/ C4(?: \\/ [^`]*)?')) throw new Error('Hypothesis R11 status assertion was not normalized');
+            if (!content.includes('not (?:a )?target source of truth')) throw new Error('Legacy domain-model R11 assertion was not normalized');
             writeFileSync(path, content, 'utf8');
           }
           NODE

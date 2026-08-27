@@ -312,7 +312,7 @@ Classification:
 EXPECTED_TRANSITION / W0 DATA-OPERATIONS NORMALIZATION
 ```
 
-The colocated [`supabase/migrations/README.md`](../../supabase/migrations/README.md) now states that `schema.sql` is a frozen legacy baseline segment during transition, not an independently maintained target current-schema authority.
+The colocated [`supabase/migrations/README.md`](../../../supabase/migrations/README.md) now states that `schema.sql` is a frozen legacy baseline segment during transition, not an independently maintained target current-schema authority.
 
 P-036/Data/Operations normalization remains W0 implementation work.
 

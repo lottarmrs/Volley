@@ -145,7 +145,9 @@ if (!isTestDatabaseConfigured()) {
 
     const held = await capabilities(community, admin);
 
-    assert.deepEqual(held, ['community.members.manage']);
+    // XS-W2-06 added profile.update to the ADMIN set. The point of this test is the
+    // ABSENCE below, which is unchanged.
+    assert.deepEqual(held, ['community.members.manage', 'community.profile.update']);
     assert.equal(
       held.includes('player.evaluate'),
       false,
@@ -203,7 +205,12 @@ if (!isTestDatabaseConfigured()) {
     await governance(community, owner, 'owner');
 
     const held = await capabilities(community, owner);
-    assert.deepEqual(held, ['community.members.manage', 'community.ownership.transfer']);
+    assert.deepEqual(held, [
+      'community.archive',
+      'community.members.manage',
+      'community.ownership.transfer',
+      'community.profile.update',
+    ]);
   });
 
   test('an Admin does NOT hold ownership transfer', async () => {
@@ -230,6 +237,7 @@ if (!isTestDatabaseConfigured()) {
 
     assert.deepEqual(await capabilities(community, person), [
       'community.members.manage',
+      'community.profile.update',
       'session.manage',
     ]);
 
@@ -238,7 +246,10 @@ if (!isTestDatabaseConfigured()) {
       'update public.community_responsibilities set revoked_at = now() where community_id = $1 and user_id = $2',
       [community, person],
     );
-    assert.deepEqual(await capabilities(community, person), ['community.members.manage']);
+    assert.deepEqual(await capabilities(community, person), [
+      'community.members.manage',
+      'community.profile.update',
+    ]);
   });
 
   test('a plain member holds nothing', async () => {

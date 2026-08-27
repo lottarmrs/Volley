@@ -68,7 +68,7 @@ AP1 freezing blockers = 0
 Promotion commit:
 
 ```text
-PENDING_RECORD_AFTER_PROMOTION
+bab1222e9a5c6d6e32381840a95750e40496a2e0
 ```
 
 # 5. Known non-freezing debt

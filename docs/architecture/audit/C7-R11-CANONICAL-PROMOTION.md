@@ -77,7 +77,7 @@ b275ef9ea7dfc2acf4ebac6985f38ca674f2c083
 Promotion commit:
 
 ```text
-PENDING_RECORD_AFTER_PROMOTION
+bab1222e9a5c6d6e32381840a95750e40496a2e0
 ```
 
-The exact promotion commit is recorded after the promotion commit exists; the permanent R11 checker rejects the placeholder on the final branch state.
+The permanent R11 checker requires this exact promotion commit record and rejects a pending placeholder on the final branch state.

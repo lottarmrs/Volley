@@ -1,413 +1,424 @@
 # C7 — Architecture Completeness Verdict
 
-> Status: `FINAL-AUDIT-VERDICT / PROMOTION-BLOCKED`
+> Status: `R10-PASS / READY-FOR-R11-PROMOTION`
 >
 > Owner: `Architecture Governance`
 >
 > Parent: [`C7-AUDIT-MASTER.md`](./C7-AUDIT-MASTER.md)
+>
+> R10 evidence: [`C7-R10-RERUN.md`](./C7-R10-RERUN.md)
+>
+> Current remediation state: [`C7-REMEDIATION-STATUS.md`](./C7-REMEDIATION-STATUS.md)
 
 ---
 
 # 0. Verdict
 
+After R1–R9 remediation and the R10 machine + semantic rerun:
+
 ```text
 TARGET ARCHITECTURE CONTENT
 =
-SUBSTANTIALLY COMPLETE
+COMPLETE ENOUGH FOR CANONICAL PROMOTION REVIEW
+
+R10
+=
+PASS_WITH_NON_BLOCKING_FINDING
+
+AP0 UNRESOLVED
+=
+0
+
+AP1 FREEZING BLOCKERS
+=
+0
 
 CANONICAL PROMOTION
 =
-BLOCKED
+READY FOR R11
 
-IMPLEMENTATION PROGRAM
+PRODUCTION/RUNTIME PARITY
 =
-READY TO START WITH W0 / SAFE NON-BLOCKED SLICES
-
-FULL SCHEMA/API FREEZE
-=
-NOT YET
+NOT CLAIMED
 ```
 
-The reason is not that the product architecture is missing its core model.
+The architecture is no longer blocked by the meta-architecture contradictions that caused the original C7 promotion freeze.
 
-The core model is unusually well-covered across domain, data, API, security, offline, realtime, reliability, performance, observability, QA, operations and migration.
+R11 remains a distinct deliberate step because:
 
-Promotion is blocked because several **meta-architecture consistency problems** remain:
+```text
+R10 PASS
+≠
+SILENT STATUS PROMOTION
+```
 
-- index decomposition drift;
-- legacy/current document authority collisions;
-- operational runbooks conflicting with accepted target source-of-truth/security policy;
-- unresolved owner/naming/status issues;
-- broken canonical links;
-- post-C3 execution rules requiring a decision-status delta review.
+The corpus therefore remains `DRAFT-CANONICAL` until R11 performs the reviewable promotion change.
 
 ---
 
-# 1. Completeness scorecard
+# 1. What changed since the original verdict
 
-This scorecard uses:
+The original C7 verdict correctly blocked promotion because the corpus still contained structural and authority ambiguity.
+
+Those blocking classes have now been remediated:
+
+- EAP vs owner-N2 decomposition authority is explicit and mechanically checked;
+- legacy/current documents are visibly classified;
+- destructive reset documentation is historical rather than default migration authority;
+- schema reconstruction authority is explicit;
+- target SECURITY DEFINER posture is no longer contradicted by current-looking operational guidance;
+- Player Skill Profile ownership is explicit under N2.02;
+- Notifications/Media broken cross-links are repaired;
+- statistical contribution, standings, observability identifiers and Match correction vocabulary are normalized;
+- post-C6 process-vs-ADR status is classified;
+- architecture fitness functions distinguish TARGET from TRANSITIONAL legacy assertions;
+- mixed C5 truth classes have implementation classification guidance;
+- Open/Hypothesis lifecycle drift identified by C7 is resolved;
+- architecture reference integrity is an executable CI gate;
+- invariant severity, QA evidence risk and audit priority are separate taxonomies;
+- Current→Target mismatches found in runtime are mapped to C6 rather than left unexplained.
+
+---
+
+# 2. R10 mechanical verdict
+
+The permanent command is:
 
 ```text
-PASS
-CONDITIONAL
-FAIL-BLOCKING
-EXPECTED-IMPLEMENTATION-GAP
+npm run check:architecture
 ```
 
-It is not a numeric quality score.
+Clean-HEAD GitHub Actions proof:
 
-| Dimension | Verdict | Reason |
+```text
+workflow: Architecture Reference Check
+run:      33037151307
+job:      98402233360
+commit:   529b7081841af7e212964f359293b547c2497c88
+result:   SUCCESS
+```
+
+The run validated:
+
+```text
+64 Markdown files
+canonical IDs and N3 headings
+46 target architecture documents
+5 operational documents
+1,152 local invariant IDs
+101 C6 execution-slice IDs
+```
+
+It also enforces the R5/R7 lexical/status rules included in `scripts/check-architecture-r10.mjs`.
+
+Therefore:
+
+```text
+REFERENCE INTEGRITY
+= PASS
+
+EAP/N3 STRUCTURAL INTEGRITY
+= PASS
+
+TARGET LEXICAL NORMALIZATION
+= PASS
+
+AUDITED OPERATIONAL STATUS METADATA
+= PASS
+```
+
+---
+
+# 3. R10 semantic verdict
+
+The rerun repeated the original 20 high-risk semantic anchors after R1–R9 remediation.
+
+```text
+PASS-001 User ≠ Player ≠ Participant
+PASS-002 CommunityMembership ≠ CommunityPlayer
+PASS-003 Organizer ≠ governance; Admin ≠ Organizer
+PASS-004 Registration FIFO + atomic promotion + online authority
+PASS-005 Balancer attribute-only; Overall excluded
+PASS-006 hierarchical Community→Global rating architecture
+PASS-007 Session ≠ Match ≠ Competition
+PASS-008 Fixture ≠ Match ≠ OfficialCompetitionResult
+PASS-009 Match epoch + sequence + event/projection + no LWW
+PASS-010 factual Statistics ≠ subjective Rating/Overall
+PASS-011 missing/not-captured ≠ zero
+PASS-012 Realtime transport only + snapshot/gap recovery
+PASS-013 Quick local authority + explicit handoff
+PASS-014 shared critical state server-authoritative
+PASS-015 semantic Commands + server actor + command_id
+PASS-016 relational Postgres + source/current/snapshot/projection separation
+PASS-017 external provider effects after commit/outbox
+PASS-018 account deletion ≠ sports-history deletion
+PASS-019 strangler one-authority rule
+PASS-020 C6 active-cohort no mid-protocol engine migration
+```
+
+Result:
+
+```text
+20 / 20
+= PASS
+```
+
+The detailed owner-source map is recorded in [`C7-R10-RERUN.md`](./C7-R10-RERUN.md).
+
+This semantic pass means the **target design intent remains coherent**. It does not claim the legacy runtime already implements these target semantics.
+
+---
+
+# 4. Current → Target runtime classification
+
+Current runtime evidence still includes legacy mechanisms, but none remains unexplained.
+
+| Current mechanism | R10 classification | Execution owner |
 |---|---|---|
-| Product journeys / boundaries | PASS | Quick, Community, Registration, Team Formation, Match, Competition, History are represented |
-| Identity model | PASS | User/Player/Participant/Guest/CommunityPlayer boundaries coherent |
-| Community governance | PASS | Membership, Owner/Admin/Member, Organizer responsibility and ownership transfer modeled |
-| Session model | PASS | Session boundary/lifecycle/readiness/roster/courts separated from Match/Competition |
-| Registration | PASS | FIFO, capacity, waitlist, atomic promotion, roster finalization, concurrency modeled |
-| Rating / skill semantics | CONDITIONAL | pipeline coherent; explicit bounded owner + estimator/rubric details remain open |
-| Team Formation / Voting | PASS-CONDITIONAL | architecture coherent; objective/rubric/quorum/tie parameters deliberately open |
-| Match engine | PASS-CONDITIONAL | sequence/epoch/event/projection/reconciliation coherent; offline rollout/TTL/advanced lineup remain open |
-| Competition | PASS-CONDITIONAL | Fixture/Match/OfficialResult/standings model coherent; exact initial formats/policies open |
-| History / Statistics | CONDITIONAL | factual model coherent; persisted contribution name/status needs normalization |
-| Notifications | PASS-CONDITIONAL | outbox/intent/inbox/delivery model coherent; providers/retention open |
-| Media | PASS-CONDITIONAL | trust pipeline coherent; limits/provider details open |
-| Offline authority | PASS | per-operation authority + Quick handoff + restricted Match outbox coherent |
-| Realtime | PASS | transport-only + snapshot/revision/sequence recovery coherent |
-| Data architecture | PASS-CONDITIONAL | relational/source/snapshot/projection rules coherent; some C5 truth-class rows need physical split clarity |
-| API / Application | PASS | semantic command/query, server actor, idempotency, errors and RPC/Edge boundary coherent |
-| Security / Privacy | PASS-CONDITIONAL | target controls coherent; operational docs/current privileged functions still need hardening alignment |
-| Reliability | PASS | atomicity/retry/rebuild/recovery model coherent |
-| Performance | PASS | bounded-work/evidence-first scaling coherent; quantitative budgets intentionally open |
-| Observability | CONDITIONAL | model coherent; request/trace/correlation terminology needs one canonical taxonomy |
-| Testing / QA | PASS-CONDITIONAL | invariant-based strategy coherent; DB/RLS/concurrency harness not yet implemented |
-| Operations | FAIL-BLOCKING | target is coherent, but current operational runbooks still conflict with target schema/reset/security policy |
-| Migration / Strangler | PASS | C6 has executable authority-transfer waves/gates |
-| Architecture Governance | CONDITIONAL | governance model coherent; EAP drift/legacy docs/link integrity/post-C3 ADR delta must be corrected |
-| Reference integrity | FAIL-BLOCKING | verified broken canonical links; no corpus-wide checker yet |
-| EAP/N3 structural integrity | FAIL-BLOCKING | verified decomposition drift |
-| Legacy/current document classification | FAIL-BLOCKING | canonical-vs-transitional authority not visible in the documents themselves |
+| broad generic sync/merge/remap | `EXPECTED_TRANSITION` | C6 W13/W14 |
+| broad localStorage domain persistence | `EXPECTED_TRANSITION` | C6 W12/W13/W14 |
+| generic/direct CRUD cloud services | `EXPECTED_TRANSITION` | target owner waves W2–W11, then W13/W14 retirement |
+| legacy Session/Game/Point schema/control | `EXPECTED_TRANSITION` | W3/W6/W7/W13/W14 |
+| `schema.sql` legacy baseline segment | `EXPECTED_TRANSITION` | W0 Data/Operations |
+| reachable privileged functions requiring target hardening | `EXPECTED_TRANSITION` | W0 Security/Data/Operations |
+| Authority Ledger not yet materially live | `EXECUTION_PREREQUISITE` | before first `CUTOVER_ACTIVE` |
+
+Therefore:
+
+```text
+UNEXPLAINED CURRENT→TARGET MISMATCH
+= 0
+```
+
+No documentation phase claims these C6 implementation waves have already been executed.
 
 ---
 
-# 2. Coverage verdict by C phase
+# 5. Completeness scorecard after R10
 
-## C1 — EAP
+This scorecard describes **architecture readiness**, not production implementation completion.
 
-```text
-CONTENT COVERAGE = PASS
-STRUCTURAL CURRENCY = FAIL-BLOCKING
-```
-
-The EAP successfully names all 23 N2 concerns and their main owners.
-
-But its detailed N3 decomposition has verified drift from materialized chapters and therefore cannot yet be promoted unchanged.
-
----
-
-## C2 — 23 bounded/platform chapters
-
-```text
-CONTENT COVERAGE = PASS
-CROSS-LINK HYGIENE = CONDITIONAL
-```
-
-The 23 chapters collectively cover the intended architecture through N10-style adversarial reasoning.
-
-No missing major product bounded context was identified in this audit.
-
-However:
-
-- some cross-links are broken;
-- some concept names/owner labels still need normalization;
-- OPEN/HYP items must remain visibly open.
-
----
-
-## C3 — ADR canonicalization
-
-```text
-DECISION CORPUS = PASS
-POST-C6 DELTA = REQUIRED
-```
-
-C3 successfully deduplicates the C2-era working anchors into owner-prefixed canonical ADR identities.
-
-Because C5/C6 were created afterward, a short delta review is required to classify new process constructs rather than pretending C3 could have known about them.
+| Dimension | R10 verdict | Remaining non-blocking work/open parameters |
+|---|---|---|
+| Product journeys / boundaries | PASS | implementation through C6 |
+| Identity model | PASS | runtime migration/claims as C6 slices execute |
+| Community governance | PASS | legacy platform-role/runtime transition remains bounded |
+| Session model | PASS | W3 runtime migration |
+| Registration | PASS | W4 DB/RPC/concurrency implementation/evidence |
+| Player Skill Profile / Rating | PASS-CONDITIONAL | estimator/rubric/credibility details remain OPEN where registered |
+| Team Formation / Voting | PASS-CONDITIONAL | objective/quorum/tie parameters remain OPEN where registered |
+| Match engine | PASS-CONDITIONAL | W7 implementation; offline rollout/TTL/advanced lineup remain OPEN |
+| Competition | PASS-CONDITIONAL | exact rollout formats/policies remain OPEN |
+| History / Statistics | PASS-CONDITIONAL | detailed taxonomy/sample policies remain OPEN |
+| Notifications | PASS-CONDITIONAL | provider/retention parameters remain OPEN |
+| Media | PASS-CONDITIONAL | limits/provider/retention parameters remain OPEN |
+| Offline authority | PASS | W12/W13 runtime migration remains |
+| Realtime | PASS | rollout/measurement remains implementation work |
+| Data architecture | PASS | physical target schema implemented through C6 waves |
+| API / Application | PASS | semantic target paths implemented incrementally |
+| Security / Privacy | PASS-CONDITIONAL | runtime privileged-function hardening remains W0 |
+| Reliability | PASS | executable evidence grows with slices |
+| Performance | PASS | quantitative budgets remain evidence-triggered |
+| Observability | PASS-CONDITIONAL | numeric SLOs/vendors remain OPEN/evidence-triggered |
+| Testing / QA | PASS-CONDITIONAL | real DB/RLS/concurrency harness is C6/W0 implementation work |
+| Operations | PASS-ARCHITECTURE | production procedures evolve with C6 cutovers |
+| Migration / Strangler | PASS | runtime program not yet executed by C1–C7 |
+| Architecture Governance | PASS | R11 promotion + future lifecycle governance remains |
+| Reference integrity | PASS | CI fitness check installed |
+| EAP/N3 structural integrity | PASS | authority rule + CI check installed |
+| Legacy/current document classification | PASS for audited architecture/operations scope | future docs must follow same convention |
 
 ---
 
-## C4 — Invariants / Open Decisions / Hypotheses
+# 6. Open by design is still valid
+
+Canonical readiness does **not** require premature closure of evidence/product-dependent choices.
+
+The following categories remain intentionally unresolved where C4 records them:
 
 ```text
-REGISTRY MODEL = PASS
-LIFECYCLE HYGIENE = CONDITIONAL
-```
-
-Strengths:
-
-- local invariant ranges preserved;
-- global invariants deduplicated;
-- Open Decisions not silently closed;
-- Hypotheses separated from accepted decisions.
-
-Remaining issue:
-
-- at least one C5-triggered hypothesis (`HYP-STAT-001`) needs explicit lifecycle review;
-- reference integrity should become executable.
-
----
-
-## C5 — Cross-cutting matrices
-
-```text
-IMPLEMENTATION NAVIGATION = PASS
-SOME CELLS REQUIRE OWNER/CLASSIFICATION NORMALIZATION
-```
-
-C5 achieves its purpose: implementation can traverse entities, commands, capabilities, offline/realtime, evidence and migration without reading every chapter first.
-
-But a matrix must not become a stealth decision source.
-
-Owner labels and mixed truth-class cells identified by C7 must be corrected before physical contracts freeze.
-
----
-
-## C6 — Execution program
-
-```text
-PROGRAM DESIGN = PASS
-LIVE EXECUTION TRACKER = NOT YET REQUIRED / REQUIRED BEFORE CUTOVER
-```
-
-C6 is sufficient to begin W0/W1 and to plan the later migration waves.
-
-It correctly distinguishes:
-
-```text
-code complete
-cutover ready
-cutover active
-legacy removable
-```
-
-Before first real authority cutover, the conceptual Authority Ledger/slice status must receive a concrete operational representation.
-
----
-
-## C7 — Audit
-
-```text
-AUDIT EXECUTED = PASS
-CANONICAL PROMOTION = BLOCKED
-```
-
-C7 has identified both blockers and non-blocking expected transition debt.
-
-The next action after C7 is **remediation**, not C8 architecture expansion.
-
----
-
-# 3. Major architecture questions that are answered
-
-The corpus can answer, without inventing a new architecture position:
-
-```text
-Who owns authentication vs sports identity?
-How can a Player exist without a User?
-How do Communities grant governance vs operational responsibilities?
-What exactly is an Organizer?
-How does Session differ from Match and Competition?
-What is the authoritative Registration queue?
-How is the last slot resolved under concurrency?
-When does waitlist become roster?
-What data can Team Balancer use?
-Why can Overall not affect teams?
-How are rating evaluations consolidated across Communities?
-How do CandidateSet / Voting / TeamDraw relate?
-How does Match control fencing work?
-How are points ordered and replayed?
-How does offline Match divergence recover?
-How does Fixture differ from Match execution?
-What drives official standings?
-Why does WO not create fake point history?
-Where do factual Stats come from?
-How is unknown different from zero?
-Why do Notifications not own domain success?
-How are media uploads treated as untrusted?
-Which operations are allowed offline?
-What is Realtime's role?
-What is source fact vs projection?
-How do semantic Commands replace CRUD?
-How are idempotency and unknown outcome handled?
-How does account deletion preserve justified sports history?
-How are workers retried?
-How are projections rebuilt?
-How does migration avoid dual authority?
-How is legacy removed?
-What evidence is required before a cutover?
-```
-
-That is the basis for the `SUBSTANTIALLY COMPLETE` verdict.
-
----
-
-# 4. Major questions intentionally NOT answered yet
-
-The following are **not completeness failures** while they remain in C4 with safe boundaries:
-
-```text
-exact rating estimator
+exact Rating estimator / evaluator credibility policy
 exact skill rubric
-exact balancer objective weights/style
-exact candidate diversity threshold
-exact voting quorum/tie policy
-exact Match lease TTL/heartbeat
-offline Match initial rollout scope
+exact Team Balancer objective weights/diversity policy
+exact voting quorum/tie details
+Match lease TTL/heartbeat values
+offline Match rollout scope
 advanced lineup/substitution/libero scope
 public spectator policy
-exact competition formats in first release
-auto-officialization policy
-exact stat taxonomy/sample thresholds
-Push/Email providers
-media dimension/byte limits
-retention durations by category
+exact initial Competition formats/auto-officialization
+Stats detailed taxonomy/sample thresholds
+Push/Email provider choices
+Media dimensions/byte/retention values
 RPO/RTO/SLO numerical targets
-partitioning/Redis/broker/read-replica thresholds
-observability vendor/test tooling choices
+Redis/broker/read-replica/partition thresholds
+specific observability/test vendors
 ```
 
-They are implementation parameters/product decisions, not missing architecture foundations, as long as code does not pick them silently.
+The promotion rule remains:
+
+```text
+OPEN/HYPOTHESIS
+MUST REMAIN EXPLICIT
+UNTIL ITS GOVERNANCE TRIGGER CLOSES IT
+```
+
+R11 must not change those statuses merely to make the architecture look more final.
 
 ---
 
-# 5. Canonical promotion blockers
+# 7. New non-blocking R10 finding
 
-Promotion is blocked by these finding families:
-
-```text
-C7-F-001
-EAP structural drift
-
-C7-F-002..005
-legacy/operational authority conflicts
-
-C7-F-006
-Rating ownership gap
-
-C7-F-007..008
-broken canonical links
-```
-
-AP1 items additionally block the affected contract freeze:
+R10 discovered:
 
 ```text
-C7-F-009 stat contribution name/status
-C7-F-010 standings projection term
-C7-F-011 correlation taxonomy
-C7-F-012 Match correction command name
-C7-F-013 post-C6 ADR delta
-C7-F-015 fitness test lifecycle
-C7-F-016 truth-class ambiguity
-C7-F-017 hypothesis lifecycle
-C7-F-018 Authority Ledger before cutover
+C7-F-023
+9router orphan gitlink / repository checkout operability
 ```
+
+Evidence:
+
+```text
+path = 9router
+mode = 160000
+type = commit
+.gitmodules = absent
+```
+
+Classification:
+
+```text
+REPOSITORY_HYGIENE / CI_OPERABILITY
+AP2
+NON_BLOCKING / CORRECTION_REQUIRED
+```
+
+The architecture workflow currently uses manual checkout with submodule recursion disabled because standard checkout encountered the malformed/stale gitlink condition.
+
+This issue must be corrected by Repository/CI Operations, but it does not alter target semantics, ADRs, schema/API ownership or Current→Target authority design.
+
+Therefore it is tracked without falsely converting it into an AP0/AP1 architecture blocker.
 
 ---
 
-# 6. What can begin immediately
+# 8. R11 gate
 
-Even with canonical promotion blocked, the architecture supports starting:
+The original promotion conditions now evaluate as:
 
 ```text
-C7 correction work
-W0 inventory/security/tooling
-real DB/RLS/RPC/concurrency harness
-reference checker
-legacy document classification
-migration provenance scaffolding
-command_id/receipt infrastructure design under existing accepted rules
-pure Team Balancer removal of Overall influence
-observability baseline that does not freeze ambiguous correlation naming until normalized
+AP0 = 0                                      PASS
+AP1 freezing blockers = 0                   PASS
+mechanical reference check                  PASS
+EAP/N2 reconciliation                       PASS
+ADR/GINV/OPEN/HYP integrity                 PASS
+legacy/current docs classified              PASS
+schema authority docs aligned               PASS
+SECURITY DEFINER target guidance aligned    PASS
+Rating ownership explicit                   PASS
+naming/status blockers normalized           PASS
+post-C6 ADR delta                            PASS
+R10 semantic rerun                           PASS
+Current→Target mismatches explained          PASS
 ```
 
-Affected schema/API contracts should wait for their specific AP0/AP1 resolution.
+One AP2 repository-hygiene finding remains and is explicitly non-freezing.
 
----
-
-# 7. What must NOT begin as a frozen contract yet
-
-Until findings close:
+Therefore:
 
 ```text
-final Rating/Skill Profile schema ownership
-final PlayerMatchStatContribution/PlayerMatchStats table/API naming
-final Standings projection table/type naming
-final observability correlation field contract
-final Match correction command public contract
-production schema reconstruction process based on schema.sql
-new privileged SECURITY DEFINER pattern copied from legacy runbook
-first authority cutover without a live Authority Ledger representation
-```
-
----
-
-# 8. Final promotion gate
-
-After C7 remediation, rerun the audit and require:
-
-```text
-AP0 open findings = 0
-AP1 open findings affecting frozen boundaries = 0
-23/23 N2 EAP reconciliation = PASS
-canonical Markdown/reference checker = PASS
-ADR/GINV/OPEN/HYP reference checker = PASS
-legacy/current docs visibly classified = PASS
-schema authority operational docs aligned = PASS
-SECURITY DEFINER operational guidance aligned = PASS
-Rating owner explicit = PASS
-naming/status blockers normalized = PASS
-post-C6 ADR delta classified = PASS
-```
-
-Then and only then:
-
-```text
-DRAFT-CANONICAL
-→ CANONICAL
+R11 PROMOTION REVIEW
+= AUTHORIZED TO START
 ```
 
 ---
 
-# 9. Final C1→C7 status
+# 9. What R11 may promote
+
+Recommended promotion sequence remains:
 
 ```text
-C1  EAP                                  ✓ built / needs reconciliation
-C2  23 canonical target chapters        ✓ built
-C3  ADR canonicalization                ✓ built / delta review needed
-C4  invariant/open/hypothesis catalogs  ✓ built
-C5  cross-cutting matrices              ✓ built
-C6  execution program                   ✓ built
-C7  contradiction/completeness audit    ✓ executed
+1 PRINCIPLES / GLOSSARY
+2 EAP
+3 owner N2 chapters
+4 ADR catalog
+5 C4 registries
+6 C5 matrices
+7 C6 execution program
+8 C7 verdict/status
+```
 
-ARCHITECTURE CONSOLIDATION DESIGN WORK
+Promotion means:
+
+```text
+THIS IS THE GOVERNING TARGET ARCHITECTURE
+```
+
+It does not mean:
+
+```text
+ALL C6 WAVES ARE COMPLETE
+ALL OPEN PARAMETERS ARE CLOSED
+ALL LEGACY CODE HAS BEEN REMOVED
+PRODUCTION IS ALREADY TARGET-COMPLIANT
+```
+
+---
+
+# 10. What can proceed after promotion
+
+C6 implementation continues in dependency order with parallel safe preparation where allowed:
+
+```text
+W0 safety / inventory / DB harness / security hardening
+W1 pure domain corrections
+W2 Identity / Community authority
+W3 Session backbone
+W4 Registration
+W5 Player Skill Profile / Rating
+W6 Team Formation / Voting
+W7 Match V2 / Realtime / Offline
+W8 Competition
+W9 Statistics
+W10 Notifications
+W11 Media
+W12 Quick / IndexedDB
+W13 generic sync retirement
+W14 contract/legacy removal
+```
+
+Before any slice reaches `CUTOVER_ACTIVE`, R9's concrete Authority Ledger representation must exist for that operational rollout.
+
+---
+
+# 11. C1 → C7 status after R10
+
+```text
+C1  EAP                                  ✓ built / reconciled
+C2  23 target chapters                   ✓ built / semantically rerun
+C3  ADR canonicalization                ✓ built / post-C6 delta classified
+C4  invariant/open/hypothesis catalogs  ✓ built / lifecycle normalized
+C5  cross-cutting matrices              ✓ built / naming/truth classes normalized
+C6  execution program                   ✓ built / runtime execution pending
+C7  contradiction/completeness audit    ✓ audited / remediated / rerun PASS
+
+ARCHITECTURE CONSOLIDATION DESIGN
 =
-COMPLETE
+R10 PASS
 
-CANONICAL PROMOTION / CLEANUP
+CANONICAL PROMOTION
 =
-REMEDIATION REQUIRED
+READY FOR R11
 
 RUNTIME MIGRATION
 =
-C6 W0→W14, not yet executed by these documentation phases
+C6 W0→W14, NOT CLAIMED COMPLETE
 ```
 
-There is no need to invent a C8 architecture phase merely because C7 found corrections.
+No C8 architecture expansion is required to resolve the current state.
 
-The correct next state is:
+The next correct step is:
 
 ```text
-C7 REMEDIATION
-→ C7 RERUN
-→ CANONICAL PROMOTION
-→ EXECUTE C6 SLICES
+R11 DELIBERATE CANONICAL PROMOTION
+→
+EXECUTE C6 SLICES UNDER THE PROMOTED TARGET
 ```

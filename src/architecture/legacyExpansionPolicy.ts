@@ -95,7 +95,18 @@ export function censusFor(rule: LegacyExpansionRule): Record<string, number> {
 /** Property names declared by a TypeScript interface, read from source rather than imported. */
 export function interfaceKeys(file: string, interfaceName: string): string[] {
   const source = readFileSync(file, 'utf8');
-  const start = source.indexOf(`export interface ${interfaceName} {`);
+  // Tolerates `export interface X {` and `export interface X extends Y {`, while refusing
+  // to match a longer interface name that merely starts with the requested one.
+  const declaration = `export interface ${interfaceName}`;
+  let start = -1;
+  for (let index = source.indexOf(declaration); index >= 0; ) {
+    const next = source[index + declaration.length];
+    if (next === ' ' || next === '{') {
+      start = index;
+      break;
+    }
+    index = source.indexOf(declaration, index + 1);
+  }
   if (start < 0) throw new Error(`Interface not found: ${interfaceName} in ${file}`);
 
   let depth = 0;

@@ -139,6 +139,16 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
     removalOrReplacementTrigger:
       'XS-W1-01 removes Overall from solver influence. At that point drop overall from FROZEN_BALANCE_WEIGHT_KEYS/FROZEN_TEAM_METRIC_KEYS, remove the three Overall bindings from FROZEN_SOLVER_IMPORTS (OVERALL_SCALE, calculateGeneralOverall, calculatePositionOverall), lower the census to zero, and replace this record with the GINV-BAL-001 target property test.',
   },
+  {
+    id: 'AF-LEDGER-001',
+    slice: 'XS-W0-02',
+    owner: 'Migration / Architecture Governance',
+    lifecycle: 'TRANSITIONAL',
+    protects:
+      'Every current sync-payload entity and localStorage key stays inventoried with its readers, writers, authority, merge behaviour and target wave, so W13/W14 removal never begins on an un-inventoried entity.',
+    removalOrReplacementTrigger:
+      'Shrink the ledger as each entity is cut over and removed; delete this record when W14 has retired the generic sync payloads and the broad localStorage surface, leaving nothing to inventory.',
+  },
 ] as const;
 
 export function getArchitectureFitness(id: string): ArchitectureFitnessRecord {

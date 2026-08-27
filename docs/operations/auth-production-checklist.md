@@ -1,5 +1,19 @@
 # Auth Production Checklist
 
+> Status: `CURRENT-OPERATIONAL / TRANSITIONAL-LEGACY-AUTH`
+>
+> Owner: `Security + Platform Operations`
+>
+> Last reviewed: `2026-08-27 / C7-R10`
+>
+> Governing target: [`N2.16-security-privacy-lgpd.md`](../architecture/security/N2.16-security-privacy-lgpd.md), [`N2.21-operations-deploy.md`](../architecture/operations/N2.21-operations-deploy.md), C6 W0/W2.
+>
+> Role scope: legacy/global roles such as `master` and `programmer` are **platform/staff authorization vocabulary only**. They do not map to, inherit from, or outrank Community `OWNER | ADMIN | MEMBER`, and they do not imply the operational responsibility `ORGANIZER`. Target domain authorization remains contextual capability-based.
+>
+> Review/removal trigger: reclassify or retire this checklist when W0/W2 replace the legacy global-role/RPC posture and the corresponding production auth controls have current runbooks.
+
+---
+
 - [ ] Backup do projeto Supabase confirmado antes da migration.
 - [ ] Redirect URLs incluem producao e `/auth/callback`.
 - [ ] Google provider usa client ID/secret do ambiente correto.
@@ -30,6 +44,8 @@
 - [ ] community_players.role permanece marcado como legado (nao usar em novas features).
 
 ## Recuperacao de acesso master (break-glass)
+
+> `master` neste bloco significa exclusivamente o papel global/staff **legado** da plataforma. Não é Community Owner/Admin e não concede `ORGANIZER` por semântica de domínio.
 
 Com MFA obrigatorio, `set_user_role` exige AAL2 **e** `is_superadmin()`. Duas
 consequencias que mudam o plano de recuperacao:

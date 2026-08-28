@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Client, Pool, QueryResultRow } from 'pg';
+import type { Client, Pool, QueryResult, QueryResultRow } from 'pg';
 import {
   asIdentityCommitting,
   connect,
@@ -65,6 +65,25 @@ if (!isTestDatabaseConfigured()) {
   const callFailing = (userId: string | null, sql: string, params: unknown[] = []) =>
     call(userId, sql, params).catch((error: Error) => error);
 
+  async function forgeSessionSemanticWriteAndUpdate(
+    userId: string,
+    sessionId: string,
+  ): Promise<QueryResult | Error> {
+    const db = await pool.connect();
+    try {
+      return await asIdentityCommitting(db, userId, async () => {
+        await db.query("select set_config('app.session_semantic_write', 'on', true)");
+        return db.query("update public.sessions set name = 'Forged generic update' where id = $1", [
+          sessionId,
+        ]);
+      });
+    } catch (error) {
+      return error as Error;
+    } finally {
+      db.release();
+    }
+  }
+
   async function targetCommunity(ownerId: string, name: string): Promise<string> {
     const { rows } = await call<{ id: string }>(
       ownerId,
@@ -118,7 +137,6 @@ if (!isTestDatabaseConfigured()) {
     // them as target authority.
     await client.query('begin');
     try {
-      await client.query("select set_config('app.session_semantic_write', 'on', true)");
       await client.query(
         "update public.sessions set type = 'free_play', status = 'finished' where id = $1",
         [sessionId],
@@ -225,15 +243,61 @@ if (!isTestDatabaseConfigured()) {
     });
   });
 
+  test('target creation rejects null semantic command dimensions', async () => {
+    const actor = await newUser('session-null-command-owner@test.local');
+
+    const nullContext = await callFailing(
+      actor,
+      `select public.create_target_session(
+         gen_random_uuid(), null, null, 'FREE_PLAY', 'No context', null, null
+       )`,
+    );
+    assert.ok(nullContext instanceof Error);
+    assert.match((nullContext as Error).message, /invalid Session context/i);
+
+    const nullPlayMode = await callFailing(
+      actor,
+      `select public.create_target_session(
+         gen_random_uuid(), null, 'QUICK', null, 'No play mode', null, null
+       )`,
+    );
+    assert.ok(nullPlayMode instanceof Error);
+    assert.match((nullPlayMode as Error).message, /invalid Session play mode/i);
+  });
+
+  test('target schema rejects a row missing a semantic dimension even when a writer forges the old guard', async () => {
+    const owner = await newUser('session-null-schema-owner@test.local');
+    await client.query('begin');
+    try {
+      await client.query("select set_config('app.session_semantic_write', 'on', true)");
+      const attempt = await client
+        .query(
+          `insert into public.sessions (
+             owner_id, name, date, status, type, authority_model, target_model_version,
+             session_context, play_mode, lifecycle_status, publication_state, revision
+           ) values (
+             $1, 'Malformed target', '2030-01-01', 'draft', 'free_play', 'target', 1,
+             null, 'FREE_PLAY', 'DRAFT', 'PRIVATE', 1
+           )`,
+          [owner],
+        )
+        .catch((error: Error) => error);
+      assert.ok(attempt instanceof Error, 'the target model check must reject NULL context');
+    } finally {
+      await client.query('rollback');
+    }
+  });
+
   test('target semantic fields are authoritative and compatibility type derives from play mode', async () => {
     const actor = await newUser('session-semantic-owner@test.local');
     const sessionId = await createTargetSession(actor, { playMode: 'STRUCTURED_MATCHES' });
 
-    const genericWrite = await client
-      .query("update public.sessions set type = 'free_play' where id = $1", [sessionId])
-      .catch((error: Error) => error);
-    assert.ok(genericWrite instanceof Error, 'target rows must not accept generic writes');
-    assert.match((genericWrite as Error).message, /semantic commands/i);
+    const genericWrite = await call(
+      actor,
+      "update public.sessions set type = 'free_play' where id = $1",
+      [sessionId],
+    );
+    assert.equal(genericWrite.rowCount, 0, 'RLS must hide target rows from generic updates');
 
     await overwriteCompatibilityFieldsForReadProbe(sessionId);
 
@@ -274,6 +338,13 @@ if (!isTestDatabaseConfigured()) {
        )`,
       [sessionId],
     );
+    await call(
+      actor,
+      `select public.transition_target_session_lifecycle(
+         $1, 3, 'COMPLETED', '2030-02-03T19:58:00Z'
+       )`,
+      [sessionId],
+    );
 
     const { rows } = await client.query<{
       lifecycle_status: string;
@@ -296,13 +367,82 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     assert.deepEqual(rows[0], {
-      lifecycle_status: 'IN_PROGRESS',
+      lifecycle_status: 'COMPLETED',
       publication_state: 'PRIVATE',
       planned_start_at: '2030-02-03T18:00:00Z',
       planned_end_at: '2030-02-03T20:00:00Z',
       actual_started_at: '2030-02-03T18:17:00Z',
-      actual_finished_at: null,
+      actual_finished_at: '2030-02-03T19:58:00Z',
     });
+
+    const invalid = await callFailing(
+      actor,
+      `select public.transition_target_session_lifecycle(
+         $1, 4, 'SCHEDULED', '2030-02-03T20:00:00Z'
+       )`,
+      [sessionId],
+    );
+    assert.ok(invalid instanceof Error, 'a completed Session cannot return to scheduled');
+    assert.match((invalid as Error).message, /invalid target Session lifecycle transition/i);
+
+    const cancellable = await createTargetSession(actor, { name: 'Cancellable' });
+    await call(
+      actor,
+      `select public.transition_target_session_lifecycle(
+         $1, 1, 'CANCELLED', '2030-02-03T17:00:00Z'
+       )`,
+      [cancellable],
+    );
+    const cancelled = await client.query<{ lifecycle_status: string; revision: number }>(
+      'select lifecycle_status, revision from public.sessions where id = $1',
+      [cancellable],
+    );
+    assert.deepEqual(cancelled.rows[0], { lifecycle_status: 'CANCELLED', revision: 2 });
+  });
+
+  test('a draft update rejects a null expected revision', async () => {
+    const actor = await newUser('session-null-draft-revision-owner@test.local');
+    const sessionId = await createTargetSession(actor, { name: 'Revision protected' });
+
+    const attempt = await callFailing(
+      actor,
+      `select public.update_target_session_draft(
+         $1, null, 'Bypass revision', null, null
+       )`,
+      [sessionId],
+    );
+    assert.ok(attempt instanceof Error);
+    assert.match((attempt as Error).message, /stale Session revision/i);
+  });
+
+  test('a lifecycle transition rejects a null expected revision', async () => {
+    const actor = await newUser('session-null-lifecycle-revision-owner@test.local');
+    const sessionId = await createTargetSession(actor, { name: 'Lifecycle revision protected' });
+
+    const attempt = await callFailing(
+      actor,
+      `select public.transition_target_session_lifecycle(
+         $1, null, 'SCHEDULED', '2030-01-02T17:30:00Z'
+       )`,
+      [sessionId],
+    );
+    assert.ok(attempt instanceof Error);
+    assert.match((attempt as Error).message, /stale Session revision/i);
+  });
+
+  test('an authenticated caller cannot forge the old guard GUC to generic-update a target Session', async () => {
+    const actor = await newUser('session-forged-guc-owner@test.local');
+    const sessionId = await createTargetSession(actor, { name: 'Guarded target' });
+
+    const attempt = await forgeSessionSemanticWriteAndUpdate(actor, sessionId);
+    assert.ok(!(attempt instanceof Error), 'the forged write must be processed by RLS');
+    assert.equal(attempt.rowCount, 0, 'caller-set GUC must not authorize a target write');
+
+    const { rows } = await client.query<{ name: string; revision: number }>(
+      'select name, revision from public.sessions where id = $1',
+      [sessionId],
+    );
+    assert.deepEqual(rows[0], { name: 'Guarded target', revision: 1 });
   });
 
   test('a target draft update uses revision and rejects stale, anonymous, and cross-Community callers', async () => {

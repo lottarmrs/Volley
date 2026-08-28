@@ -34,11 +34,17 @@ alter table public.sessions
   add constraint sessions_target_model_check check (
     authority_model = 'legacy'
     or (
-      target_model_version = 1
+      target_model_version is not null
+      and target_model_version = 1
+      and session_context is not null
       and session_context in ('QUICK', 'COMMUNITY')
+      and play_mode is not null
       and play_mode in ('FREE_PLAY', 'STRUCTURED_MATCHES')
+      and lifecycle_status is not null
       and lifecycle_status in ('DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')
+      and publication_state is not null
       and publication_state in ('PRIVATE', 'PUBLISHED')
+      and revision is not null
       and revision >= 1
     )
   ),
@@ -80,58 +86,41 @@ comment on column public.sessions.publication_state is
 comment on column public.sessions.revision is
   'Explicit domain revision for target Session optimistic concurrency; updated_at is not a concurrency token.';
 
--- Prevent a generic browser/sync path from creating or changing a target-cohort row. The
--- transaction-local marker is set only by the semantic functions below, following the
--- existing Community target-cohort guard pattern.
-create or replace function public.guard_target_session_writes()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if tg_op = 'INSERT' then
-    if new.authority_model = 'target'
-       and coalesce(current_setting('app.session_semantic_write', true), '') <> 'on' then
-      raise exception 'Target Session rows require semantic commands, not a generic write'
-        using errcode = '42501';
-    end if;
-    return new;
-  end if;
+-- A caller can set an arbitrary custom GUC, so it cannot be an authorization boundary.
+-- Target writes are excluded from the authenticated role's direct RLS policies instead.
+-- SECURITY DEFINER semantic commands execute as the table owner and remain the target
+-- writer; legacy rows retain the existing browser/sync CRUD behavior.
+drop policy if exists "Community organizers can insert sessions" on public.sessions;
+create policy "Community organizers can insert sessions" on public.sessions
+  for insert to authenticated
+  with check (
+    authority_model = 'legacy'
+    and owner_id = (select auth.uid())
+    and (community_id is null or public.current_user_has_community_role(community_id))
+  );
 
-  if old.authority_model = 'target'
-     and coalesce(current_setting('app.session_semantic_write', true), '') <> 'on' then
-    raise exception 'Target Session rows require semantic commands, not a generic write'
-      using errcode = '42501';
-  end if;
+drop policy if exists "Community organizers can update sessions" on public.sessions;
+create policy "Community organizers can update sessions" on public.sessions
+  for update to authenticated
+  using (
+    authority_model = 'legacy'
+    and (owner_id = (select auth.uid())
+         or (community_id is not null and public.current_user_has_community_role(community_id)))
+  )
+  with check (
+    authority_model = 'legacy'
+    and (owner_id = (select auth.uid())
+         or (community_id is not null and public.current_user_has_community_role(community_id)))
+  );
 
-  if tg_op = 'UPDATE'
-     and new.authority_model = 'target'
-     and coalesce(current_setting('app.session_semantic_write', true), '') <> 'on' then
-    raise exception 'Target Session rows require semantic commands, not a generic write'
-      using errcode = '42501';
-  end if;
-
-  return coalesce(new, old);
-end;
-$$;
-
-revoke all on function public.guard_target_session_writes() from public, anon, authenticated;
-
-drop trigger if exists guard_target_session_writes_ins on public.sessions;
-create trigger guard_target_session_writes_ins
-  before insert on public.sessions
-  for each row execute function public.guard_target_session_writes();
-
-drop trigger if exists guard_target_session_writes_upd on public.sessions;
-create trigger guard_target_session_writes_upd
-  before update on public.sessions
-  for each row execute function public.guard_target_session_writes();
-
-drop trigger if exists guard_target_session_writes_del on public.sessions;
-create trigger guard_target_session_writes_del
-  before delete on public.sessions
-  for each row execute function public.guard_target_session_writes();
+drop policy if exists "Community organizers can delete sessions" on public.sessions;
+create policy "Community organizers can delete sessions" on public.sessions
+  for delete to authenticated
+  using (
+    authority_model = 'legacy'
+    and (owner_id = (select auth.uid())
+         or (community_id is not null and public.current_user_has_community_role(community_id)))
+  );
 
 create or replace function public.target_session_compatibility_type(p_play_mode text)
 returns text
@@ -220,10 +209,10 @@ begin
   if p_session_id is null then
     raise exception 'Session id is required and final' using errcode = '23514';
   end if;
-  if p_session_context not in ('QUICK', 'COMMUNITY') then
+  if p_session_context is null or p_session_context not in ('QUICK', 'COMMUNITY') then
     raise exception 'Invalid Session context' using errcode = '23514';
   end if;
-  if p_play_mode not in ('FREE_PLAY', 'STRUCTURED_MATCHES') then
+  if p_play_mode is null or p_play_mode not in ('FREE_PLAY', 'STRUCTURED_MATCHES') then
     raise exception 'Invalid Session play mode' using errcode = '23514';
   end if;
   if coalesce(btrim(p_name), '') = '' then
@@ -244,7 +233,6 @@ begin
     raise exception 'Missing capability session.manage' using errcode = '42501';
   end if;
 
-  perform set_config('app.session_semantic_write', 'on', true);
   insert into public.sessions (
     id, owner_id, community_id, name, date, status, type,
     authority_model, target_model_version, session_context, play_mode,
@@ -294,7 +282,7 @@ begin
     raise exception 'Target Session not found' using errcode = 'P0002';
   end if;
   perform public.assert_target_session_write_authorized(v_session);
-  if v_session.revision <> p_expected_revision then
+  if v_session.revision is distinct from p_expected_revision then
     raise exception 'Stale Session revision' using errcode = '40001';
   end if;
   if v_session.lifecycle_status <> 'DRAFT' then
@@ -311,7 +299,6 @@ begin
     raise exception 'Planned Session end cannot precede its start' using errcode = '23514';
   end if;
 
-  perform set_config('app.session_semantic_write', 'on', true);
   update public.sessions
      set name = btrim(p_name),
          date = coalesce(v_planned_start_at::date, date),
@@ -353,8 +340,12 @@ begin
     raise exception 'Target Session not found' using errcode = 'P0002';
   end if;
   perform public.assert_target_session_write_authorized(v_session);
-  if v_session.revision <> p_expected_revision then
+  if v_session.revision is distinct from p_expected_revision then
     raise exception 'Stale Session revision' using errcode = '40001';
+  end if;
+
+  if p_next_lifecycle_status is null then
+    raise exception 'Invalid target Session lifecycle transition' using errcode = '23514';
   end if;
 
   if not (
@@ -366,7 +357,6 @@ begin
       v_session.lifecycle_status, p_next_lifecycle_status using errcode = '23514';
   end if;
 
-  perform set_config('app.session_semantic_write', 'on', true);
   update public.sessions
      set lifecycle_status = p_next_lifecycle_status,
          status = public.target_session_compatibility_status(p_next_lifecycle_status),

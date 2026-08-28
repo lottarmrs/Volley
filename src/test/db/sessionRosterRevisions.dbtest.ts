@@ -1688,9 +1688,10 @@ if (!isTestDatabaseConfigured()) {
     );
     await client.query(
       `update public.sessions
-          set lifecycle_status = 'CANCELLED', status = 'cancelled'
+          set lifecycle_status = 'CANCELLED', status = 'cancelled',
+              cancelled_at = now(), cancelled_by_user_id = $2
         where id = $1`,
-      [cancelled],
+      [cancelled, assigned],
     );
 
     const cases: Array<[string | null, string, string]> = [

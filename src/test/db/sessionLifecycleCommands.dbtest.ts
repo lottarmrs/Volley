@@ -316,12 +316,12 @@ if (!isTestDatabaseConfigured()) {
     );
     assert.deepEqual(rows, [
       { code: 'COMPETITION_FIXTURE_NOT_READY', evaluation_status: 'DEFERRED', owning_wave: 'W8' },
-      { code: 'COURT_CONFIGURATION_INVALID', evaluation_status: 'EVALUATED', owning_wave: null },
+      { code: 'COURT_CONFIGURATION_INVALID', evaluation_status: 'EVALUATED', owning_wave: 'W3' },
       { code: 'NO_CONFIRMED_TEAM_DRAW', evaluation_status: 'DEFERRED', owning_wave: 'W6' },
-      { code: 'NO_EFFECTIVE_ROSTER', evaluation_status: 'EVALUATED', owning_wave: null },
-      { code: 'REQUIRED_ORGANIZER_MISSING', evaluation_status: 'EVALUATED', owning_wave: null },
+      { code: 'NO_EFFECTIVE_ROSTER', evaluation_status: 'EVALUATED', owning_wave: 'W3' },
+      { code: 'REQUIRED_ORGANIZER_MISSING', evaluation_status: 'EVALUATED', owning_wave: 'W3' },
       { code: 'ROSTER_STALE', evaluation_status: 'DEFERRED', owning_wave: 'W6' },
-      { code: 'RULES_INVALID', evaluation_status: 'EVALUATED', owning_wave: null },
+      { code: 'RULES_INVALID', evaluation_status: 'EVALUATED', owning_wave: 'W3' },
       { code: 'TEAM_DRAW_STALE', evaluation_status: 'DEFERRED', owning_wave: 'W6' },
       { code: 'VOTING_STILL_OPEN', evaluation_status: 'DEFERRED', owning_wave: 'W5' },
     ]);
@@ -446,9 +446,12 @@ if (!isTestDatabaseConfigured()) {
       'update public.session_organizer_assignments set revoked_at = now() where session_id = $1',
       [sessionId],
     );
-    const { rows } = await readReadiness(organizer, sessionId);
-    assert.equal(rows[0].ready, false);
-    assert.deepEqual(blockerCodes(rows[0]), ['REQUIRED_ORGANIZER_MISSING']);
+    const { rows } = await client.query<{ readiness: ReadinessRow }>(
+      'select app_private.target_session_readiness($1) as readiness',
+      [sessionId],
+    );
+    assert.equal(rows[0].readiness.ready, false);
+    assert.deepEqual(blockerCodes(rows[0].readiness), ['REQUIRED_ORGANIZER_MISSING']);
   });
 
   test('replacing the roster with an empty revision yields exactly NO_EFFECTIVE_ROSTER', async () => {
@@ -498,7 +501,7 @@ if (!isTestDatabaseConfigured()) {
     for (const blocker of rows[0].blockers) {
       assert.ok((EVALUATED_BLOCKER_CODES as readonly string[]).includes(blocker.code));
       assert.equal(blocker.evaluation_status, 'EVALUATED');
-      assert.equal(blocker.owning_wave, null);
+      assert.equal(blocker.owning_wave, 'W3');
     }
   });
 
@@ -685,7 +688,7 @@ if (!isTestDatabaseConfigured()) {
 
   test('a target Session cancelled without cancelled_at or cancelled_by_user_id is rejected with 23514', async () => {
     const organizer = await newUser('cancel-missing-audit@test.local');
-    for (const [sessionId, sql] of [
+    const cases: Array<[string, string, unknown[]]> = [
       [
         await createTargetSession(organizer),
         `update public.sessions
@@ -693,6 +696,7 @@ if (!isTestDatabaseConfigured()) {
                 cancelled_by_user_id = $2,
                 cancel_reason = 'Chuva'
           where id = $1`,
+        [organizer],
       ],
       [
         await createTargetSession(organizer),
@@ -701,10 +705,12 @@ if (!isTestDatabaseConfigured()) {
                 cancelled_at = now(),
                 cancel_reason = 'Chuva'
           where id = $1`,
+        [],
       ],
-    ] as const) {
+    ];
+    for (const [sessionId, sql, params] of cases) {
       const rejected = await client
-        .query(sql, [sessionId, organizer])
+        .query(sql, [sessionId, ...params])
         .catch((error: Error) => error);
       assertSqlState(rejected, '23514');
     }

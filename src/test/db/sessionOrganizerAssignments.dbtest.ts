@@ -139,6 +139,30 @@ if (!isTestDatabaseConfigured()) {
     ]);
   }
 
+  test('session_organizer_assignments FKs retain complete leading-column indexes', async () => {
+    const { rows } = await client.query<{ constraint_name: string; fk_column: string }>(
+      `select con.conname as constraint_name, att.attname as fk_column
+         from pg_constraint con
+         cross join lateral unnest(con.conkey) as fk(attnum)
+         join pg_attribute att
+           on att.attrelid = con.conrelid
+          and att.attnum = fk.attnum
+        where con.contype = 'f'
+          and con.conrelid = 'public.session_organizer_assignments'::regclass
+          and not exists (
+            select 1
+              from pg_index i
+             where i.indrelid = con.conrelid
+               and i.indisvalid
+               and i.indisready
+               and i.indpred is null
+               and i.indkey[0] = fk.attnum
+          )
+        order by att.attname`,
+    );
+    assert.deepEqual(rows, []);
+  });
+
   test('create_target_session atomically records the Quick creator assignment with no Membership', async () => {
     const organizer = await newUser('assignment-quick@test.local');
     const sessionId = await createTargetSession(organizer, { context: 'QUICK' });

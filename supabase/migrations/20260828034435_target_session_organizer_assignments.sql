@@ -9,6 +9,21 @@ create table public.session_organizer_assignments (
   revoked_by_user_id uuid references auth.users(id) on delete set null
 );
 
+create index session_organizer_assignments_session_id_idx
+  on public.session_organizer_assignments (session_id);
+
+create index session_organizer_assignments_community_membership_id_idx
+  on public.session_organizer_assignments (community_membership_id);
+
+create index session_organizer_assignments_organizer_user_id_idx
+  on public.session_organizer_assignments (organizer_user_id);
+
+create index session_organizer_assignments_assigned_by_user_id_idx
+  on public.session_organizer_assignments (assigned_by_user_id);
+
+create index session_organizer_assignments_revoked_by_user_id_idx
+  on public.session_organizer_assignments (revoked_by_user_id);
+
 create index session_organizer_assignments_active_session_idx
   on public.session_organizer_assignments (session_id)
   where revoked_at is null;

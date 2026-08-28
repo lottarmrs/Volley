@@ -58,6 +58,11 @@ if (!isTestDatabaseConfigured()) {
   const callFailing = (userId: string | null, sql: string, params: unknown[] = []) =>
     call(userId, sql, params).catch((error: Error) => error);
 
+  function assertSqlState(error: unknown, expectedCode: string): asserts error is Error {
+    assert.ok(error instanceof Error);
+    assert.equal((error as { code?: string }).code, expectedCode);
+  }
+
   async function targetCommunity(ownerId: string, name: string): Promise<string> {
     const { rows } = await call<{ id: string }>(
       ownerId,
@@ -229,7 +234,7 @@ if (!isTestDatabaseConfigured()) {
       'select * from public.add_target_session_court($1, $2, 1, $3, 3)',
       [staleCourtId, sessionId, 'Quadra stale'],
     );
-    assert.ok(stale instanceof Error);
+    assertSqlState(stale, '40001');
     assert.match((stale as Error).message, /stale.*revision/i);
 
     const { rows } = await client.query<{ court_order: number }>(
@@ -286,7 +291,7 @@ if (!isTestDatabaseConfigured()) {
       const rejected = await addCourt(organizer, courtId, sessionId, 1, label, courtOrder).catch(
         (error: Error) => error,
       );
-      assert.ok(rejected instanceof Error);
+      assertSqlState(rejected, '23514');
     }
 
     const { rows } = await client.query<{ count: string }>(
@@ -294,6 +299,64 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     assert.equal(rows[0].count, '1');
+  });
+
+  test('add_target_session_court rejects labels containing only non-space whitespace', async () => {
+    const organizer = await newUser('court-whitespace-command@test.local');
+    const sessionId = await createTargetSession(organizer);
+
+    const rejected = await addCourt(organizer, randomUUID(), sessionId, 1, '\t\n\r', 2).catch(
+      (error: Error) => error,
+    );
+
+    assertSqlState(rejected, '23514');
+  });
+
+  test('session_courts check rejects labels containing only non-space whitespace', async () => {
+    const organizer = await newUser('court-whitespace-check@test.local');
+    const sessionId = await createTargetSession(organizer);
+
+    const rejected = await client
+      .query(
+        `insert into public.session_courts (id, session_id, label, court_order)
+         values ($1, $2, $3, 2)`,
+        [randomUUID(), sessionId, '\t\n\r'],
+      )
+      .catch((error: Error) => error);
+
+    assertSqlState(rejected, '23514');
+  });
+
+  test('add_target_session_court reports P0002 for a missing target Session', async () => {
+    const organizer = await newUser('court-missing-session@test.local');
+
+    const rejected = await addCourt(organizer, randomUUID(), randomUUID(), 1, 'Quadra 2', 2).catch(
+      (error: Error) => error,
+    );
+
+    assertSqlState(rejected, 'P0002');
+  });
+
+  test('add_target_session_court rejects terminal Sessions with 23514', async () => {
+    const organizer = await newUser('court-terminal@test.local');
+    const sessionId = await createTargetSession(organizer);
+    await client.query(
+      `update public.sessions
+          set lifecycle_status = 'CANCELLED', status = 'cancelled'
+        where id = $1`,
+      [sessionId],
+    );
+
+    const rejected = await addCourt(
+      organizer,
+      randomUUID(),
+      sessionId,
+      1,
+      'Quadra terminal',
+      2,
+    ).catch((error: Error) => error);
+
+    assertSqlState(rejected, '23514');
   });
 
   test('duplicate Court order in one Session is rejected', async () => {
@@ -392,6 +455,47 @@ if (!isTestDatabaseConfigured()) {
     );
     assert.deepEqual(communityRead.rows, []);
     assert.deepEqual(quickRead.rows, []);
+  });
+
+  test('revoking a Quick Organizer assignment removes Court visibility', async () => {
+    const organizer = await newUser('court-read-revoked-quick@test.local');
+    const sessionId = await createTargetSession(organizer);
+    await client.query(
+      'update public.session_organizer_assignments set revoked_at = now() where session_id = $1',
+      [sessionId],
+    );
+
+    const read = await call(
+      organizer,
+      'select * from public.session_courts where session_id = $1',
+      [sessionId],
+    );
+
+    assert.deepEqual(read.rows, []);
+  });
+
+  test('suspending a Community membership removes Court visibility', async () => {
+    const owner = await newUser('court-read-suspended-owner@test.local');
+    const organizer = await newUser('court-read-suspended-organizer@test.local');
+    const member = await newUser('court-read-suspended-member@test.local');
+    const community = await targetCommunity(owner, 'Court suspended reader');
+    await activeMembership(community, organizer);
+    await activeMembership(community, member);
+    await grantOrganizer(community, organizer);
+    const sessionId = await createTargetSession(organizer, {
+      communityId: community,
+      context: 'COMMUNITY',
+    });
+    await client.query(
+      "update public.community_memberships set status = 'suspended' where community_id = $1 and user_id = $2",
+      [community, member],
+    );
+
+    const read = await call(member, 'select * from public.session_courts where session_id = $1', [
+      sessionId,
+    ]);
+
+    assert.deepEqual(read.rows, []);
   });
 
   test('deleting a Session deletes its Courts as aggregate composition', async () => {

@@ -5,7 +5,7 @@ create table public.session_courts (
   court_order integer not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint session_courts_label_check check (btrim(label) <> ''),
+  constraint session_courts_label_check check (label !~ '^[[:space:]]*$'),
   constraint session_courts_order_check check (court_order >= 1),
   constraint session_courts_session_order_key unique (session_id, court_order)
 );
@@ -193,7 +193,7 @@ begin
   if v_session.revision is distinct from p_expected_revision then
     raise exception 'Stale Session revision' using errcode = '40001';
   end if;
-  if coalesce(btrim(p_label), '') = '' then
+  if p_label is null or p_label ~ '^[[:space:]]*$' then
     raise exception 'Court label is required' using errcode = '23514';
   end if;
   if p_court_order is null or p_court_order < 1 then

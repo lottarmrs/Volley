@@ -157,6 +157,22 @@ if (!isTestDatabaseConfigured()) {
     ]);
   });
 
+  test('create_target_session rejects a QUICK command carrying a Community', async () => {
+    const owner = await newUser('assignment-hybrid-owner@test.local');
+    const community = await targetCommunity(owner, 'Quick hybrid boundary');
+    await grantOrganizer(community, owner);
+
+    const denied = await callFailing(
+      owner,
+      `select public.create_target_session(
+         gen_random_uuid(), $1, 'QUICK', 'FREE_PLAY', 'Hybrid Quick', null, null
+       )`,
+      [community],
+    );
+    assert.ok(denied instanceof Error);
+    assert.match((denied as Error).message, /QUICK.*Community/i);
+  });
+
   test('create_target_session records the Community creator exact active Membership and User', async () => {
     const owner = await newUser('assignment-community-owner@test.local');
     const organizer = await newUser('assignment-community-organizer@test.local');

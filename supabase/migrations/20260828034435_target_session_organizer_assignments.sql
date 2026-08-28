@@ -193,6 +193,9 @@ begin
   if p_session_context = 'COMMUNITY' and p_community_id is null then
     raise exception 'COMMUNITY Session requires a Community' using errcode = '23514';
   end if;
+  if p_session_context = 'QUICK' and p_community_id is not null then
+    raise exception 'QUICK Session cannot have a Community' using errcode = '23514';
+  end if;
   if p_planned_end_at is not null and p_planned_start_at is not null
      and p_planned_end_at < p_planned_start_at then
     raise exception 'Planned Session end cannot precede its start' using errcode = '23514';
@@ -218,9 +221,6 @@ begin
     ) then
       raise exception 'Missing capability session.manage' using errcode = '42501';
     end if;
-  elsif p_community_id is not null
-     and not public.current_user_has_community_capability(p_community_id, 'session.manage') then
-    raise exception 'Missing capability session.manage' using errcode = '42501';
   end if;
 
   insert into public.sessions (

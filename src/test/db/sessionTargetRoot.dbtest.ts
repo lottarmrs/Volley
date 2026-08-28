@@ -207,7 +207,7 @@ if (!isTestDatabaseConfigured()) {
       [community],
     );
     assert.ok(denied instanceof Error);
-    assert.match((denied as Error).message, /session\.manage/i);
+    assert.match((denied as Error).message, /Active Community Membership/i);
 
     await grantSessionManagement(community, organizer);
     const sessionId = await createTargetSession(organizer, {
@@ -530,7 +530,7 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     assert.ok(denied instanceof Error);
-    assert.match((denied as Error).message, /session\.manage/i);
+    assert.match((denied as Error).message, /valid Session organizer assignment/i);
 
     const { rows } = await client.query<{ name: string; revision: number }>(
       'select name, revision from public.sessions where id = $1',

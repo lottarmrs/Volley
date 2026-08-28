@@ -280,6 +280,28 @@ if (!isTestDatabaseConfigured()) {
     return readiness.blockers.map((blocker) => blocker.code).sort();
   }
 
+  async function observedReadinessRevisions(sessionId: string): Promise<ReadinessRevisions> {
+    const { rows } = await client.query<ReadinessRevisions>(
+      `select s.revision as session_revision,
+              roster.id as roster_revision_id,
+              roster.revision_number as roster_revision_number,
+              rules.id as rules_snapshot_id
+         from public.sessions s
+         left join lateral (
+           select r.id, r.revision_number
+             from public.roster_revisions r
+            where r.session_id = s.id
+            order by r.revision_number desc, r.id desc
+            limit 1
+         ) roster on true
+         left join public.session_rules_snapshots rules on rules.session_id = s.id
+        where s.id = $1`,
+      [sessionId],
+    );
+    assert.equal(rows.length, 1, 'the target Session must exist for readiness provenance');
+    return rows[0];
+  }
+
   // --- Step 2: the blocker catalog -----------------------------------------------------
 
   test('app_private.session_readiness_blockers holds exactly the nine approved codes with the correct evaluation status and owning wave', async () => {
@@ -306,55 +328,104 @@ if (!isTestDatabaseConfigured()) {
   });
 
   test('evaluation_status rejects any value outside EVALUATED and DEFERRED with 23514', async () => {
-    const rejected = await client
-      .query(
-        `insert into app_private.session_readiness_blockers (code, evaluation_status, owning_wave)
-         values ('BOGUS_CODE', 'PENDING', null)`,
-      )
-      .catch((error: Error) => error);
-    assertSqlState(rejected, '23514');
+    await client.query('begin');
+    try {
+      const rejected = await client
+        .query(
+          `update app_private.session_readiness_blockers
+              set evaluation_status = 'PENDING'
+            where code = 'REQUIRED_ORGANIZER_MISSING'`,
+        )
+        .catch((error: Error) => error);
+      assertSqlState(rejected, '23514');
+    } finally {
+      await client.query('rollback');
+    }
   });
 
   test('row level security is enabled and anon/authenticated hold no privilege on the blocker catalog', async () => {
-    const { rows } = await client.query<{
-      rls_enabled: boolean;
-      anon_select: boolean;
-      authenticated_select: boolean;
-      anon_insert: boolean;
-      authenticated_insert: boolean;
-    }>(
-      `select c.relrowsecurity as rls_enabled,
-              has_table_privilege('anon', c.oid, 'SELECT') as anon_select,
-              has_table_privilege('authenticated', c.oid, 'SELECT') as authenticated_select,
-              has_table_privilege('anon', c.oid, 'INSERT') as anon_insert,
-              has_table_privilege('authenticated', c.oid, 'INSERT') as authenticated_insert
+    const { rows: rlsRows } = await client.query<{ rls_enabled: boolean }>(
+      `select c.relrowsecurity as rls_enabled
          from pg_class c
          join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'app_private' and c.relname = 'session_readiness_blockers'`,
     );
-    assert.deepEqual(rows, [
-      {
-        rls_enabled: true,
-        anon_select: false,
-        authenticated_select: false,
-        anon_insert: false,
-        authenticated_insert: false,
-      },
-    ]);
+    assert.deepEqual(rlsRows, [{ rls_enabled: true }]);
+
+    const { rows: grantedPrivileges } = await client.query<{
+      role_name: string;
+      privilege_type: string;
+    }>(
+      `with browser_roles(role_name) as (
+         values ('anon'), ('authenticated')
+       ), table_privileges(privilege_type) as (
+         values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
+                ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')
+       )
+       select browser_roles.role_name, table_privileges.privilege_type
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+         cross join browser_roles
+         cross join table_privileges
+        where n.nspname = 'app_private'
+          and c.relname = 'session_readiness_blockers'
+          and has_table_privilege(
+            browser_roles.role_name, c.oid, table_privileges.privilege_type
+          )
+        order by browser_roles.role_name, table_privileges.privilege_type`,
+    );
+    assert.deepEqual(grantedPrivileges, []);
   });
 
-  test('anon and authenticated cannot execute the private readiness evaluator directly', async () => {
+  test('readiness functions are SECURITY DEFINER, pin an empty search_path, and expose only the public reader to authenticated', async () => {
     const { rows } = await client.query<{
-      anon_exec: boolean | null;
-      authenticated_exec: boolean | null;
+      schema_name: string;
+      function_name: string;
+      security_definer: boolean;
+      config: string[] | null;
+      has_explicit_acl: boolean;
+      public_exec: boolean;
+      anon_exec: boolean;
+      authenticated_exec: boolean;
     }>(
-      `select bool_or(has_function_privilege('anon', p.oid, 'EXECUTE')) as anon_exec,
-              bool_or(has_function_privilege('authenticated', p.oid, 'EXECUTE')) as authenticated_exec
+      `select n.nspname as schema_name,
+              p.proname as function_name,
+              p.prosecdef as security_definer,
+              p.proconfig as config,
+              p.proacl is not null as has_explicit_acl,
+              has_function_privilege('public', p.oid, 'EXECUTE') as public_exec,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anon_exec,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_exec
          from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'app_private' and p.proname = 'target_session_readiness'`,
+        where p.oid in (
+          pg_catalog.to_regprocedure('app_private.target_session_readiness(uuid)'),
+          pg_catalog.to_regprocedure('public.read_target_session_readiness(uuid)')
+        )
+        order by n.nspname, p.proname`,
     );
-    assert.deepEqual(rows, [{ anon_exec: false, authenticated_exec: false }]);
+    assert.deepEqual(rows, [
+      {
+        schema_name: 'app_private',
+        function_name: 'target_session_readiness',
+        security_definer: true,
+        config: ['search_path=""'],
+        has_explicit_acl: true,
+        public_exec: false,
+        anon_exec: false,
+        authenticated_exec: false,
+      },
+      {
+        schema_name: 'public',
+        function_name: 'read_target_session_readiness',
+        security_definer: true,
+        config: ['search_path=""'],
+        has_explicit_acl: true,
+        public_exec: false,
+        anon_exec: false,
+        authenticated_exec: true,
+      },
+    ]);
   });
 
   // --- Step 3: readiness evaluation -----------------------------------------------------
@@ -449,33 +520,36 @@ if (!isTestDatabaseConfigured()) {
   test('revisions reports the current Session revision, latest roster provenance, and the rules snapshot id, with nulls where absent', async () => {
     const organizer = await newUser('readiness-revisions@test.local');
     const ready = await createReadySession(organizer);
-    const { rows } = await readReadiness(organizer, ready.sessionId);
-    assert.deepEqual(rows[0].revisions, {
-      session_revision: ready.revision,
-      roster_revision_id: ready.rosterRevisionId,
-      roster_revision_number: ready.rosterRevisionNumber,
-      rules_snapshot_id: ready.rulesSnapshotId,
+    await replaceQuickRoster(organizer, {
+      sessionId: ready.sessionId,
+      expectedRevision: ready.revision,
+      participants: [{ participant_id: randomUUID(), identity_kind: 'GUEST', display_name: 'Bia' }],
     });
+    const expectedReadyRevisions = await observedReadinessRevisions(ready.sessionId);
+    assert.equal(expectedReadyRevisions.roster_revision_number, 2);
+    assert.notEqual(expectedReadyRevisions.roster_revision_id, ready.rosterRevisionId);
+    const { rows } = await readReadiness(organizer, ready.sessionId);
+    assert.deepEqual(rows[0].revisions, expectedReadyRevisions);
 
     const bareSessionId = await createTargetSession(organizer, {
       name: 'Bare revisions Session',
     });
     const bareResult = await readReadiness(organizer, bareSessionId);
-    assert.deepEqual(bareResult.rows[0].revisions, {
-      session_revision: 1,
-      roster_revision_id: null,
-      roster_revision_number: null,
-      rules_snapshot_id: null,
-    });
+    assert.deepEqual(bareResult.rows[0].revisions, await observedReadinessRevisions(bareSessionId));
   });
 
   test('no table anywhere stores a materialized readiness or is_ready value', async () => {
-    const { rows } = await client.query<{ table_name: string; column_name: string }>(
-      `select table_name, column_name
+    const { rows } = await client.query<{
+      table_schema: string;
+      table_name: string;
+      column_name: string;
+    }>(
+      `select table_schema, table_name, column_name
          from information_schema.columns
-        where table_schema = 'public'
+        where table_schema <> 'information_schema'
+          and table_schema not like 'pg\\_%' escape '\\'
           and (column_name ilike '%is_ready%' or column_name ilike '%readiness%')
-        order by table_name, column_name`,
+        order by table_schema, table_name, column_name`,
     );
     assert.deepEqual(rows, []);
   });

@@ -200,6 +200,11 @@ if (!isTestDatabaseConfigured()) {
       rulesPayload: rules,
     });
     assert.deepEqual(result.rows, [{ snapshot_id: snapshotId, session_revision: 2 }]);
+    const session = await client.query<{ revision: number }>(
+      'select revision from public.sessions where id = $1',
+      [sessionId],
+    );
+    assert.deepEqual(session.rows, [{ revision: 2 }]);
 
     const persisted = await client.query<{
       id: string;
@@ -269,32 +274,51 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
-  test('freeze rejects stale revision, a null final UUID, invalid schema, non-object payload, and invalid source kind', async () => {
+  test('freeze rejects stale revision, null command values, invalid schema, non-object payload, invalid source kind, and a missing Session', async () => {
     const organizer = await newUser('snapshot-validation@test.local');
-    const sessionId = await createTargetSession(organizer);
-    await freeze(organizer, { sessionId });
-
-    const invalidCommands: Array<[string, Parameters<typeof freeze>[1]]> = [
-      ['stale revision', { sessionId, expectedRevision: 1 }],
-      ['null final UUID', { sessionId, snapshotId: null, expectedRevision: 2 }],
-      ['unsupported schema version', { sessionId, schemaVersion: 2, expectedRevision: 2 }],
-      ['null JSONB', { sessionId, rulesPayload: null, expectedRevision: 2 }],
-      ['array JSONB', { sessionId, rulesPayload: [], expectedRevision: 2 }],
-      ['invalid source kind', { sessionId, sourceKind: 'COMPETITION_RULES', expectedRevision: 2 }],
+    const invalidCommands: Array<{
+      name: string;
+      expectedSqlState: string;
+      command: Omit<Parameters<typeof freeze>[1], 'sessionId'>;
+    }> = [
+      { name: 'stale revision', expectedSqlState: '40001', command: { expectedRevision: 0 } },
+      { name: 'null final UUID', expectedSqlState: '23514', command: { snapshotId: null } },
+      {
+        name: 'null expected revision',
+        expectedSqlState: '23514',
+        command: { expectedRevision: null },
+      },
+      {
+        name: 'unsupported schema version',
+        expectedSqlState: '23514',
+        command: { schemaVersion: 2 },
+      },
+      { name: 'null JSONB', expectedSqlState: '23514', command: { rulesPayload: null } },
+      { name: 'array JSONB', expectedSqlState: '23514', command: { rulesPayload: [] } },
+      {
+        name: 'invalid source kind',
+        expectedSqlState: '23514',
+        command: { sourceKind: 'COMPETITION_RULES' },
+      },
     ];
-    const expectedSqlStates = new Map([
-      ['stale revision', '40001'],
-      ['null final UUID', '23514'],
-      ['unsupported schema version', '23514'],
-      ['null JSONB', '23514'],
-      ['array JSONB', '23514'],
-      ['invalid source kind', '23514'],
-    ]);
 
-    for (const [name, command] of invalidCommands) {
-      const rejected = await freeze(organizer, command).catch((error: Error) => error);
-      assertSqlState(rejected, expectedSqlStates.get(name)!);
+    for (const { name, expectedSqlState, command } of invalidCommands) {
+      const sessionId = await createTargetSession(organizer, { name: `Invalid snapshot ${name}` });
+      const rejected = await freeze(organizer, { sessionId, ...command }).catch(
+        (error: Error) => error,
+      );
+      assertSqlState(rejected, expectedSqlState);
+      const revision = await client.query<{ revision: number }>(
+        'select revision from public.sessions where id = $1',
+        [sessionId],
+      );
+      assert.deepEqual(revision.rows, [{ revision: 1 }]);
     }
+
+    const missingSession = await freeze(organizer, { sessionId: randomUUID() }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(missingSession, 'P0002');
   });
 
   test('freeze rejects anonymous, eligible-but-unassigned, terminal, and legacy callers with contract SQLSTATEs', async () => {

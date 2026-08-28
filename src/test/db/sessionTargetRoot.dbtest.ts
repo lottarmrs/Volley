@@ -95,6 +95,12 @@ if (!isTestDatabaseConfigured()) {
 
   async function grantSessionManagement(communityId: string, userId: string): Promise<void> {
     await client.query(
+      `insert into public.community_memberships (community_id, user_id, role, status)
+       values ($1, $2, 'member', 'active')
+       on conflict (community_id, user_id) do nothing`,
+      [communityId, userId],
+    );
+    await client.query(
       `insert into public.community_responsibilities (community_id, user_id, responsibility)
        values ($1, $2, 'ORGANIZER')`,
       [communityId, userId],

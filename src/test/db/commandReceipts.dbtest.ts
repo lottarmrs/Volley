@@ -202,6 +202,18 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(rows, [{ relrowsecurity: true }]);
   });
 
+  test('OPEN-API-002: no retention/pruning trigger exists on command_receipts', async () => {
+    const { rows } = await client.query<{ n: string }>(`
+      select count(*)::text as n
+      from pg_trigger t join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'app_private' and c.relname = 'command_receipts'
+        and not t.tgisinternal
+        and t.tgname <> 'reject_command_receipt_mutation_trigger'
+    `);
+    assert.equal(rows[0].n, '0', 'no automatic pruning/retention trigger may exist yet');
+  });
+
   test('anon and authenticated hold no privilege on app_private.command_receipts', async () => {
     const { rows } = await client.query<{
       anon_select: boolean;

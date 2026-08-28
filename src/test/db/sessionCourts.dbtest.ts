@@ -135,7 +135,8 @@ if (!isTestDatabaseConfigured()) {
                and i.indisvalid
                and i.indisready
                and i.indpred is null
-               and i.indam = (select oid from pg_am where amname = 'btree')
+               and (select relam from pg_class where oid = i.indexrelid)
+                   = (select oid from pg_am where amname = 'btree')
                and i.indkey[0] = fk.attnum
           )
         order by att.attname`,

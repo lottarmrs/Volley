@@ -731,10 +731,15 @@ if (!isTestDatabaseConfigured()) {
       foreign_table: string;
       delete_action: string;
     }>(
-      `select
+      `select foreign_key.table_name,
+              foreign_key.columns,
+              foreign_key.foreign_table,
+              foreign_key.delete_action
+         from (
+       select
          con.conrelid::regclass::text as table_name,
          array(
-           select att.attname
+           select att.attname::text
              from unnest(con.conkey) with ordinality as key(attnum, ord)
              join pg_attribute att
                on att.attrelid = con.conrelid
@@ -761,7 +766,8 @@ if (!isTestDatabaseConfigured()) {
            'public.players'::regclass,
            'auth.users'::regclass
          )
-       order by table_name, columns::text`,
+         ) as foreign_key
+       order by foreign_key.table_name, foreign_key.columns::text`,
     );
     assert.deepEqual(rows, [
       {

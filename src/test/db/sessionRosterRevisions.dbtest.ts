@@ -2274,4 +2274,520 @@ if (!isTestDatabaseConfigured()) {
       assert.doesNotMatch(row.definition, /selected_player_ids/i);
     }
   });
+
+  async function createLegacySession(
+    input: {
+      ownerId?: string | null;
+      status?: string;
+      selected?: string[];
+      name?: string;
+    } = {},
+  ): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `insert into public.sessions (
+         owner_id, name, date, status, type, selected_player_ids
+       ) values ($1, $2, '2030-01-01', $3, 'free_play', $4::text[])
+       returning id`,
+      [
+        input.ownerId ?? null,
+        input.name ?? 'Legacy roster Session',
+        input.status ?? 'finished',
+        input.selected ?? [],
+      ],
+    );
+    return rows[0].id;
+  }
+
+  async function importLegacyRosters(sourceRelease: string): Promise<string> {
+    const { rows } = await client.query<{ run_id: string }>(
+      'select app_private.import_legacy_session_rosters($1) as run_id',
+      [sourceRelease],
+    );
+    return rows[0].run_id;
+  }
+
+  async function legacySourceHash(sessionId: string): Promise<string> {
+    const { rows } = await client.query<{ hash: string }>(
+      `select pg_catalog.md5(to_jsonb(selected_player_ids)::text) as hash
+         from public.sessions where id = $1`,
+      [sessionId],
+    );
+    return rows[0].hash;
+  }
+
+  async function rosterFootprint(sessionId: string) {
+    const { rows } = await client.query<{
+      participants: string;
+      revisions: string;
+      entries: string;
+    }>(
+      `select
+         (select count(*) from public.session_participants p
+           where p.session_id = $1)::text as participants,
+         (select count(*) from public.roster_revisions r
+           where r.session_id = $1)::text as revisions,
+         (select count(*) from public.roster_revision_entries e
+           where e.session_id = $1)::text as entries`,
+      [sessionId],
+    );
+    return rows;
+  }
+
+  async function anomaliesFor(runId: string, sessionId: string) {
+    const { rows } = await client.query<{
+      reason: string;
+      status: string;
+      details: Record<string, unknown>;
+    }>(
+      `select reason, status, details
+         from app_private.migration_anomalies
+        where run_id = $1
+          and source_type = 'legacy_session_selected_roster'
+          and source_id = $2
+        order by reason`,
+      [runId, sessionId],
+    );
+    return rows;
+  }
+
+  async function mappingsFor(runId: string, sessionId: string) {
+    const { rows } = await client.query<{
+      source_type: string;
+      source_id: string;
+      target_type: string;
+      target_id: string;
+      mapping_kind: string;
+      confidence: string;
+    }>(
+      `select source_type, source_id, target_type, target_id, mapping_kind, confidence
+         from app_private.migration_entity_map
+        where run_id = $1 and (source_id = $2 or source_id like $2 || '#%')
+        order by source_type, source_id`,
+      [runId, sessionId],
+    );
+    return rows;
+  }
+
+  async function runRow(runId: string) {
+    const { rows } = await client.query<{
+      name: string;
+      source_release: string;
+      status: string;
+      finished: boolean;
+    }>(
+      `select name, source_release, status, finished_at is not null as finished
+         from app_private.migration_runs where run_id = $1`,
+      [runId],
+    );
+    return rows;
+  }
+
+  test('terminal legacy Sessions import exact rosters with provenance and no invented history', async () => {
+    const owner = await newUser('legacy-import-owner@test.local');
+    const uuidPlayer = await createPlayer(owner, { name: 'Alice', nickname: ' Ali ' });
+    const localPlayer = await createPlayer(owner, {
+      name: ' Bruna ',
+      localId: 'legacy-local-bruna',
+    });
+    const cancelledPlayer = await createPlayer(owner, { name: 'Carla' });
+    const finishedSession = await createLegacySession({
+      ownerId: owner,
+      status: 'finished',
+      selected: [uuidPlayer, 'legacy-local-bruna'],
+      name: 'Legacy finished roster',
+    });
+    const cancelledSession = await createLegacySession({
+      ownerId: owner,
+      status: 'cancelled',
+      selected: [cancelledPlayer],
+      name: 'Legacy cancelled roster',
+    });
+    const expectedHash = await legacySourceHash(finishedSession);
+
+    const runId = await importLegacyRosters('release-legacy-import');
+
+    const revision = await client.query<{
+      id: string;
+      revision_number: number;
+      source_kind: string;
+      source_session_revision: number | null;
+      source_registration_revision: string | null;
+      source_payload_hash: string | null;
+      created_by_user_id: string | null;
+    }>(
+      `select id, revision_number, source_kind, source_session_revision,
+              source_registration_revision, source_payload_hash, created_by_user_id
+         from public.roster_revisions where session_id = $1`,
+      [finishedSession],
+    );
+    assert.equal(revision.rows.length, 1);
+    const { id: revisionId, ...revisionShape } = revision.rows[0];
+    assert.deepEqual(revisionShape, {
+      revision_number: 1,
+      source_kind: 'LEGACY_SELECTED_ROSTER',
+      source_session_revision: null,
+      source_registration_revision: null,
+      source_payload_hash: expectedHash,
+      created_by_user_id: null,
+    });
+
+    const entries = await client.query<{
+      entry_order: number;
+      identity_kind: string;
+      player_id: string;
+      display_name_at_time: string;
+    }>(
+      `select entry_order, identity_kind, player_id, display_name_at_time
+         from public.roster_revision_entries
+        where roster_revision_id = $1 order by entry_order`,
+      [revisionId],
+    );
+    assert.deepEqual(entries.rows, [
+      {
+        entry_order: 0,
+        identity_kind: 'PLAYER',
+        player_id: uuidPlayer,
+        display_name_at_time: 'Ali',
+      },
+      {
+        entry_order: 1,
+        identity_kind: 'PLAYER',
+        player_id: localPlayer,
+        display_name_at_time: 'Bruna',
+      },
+    ]);
+
+    const participants = await client.query<{
+      identity_kind: string;
+      player_id: string;
+      source_kind: string;
+      participation_status: string;
+      created_by_user_id: string | null;
+    }>(
+      `select identity_kind, player_id, source_kind, participation_status, created_by_user_id
+         from public.session_participants where session_id = $1 order by display_name`,
+      [finishedSession],
+    );
+    assert.deepEqual(participants.rows, [
+      {
+        identity_kind: 'PLAYER',
+        player_id: uuidPlayer,
+        source_kind: 'LEGACY_SELECTED_ROSTER',
+        participation_status: 'INCLUDED',
+        created_by_user_id: null,
+      },
+      {
+        identity_kind: 'PLAYER',
+        player_id: localPlayer,
+        source_kind: 'LEGACY_SELECTED_ROSTER',
+        participation_status: 'INCLUDED',
+        created_by_user_id: null,
+      },
+    ]);
+
+    assert.deepEqual(await rosterFootprint(cancelledSession), [
+      { participants: '1', revisions: '1', entries: '1' },
+    ]);
+
+    const legacySource = await client.query<{
+      authority_model: string;
+      status: string;
+      selected_player_ids: string[];
+      revision: number;
+      session_context: string | null;
+      lifecycle_status: string | null;
+    }>(
+      `select authority_model, status, selected_player_ids, revision,
+              session_context, lifecycle_status
+         from public.sessions where id = $1`,
+      [finishedSession],
+    );
+    assert.deepEqual(legacySource.rows, [
+      {
+        authority_model: 'legacy',
+        status: 'finished',
+        selected_player_ids: [uuidPlayer, 'legacy-local-bruna'],
+        revision: 0,
+        session_context: null,
+        lifecycle_status: null,
+      },
+    ]);
+
+    const participantIds = await client.query<{ id: string; player_id: string }>(
+      'select id, player_id from public.session_participants where session_id = $1',
+      [finishedSession],
+    );
+    const participantByPlayer = new Map(participantIds.rows.map((row) => [row.player_id, row.id]));
+    assert.deepEqual(await mappingsFor(runId, finishedSession), [
+      {
+        source_type: 'legacy_session_selected_player',
+        source_id: `${finishedSession}#1:${uuidPlayer}`,
+        target_type: 'session_participant',
+        target_id: participantByPlayer.get(uuidPlayer),
+        mapping_kind: 'ONE_TO_ONE',
+        confidence: 'EXACT',
+      },
+      {
+        source_type: 'legacy_session_selected_player',
+        source_id: `${finishedSession}#2:legacy-local-bruna`,
+        target_type: 'session_participant',
+        target_id: participantByPlayer.get(localPlayer),
+        mapping_kind: 'ONE_TO_ONE',
+        confidence: 'EXACT',
+      },
+      {
+        source_type: 'legacy_session_selected_roster',
+        source_id: finishedSession,
+        target_type: 'roster_revision',
+        target_id: revisionId,
+        mapping_kind: 'ONE_TO_ONE',
+        confidence: 'EXACT',
+      },
+    ]);
+    assert.deepEqual(await anomaliesFor(runId, finishedSession), []);
+    assert.deepEqual(await anomaliesFor(runId, cancelledSession), []);
+
+    const targetTypes = await client.query<{ target_type: string }>(
+      `select distinct target_type from app_private.migration_entity_map
+        where run_id = $1 order by target_type`,
+      [runId],
+    );
+    assert.deepEqual(
+      targetTypes.rows.map((row) => row.target_type),
+      ['roster_revision', 'session_participant'],
+    );
+    const registrationTables = await client.query<{ table_name: string }>(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_name like '%registration%'
+        order by table_name`,
+    );
+    assert.deepEqual(registrationTables.rows, []);
+    assert.deepEqual(await runRow(runId), [
+      {
+        name: 'import_legacy_session_rosters',
+        source_release: 'release-legacy-import',
+        status: 'COMPLETED',
+        finished: true,
+      },
+    ]);
+  });
+
+  test('an inexact legacy roster quarantines the whole Session without partial target rows', async () => {
+    const owner = await newUser('legacy-quarantine-owner@test.local');
+    const knownPlayer = await createPlayer(owner, { name: 'Conhecida' });
+    const shadowedPlayer = await createPlayer(owner, { name: 'Sombra' });
+    await client.query('update public.players set local_id = $2 where id = $1', [
+      shadowedPlayer,
+      knownPlayer,
+    ]);
+    const collidingPlayer = await createPlayer(owner, {
+      name: 'Repetida',
+      localId: 'legacy-local-repetida',
+    });
+    const repeatedPlayer = await createPlayer(owner, { name: 'Duplicada' });
+    const ownerlessPlayer = await createPlayer(owner, {
+      name: 'Sem dono',
+      localId: 'legacy-local-sem-dono',
+    });
+
+    const unresolved = await createLegacySession({
+      ownerId: owner,
+      selected: ['legacy-token-inexistente'],
+      name: 'Legacy unresolved token',
+    });
+    const ambiguous = await createLegacySession({
+      ownerId: owner,
+      selected: [knownPlayer],
+      name: 'Legacy ambiguous token',
+    });
+    const repeated = await createLegacySession({
+      ownerId: owner,
+      selected: [repeatedPlayer, repeatedPlayer],
+      name: 'Legacy repeated token',
+    });
+    const colliding = await createLegacySession({
+      ownerId: owner,
+      selected: [collidingPlayer, 'legacy-local-repetida'],
+      name: 'Legacy colliding Players',
+    });
+    const ownerless = await createLegacySession({
+      ownerId: null,
+      selected: ['legacy-local-sem-dono'],
+      name: 'Legacy ownerless local token',
+    });
+
+    const runId = await importLegacyRosters('release-legacy-quarantine');
+
+    const expectations: Array<[string, string, string[]]> = [
+      [unresolved, 'LEGACY_ROSTER_TOKEN_UNRESOLVED', ['legacy-token-inexistente']],
+      [ambiguous, 'LEGACY_ROSTER_TOKEN_AMBIGUOUS', [knownPlayer]],
+      [repeated, 'LEGACY_ROSTER_TOKEN_REPEATED', [repeatedPlayer]],
+      [
+        colliding,
+        'LEGACY_ROSTER_PLAYERS_COLLIDE',
+        [collidingPlayer, 'legacy-local-repetida'].sort(),
+      ],
+      [ownerless, 'LEGACY_ROSTER_OWNER_UNKNOWN', ['legacy-local-sem-dono']],
+    ];
+    for (const [sessionId, reason, rejectedTokens] of expectations) {
+      const anomalies = await anomaliesFor(runId, sessionId);
+      assert.equal(anomalies.length, 1, `${reason} must record exactly one anomaly`);
+      assert.equal(anomalies[0].reason, reason);
+      assert.equal(anomalies[0].status, 'QUARANTINED');
+      assert.deepEqual(
+        (anomalies[0].details.rejected_tokens as string[]).slice().sort(),
+        rejectedTokens,
+      );
+      assert.equal(anomalies[0].details.source_hash, await legacySourceHash(sessionId));
+      assert.deepEqual(await rosterFootprint(sessionId), [
+        { participants: '0', revisions: '0', entries: '0' },
+      ]);
+      assert.deepEqual(await mappingsFor(runId, sessionId), []);
+    }
+
+    const ambiguousCandidates = (await anomaliesFor(runId, ambiguous))[0].details
+      .candidates as Array<{ token: string; player_ids: string[] }>;
+    assert.deepEqual(
+      ambiguousCandidates.map((candidate) => ({
+        token: candidate.token,
+        player_ids: candidate.player_ids.slice().sort(),
+      })),
+      [{ token: knownPlayer, player_ids: [knownPlayer, shadowedPlayer].sort() }],
+    );
+    assert.deepEqual(await runRow(runId), [
+      {
+        name: 'import_legacy_session_rosters',
+        source_release: 'release-legacy-quarantine',
+        status: 'COMPLETED',
+        finished: true,
+      },
+    ]);
+  });
+
+  test('non-terminal, empty, and already-target legacy cohorts are left untouched', async () => {
+    const owner = await newUser('legacy-cohort-owner@test.local');
+    const playerId = await createPlayer(owner, { name: 'Fora do escopo' });
+    const ignored: string[] = [];
+    for (const status of [
+      'active',
+      'paused',
+      'draft',
+      'players_selected',
+      'configured',
+      'teams_generated',
+    ]) {
+      ignored.push(
+        await createLegacySession({
+          ownerId: owner,
+          status,
+          selected: [playerId],
+          name: `Legacy ${status} roster`,
+        }),
+      );
+    }
+    ignored.push(
+      await createLegacySession({
+        ownerId: owner,
+        status: 'finished',
+        selected: [],
+        name: 'Legacy finished empty roster',
+      }),
+    );
+    const alreadyTarget = await createTargetSession(owner, { name: 'Already target roster' });
+    await client.query(
+      `update public.sessions
+          set selected_player_ids = array[$2]::text[], status = 'finished'
+        where id = $1`,
+      [alreadyTarget, playerId],
+    );
+    ignored.push(alreadyTarget);
+
+    const runId = await importLegacyRosters('release-legacy-cohort');
+
+    for (const sessionId of ignored) {
+      assert.deepEqual(
+        await rosterFootprint(sessionId),
+        [{ participants: '0', revisions: '0', entries: '0' }],
+        `${sessionId} must stay outside the terminal import cohort`,
+      );
+      assert.deepEqual(await anomaliesFor(runId, sessionId), []);
+      assert.deepEqual(await mappingsFor(runId, sessionId), []);
+    }
+  });
+
+  test('a rerun reuses an unchanged legacy import and quarantines source drift', async () => {
+    const owner = await newUser('legacy-rerun-owner@test.local');
+    const playerId = await createPlayer(owner, { name: 'Estável' });
+    const driftPlayer = await createPlayer(owner, { name: 'Acrescentada' });
+    const sessionId = await createLegacySession({
+      ownerId: owner,
+      selected: [playerId],
+      name: 'Legacy rerun roster',
+    });
+    const originalHash = await legacySourceHash(sessionId);
+
+    const firstRun = await importLegacyRosters('release-legacy-rerun-1');
+    const firstState = await client.query<{ id: string; created_at: string }>(
+      'select id, created_at from public.roster_revisions where session_id = $1',
+      [sessionId],
+    );
+    assert.equal(firstState.rows.length, 1);
+    const revisionId = firstState.rows[0].id;
+
+    const secondRun = await importLegacyRosters('release-legacy-rerun-2');
+    const secondState = await client.query<{ id: string; created_at: string }>(
+      'select id, created_at from public.roster_revisions where session_id = $1',
+      [sessionId],
+    );
+    assert.deepEqual(secondState.rows, firstState.rows);
+    assert.deepEqual(await rosterFootprint(sessionId), [
+      { participants: '1', revisions: '1', entries: '1' },
+    ]);
+    assert.deepEqual(await anomaliesFor(secondRun, sessionId), []);
+    assert.deepEqual(
+      (await mappingsFor(secondRun, sessionId)).map((row) => [row.source_type, row.target_id]),
+      [
+        ['legacy_session_selected_player', (await participantIdOf(sessionId)) as string],
+        ['legacy_session_selected_roster', revisionId],
+      ],
+    );
+
+    await client.query(
+      `update public.sessions
+          set selected_player_ids = array[$2, $3]::text[]
+        where id = $1`,
+      [sessionId, playerId, driftPlayer],
+    );
+    const driftedHash = await legacySourceHash(sessionId);
+    const thirdRun = await importLegacyRosters('release-legacy-rerun-3');
+
+    const drift = await anomaliesFor(thirdRun, sessionId);
+    assert.equal(drift.length, 1);
+    assert.equal(drift[0].reason, 'LEGACY_ROSTER_SOURCE_CHANGED_AFTER_IMPORT');
+    assert.equal(drift[0].details.source_hash, driftedHash);
+    assert.equal(drift[0].details.imported_source_hash, originalHash);
+    assert.equal(drift[0].details.roster_revision_id, revisionId);
+    const driftedState = await client.query<{ id: string; created_at: string }>(
+      'select id, created_at from public.roster_revisions where session_id = $1',
+      [sessionId],
+    );
+    assert.deepEqual(driftedState.rows, firstState.rows);
+    assert.deepEqual(await rosterFootprint(sessionId), [
+      { participants: '1', revisions: '1', entries: '1' },
+    ]);
+
+    for (const runId of [firstRun, secondRun, thirdRun]) {
+      const [row] = await runRow(runId);
+      assert.equal(row.status, 'COMPLETED');
+      assert.equal(row.finished, true);
+    }
+  });
+
+  async function participantIdOf(sessionId: string): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      'select id from public.session_participants where session_id = $1',
+      [sessionId],
+    );
+    return rows[0].id;
+  }
 }

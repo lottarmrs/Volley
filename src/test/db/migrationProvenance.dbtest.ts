@@ -55,9 +55,13 @@ if (!isTestDatabaseConfigured()) {
   }
 
   test('the substrate exists and is internal-only', async () => {
+    // Scoped to this substrate's own tables (the `migration_*` prefix), not to every table
+    // that may ever live in `app_private` -- later slices (e.g. C6 XS-W3-06's
+    // `command_receipts`) legitimately add unrelated internal tables to that schema.
     const { rows } = await client.query<{ table_name: string }>(
       `select table_name from information_schema.tables
-       where table_schema = 'app_private' order by table_name`,
+       where table_schema = 'app_private' and table_name like 'migration_%'
+       order by table_name`,
     );
 
     assert.deepEqual(
@@ -253,12 +257,15 @@ if (!isTestDatabaseConfigured()) {
   test('OPEN-MIG-017: no retention policy is asserted on provenance', async () => {
     // The retention period is an open decision, so this slice must not invent a TTL or a
     // prune job. If one appears, OPEN-MIG-017 was closed somewhere and this test should be
-    // replaced by an assertion of the agreed policy.
+    // replaced by an assertion of the agreed policy. Scoped to this substrate's own
+    // `migration_*` tables: other `app_private` tables (e.g. C6 XS-W3-06's
+    // `command_receipts`) may carry triggers unrelated to provenance retention, such as its
+    // own immutability guard, without bearing on OPEN-MIG-017.
     const { rows } = await client.query<{ n: string }>(`
       select count(*)::text as n
       from pg_trigger t join pg_class c on c.oid = t.tgrelid
       join pg_namespace n on n.oid = c.relnamespace
-      where n.nspname = 'app_private' and not t.tgisinternal
+      where n.nspname = 'app_private' and c.relname like 'migration_%' and not t.tgisinternal
     `);
 
     assert.equal(rows[0].n, '0', 'no automatic pruning/retention trigger may exist yet');

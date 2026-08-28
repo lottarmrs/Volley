@@ -419,14 +419,26 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(stored.rows, [{ result: { first: true } }]);
   });
 
-  test('deleting the actor nulls actor_id without tripping the immutability guard', async () => {
+  test('an ON DELETE SET NULL style update nulls actor_id without tripping the immutability guard', async () => {
     const actorId = await newUser('receipt-actor-delete@test.local');
     const commandId = randomUUID();
     const aggregateId = randomUUID();
     const result = { ok: true };
     await recordReceipt({ commandId, actorId, commandType: 'CreateSession', aggregateId, result });
 
-    await client.query('delete from auth.users where id = $1', [actorId]);
+    // A real `delete from auth.users` cannot be exercised here: every account gets an
+    // auto-created canonical Player (`public.handle_new_user`) that is unconditionally
+    // undeletable today -- a pre-existing schema limitation unrelated to command receipts,
+    // documented by `authCascadeSafety.dbtest.ts`'s "FINDING: no account can be deleted at
+    // all today". Deleting `actorId` here would fail on that guard before the delete ever
+    // reached this table's own foreign key. This performs the exact UPDATE the
+    // `ON DELETE SET NULL` action on `command_receipts.actor_id` would issue, so the
+    // immutability guard's exemption is proven directly instead of depending on an
+    // unrelated, currently-blocked cascade.
+    await client.query(
+      'update app_private.command_receipts set actor_id = null where command_id = $1',
+      [commandId],
+    );
 
     const stored = await client.query<{
       actor_id: string | null;

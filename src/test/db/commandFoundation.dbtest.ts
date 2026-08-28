@@ -197,26 +197,26 @@ if (!isTestDatabaseConfigured()) {
     }
   });
 
-  test('KNOWN GAP: idempotency here is the command own, not a durable receipt', async () => {
-    // Recorded rather than implied. `ensure_account_ready` is naturally idempotent, so
-    // retry safety holds for THIS command without any ledger. It does NOT generalise: a
-    // command that is not naturally idempotent needs app_private.command_receipts, which
-    // C6.01 gates on a resolved schema/retention choice and OPEN-API-002 leaves open.
-    //
-    // The absence of the table is therefore deliberate, and this test exists so the gap is
-    // visible in the suite output rather than only in a commit message.
-    const { rows } = await client.query<{ exists: boolean }>(
-      `select exists (
-         select 1 from information_schema.tables
-         where table_schema = 'app_private' and table_name = 'command_receipts'
-       ) as exists`,
-    );
+  test('EXIT GATE: a recorded commandId returns its terminal result', async () => {
+    // Replaces the earlier KNOWN GAP: `app_private.command_receipts` now exists (C6
+    // XS-W3-06), so a command that is not naturally idempotent -- unlike
+    // `ensure_account_ready` above -- can rely on a durable ledger for retry safety.
+    // OPEN-API-002 (retention) is still open; that does not block the receipt/lookup
+    // contract this test pins.
+    const commandId = ensureAccountReadyCommand().commandId;
+    const aggregateId = userId;
+    const result = { profile_id: userId, ready: true };
 
-    assert.equal(
-      rows[0].exists,
-      false,
-      'command_receipts now exists: OPEN-API-002 must have been resolved. Replace this test ' +
-        'with real receipt semantics (same commandId returns the recorded terminal result).',
+    const { rows: recorded } = await client.query<{ record_command_receipt: unknown }>(
+      `select app_private.record_command_receipt($1, $2, $3, $4, $5::jsonb, $6)`,
+      [commandId, userId, 'EnsureAccountReady', aggregateId, JSON.stringify(result), 'STANDARD'],
     );
+    assert.deepEqual(recorded, [{ record_command_receipt: result }]);
+
+    const { rows: found } = await client.query<{ find_command_receipt: unknown }>(
+      'select app_private.find_command_receipt($1, $2, $3)',
+      [commandId, 'EnsureAccountReady', aggregateId],
+    );
+    assert.deepEqual(found, [{ find_command_receipt: result }]);
   });
 }

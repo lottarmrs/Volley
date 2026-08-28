@@ -2585,7 +2585,7 @@ if (!isTestDatabaseConfigured()) {
       localId: 'legacy-local-repetida',
     });
     const repeatedPlayer = await createPlayer(owner, { name: 'Duplicada' });
-    const ownerlessPlayer = await createPlayer(owner, {
+    await createPlayer(owner, {
       name: 'Sem dono',
       localId: 'legacy-local-sem-dono',
     });

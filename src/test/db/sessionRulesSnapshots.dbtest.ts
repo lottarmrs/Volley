@@ -58,6 +58,23 @@ if (!isTestDatabaseConfigured()) {
   const callFailing = (userId: string | null, sql: string, params: unknown[] = []) =>
     call(userId, sql, params).catch((error: Error) => error);
 
+  async function resolveTargetSessionVisibility(
+    userId: string,
+    sessionId: string,
+  ): Promise<boolean> {
+    await client.query('begin');
+    try {
+      await client.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', userId]);
+      const { rows } = await client.query<{ allowed: boolean }>(
+        'select app_private.current_user_can_read_target_session($1) as allowed',
+        [sessionId],
+      );
+      return rows[0].allowed;
+    } finally {
+      await client.query('rollback');
+    }
+  }
+
   function assertSqlState(error: unknown, expectedCode: string): asserts error is Error {
     assert.ok(error instanceof Error);
     assert.equal((error as { code?: string }).code, expectedCode);
@@ -646,12 +663,7 @@ if (!isTestDatabaseConfigured()) {
       [member, true],
       [outsider, false],
     ] as const) {
-      const resolver = await call<{ allowed: boolean }>(
-        actor,
-        'select app_private.current_user_can_read_target_session($1) as allowed',
-        [sessionId],
-      );
-      assert.deepEqual(resolver.rows, [{ allowed: expected }]);
+      assert.equal(await resolveTargetSessionVisibility(actor, sessionId), expected);
       const courts = await call(
         actor,
         'select * from public.session_courts where session_id = $1',

@@ -146,16 +146,38 @@ if (!isTestDatabaseConfigured()) {
   test('create_target_session atomically materializes one default Court identity', async () => {
     const organizer = await newUser('court-default@test.local');
     const sessionId = await createTargetSession(organizer);
-    const { rows } = await client.query(
-      `select session_id, label, court_order from public.session_courts where session_id = $1`,
+    const { rows } = await client.query<{
+      id: string;
+      session_id: string;
+      label: string;
+      court_order: number;
+    }>(
+      `select id, session_id, label, court_order from public.session_courts where session_id = $1`,
       [sessionId],
     );
-    assert.deepEqual(rows, [{ session_id: sessionId, label: 'Quadra 1', court_order: 1 }]);
+    assert.equal(rows.length, 1);
+    assert.match(
+      rows[0].id,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    assert.deepEqual(
+      rows.map(({ id: _id, ...court }) => court),
+      [{ session_id: sessionId, label: 'Quadra 1', court_order: 1 }],
+    );
   });
 
   test('assigned Organizer adds a caller-addressable Court and advances Session revision', async () => {
     const organizer = await newUser('court-add@test.local');
     const sessionId = await createTargetSession(organizer);
+    const defaultCourt = await client.query<{ id: string }>(
+      `select id from public.session_courts where session_id = $1 and court_order = 1`,
+      [sessionId],
+    );
+    assert.equal(defaultCourt.rows.length, 1);
+    assert.match(
+      defaultCourt.rows[0].id,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
     const courtId = randomUUID();
     const result = await call(
       organizer,
@@ -163,6 +185,12 @@ if (!isTestDatabaseConfigured()) {
       [courtId, sessionId],
     );
     assert.deepEqual(result.rows, [{ court_id: courtId, session_revision: 2 }]);
+    const addedCourt = await client.query<{ id: string }>(
+      `select id from public.session_courts where session_id = $1 and court_order = 2`,
+      [sessionId],
+    );
+    assert.deepEqual(addedCourt.rows, [{ id: courtId }]);
+    assert.notEqual(addedCourt.rows[0].id, defaultCourt.rows[0].id);
   });
 
   test('an eligible but unassigned Organizer cannot add a Court', async () => {

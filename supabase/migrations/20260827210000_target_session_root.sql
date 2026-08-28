@@ -304,6 +304,7 @@ begin
          date = coalesce(v_planned_start_at::date, date),
          planned_start_at = v_planned_start_at,
          planned_end_at = v_planned_end_at,
+         updated_at = now(),
          revision = revision + 1
    where id = p_session_id;
 
@@ -314,70 +315,6 @@ $$;
 revoke all on function public.update_target_session_draft(uuid, integer, text, timestamptz, timestamptz)
   from public, anon;
 grant execute on function public.update_target_session_draft(uuid, integer, text, timestamptz, timestamptz)
-  to authenticated;
-
-create or replace function public.transition_target_session_lifecycle(
-  p_session_id uuid,
-  p_expected_revision integer,
-  p_next_lifecycle_status text,
-  p_occurred_at timestamptz default null
-)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_session public.sessions;
-  v_occurred_at timestamptz := coalesce(p_occurred_at, now());
-begin
-  select * into v_session
-    from public.sessions
-   where id = p_session_id and authority_model = 'target'
-   for update;
-
-  if not found then
-    raise exception 'Target Session not found' using errcode = 'P0002';
-  end if;
-  perform public.assert_target_session_write_authorized(v_session);
-  if v_session.revision is distinct from p_expected_revision then
-    raise exception 'Stale Session revision' using errcode = '40001';
-  end if;
-
-  if p_next_lifecycle_status is null then
-    raise exception 'Invalid target Session lifecycle transition' using errcode = '23514';
-  end if;
-
-  if not (
-    (v_session.lifecycle_status = 'DRAFT' and p_next_lifecycle_status in ('SCHEDULED', 'CANCELLED'))
-    or (v_session.lifecycle_status = 'SCHEDULED' and p_next_lifecycle_status in ('IN_PROGRESS', 'CANCELLED'))
-    or (v_session.lifecycle_status = 'IN_PROGRESS' and p_next_lifecycle_status in ('COMPLETED', 'CANCELLED'))
-  ) then
-    raise exception 'Invalid target Session lifecycle transition from % to %',
-      v_session.lifecycle_status, p_next_lifecycle_status using errcode = '23514';
-  end if;
-
-  update public.sessions
-     set lifecycle_status = p_next_lifecycle_status,
-         status = public.target_session_compatibility_status(p_next_lifecycle_status),
-         actual_started_at = case
-           when p_next_lifecycle_status = 'IN_PROGRESS' then coalesce(actual_started_at, v_occurred_at)
-           else actual_started_at
-         end,
-         actual_finished_at = case
-           when p_next_lifecycle_status = 'COMPLETED' then coalesce(actual_finished_at, v_occurred_at)
-           else actual_finished_at
-         end,
-         revision = revision + 1
-   where id = p_session_id;
-
-  return v_session.revision + 1;
-end;
-$$;
-
-revoke all on function public.transition_target_session_lifecycle(uuid, integer, text, timestamptz)
-  from public, anon;
-grant execute on function public.transition_target_session_lifecycle(uuid, integer, text, timestamptz)
   to authenticated;
 
 create or replace function public.read_target_session(p_session_id uuid)
@@ -450,3 +387,111 @@ $$;
 
 revoke all on function public.read_target_session(uuid) from public, anon;
 grant execute on function public.read_target_session(uuid) to authenticated;
+
+create or replace function public.claim_session_ownership(p_session_id uuid, p_device_id text)
+returns public.sessions
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_session public.sessions;
+begin
+  if v_uid is null then
+    raise exception 'Nao autenticado' using errcode = '42501';
+  end if;
+
+  select * into v_session from public.sessions
+   where id = p_session_id and deleted_at is null;
+
+  if v_session.id is null then
+    raise exception 'Sessão não encontrada' using errcode = '22023';
+  end if;
+  if v_session.authority_model <> 'legacy' then
+    raise exception 'Target Session does not support legacy ownership commands' using errcode = '42501';
+  end if;
+
+  if not (
+    v_session.owner_id = v_uid
+    or (v_session.community_id is not null
+        and public.current_user_has_community_role(v_session.community_id))
+  ) then
+    raise exception 'Sem permissão para controlar esta sessão' using errcode = '42501';
+  end if;
+
+  if v_session.status = 'finished' then
+    raise exception 'Sessão encerrada não tem placar a marcar' using errcode = '22023';
+  end if;
+
+  if v_session.controlled_by_user_id is not null
+     and v_session.controlled_by_user_id <> v_uid
+     and not public.session_control_is_expired(v_session) then
+    raise exception 'Outra pessoa está com o controle desta sessão' using errcode = '42501';
+  end if;
+
+  update public.sessions
+     set controlled_by_user_id = v_uid,
+         control_claimed_at = now(),
+         control_device_id = p_device_id,
+         updated_at = now()
+   where id = p_session_id
+  returning * into v_session;
+
+  return v_session;
+end;
+$$;
+
+revoke execute on function public.claim_session_ownership(uuid, text) from public, anon;
+grant execute on function public.claim_session_ownership(uuid, text) to authenticated;
+
+create or replace function public.transfer_session_ownership(p_session_id uuid, p_device_id text)
+returns public.sessions
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_session public.sessions;
+begin
+  if v_uid is null then
+    raise exception 'Nao autenticado' using errcode = '42501';
+  end if;
+
+  select * into v_session from public.sessions
+   where id = p_session_id and deleted_at is null;
+
+  if v_session.id is null then
+    raise exception 'Sessão não encontrada' using errcode = '22023';
+  end if;
+  if v_session.authority_model <> 'legacy' then
+    raise exception 'Target Session does not support legacy ownership commands' using errcode = '42501';
+  end if;
+
+  if not (
+    v_session.owner_id = v_uid
+    or (v_session.community_id is not null
+        and public.current_user_has_community_role(v_session.community_id))
+  ) then
+    raise exception 'Sem permissão para controlar esta sessão' using errcode = '42501';
+  end if;
+
+  if v_session.status = 'finished' then
+    raise exception 'Sessão encerrada não tem placar a marcar' using errcode = '22023';
+  end if;
+
+  update public.sessions
+     set controlled_by_user_id = v_uid,
+         control_claimed_at = now(),
+         control_device_id = p_device_id,
+         updated_at = now()
+   where id = p_session_id
+  returning * into v_session;
+
+  return v_session;
+end;
+$$;
+
+revoke execute on function public.transfer_session_ownership(uuid, text) from public, anon;
+grant execute on function public.transfer_session_ownership(uuid, text) to authenticated;

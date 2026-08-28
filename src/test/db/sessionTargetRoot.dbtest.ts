@@ -317,41 +317,18 @@ if (!isTestDatabaseConfigured()) {
     });
   });
 
-  test('lifecycle and publication are separate while planned and actual timestamps stay distinct', async () => {
+  test('lifecycle and publication dimensions are structural but lifecycle commands stay out of XS-W3-01', async () => {
     const actor = await newUser('session-time-owner@test.local');
     const sessionId = await createTargetSession(actor, {
       plannedStartAt: '2030-02-03T18:00:00Z',
       plannedEndAt: '2030-02-03T20:00:00Z',
     });
 
-    await call(
-      actor,
-      `select public.transition_target_session_lifecycle(
-         $1, 1, 'SCHEDULED', '2030-02-03T17:55:00Z'
-       )`,
-      [sessionId],
-    );
-    await call(
-      actor,
-      `select public.transition_target_session_lifecycle(
-         $1, 2, 'IN_PROGRESS', '2030-02-03T18:17:00Z'
-       )`,
-      [sessionId],
-    );
-    await call(
-      actor,
-      `select public.transition_target_session_lifecycle(
-         $1, 3, 'COMPLETED', '2030-02-03T19:58:00Z'
-       )`,
-      [sessionId],
-    );
-
     const { rows } = await client.query<{
       lifecycle_status: string;
       publication_state: string;
       planned_start_at: string;
       planned_end_at: string;
-      actual_started_at: string;
       actual_finished_at: string | null;
     }>(
       `select lifecycle_status, publication_state,
@@ -359,45 +336,25 @@ if (!isTestDatabaseConfigured()) {
                 as planned_start_at,
               to_char(planned_end_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
                 as planned_end_at,
-              to_char(actual_started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-                as actual_started_at,
               to_char(actual_finished_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
                 as actual_finished_at
        from public.sessions where id = $1`,
       [sessionId],
     );
     assert.deepEqual(rows[0], {
-      lifecycle_status: 'COMPLETED',
+      lifecycle_status: 'DRAFT',
       publication_state: 'PRIVATE',
       planned_start_at: '2030-02-03T18:00:00Z',
       planned_end_at: '2030-02-03T20:00:00Z',
-      actual_started_at: '2030-02-03T18:17:00Z',
-      actual_finished_at: '2030-02-03T19:58:00Z',
+      actual_finished_at: null,
     });
 
-    const invalid = await callFailing(
-      actor,
-      `select public.transition_target_session_lifecycle(
-         $1, 4, 'SCHEDULED', '2030-02-03T20:00:00Z'
-       )`,
-      [sessionId],
+    const lifecycleCommand = await client.query<{ lifecycle_command_is_absent: boolean }>(
+      `select to_regprocedure(
+         'public.transition_target_session_lifecycle(uuid,integer,text,timestamp with time zone)'
+       ) is null as lifecycle_command_is_absent`,
     );
-    assert.ok(invalid instanceof Error, 'a completed Session cannot return to scheduled');
-    assert.match((invalid as Error).message, /invalid target Session lifecycle transition/i);
-
-    const cancellable = await createTargetSession(actor, { name: 'Cancellable' });
-    await call(
-      actor,
-      `select public.transition_target_session_lifecycle(
-         $1, 1, 'CANCELLED', '2030-02-03T17:00:00Z'
-       )`,
-      [cancellable],
-    );
-    const cancelled = await client.query<{ lifecycle_status: string; revision: number }>(
-      'select lifecycle_status, revision from public.sessions where id = $1',
-      [cancellable],
-    );
-    assert.deepEqual(cancelled.rows[0], { lifecycle_status: 'CANCELLED', revision: 2 });
+    assert.equal(lifecycleCommand.rows[0].lifecycle_command_is_absent, true);
   });
 
   test('a draft update rejects a null expected revision', async () => {
@@ -408,21 +365,6 @@ if (!isTestDatabaseConfigured()) {
       actor,
       `select public.update_target_session_draft(
          $1, null, 'Bypass revision', null, null
-       )`,
-      [sessionId],
-    );
-    assert.ok(attempt instanceof Error);
-    assert.match((attempt as Error).message, /stale Session revision/i);
-  });
-
-  test('a lifecycle transition rejects a null expected revision', async () => {
-    const actor = await newUser('session-null-lifecycle-revision-owner@test.local');
-    const sessionId = await createTargetSession(actor, { name: 'Lifecycle revision protected' });
-
-    const attempt = await callFailing(
-      actor,
-      `select public.transition_target_session_lifecycle(
-         $1, null, 'SCHEDULED', '2030-01-02T17:30:00Z'
        )`,
       [sessionId],
     );
@@ -443,6 +385,98 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     assert.deepEqual(rows[0], { name: 'Guarded target', revision: 1 });
+  });
+
+  test('legacy ownership RPCs reject target Sessions for the owner and a legacy-eligible Community admin', async () => {
+    const owner = await newUser('session-target-ownership-owner@test.local');
+    const legacyAdmin = await newUser('session-target-ownership-admin@test.local');
+    const community = await targetCommunity(owner, 'Target ownership fence');
+    await grantSessionManagement(community, owner);
+    await client.query(
+      `insert into public.community_members (community_id, user_id, role, status)
+       values ($1, $2, 'admin', 'active')`,
+      [community, legacyAdmin],
+    );
+    const sessionId = await createTargetSession(owner, {
+      context: 'COMMUNITY',
+      communityId: community,
+    });
+
+    const attempts = await Promise.all([
+      callFailing(owner, 'select public.claim_session_ownership($1, $2)', [
+        sessionId,
+        'owner-claim',
+      ]),
+      callFailing(owner, 'select public.transfer_session_ownership($1, $2)', [
+        sessionId,
+        'owner-transfer',
+      ]),
+      callFailing(legacyAdmin, 'select public.claim_session_ownership($1, $2)', [
+        sessionId,
+        'admin-claim',
+      ]),
+      callFailing(legacyAdmin, 'select public.transfer_session_ownership($1, $2)', [
+        sessionId,
+        'admin-transfer',
+      ]),
+    ]);
+    for (const attempt of attempts) {
+      assert.ok(attempt instanceof Error);
+      assert.match((attempt as Error).message, /target Session.*legacy ownership/i);
+    }
+
+    const { rows } = await client.query<{
+      controlled_by_user_id: string | null;
+      control_claimed_at: string | null;
+      control_device_id: string | null;
+      revision: number;
+    }>(
+      `select controlled_by_user_id, control_claimed_at, control_device_id, revision
+       from public.sessions where id = $1`,
+      [sessionId],
+    );
+    assert.deepEqual(rows[0], {
+      controlled_by_user_id: null,
+      control_claimed_at: null,
+      control_device_id: null,
+      revision: 1,
+    });
+  });
+
+  test('a target draft update advances updated_at independently of its revision token', async () => {
+    const actor = await newUser('session-updated-at-owner@test.local');
+    const sessionId = await createTargetSession(actor, { name: 'Before timestamp update' });
+    const priorUpdatedAt = '2000-01-01T00:00:00Z';
+    await client.query('update public.sessions set updated_at = $2 where id = $1', [
+      sessionId,
+      priorUpdatedAt,
+    ]);
+
+    const before = await client.query<{ updated_at: string }>(
+      `select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at
+       from public.sessions where id = $1`,
+      [sessionId],
+    );
+    assert.equal(before.rows[0].updated_at, priorUpdatedAt);
+
+    await call(
+      actor,
+      `select public.update_target_session_draft(
+         $1, 1, 'After timestamp update', null, null
+       )`,
+      [sessionId],
+    );
+
+    const { rows } = await client.query<{ name: string; revision: number; advanced: boolean }>(
+      `select name, revision, updated_at > $2::timestamptz as advanced
+       from public.sessions where id = $1`,
+      [sessionId, priorUpdatedAt],
+    );
+    assert.deepEqual(rows[0], {
+      name: 'After timestamp update',
+      revision: 2,
+      advanced: true,
+    });
   });
 
   test('a target draft update uses revision and rejects stale, anonymous, and cross-Community callers', async () => {

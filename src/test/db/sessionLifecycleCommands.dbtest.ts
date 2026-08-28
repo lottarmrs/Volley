@@ -61,6 +61,33 @@ interface ReadinessRow extends QueryResultRow {
   revisions: ReadinessRevisions;
 }
 
+interface LifecycleCommandRow extends QueryResultRow {
+  session_revision: number;
+}
+
+interface OrganizerAssignmentCommandRow extends QueryResultRow {
+  assignment_id: string;
+  session_revision: number;
+}
+
+interface CourtConfigureCommandRow extends QueryResultRow {
+  court_id: string;
+  session_revision: number;
+}
+
+interface SessionLifecycleState {
+  lifecycle_status: string;
+  status: string;
+  publication_state: string;
+  revision: number;
+  planned_start_at: string | null;
+  actual_started_at: string | null;
+  actual_finished_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by_user_id: string | null;
+  cancel_reason: string | null;
+}
+
 const EVALUATED_BLOCKER_CODES = [
   'REQUIRED_ORGANIZER_MISSING',
   'NO_EFFECTIVE_ROSTER',
@@ -300,6 +327,297 @@ if (!isTestDatabaseConfigured()) {
     );
     assert.equal(rows.length, 1, 'the target Session must exist for readiness provenance');
     return rows[0];
+  }
+
+  // --- Task 5 fixtures: the nine semantic lifecycle commands ---------------------------
+
+  async function sessionRevision(sessionId: string): Promise<number> {
+    const { rows } = await client.query<{ revision: number }>(
+      'select revision from public.sessions where id = $1',
+      [sessionId],
+    );
+    return rows[0].revision;
+  }
+
+  async function sessionState(sessionId: string): Promise<SessionLifecycleState> {
+    const { rows } = await client.query<SessionLifecycleState>(
+      `select lifecycle_status, status, publication_state, revision, planned_start_at,
+              actual_started_at, actual_finished_at, cancelled_at, cancelled_by_user_id,
+              cancel_reason
+         from public.sessions where id = $1`,
+      [sessionId],
+    );
+    return rows[0];
+  }
+
+  async function compatibilityStatus(lifecycleStatus: string): Promise<string> {
+    const { rows } = await client.query<{ status: string }>(
+      'select public.target_session_compatibility_status($1) as status',
+      [lifecycleStatus],
+    );
+    return rows[0].status;
+  }
+
+  /**
+   * Privileged, direct manipulation of lifecycle state for test setup only -- no target
+   * command exercises this path. Bypasses RLS the same way `createLegacySession` does.
+   */
+  async function forceLifecycleStatus(
+    sessionId: string,
+    status: 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED',
+    actorId: string,
+  ): Promise<void> {
+    await client.query(
+      `update public.sessions
+          set lifecycle_status = $2,
+              status = public.target_session_compatibility_status($2),
+              actual_started_at = case
+                when $2 in ('IN_PROGRESS', 'COMPLETED') then coalesce(actual_started_at, now())
+                else actual_started_at
+              end,
+              actual_finished_at = case
+                when $2 = 'COMPLETED' then coalesce(actual_finished_at, now())
+                else actual_finished_at
+              end,
+              cancelled_at = case
+                when $2 = 'CANCELLED' then coalesce(cancelled_at, now())
+                else cancelled_at
+              end,
+              cancelled_by_user_id = case
+                when $2 = 'CANCELLED' then coalesce(cancelled_by_user_id, $3)
+                else cancelled_by_user_id
+              end,
+              cancel_reason = case
+                when $2 = 'CANCELLED' then coalesce(cancel_reason, 'Test forced cancellation')
+                else cancel_reason
+              end
+        where id = $1`,
+      [sessionId, status, actorId],
+    );
+  }
+
+  async function aggregateCounts(sessionId: string) {
+    const { rows } = await client.query<{
+      session_participants: string;
+      roster_revisions: string;
+      roster_revision_entries: string;
+      session_rules_snapshots: string;
+      session_courts: string;
+      session_organizer_assignments: string;
+    }>(
+      `select
+         (select count(*) from public.session_participants
+           where session_id = $1)::text as session_participants,
+         (select count(*) from public.roster_revisions
+           where session_id = $1)::text as roster_revisions,
+         (select count(*) from public.roster_revision_entries
+           where session_id = $1)::text as roster_revision_entries,
+         (select count(*) from public.session_rules_snapshots
+           where session_id = $1)::text as session_rules_snapshots,
+         (select count(*) from public.session_courts
+           where session_id = $1)::text as session_courts,
+         (select count(*) from public.session_organizer_assignments
+           where session_id = $1)::text as session_organizer_assignments`,
+      [sessionId],
+    );
+    return rows[0];
+  }
+
+  async function commandReceipt(commandId: string) {
+    const { rows } = await client.query<{
+      command_type: string;
+      aggregate_id: string;
+      actor_id: string | null;
+      retention_class: string;
+    }>(
+      `select command_type, aggregate_id, actor_id, retention_class
+         from app_private.command_receipts where command_id = $1`,
+      [commandId],
+    );
+    return rows;
+  }
+
+  async function membershipId(communityId: string, userId: string): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      'select id from public.community_memberships where community_id = $1 and user_id = $2',
+      [communityId, userId],
+    );
+    assert.equal(rows.length, 1, 'expected an existing active Community membership');
+    return rows[0].id;
+  }
+
+  /**
+   * Privileged, direct insert of an already-assigned Session organizer for test setup --
+   * no target command exercises this path. Needed because `revoke_target_session_organizer`
+   * (once it exists) cannot be exercised by an actor who just revoked their own only
+   * assignment, so tests need a second, already-assigned organizer to observe post-revoke
+   * state.
+   */
+  async function directOrganizerAssignment(
+    sessionId: string,
+    organizerUserId: string,
+    communityMembershipId: string | null = null,
+  ): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `insert into public.session_organizer_assignments (
+         session_id, community_membership_id, organizer_user_id, assigned_by_user_id
+       ) values ($1, $2, $3, $3)
+       returning id`,
+      [sessionId, communityMembershipId, organizerUserId],
+    );
+    return rows[0].id;
+  }
+
+  async function legacyGame(sessionId: string, status: string): Promise<string> {
+    const { rows: sessionRows } = await client.query<{ owner_id: string }>(
+      'select owner_id from public.sessions where id = $1',
+      [sessionId],
+    );
+    const ownerId = sessionRows[0].owner_id;
+    const teamAId = randomUUID();
+    const teamBId = randomUUID();
+    await client.query(
+      `insert into public.teams (id, owner_id, session_id, name) values
+         ($1, $2, $3, 'Team A'), ($4, $2, $3, 'Team B')`,
+      [teamAId, ownerId, sessionId, teamBId],
+    );
+    const gameId = randomUUID();
+    await client.query(
+      `insert into public.games (
+         id, owner_id, session_id, type, sequence_number, team_a_id, team_b_id, status
+       ) values ($1, $2, $3, 'free_play', 1, $4, $5, $6)`,
+      [gameId, ownerId, sessionId, teamAId, teamBId, status],
+    );
+    return gameId;
+  }
+
+  async function scheduleSession(
+    actorId: string | null,
+    input: { commandId?: string; sessionId: string; expectedRevision: number | null },
+  ) {
+    return call<LifecycleCommandRow>(
+      actorId,
+      'select * from public.schedule_target_session($1, $2, $3)',
+      [input.commandId ?? randomUUID(), input.sessionId, input.expectedRevision],
+    );
+  }
+
+  async function publishSession(
+    actorId: string | null,
+    input: { commandId?: string; sessionId: string; expectedRevision: number | null },
+  ) {
+    return call<LifecycleCommandRow>(
+      actorId,
+      'select * from public.publish_target_session($1, $2, $3)',
+      [input.commandId ?? randomUUID(), input.sessionId, input.expectedRevision],
+    );
+  }
+
+  async function startSession(
+    actorId: string | null,
+    input: { commandId?: string; sessionId: string; expectedRevision: number | null },
+  ) {
+    return call<LifecycleCommandRow>(
+      actorId,
+      'select * from public.start_target_session($1, $2, $3)',
+      [input.commandId ?? randomUUID(), input.sessionId, input.expectedRevision],
+    );
+  }
+
+  async function finishSession(
+    actorId: string | null,
+    input: { commandId?: string; sessionId: string; expectedRevision: number | null },
+  ) {
+    return call<LifecycleCommandRow>(
+      actorId,
+      'select * from public.finish_target_session($1, $2, $3)',
+      [input.commandId ?? randomUUID(), input.sessionId, input.expectedRevision],
+    );
+  }
+
+  async function cancelSession(
+    actorId: string | null,
+    input: {
+      commandId?: string;
+      sessionId: string;
+      expectedRevision: number | null;
+      reason: string;
+    },
+  ) {
+    return call<LifecycleCommandRow>(
+      actorId,
+      'select * from public.cancel_target_session($1, $2, $3, $4)',
+      [input.commandId ?? randomUUID(), input.sessionId, input.expectedRevision, input.reason],
+    );
+  }
+
+  async function assignOrganizer(
+    actorId: string | null,
+    input: {
+      commandId?: string;
+      assignmentId?: string;
+      sessionId: string;
+      expectedRevision: number | null;
+      organizerUserId: string;
+    },
+  ) {
+    return call<OrganizerAssignmentCommandRow>(
+      actorId,
+      'select * from public.assign_target_session_organizer($1, $2, $3, $4, $5)',
+      [
+        input.commandId ?? randomUUID(),
+        input.assignmentId ?? randomUUID(),
+        input.sessionId,
+        input.expectedRevision,
+        input.organizerUserId,
+      ],
+    );
+  }
+
+  async function revokeOrganizer(
+    actorId: string | null,
+    input: {
+      commandId?: string;
+      sessionId: string;
+      expectedRevision: number | null;
+      organizerUserId: string;
+    },
+  ) {
+    return call<LifecycleCommandRow>(
+      actorId,
+      'select * from public.revoke_target_session_organizer($1, $2, $3, $4)',
+      [
+        input.commandId ?? randomUUID(),
+        input.sessionId,
+        input.expectedRevision,
+        input.organizerUserId,
+      ],
+    );
+  }
+
+  async function configureCourt(
+    actorId: string | null,
+    input: {
+      commandId?: string;
+      courtId: string;
+      sessionId: string;
+      expectedRevision: number | null;
+      label: string;
+      courtOrder: number;
+    },
+  ) {
+    return call<CourtConfigureCommandRow>(
+      actorId,
+      'select * from public.configure_target_session_court($1, $2, $3, $4, $5, $6)',
+      [
+        input.commandId ?? randomUUID(),
+        input.courtId,
+        input.sessionId,
+        input.expectedRevision,
+        input.label,
+        input.courtOrder,
+      ],
+    );
   }
 
   // --- Step 2: the blocker catalog -----------------------------------------------------
@@ -755,5 +1073,900 @@ if (!isTestDatabaseConfigured()) {
     assert.ok(rows[0].cancelled_at);
     assert.equal(rows[0].cancel_reason, 'Chuva');
     assert.equal(rows[0].lifecycle_status, null);
+  });
+
+  // --- Task 5 Step 2: lifecycle transitions ----------------------------------------------
+
+  test('schedule_target_session moves DRAFT to SCHEDULED and returns the incremented Session revision', async () => {
+    const organizer = await newUser('lifecycle-schedule-happy@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Schedule happy Session' });
+    await client.query(
+      `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
+      [sessionId],
+    );
+    const revision = await sessionRevision(sessionId);
+    const result = await scheduleSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'SCHEDULED');
+    assert.equal(state.revision, revision + 1);
+    assert.equal(state.status, await compatibilityStatus('SCHEDULED'));
+  });
+
+  test('schedule_target_session rejects a Session with no planned_start_at with 23514', async () => {
+    const organizer = await newUser('lifecycle-schedule-missing-start@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Schedule missing start' });
+    const revision = await sessionRevision(sessionId);
+    const rejected = await scheduleSession(organizer, {
+      sessionId,
+      expectedRevision: revision,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'DRAFT');
+    assert.equal(state.revision, revision);
+  });
+
+  test('start_target_session moves SCHEDULED to IN_PROGRESS, sets actual_started_at, and leaves planned_start_at untouched (SES-INV-027)', async () => {
+    const organizer = await newUser('lifecycle-start-scheduled@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Start from scheduled' });
+    await forceLifecycleStatus(sessionId, 'SCHEDULED', organizer);
+    await client.query(
+      `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
+      [sessionId],
+    );
+    const before = await sessionState(sessionId);
+    const revision = await sessionRevision(sessionId);
+    const result = await startSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const after = await sessionState(sessionId);
+    assert.equal(after.lifecycle_status, 'IN_PROGRESS');
+    assert.ok(after.actual_started_at);
+    assert.equal(after.planned_start_at, before.planned_start_at);
+    assert.equal(after.status, await compatibilityStatus('IN_PROGRESS'));
+  });
+
+  test('start_target_session accepts DRAFT to IN_PROGRESS directly, the reduced Quick path from N4.04.03.01', async () => {
+    const organizer = await newUser('lifecycle-start-draft-direct@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Start direct from draft' });
+    const revision = await sessionRevision(sessionId);
+    const result = await startSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'IN_PROGRESS');
+    assert.ok(state.actual_started_at);
+  });
+
+  test('finish_target_session moves IN_PROGRESS to COMPLETED and sets actual_finished_at', async () => {
+    const organizer = await newUser('lifecycle-finish-happy@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Finish happy Session' });
+    await forceLifecycleStatus(sessionId, 'IN_PROGRESS', organizer);
+    const revision = await sessionRevision(sessionId);
+    const result = await finishSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'COMPLETED');
+    assert.ok(state.actual_finished_at);
+    assert.equal(state.status, await compatibilityStatus('COMPLETED'));
+  });
+
+  test('cancel_target_session moves DRAFT, SCHEDULED and IN_PROGRESS to CANCELLED, recording cancelled_at, cancelled_by_user_id and cancel_reason', async () => {
+    const organizer = await newUser('lifecycle-cancel-happy@test.local');
+    for (const status of ['DRAFT', 'SCHEDULED', 'IN_PROGRESS'] as const) {
+      const sessionId = await createTargetSession(organizer, { name: `Cancel from ${status}` });
+      if (status !== 'DRAFT') await forceLifecycleStatus(sessionId, status, organizer);
+      const revision = await sessionRevision(sessionId);
+      const result = await cancelSession(organizer, {
+        sessionId,
+        expectedRevision: revision,
+        reason: `Cancelling from ${status}`,
+      });
+      assert.equal(result.rows[0].session_revision, revision + 1);
+      const state = await sessionState(sessionId);
+      assert.equal(state.lifecycle_status, 'CANCELLED');
+      assert.ok(state.cancelled_at);
+      assert.equal(state.cancelled_by_user_id, organizer);
+      assert.equal(state.cancel_reason, `Cancelling from ${status}`);
+      assert.equal(state.status, await compatibilityStatus('CANCELLED'));
+    }
+  });
+
+  test('cancelling a Session preserves history: participant, revision, snapshot, court and organizer counts stay unchanged (SES-INV-026)', async () => {
+    const organizer = await newUser('lifecycle-cancel-history@test.local');
+    const ready = await createReadySession(organizer);
+    const before = await aggregateCounts(ready.sessionId);
+    const revision = await sessionRevision(ready.sessionId);
+    await cancelSession(organizer, {
+      sessionId: ready.sessionId,
+      expectedRevision: revision,
+      reason: 'Chuva',
+    });
+    const after = await aggregateCounts(ready.sessionId);
+    assert.deepEqual(after, before);
+    const rosterRead = await call<{
+      roster_revision_id: string;
+      entries: unknown[];
+    }>(organizer, 'select * from public.read_target_roster_revision($1)', [ready.rosterRevisionId]);
+    assert.equal(rosterRead.rows.length, 1);
+    assert.equal(rosterRead.rows[0].roster_revision_id, ready.rosterRevisionId);
+    assert.ok(rosterRead.rows[0].entries.length > 0);
+  });
+
+  test('every disallowed lifecycle transition is rejected with 23514', async () => {
+    const organizer = await newUser('lifecycle-disallowed@test.local');
+    const cases: Array<{
+      name: string;
+      from: 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+      attempt: (sessionId: string, expectedRevision: number) => Promise<unknown>;
+    }> = [
+      {
+        name: 'finish from DRAFT',
+        from: 'DRAFT',
+        attempt: (id, rev) => finishSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'start from COMPLETED',
+        from: 'COMPLETED',
+        attempt: (id, rev) => startSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'schedule from IN_PROGRESS',
+        from: 'IN_PROGRESS',
+        attempt: (id, rev) => scheduleSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'schedule from COMPLETED',
+        from: 'COMPLETED',
+        attempt: (id, rev) => scheduleSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'schedule from CANCELLED',
+        from: 'CANCELLED',
+        attempt: (id, rev) => scheduleSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'start from CANCELLED',
+        from: 'CANCELLED',
+        attempt: (id, rev) => startSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'finish from COMPLETED',
+        from: 'COMPLETED',
+        attempt: (id, rev) => finishSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'finish from CANCELLED',
+        from: 'CANCELLED',
+        attempt: (id, rev) => finishSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'finish from SCHEDULED',
+        from: 'SCHEDULED',
+        attempt: (id, rev) => finishSession(organizer, { sessionId: id, expectedRevision: rev }),
+      },
+      {
+        name: 'cancel from COMPLETED',
+        from: 'COMPLETED',
+        attempt: (id, rev) =>
+          cancelSession(organizer, { sessionId: id, expectedRevision: rev, reason: 'Chuva' }),
+      },
+      {
+        name: 'cancel from CANCELLED',
+        from: 'CANCELLED',
+        attempt: (id, rev) =>
+          cancelSession(organizer, { sessionId: id, expectedRevision: rev, reason: 'Chuva' }),
+      },
+    ];
+
+    for (const testCase of cases) {
+      const sessionId = await createTargetSession(organizer, {
+        name: `Disallowed ${testCase.name}`,
+      });
+      if (testCase.from !== 'DRAFT')
+        await forceLifecycleStatus(sessionId, testCase.from, organizer);
+      const revision = await sessionRevision(sessionId);
+      const rejected = await testCase.attempt(sessionId, revision).catch((error: Error) => error);
+      assertSqlState(rejected, '23514');
+      const state = await sessionState(sessionId);
+      assert.equal(state.lifecycle_status, testCase.from);
+      assert.equal(state.revision, revision);
+    }
+  });
+
+  // --- Task 5 Step 3: readiness revalidation ----------------------------------------------
+
+  test('SES-INV-024: start_target_session revalidates readiness and rejects a Session whose roster went empty after scheduling', async () => {
+    const organizer = await newUser('lifecycle-readiness-revalidate@test.local');
+    const ready = await createReadySession(organizer);
+    await client.query(
+      `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
+      [ready.sessionId],
+    );
+    let revision = await sessionRevision(ready.sessionId);
+    const scheduled = await scheduleSession(organizer, {
+      sessionId: ready.sessionId,
+      expectedRevision: revision,
+    });
+    revision = scheduled.rows[0].session_revision;
+
+    const before = await readReadiness(organizer, ready.sessionId);
+    assert.equal(before.rows[0].ready, true);
+
+    const emptied = await replaceQuickRoster(organizer, {
+      sessionId: ready.sessionId,
+      expectedRevision: revision,
+      participants: [],
+    });
+    revision = emptied.rows[0].session_revision;
+
+    const failingCommandId = randomUUID();
+    const rejected = await startSession(organizer, {
+      commandId: failingCommandId,
+      sessionId: ready.sessionId,
+      expectedRevision: revision,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+
+    const after = await sessionState(ready.sessionId);
+    assert.equal(after.lifecycle_status, 'SCHEDULED');
+    assert.equal(after.actual_started_at, null);
+    const receipt = await client.query(
+      'select 1 from app_private.command_receipts where command_id = $1',
+      [failingCommandId],
+    );
+    assert.equal(receipt.rowCount, 0);
+  });
+
+  // --- Task 5 Step 4: idempotency ----------------------------------------------------------
+
+  test('retrying start_target_session with the same command_id returns the identical result even though expected_revision is now stale (QA-INV-009)', async () => {
+    const organizer = await newUser('lifecycle-idempotent-retry@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent retry Session' });
+    const commandId = randomUUID();
+    const revision = await sessionRevision(sessionId);
+    const first = await startSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+    });
+
+    await client.query('update public.sessions set revision = revision + 5 where id = $1', [
+      sessionId,
+    ]);
+
+    const retried = await startSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+    });
+    assert.deepEqual(retried.rows, first.rows);
+  });
+
+  test('exactly one actual_started_at value survives three retries of start_target_session with one command_id (QA-INV-010)', async () => {
+    const organizer = await newUser('lifecycle-idempotent-triple@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent triple retry' });
+    const commandId = randomUUID();
+    const revision = await sessionRevision(sessionId);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await startSession(organizer, { commandId, sessionId, expectedRevision: revision });
+    }
+    const state = await sessionState(sessionId);
+    assert.ok(state.actual_started_at);
+  });
+
+  test('two different command IDs starting the same Session both succeed and leave one actual_started_at, proving domain idempotency independent of the receipt (QA-INV-010)', async () => {
+    const organizer = await newUser('lifecycle-idempotent-domain@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent domain retry' });
+    let revision = await sessionRevision(sessionId);
+    const first = await startSession(organizer, { sessionId, expectedRevision: revision });
+    revision = first.rows[0].session_revision;
+    await startSession(organizer, { sessionId, expectedRevision: revision });
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'IN_PROGRESS');
+    assert.ok(state.actual_started_at);
+  });
+
+  test('reusing a command_id from start_target_session on finish_target_session raises 23505 (QA-INV-011)', async () => {
+    const organizer = await newUser('lifecycle-idempotent-cross-command@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent cross command' });
+    const commandId = randomUUID();
+    const revision = await sessionRevision(sessionId);
+    const started = await startSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+    });
+    const rejected = await finishSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: started.rows[0].session_revision,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23505');
+  });
+
+  test('reusing a command_id against a different Session raises 23505 (QA-INV-011)', async () => {
+    const organizer = await newUser('lifecycle-idempotent-cross-session@test.local');
+    const firstSessionId = await createTargetSession(organizer, {
+      name: 'Idempotent cross session A',
+    });
+    const secondSessionId = await createTargetSession(organizer, {
+      name: 'Idempotent cross session B',
+    });
+    const commandId = randomUUID();
+    const revisionA = await sessionRevision(firstSessionId);
+    await startSession(organizer, {
+      commandId,
+      sessionId: firstSessionId,
+      expectedRevision: revisionA,
+    });
+    const revisionB = await sessionRevision(secondSessionId);
+    const rejected = await startSession(organizer, {
+      commandId,
+      sessionId: secondSessionId,
+      expectedRevision: revisionB,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23505');
+  });
+
+  test('a receipt row exists after each successful lifecycle command with the correct command_type, aggregate_id, actor_id and retention_class', async () => {
+    const organizer = await newUser('lifecycle-receipt-shape@test.local');
+
+    const scheduleSessionId = await createTargetSession(organizer, {
+      name: 'Receipt shape schedule',
+    });
+    await client.query(
+      `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
+      [scheduleSessionId],
+    );
+    const scheduleCommandId = randomUUID();
+    await scheduleSession(organizer, {
+      commandId: scheduleCommandId,
+      sessionId: scheduleSessionId,
+      expectedRevision: await sessionRevision(scheduleSessionId),
+    });
+
+    const startSessionId = await createTargetSession(organizer, { name: 'Receipt shape start' });
+    const startCommandId = randomUUID();
+    await startSession(organizer, {
+      commandId: startCommandId,
+      sessionId: startSessionId,
+      expectedRevision: await sessionRevision(startSessionId),
+    });
+
+    const cancelSessionId = await createTargetSession(organizer, { name: 'Receipt shape cancel' });
+    const cancelCommandId = randomUUID();
+    await cancelSession(organizer, {
+      commandId: cancelCommandId,
+      sessionId: cancelSessionId,
+      expectedRevision: await sessionRevision(cancelSessionId),
+      reason: 'Chuva',
+    });
+
+    const cases: Array<[string, string, string]> = [
+      [scheduleCommandId, 'schedule_target_session', scheduleSessionId],
+      [startCommandId, 'start_target_session', startSessionId],
+      [cancelCommandId, 'cancel_target_session', cancelSessionId],
+    ];
+    for (const [commandId, commandType, sessionId] of cases) {
+      const receipts = await commandReceipt(commandId);
+      assert.equal(receipts.length, 1);
+      assert.equal(receipts[0].command_type, commandType);
+      assert.equal(receipts[0].aggregate_id, sessionId);
+      assert.equal(receipts[0].actor_id, organizer);
+      assert.equal(receipts[0].retention_class, 'SESSION_LIFECYCLE');
+    }
+  });
+
+  // --- Task 5 Step 5: concurrency and rollback ---------------------------------------------
+
+  test('two concurrent start_target_session calls on distinct command IDs and the same expected_revision serialize on the Session lock (QA-INV-008)', async () => {
+    const organizer = await newUser('lifecycle-concurrency@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Concurrency start Session' });
+    const revision = await sessionRevision(sessionId);
+    const a = await pool.connect();
+    const b = await pool.connect();
+    try {
+      const attempt = (db: typeof a, commandId: string) =>
+        asIdentityCommitting(db, organizer, () =>
+          db.query<LifecycleCommandRow>('select * from public.start_target_session($1, $2, $3)', [
+            commandId,
+            sessionId,
+            revision,
+          ]),
+        ).catch((error: Error) => error);
+      const outcomes = await Promise.all([attempt(a, randomUUID()), attempt(b, randomUUID())]);
+      const committed = outcomes.filter((outcome) => !(outcome instanceof Error));
+      const rejected = outcomes.filter((outcome): outcome is Error => outcome instanceof Error);
+      assert.equal(committed.length, 1);
+      assert.equal(rejected.length, 1);
+      assertSqlState(rejected[0], '40001');
+      const state = await sessionState(sessionId);
+      assert.equal(state.lifecycle_status, 'IN_PROGRESS');
+      assert.ok(state.actual_started_at);
+    } finally {
+      a.release();
+      b.release();
+    }
+  });
+
+  test('a rejected lifecycle command leaves no receipt row, no revision increment, no timestamp and no cancellation audit (QA-INV-012)', async () => {
+    const organizer = await newUser('lifecycle-rollback@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Rollback Session' });
+    await forceLifecycleStatus(sessionId, 'COMPLETED', organizer);
+    const before = await sessionState(sessionId);
+    const commandId = randomUUID();
+    const rejected = await cancelSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: before.revision,
+      reason: 'Should not apply',
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+    const after = await sessionState(sessionId);
+    assert.deepEqual(after, before);
+    const receipt = await client.query(
+      'select 1 from app_private.command_receipts where command_id = $1',
+      [commandId],
+    );
+    assert.equal(receipt.rowCount, 0);
+  });
+
+  // --- Task 5 Step 6: the Match guard (SES-INV-025) ----------------------------------------
+
+  test('finish_target_session fails 23514 while a non-terminal Match references the Session (SES-INV-025)', async () => {
+    const organizer = await newUser('lifecycle-match-guard-finish@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Match guard finish' });
+    await forceLifecycleStatus(sessionId, 'IN_PROGRESS', organizer);
+    await legacyGame(sessionId, 'active');
+    const revision = await sessionRevision(sessionId);
+    const rejected = await finishSession(organizer, {
+      sessionId,
+      expectedRevision: revision,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'IN_PROGRESS');
+  });
+
+  test('cancel_target_session from IN_PROGRESS fails 23514 while a non-terminal Match references the Session (N5.04.16.02)', async () => {
+    const organizer = await newUser('lifecycle-match-guard-cancel@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Match guard cancel' });
+    await forceLifecycleStatus(sessionId, 'IN_PROGRESS', organizer);
+    await legacyGame(sessionId, 'active');
+    const revision = await sessionRevision(sessionId);
+    const rejected = await cancelSession(organizer, {
+      sessionId,
+      expectedRevision: revision,
+      reason: 'Chuva',
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+  });
+
+  test('finish_target_session and cancel_target_session succeed once every Match on the Session reaches a terminal status', async () => {
+    const organizer = await newUser('lifecycle-match-guard-terminal@test.local');
+
+    const finishSessionId = await createTargetSession(organizer, {
+      name: 'Match guard finish terminal',
+    });
+    await forceLifecycleStatus(finishSessionId, 'IN_PROGRESS', organizer);
+    await legacyGame(finishSessionId, 'finished');
+    const finishRevision = await sessionRevision(finishSessionId);
+    const finishResult = await finishSession(organizer, {
+      sessionId: finishSessionId,
+      expectedRevision: finishRevision,
+    });
+    assert.equal(finishResult.rows[0].session_revision, finishRevision + 1);
+
+    const cancelSessionId = await createTargetSession(organizer, {
+      name: 'Match guard cancel terminal',
+    });
+    await forceLifecycleStatus(cancelSessionId, 'IN_PROGRESS', organizer);
+    await legacyGame(cancelSessionId, 'cancelled');
+    const cancelRevision = await sessionRevision(cancelSessionId);
+    const cancelResult = await cancelSession(organizer, {
+      sessionId: cancelSessionId,
+      expectedRevision: cancelRevision,
+      reason: 'Chuva',
+    });
+    assert.equal(cancelResult.rows[0].session_revision, cancelRevision + 1);
+  });
+
+  test('a Match belonging to a different Session never blocks finish_target_session', async () => {
+    const organizer = await newUser('lifecycle-match-guard-cross-session@test.local');
+    const sessionId = await createTargetSession(organizer, {
+      name: 'Match guard cross session target',
+    });
+    await forceLifecycleStatus(sessionId, 'IN_PROGRESS', organizer);
+    const otherSessionId = await createTargetSession(organizer, {
+      name: 'Match guard cross session other',
+    });
+    await legacyGame(otherSessionId, 'active');
+    const revision = await sessionRevision(sessionId);
+    const result = await finishSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+  });
+
+  // --- Task 5 Step 7: publish, organizer and court -----------------------------------------
+
+  test('publish_target_session moves PRIVATE to PUBLISHED and leaves lifecycle_status unchanged (SES-INV-010)', async () => {
+    const organizer = await newUser('lifecycle-publish-happy@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Publish happy Session' });
+    const before = await sessionState(sessionId);
+    const revision = await sessionRevision(sessionId);
+    const result = await publishSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const after = await sessionState(sessionId);
+    assert.equal(after.publication_state, 'PUBLISHED');
+    assert.equal(after.lifecycle_status, before.lifecycle_status);
+  });
+
+  test('publish_target_session is idempotent by command_id and a no-op revision bump when already published', async () => {
+    const organizer = await newUser('lifecycle-publish-idempotent@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Publish idempotent Session' });
+    const revision = await sessionRevision(sessionId);
+    const commandId = randomUUID();
+    const first = await publishSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+    });
+    const retried = await publishSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+    });
+    assert.deepEqual(retried.rows, first.rows);
+
+    const newRevision = first.rows[0].session_revision;
+    const secondPublish = await publishSession(organizer, {
+      sessionId,
+      expectedRevision: newRevision,
+    });
+    assert.equal(secondPublish.rows[0].session_revision, newRevision);
+  });
+
+  test('publish_target_session fails 23514 once the Session has left the PRIVATE-eligible lifecycle states', async () => {
+    const organizer = await newUser('lifecycle-publish-terminal@test.local');
+    for (const status of ['IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const) {
+      const sessionId = await createTargetSession(organizer, { name: `Publish blocked ${status}` });
+      await forceLifecycleStatus(sessionId, status, organizer);
+      const revision = await sessionRevision(sessionId);
+      const rejected = await publishSession(organizer, {
+        sessionId,
+        expectedRevision: revision,
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '23514');
+    }
+  });
+
+  test('assign_target_session_organizer creates an assignment for an eligible Community organizer', async () => {
+    const owner = await newUser('lifecycle-assign-community-owner@test.local');
+    const assigned = await newUser('lifecycle-assign-community-assigned@test.local');
+    const newOrganizer = await newUser('lifecycle-assign-community-new@test.local');
+    const community = await targetCommunity(owner, 'Assign organizer Community');
+    await activeMembership(community, assigned);
+    await activeMembership(community, newOrganizer);
+    await grantOrganizer(community, assigned);
+    await grantOrganizer(community, newOrganizer);
+    const sessionId = await createTargetSession(assigned, {
+      communityId: community,
+      context: 'COMMUNITY',
+      name: 'Assign organizer Community Session',
+    });
+    const revision = await sessionRevision(sessionId);
+    const result = await assignOrganizer(assigned, {
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: newOrganizer,
+    });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const assignment = await client.query<{ revoked_at: string | null }>(
+      `select revoked_at from public.session_organizer_assignments
+        where session_id = $1 and organizer_user_id = $2`,
+      [sessionId, newOrganizer],
+    );
+    assert.equal(assignment.rows.length, 1);
+    assert.equal(assignment.rows[0].revoked_at, null);
+  });
+
+  test('assign_target_session_organizer succeeds for a Quick Session owner', async () => {
+    const owner = await newUser('lifecycle-assign-quick-owner@test.local');
+    const guestOrganizer = await newUser('lifecycle-assign-quick-guest@test.local');
+    const sessionId = await createTargetSession(owner, { name: 'Assign organizer Quick Session' });
+    const revision = await sessionRevision(sessionId);
+    const result = await assignOrganizer(owner, {
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: guestOrganizer,
+    });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const assignment = await client.query<{
+      community_membership_id: string | null;
+      revoked_at: string | null;
+    }>(
+      `select community_membership_id, revoked_at from public.session_organizer_assignments
+        where session_id = $1 and organizer_user_id = $2`,
+      [sessionId, guestOrganizer],
+    );
+    assert.deepEqual(assignment.rows, [{ community_membership_id: null, revoked_at: null }]);
+  });
+
+  test('assign_target_session_organizer is callable by an eligible-but-unassigned Community session.manage holder, the bootstrap case', async () => {
+    const owner = await newUser('lifecycle-assign-bootstrap-owner@test.local');
+    const creator = await newUser('lifecycle-assign-bootstrap-creator@test.local');
+    const eligibleUnassigned = await newUser('lifecycle-assign-bootstrap-eligible@test.local');
+    const community = await targetCommunity(owner, 'Assign organizer bootstrap Community');
+    await activeMembership(community, creator);
+    await activeMembership(community, eligibleUnassigned);
+    await grantOrganizer(community, creator);
+    await grantOrganizer(community, eligibleUnassigned);
+    const sessionId = await createTargetSession(creator, {
+      communityId: community,
+      context: 'COMMUNITY',
+      name: 'Assign organizer bootstrap Session',
+    });
+    const preAssignment = await client.query(
+      `select 1 from public.session_organizer_assignments
+        where session_id = $1 and organizer_user_id = $2`,
+      [sessionId, eligibleUnassigned],
+    );
+    assert.equal(preAssignment.rowCount, 0);
+    const revision = await sessionRevision(sessionId);
+    const result = await assignOrganizer(eligibleUnassigned, {
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: eligibleUnassigned,
+    });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+  });
+
+  test('revoke_target_session_organizer sets revoked_at and the revoked user then fails 42501 on every other command', async () => {
+    const owner = await newUser('lifecycle-revoke-owner@test.local');
+    const organizerA = await newUser('lifecycle-revoke-a@test.local');
+    const organizerB = await newUser('lifecycle-revoke-b@test.local');
+    const community = await targetCommunity(owner, 'Revoke organizer Community');
+    await activeMembership(community, organizerA);
+    await activeMembership(community, organizerB);
+    await grantOrganizer(community, organizerA);
+    await grantOrganizer(community, organizerB);
+    const sessionId = await createTargetSession(organizerA, {
+      communityId: community,
+      context: 'COMMUNITY',
+      name: 'Revoke organizer Session',
+    });
+    const membershipB = await membershipId(community, organizerB);
+    await directOrganizerAssignment(sessionId, organizerB, membershipB);
+
+    const revision = await sessionRevision(sessionId);
+    const result = await revokeOrganizer(organizerB, {
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: organizerA,
+    });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+
+    const assignment = await client.query<{ revoked_at: string | null }>(
+      `select revoked_at from public.session_organizer_assignments
+        where session_id = $1 and organizer_user_id = $2 and revoked_at is not null`,
+      [sessionId, organizerA],
+    );
+    assert.equal(assignment.rows.length, 1);
+
+    const rejected = await readReadiness(organizerA, sessionId).catch((error: Error) => error);
+    assertSqlState(rejected, '42501');
+  });
+
+  test('configure_target_session_court updates an existing court label and order in DRAFT, SCHEDULED and IN_PROGRESS', async () => {
+    const organizer = await newUser('lifecycle-configure-court-happy@test.local');
+    for (const status of ['DRAFT', 'SCHEDULED', 'IN_PROGRESS'] as const) {
+      const sessionId = await createTargetSession(organizer, { name: `Configure court ${status}` });
+      if (status !== 'DRAFT') await forceLifecycleStatus(sessionId, status, organizer);
+      const court = await client.query<{ id: string }>(
+        'select id from public.session_courts where session_id = $1',
+        [sessionId],
+      );
+      const courtId = court.rows[0].id;
+      const revision = await sessionRevision(sessionId);
+      const result = await configureCourt(organizer, {
+        courtId,
+        sessionId,
+        expectedRevision: revision,
+        label: 'Quadra renomeada',
+        courtOrder: 3,
+      });
+      assert.deepEqual(result.rows, [{ court_id: courtId, session_revision: revision + 1 }]);
+      const updated = await client.query<{ label: string; court_order: number }>(
+        'select label, court_order from public.session_courts where id = $1',
+        [courtId],
+      );
+      assert.deepEqual(updated.rows, [{ label: 'Quadra renomeada', court_order: 3 }]);
+    }
+  });
+
+  test('configure_target_session_court fails 23514 in COMPLETED and CANCELLED', async () => {
+    const organizer = await newUser('lifecycle-configure-court-terminal@test.local');
+    for (const status of ['COMPLETED', 'CANCELLED'] as const) {
+      const sessionId = await createTargetSession(organizer, {
+        name: `Configure court blocked ${status}`,
+      });
+      await forceLifecycleStatus(sessionId, status, organizer);
+      const court = await client.query<{ id: string }>(
+        'select id from public.session_courts where session_id = $1',
+        [sessionId],
+      );
+      const courtId = court.rows[0].id;
+      const revision = await sessionRevision(sessionId);
+      const rejected = await configureCourt(organizer, {
+        courtId,
+        sessionId,
+        expectedRevision: revision,
+        label: 'Quadra bloqueada',
+        courtOrder: 2,
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '23514');
+    }
+  });
+
+  test('configure_target_session_court fails P0002 for a court belonging to another Session', async () => {
+    const organizer = await newUser('lifecycle-configure-court-cross-session@test.local');
+    const sessionId = await createTargetSession(organizer, {
+      name: 'Configure court cross session target',
+    });
+    const otherSessionId = await createTargetSession(organizer, {
+      name: 'Configure court cross session other',
+    });
+    const otherCourt = await client.query<{ id: string }>(
+      'select id from public.session_courts where session_id = $1',
+      [otherSessionId],
+    );
+    const revision = await sessionRevision(sessionId);
+    const rejected = await configureCourt(organizer, {
+      courtId: otherCourt.rows[0].id,
+      sessionId,
+      expectedRevision: revision,
+      label: 'Quadra estranha',
+      courtOrder: 2,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, 'P0002');
+  });
+
+  // --- Task 5 Step 8: authorization -------------------------------------------------------
+
+  test('all eight missing write commands enforce authentication, membership, assignment and Session-scope boundaries (QA-INV-005, QA-INV-006)', async () => {
+    const owner = await newUser('lifecycle-auth-owner@test.local');
+    const assigned = await newUser('lifecycle-auth-assigned@test.local');
+    const outsider = await newUser('lifecycle-auth-outsider@test.local');
+    const eligibleUnassigned = await newUser('lifecycle-auth-eligible-unassigned@test.local');
+    const dummyOrganizerUserId = await newUser('lifecycle-auth-dummy-organizer@test.local');
+
+    const community = await targetCommunity(owner, 'Lifecycle command authority');
+    await activeMembership(community, assigned);
+    await activeMembership(community, eligibleUnassigned);
+    await grantOrganizer(community, assigned);
+    await grantOrganizer(community, eligibleUnassigned);
+    const communitySessionId = await createTargetSession(assigned, {
+      communityId: community,
+      context: 'COMMUNITY',
+      name: 'Lifecycle command authority Session',
+    });
+
+    const otherOwner = await newUser('lifecycle-auth-other-owner@test.local');
+    const otherOrganizer = await newUser('lifecycle-auth-other-organizer@test.local');
+    const otherCommunity = await targetCommunity(otherOwner, 'Lifecycle command authority other');
+    await activeMembership(otherCommunity, otherOrganizer);
+    await grantOrganizer(otherCommunity, otherOrganizer);
+    const otherCommunitySessionId = await createTargetSession(otherOrganizer, {
+      communityId: otherCommunity,
+      context: 'COMMUNITY',
+      name: 'Lifecycle command authority other Session',
+    });
+
+    const legacySessionId = await createLegacySession(
+      assigned,
+      'Legacy lifecycle authority Session',
+    );
+
+    const dummyCourtId = randomUUID();
+    const entryPoints: Array<{
+      name: string;
+      isOrganizerCommand: boolean;
+      call: (
+        actorId: string | null,
+        sessionId: string,
+        expectedRevision: number,
+      ) => Promise<unknown>;
+    }> = [
+      {
+        name: 'schedule_target_session',
+        isOrganizerCommand: false,
+        call: (actorId, sessionId, expectedRevision) =>
+          scheduleSession(actorId, { sessionId, expectedRevision }),
+      },
+      {
+        name: 'publish_target_session',
+        isOrganizerCommand: false,
+        call: (actorId, sessionId, expectedRevision) =>
+          publishSession(actorId, { sessionId, expectedRevision }),
+      },
+      {
+        name: 'start_target_session',
+        isOrganizerCommand: false,
+        call: (actorId, sessionId, expectedRevision) =>
+          startSession(actorId, { sessionId, expectedRevision }),
+      },
+      {
+        name: 'finish_target_session',
+        isOrganizerCommand: false,
+        call: (actorId, sessionId, expectedRevision) =>
+          finishSession(actorId, { sessionId, expectedRevision }),
+      },
+      {
+        name: 'cancel_target_session',
+        isOrganizerCommand: false,
+        call: (actorId, sessionId, expectedRevision) =>
+          cancelSession(actorId, { sessionId, expectedRevision, reason: 'Chuva' }),
+      },
+      {
+        name: 'assign_target_session_organizer',
+        isOrganizerCommand: true,
+        call: (actorId, sessionId, expectedRevision) =>
+          assignOrganizer(actorId, {
+            sessionId,
+            expectedRevision,
+            organizerUserId: dummyOrganizerUserId,
+          }),
+      },
+      {
+        name: 'revoke_target_session_organizer',
+        isOrganizerCommand: true,
+        call: (actorId, sessionId, expectedRevision) =>
+          revokeOrganizer(actorId, {
+            sessionId,
+            expectedRevision,
+            organizerUserId: dummyOrganizerUserId,
+          }),
+      },
+      {
+        name: 'configure_target_session_court',
+        isOrganizerCommand: false,
+        call: (actorId, sessionId, expectedRevision) =>
+          configureCourt(actorId, {
+            courtId: dummyCourtId,
+            sessionId,
+            expectedRevision,
+            label: 'Quadra autorizacao',
+            courtOrder: 2,
+          }),
+      },
+    ];
+
+    for (const point of entryPoints) {
+      const anonymous = await point
+        .call(null, communitySessionId, 1)
+        .catch((error: Error) => error);
+      assertSqlState(anonymous, '42501');
+
+      const byOutsider = await point
+        .call(outsider, communitySessionId, 1)
+        .catch((error: Error) => error);
+      assertSqlState(byOutsider, '42501');
+
+      const byLegacy = await point
+        .call(assigned, legacySessionId, 1)
+        .catch((error: Error) => error);
+      assertSqlState(byLegacy, 'P0002');
+
+      const byOtherCommunity = await point
+        .call(assigned, otherCommunitySessionId, 1)
+        .catch((error: Error) => error);
+      assertSqlState(byOtherCommunity, '42501');
+
+      if (!point.isOrganizerCommand) {
+        const byEligibleUnassigned = await point
+          .call(eligibleUnassigned, communitySessionId, 1)
+          .catch((error: Error) => error);
+        assertSqlState(byEligibleUnassigned, '42501');
+      }
+    }
   });
 }

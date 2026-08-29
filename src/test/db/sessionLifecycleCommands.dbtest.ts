@@ -1360,7 +1360,8 @@ if (!isTestDatabaseConfigured()) {
     let revision = await sessionRevision(sessionId);
     const first = await startSession(organizer, { sessionId, expectedRevision: revision });
     revision = first.rows[0].session_revision;
-    await startSession(organizer, { sessionId, expectedRevision: revision });
+    const second = await startSession(organizer, { sessionId, expectedRevision: revision });
+    assert.equal(second.rows[0].session_revision, revision);
     const state = await sessionState(sessionId);
     assert.equal(state.lifecycle_status, 'IN_PROGRESS');
     assert.ok(state.actual_started_at);
@@ -1410,44 +1411,119 @@ if (!isTestDatabaseConfigured()) {
 
   test('a receipt row exists after each successful lifecycle command with the correct command_type, aggregate_id, actor_id and retention_class', async () => {
     const organizer = await newUser('lifecycle-receipt-shape@test.local');
+    const guestOrganizer = await newUser('lifecycle-receipt-shape-guest@test.local');
 
-    const scheduleSessionId = await createTargetSession(organizer, {
-      name: 'Receipt shape schedule',
-    });
-    await client.query(
-      `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
-      [scheduleSessionId],
-    );
-    const scheduleCommandId = randomUUID();
-    await scheduleSession(organizer, {
-      commandId: scheduleCommandId,
-      sessionId: scheduleSessionId,
-      expectedRevision: await sessionRevision(scheduleSessionId),
-    });
+    const cases: Array<{ commandType: string; commandId: string; sessionId: string }> = [];
 
-    const startSessionId = await createTargetSession(organizer, { name: 'Receipt shape start' });
-    const startCommandId = randomUUID();
-    await startSession(organizer, {
-      commandId: startCommandId,
-      sessionId: startSessionId,
-      expectedRevision: await sessionRevision(startSessionId),
-    });
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape schedule' });
+      await client.query(
+        `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
+        [sessionId],
+      );
+      const commandId = randomUUID();
+      await scheduleSession(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+      });
+      cases.push({ commandType: 'schedule_target_session', commandId, sessionId });
+    }
 
-    const cancelSessionId = await createTargetSession(organizer, { name: 'Receipt shape cancel' });
-    const cancelCommandId = randomUUID();
-    await cancelSession(organizer, {
-      commandId: cancelCommandId,
-      sessionId: cancelSessionId,
-      expectedRevision: await sessionRevision(cancelSessionId),
-      reason: 'Chuva',
-    });
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape publish' });
+      const commandId = randomUUID();
+      await publishSession(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+      });
+      cases.push({ commandType: 'publish_target_session', commandId, sessionId });
+    }
 
-    const cases: Array<[string, string, string]> = [
-      [scheduleCommandId, 'schedule_target_session', scheduleSessionId],
-      [startCommandId, 'start_target_session', startSessionId],
-      [cancelCommandId, 'cancel_target_session', cancelSessionId],
-    ];
-    for (const [commandId, commandType, sessionId] of cases) {
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape start' });
+      const commandId = randomUUID();
+      await startSession(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+      });
+      cases.push({ commandType: 'start_target_session', commandId, sessionId });
+    }
+
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape finish' });
+      await forceLifecycleStatus(sessionId, 'IN_PROGRESS', organizer);
+      const commandId = randomUUID();
+      await finishSession(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+      });
+      cases.push({ commandType: 'finish_target_session', commandId, sessionId });
+    }
+
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape cancel' });
+      const commandId = randomUUID();
+      await cancelSession(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+        reason: 'Chuva',
+      });
+      cases.push({ commandType: 'cancel_target_session', commandId, sessionId });
+    }
+
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape assign' });
+      const commandId = randomUUID();
+      await assignOrganizer(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+        organizerUserId: guestOrganizer,
+      });
+      cases.push({ commandType: 'assign_target_session_organizer', commandId, sessionId });
+    }
+
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape revoke' });
+      // `organizer` is auto-assigned by createTargetSession; add a second organizer directly
+      // (bypassing the not-yet-existing assign command) so revoking one leaves the other with
+      // write authority to observe the effect, per the CONTEXT warning about self-revocation.
+      const secondOrganizer = await newUser('lifecycle-receipt-shape-revoke-second@test.local');
+      await directOrganizerAssignment(sessionId, secondOrganizer);
+      const commandId = randomUUID();
+      await revokeOrganizer(organizer, {
+        commandId,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+        organizerUserId: secondOrganizer,
+      });
+      cases.push({ commandType: 'revoke_target_session_organizer', commandId, sessionId });
+    }
+
+    {
+      const sessionId = await createTargetSession(organizer, { name: 'Receipt shape court' });
+      const court = await client.query<{ id: string }>(
+        'select id from public.session_courts where session_id = $1',
+        [sessionId],
+      );
+      const commandId = randomUUID();
+      await configureCourt(organizer, {
+        commandId,
+        courtId: court.rows[0].id,
+        sessionId,
+        expectedRevision: await sessionRevision(sessionId),
+        label: 'Quadra receipt',
+        courtOrder: 2,
+      });
+      cases.push({ commandType: 'configure_target_session_court', commandId, sessionId });
+    }
+
+    for (const { commandId, commandType, sessionId } of cases) {
       const receipts = await commandReceipt(commandId);
       assert.equal(receipts.length, 1);
       assert.equal(receipts[0].command_type, commandType);

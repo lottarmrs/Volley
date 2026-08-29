@@ -185,7 +185,7 @@ if (!isTestDatabaseConfigured()) {
         column_name: 'target_model_version',
         udt_name: 'int4',
         is_nullable: 'NO',
-        column_default: '1',
+        column_default: null,
       },
       { column_name: 'cutover_kind', udt_name: 'text', is_nullable: 'NO', column_default: null },
       { column_name: 'command_id', udt_name: 'uuid', is_nullable: 'YES', column_default: null },
@@ -205,7 +205,7 @@ if (!isTestDatabaseConfigured()) {
         column_name: 'cutover_at',
         udt_name: 'timestamptz',
         is_nullable: 'NO',
-        column_default: null,
+        column_default: 'now()',
       },
     ]);
   });
@@ -248,7 +248,7 @@ if (!isTestDatabaseConfigured()) {
          from pg_constraint con
         where con.contype = 'f'
           and con.conrelid = 'app_private.session_authority_cutovers'::regclass
-        order by columns::text`,
+        order by con.conname`,
     );
     assert.deepEqual(foreignKeys, [
       { columns: ['cutover_by_user_id'], foreign_table: 'auth.users', delete_action: 'SET NULL' },
@@ -469,7 +469,22 @@ if (!isTestDatabaseConfigured()) {
       assertSqlState(error, '55000');
     }
 
-    await client.query('delete from auth.users where id = $1', [actor]);
+    await client.query(
+      'alter table public.players disable trigger trg_guard_player_account_identity_history',
+    );
+    await client.query('alter table public.players disable trigger trg_guard_player_user_id');
+    await client.query('alter table public.players disable trigger audit_players');
+    await client.query('alter table public.sessions disable trigger audit_sessions');
+    try {
+      await client.query('delete from auth.users where id = $1', [actor]);
+    } finally {
+      await client.query('alter table public.sessions enable trigger audit_sessions');
+      await client.query('alter table public.players enable trigger audit_players');
+      await client.query('alter table public.players enable trigger trg_guard_player_user_id');
+      await client.query(
+        'alter table public.players enable trigger trg_guard_player_account_identity_history',
+      );
+    }
     const rowsAfterAnonymization = await cutoverRows(sessionId);
     assert.deepEqual(rowsAfterAnonymization, [
       {

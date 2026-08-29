@@ -85,8 +85,10 @@ and the anonymise-never-cascade rule already pinned for Session-owned history. T
 `cancel_reason` stays non-blank free text. `N4.04.16.01` says "code/text as policy", so the
 vocabulary is deliberately open and is not closed into an enum here.
 
-A target-only check requires that a target Session in `CANCELLED` carry both `cancelled_at` and
-`cancelled_by_user_id`. Legacy Sessions, whose `lifecycle_status` is null, are unaffected.
+A target-only check requires that a target Session in `CANCELLED` permanently carry
+`cancelled_at`. The cancel command derives and initially records `cancelled_by_user_id`, but that
+actor reference may later become null through the approved `ON DELETE SET NULL` anonymization
+path. Legacy Sessions, whose `lifecycle_status` is null, are unaffected.
 
 `actual_started_at` and `actual_finished_at` already exist and are already constrained for
 `IN_PROGRESS` and `COMPLETED`. Start and finish populate them. `SES-INV-027` keeps them distinct
@@ -135,7 +137,7 @@ reader must not mistake a missing `NO_CONFIRMED_TEAM_DRAW` for "team draw is sat
 
 | Code | Status | Evaluated from |
 |---|---|---|
-| `REQUIRED_ORGANIZER_MISSING` | EVALUATED | non-revoked `session_organizer_assignments` |
+| `REQUIRED_ORGANIZER_MISSING` | EVALUATED | effective non-revoked assignment: Quick requires a real actor and no Community Membership; Community requires the assignment's active Membership plus current non-revoked `ORGANIZER` responsibility |
 | `NO_EFFECTIVE_ROSTER` | EVALUATED | latest `roster_revisions` carries at least one entry |
 | `RULES_INVALID` | EVALUATED | a `session_rules_snapshots` row exists for the Session |
 | `COURT_CONFIGURATION_INVALID` | EVALUATED | at least one `session_courts` row |
@@ -174,7 +176,7 @@ revoked from `public` and `anon`, and executable only by `authenticated`.
 | `schedule_target_session` | `DRAFT → SCHEDULED` | assigned Organizer | requires `planned_start_at` |
 | `publish_target_session` | `PRIVATE → PUBLISHED` | assigned Organizer | `DRAFT`, `SCHEDULED` |
 | `read_target_session_readiness` | none | assigned Organizer | any |
-| `start_target_session` | `DRAFT`/`SCHEDULED → IN_PROGRESS` | assigned Organizer | sets `actual_started_at` |
+| `start_target_session` | Quick `DRAFT`, or any `SCHEDULED → IN_PROGRESS` | assigned Organizer | sets `actual_started_at`; direct DRAFT Start is Quick-only |
 | `finish_target_session` | `IN_PROGRESS → COMPLETED` | assigned Organizer | sets `actual_finished_at` |
 | `cancel_target_session` | non-terminal `→ CANCELLED` | assigned Organizer | sets cancellation audit |
 
@@ -225,10 +227,11 @@ Each state-changing command executes in this order:
 3. look up the receipt by `command_id`; on a hit with matching `command_type` and `aggregate_id`,
    return the recorded result;
 4. on a hit whose type or aggregate differs, raise `23505`;
-5. guard the lifecycle transition; if the Session already holds the target state, return the
-   current state;
-6. validate `expected_revision`, raising `40001` when stale;
-7. mutate, increment `sessions.revision`, write the receipt, and return.
+5. validate command-specific input needed to identify the desired state;
+6. if the Session already holds that desired state, write this command's receipt and return the
+   current result without consulting `expected_revision`;
+7. validate `expected_revision`, raising `40001` when a genuine mutation is stale;
+8. mutate, increment `sessions.revision`, write the receipt, and return.
 
 Receipt lookup precedes stale-revision validation, the ordering `replace_target_quick_session_roster`
 already proved: a client that lost the response retries with a now-stale revision and must still
@@ -267,23 +270,25 @@ No new table is exposed through the Data API. Blocker metadata reaches the clien
 Database tests follow red-green-refactor in `src/test/db/sessionLifecycleCommands.dbtest.ts`
 against real PostgreSQL (`QA-INV-004`), and prove:
 
-1. the lifecycle machine accepts `DRAFT → SCHEDULED → IN_PROGRESS → COMPLETED`, the Quick
+1. the lifecycle machine accepts `DRAFT → SCHEDULED → IN_PROGRESS → COMPLETED`, the Quick-only
    `DRAFT → IN_PROGRESS` path, and `→ CANCELLED` from every non-terminal state, rejecting all
-   other transitions;
+   other transitions except desired-state finish/cancel no-ops;
 2. readiness returns all nine blocker codes with correct `evaluation_status`, and the four
    evaluated blockers appear and clear as organizer, roster, rules and courts change;
 3. readiness reported ready, then invalidated in another transaction, is revalidated and rejected
    by `StartSession` (`SES-INV-024`, `N5.04.13.02`);
 4. a retried `command_id` returns the recorded result after a lost response (`QA-INV-009`), and
    produces exactly one logical `actual_started_at` (`QA-INV-010`);
-5. two different command IDs double-clicking still produce one effect (`QA-INV-011`);
+5. two different command IDs carrying the same original revision each write a receipt but still
+   produce one effect across all eight state-changing commands (`QA-INV-011`);
 6. a `command_id` reused against a different Session or command type raises `23505`;
-7. two concurrent `StartSession` transactions serialize on the Session lock; one commits and the
-   other observes the started state or `40001` (`QA-INV-008`);
+7. two concurrent `StartSession` transactions serialize on the Session lock; both return the same
+   resulting revision while only one logical Start occurs (`QA-INV-008`);
 8. finish and cancel are rejected while a non-terminal `games` row references the Session
    (`SES-INV-025`);
-9. cancellation records `cancelled_at`, `cancelled_by_user_id` and `cancel_reason`, and destroys
-   no roster, rules, court or assignment rows (`SES-INV-026`);
+9. cancellation initially records `cancelled_at`, `cancelled_by_user_id` and `cancel_reason`; later
+   actor anonymization preserves the timestamp, reason and every roster, rules, court and assignment
+   row (`SES-INV-026`, `SES-INV-032`);
 10. planned and actual timestamps remain independent (`SES-INV-027`);
 11. every command rejects anonymous callers, outsiders and eligible-but-unassigned organizers, and
     a valid Session UUID from another Community grants nothing (`QA-INV-005`, `QA-INV-006`);

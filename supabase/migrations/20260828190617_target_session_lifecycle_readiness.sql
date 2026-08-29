@@ -5,13 +5,62 @@ alter table public.sessions
   add constraint sessions_target_cancelled_audit_check check (
     authority_model = 'legacy'
     or lifecycle_status is distinct from 'CANCELLED'
-    or (cancelled_at is not null and cancelled_by_user_id is not null)
+    or cancelled_at is not null
   ),
   add constraint sessions_cancel_reason_non_blank_check check (
     cancel_reason is null or btrim(cancel_reason) <> ''
   );
 
 create index sessions_cancelled_by_user_id_idx on public.sessions (cancelled_by_user_id);
+
+create function app_private.target_session_organizer_assignment_is_effective(
+  p_session_id uuid,
+  p_organizer_user_id uuid,
+  p_community_membership_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+      from public.sessions s
+     where s.id = p_session_id
+       and s.authority_model = 'target'
+       and p_organizer_user_id is not null
+       and (
+         (
+           s.session_context = 'QUICK'
+           and p_community_membership_id is null
+         )
+         or (
+           s.session_context = 'COMMUNITY'
+           and exists (
+             select 1
+               from public.community_memberships m
+              where m.id = p_community_membership_id
+                and m.community_id = s.community_id
+                and m.user_id = p_organizer_user_id
+                and m.status = 'active'
+           )
+           and exists (
+             select 1
+               from public.community_responsibilities r
+              where r.community_id = s.community_id
+                and r.user_id = p_organizer_user_id
+                and r.responsibility = 'ORGANIZER'
+                and r.revoked_at is null
+           )
+         )
+       )
+  );
+$$;
+
+revoke all on function app_private.target_session_organizer_assignment_is_effective(
+  uuid, uuid, uuid
+) from public, anon, authenticated;
 
 create table app_private.session_readiness_blockers (
   code text primary key,
@@ -83,6 +132,9 @@ begin
       from public.session_organizer_assignments a
      where a.session_id = p_session_id
        and a.revoked_at is null
+       and app_private.target_session_organizer_assignment_is_effective(
+         a.session_id, a.organizer_user_id, a.community_membership_id
+       )
   ) then
     v_blocker_codes := array_append(v_blocker_codes, 'REQUIRED_ORGANIZER_MISSING');
   end if;
@@ -180,8 +232,9 @@ grant execute on function public.read_target_session_readiness(uuid) to authenti
 -- Every state-changing command below follows the same command prologue: null-check the
 -- caller-supplied ids, load-and-lock the target Session (raising P0002 when absent), check
 -- write authority, consult app_private.find_command_receipt for a retried command_id,
--- guard the transition or precondition, check the caller's expected_revision, mutate, then
--- record the receipt. The duplication across the eight commands is accepted: PL/pgSQL
+-- validate the desired state, return a receipt-backed no-op when already achieved, check the
+-- caller's expected_revision only for a genuine mutation, then record the receipt. The
+-- duplication across the eight commands is accepted: PL/pgSQL
 -- cannot early-return from a callee, and the factorable pieces already live in the two
 -- helpers below plus the substrate from the prior migration.
 
@@ -274,9 +327,6 @@ begin
   end if;
 
   if v_session.lifecycle_status = 'SCHEDULED' then
-    if v_session.revision is distinct from p_expected_revision then
-      raise exception 'Stale Session revision' using errcode = '40001';
-    end if;
     v_result := pg_catalog.jsonb_build_object('session_revision', v_session.revision);
     perform app_private.record_command_receipt(
       p_command_id, (select auth.uid()), 'schedule_target_session', p_session_id,
@@ -361,9 +411,6 @@ begin
   end if;
 
   if v_session.lifecycle_status = 'IN_PROGRESS' then
-    if v_session.revision is distinct from p_expected_revision then
-      raise exception 'Stale Session revision' using errcode = '40001';
-    end if;
     v_result := pg_catalog.jsonb_build_object('session_revision', v_session.revision);
     perform app_private.record_command_receipt(
       p_command_id, (select auth.uid()), 'start_target_session', p_session_id,
@@ -377,13 +424,18 @@ begin
     v_session.lifecycle_status, 'IN_PROGRESS'
   );
 
-  -- N4.04.03.01: Quick may take the reduced DRAFT -> IN_PROGRESS path without full
+  -- N4.04.03.01: only Quick may take the reduced DRAFT -> IN_PROGRESS path without full
   -- readiness -- organizer and a default court already exist from create_target_session.
   -- N6.04.03 scopes the readiness gate to the official SCHEDULED -> IN_PROGRESS transition
   -- only ("SCHEDULED -> IN_PROGRESS / via StartSession readiness checks"); the evaluator
   -- itself (app_private.target_session_readiness) stays the single source of truth for
   -- which codes block -- this command must not re-encode any one of them, so a future
   -- blocker (W5/W6) gates here automatically without this function changing.
+  if v_session.lifecycle_status = 'DRAFT' and v_session.session_context <> 'QUICK' then
+    raise exception 'Only a Quick Session may start directly from DRAFT'
+      using errcode = '23514';
+  end if;
+
   if v_session.lifecycle_status = 'SCHEDULED' then
     v_readiness := app_private.target_session_readiness(p_session_id);
     if not (v_readiness ->> 'ready')::boolean then
@@ -456,6 +508,16 @@ begin
   );
   if v_receipt is not null then
     return query select (v_receipt ->> 'session_revision')::integer;
+    return;
+  end if;
+
+  if v_session.lifecycle_status = 'COMPLETED' then
+    v_result := pg_catalog.jsonb_build_object('session_revision', v_session.revision);
+    perform app_private.record_command_receipt(
+      p_command_id, (select auth.uid()), 'finish_target_session', p_session_id,
+      v_result, 'SESSION_LIFECYCLE'
+    );
+    return query select v_session.revision;
     return;
   end if;
 
@@ -534,13 +596,23 @@ begin
     return;
   end if;
 
-  perform app_private.assert_target_session_lifecycle_transition(
-    v_session.lifecycle_status, 'CANCELLED'
-  );
-
   if p_cancel_reason is not null and pg_catalog.btrim(p_cancel_reason) = '' then
     raise exception 'Cancel reason cannot be blank' using errcode = '23514';
   end if;
+
+  if v_session.lifecycle_status = 'CANCELLED' then
+    v_result := pg_catalog.jsonb_build_object('session_revision', v_session.revision);
+    perform app_private.record_command_receipt(
+      p_command_id, v_uid, 'cancel_target_session', p_session_id,
+      v_result, 'SESSION_LIFECYCLE'
+    );
+    return query select v_session.revision;
+    return;
+  end if;
+
+  perform app_private.assert_target_session_lifecycle_transition(
+    v_session.lifecycle_status, 'CANCELLED'
+  );
 
   if v_session.lifecycle_status = 'IN_PROGRESS'
      and app_private.target_session_has_active_matches(p_session_id) then
@@ -616,9 +688,6 @@ begin
   end if;
 
   if v_session.publication_state = 'PUBLISHED' then
-    if v_session.revision is distinct from p_expected_revision then
-      raise exception 'Stale Session revision' using errcode = '40001';
-    end if;
     v_result := pg_catalog.jsonb_build_object('session_revision', v_session.revision);
     perform app_private.record_command_receipt(
       p_command_id, (select auth.uid()), 'publish_target_session', p_session_id,
@@ -725,6 +794,21 @@ begin
     raise exception 'Organizer user id is required' using errcode = '23514';
   end if;
 
+  if v_session.community_id is not null then
+    select m.id into v_membership_id
+      from public.community_memberships m
+     where m.community_id = v_session.community_id
+       and m.user_id = p_organizer_user_id;
+  else
+    v_membership_id := null;
+  end if;
+
+  if not app_private.target_session_organizer_assignment_is_effective(
+    p_session_id, p_organizer_user_id, v_membership_id
+  ) then
+    raise exception 'Organizer is not effective for this Session' using errcode = '23514';
+  end if;
+
   select id into v_existing_id
     from public.session_organizer_assignments
    where session_id = p_session_id
@@ -732,9 +816,6 @@ begin
      and revoked_at is null;
 
   if found then
-    if v_session.revision is distinct from p_expected_revision then
-      raise exception 'Stale Session revision' using errcode = '40001';
-    end if;
     v_result := pg_catalog.jsonb_build_object(
       'assignment_id', v_existing_id, 'session_revision', v_session.revision
     );
@@ -748,19 +829,6 @@ begin
 
   if v_session.revision is distinct from p_expected_revision then
     raise exception 'Stale Session revision' using errcode = '40001';
-  end if;
-
-  if v_session.community_id is not null then
-    select m.id into v_membership_id
-      from public.community_memberships m
-     where m.community_id = v_session.community_id
-       and m.user_id = p_organizer_user_id
-       and m.status = 'active';
-    if v_membership_id is null then
-      raise exception 'Organizer requires an active Community membership' using errcode = '23514';
-    end if;
-  else
-    v_membership_id := null;
   end if;
 
   -- A reused assignment_id here is a client bug, not a genuine command_id retry (that was
@@ -875,9 +943,6 @@ begin
   end if;
 
   if v_revoked_at is not null then
-    if v_session.revision is distinct from p_expected_revision then
-      raise exception 'Stale Session revision' using errcode = '40001';
-    end if;
     v_result := pg_catalog.jsonb_build_object('session_revision', v_session.revision);
     perform app_private.record_command_receipt(
       p_command_id, v_uid, 'revoke_target_session_organizer', p_session_id,
@@ -984,6 +1049,19 @@ begin
        and id <> p_court_id
   ) then
     raise exception 'Court order already in use on this Session' using errcode = '23514';
+  end if;
+
+  if v_court.label = pg_catalog.btrim(p_label)
+     and v_court.court_order = p_court_order then
+    v_result := pg_catalog.jsonb_build_object(
+      'court_id', p_court_id, 'session_revision', v_session.revision
+    );
+    perform app_private.record_command_receipt(
+      p_command_id, (select auth.uid()), 'configure_target_session_court', p_session_id,
+      v_result, 'SESSION_LIFECYCLE'
+    );
+    return query select p_court_id, v_session.revision;
+    return;
   end if;
 
   if v_session.revision is distinct from p_expected_revision then

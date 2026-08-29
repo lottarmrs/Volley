@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Client, Pool, QueryResultRow } from 'pg';
+import type { Client, Pool, QueryResult, QueryResultRow } from 'pg';
 import {
   asIdentityCommitting,
   connect,
@@ -295,6 +295,48 @@ if (!isTestDatabaseConfigured()) {
     }
 
     return { sessionId, revision, rosterRevisionId, rosterRevisionNumber, rulesSnapshotId };
+  }
+
+  async function createReadyCommunitySession(
+    actorId: string,
+    communityId: string,
+  ): Promise<{ sessionId: string; revision: number }> {
+    const sessionId = await createTargetSession(actorId, {
+      communityId,
+      context: 'COMMUNITY',
+      name: 'Ready Community target Session',
+    });
+    const participantId = randomUUID();
+    const rosterRevisionId = randomUUID();
+    await client.query(
+      `insert into public.session_participants (
+         id, session_id, identity_kind, source_kind, display_name,
+         participation_status, created_by_user_id
+       ) values ($1, $2, 'GUEST', 'REGISTRATION', 'Ana', 'INCLUDED', $3)`,
+      [participantId, sessionId, actorId],
+    );
+    await client.query(
+      `insert into public.roster_revisions (
+         id, session_id, revision_number, source_kind, source_registration_revision,
+         created_by_user_id
+       ) values ($1, $2, 1, 'REGISTRATION', 1, $3)`,
+      [rosterRevisionId, sessionId, actorId],
+    );
+    await client.query(
+      `insert into public.roster_revision_entries (
+         roster_revision_id, session_id, participant_id, entry_order,
+         identity_kind, display_name_at_time
+       ) values ($1, $2, $3, 0, 'GUEST', 'Ana')`,
+      [rosterRevisionId, sessionId, participantId],
+    );
+    const rules = await call<RulesSnapshotCommandRow>(
+      actorId,
+      `select * from public.freeze_target_session_rules_snapshot(
+         $1, $2, $3, 1, 'SESSION_EXPLICIT', $4::jsonb
+       )`,
+      [randomUUID(), sessionId, 1, JSON.stringify({})],
+    );
+    return { sessionId, revision: rules.rows[0].session_revision };
   }
 
   async function readReadiness(actorId: string | null, sessionId: string) {
@@ -772,6 +814,82 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(blockerCodes(rows[0].readiness), ['REQUIRED_ORGANIZER_MISSING']);
   });
 
+  test('readiness requires an effective Community organizer and preserves invalidated assignment history', async () => {
+    const owner = await newUser('readiness-effective-owner@test.local');
+    const organizer = await newUser('readiness-effective-organizer@test.local');
+    const replacement = await newUser('readiness-effective-replacement@test.local');
+    const community = await targetCommunity(owner, 'Effective readiness Community');
+    await activeMembership(community, organizer);
+    await grantOrganizer(community, organizer);
+    const ready = await createReadyCommunitySession(organizer, community);
+    const assignmentsBefore = await client.query<{ id: string }>(
+      'select id from public.session_organizer_assignments where session_id = $1',
+      [ready.sessionId],
+    );
+
+    await activeMembership(community, organizer, 'suspended');
+    let evaluated = await client.query<{ readiness: ReadinessRow }>(
+      'select app_private.target_session_readiness($1) as readiness',
+      [ready.sessionId],
+    );
+    assert.deepEqual(blockerCodes(evaluated.rows[0].readiness), ['REQUIRED_ORGANIZER_MISSING']);
+    assert.equal(
+      (
+        await client.query(
+          'select 1 from public.session_organizer_assignments where session_id = $1',
+          [ready.sessionId],
+        )
+      ).rowCount,
+      assignmentsBefore.rowCount,
+    );
+
+    await activeMembership(community, organizer);
+    await client.query(
+      `update public.community_responsibilities
+          set revoked_at = now()
+        where community_id = $1 and user_id = $2 and responsibility = 'ORGANIZER'`,
+      [community, organizer],
+    );
+    evaluated = await client.query<{ readiness: ReadinessRow }>(
+      'select app_private.target_session_readiness($1) as readiness',
+      [ready.sessionId],
+    );
+    assert.deepEqual(blockerCodes(evaluated.rows[0].readiness), ['REQUIRED_ORGANIZER_MISSING']);
+
+    await activeMembership(community, replacement);
+    await grantOrganizer(community, replacement);
+    await directOrganizerAssignment(
+      ready.sessionId,
+      replacement,
+      await membershipId(community, replacement),
+    );
+    evaluated = await client.query<{ readiness: ReadinessRow }>(
+      'select app_private.target_session_readiness($1) as readiness',
+      [ready.sessionId],
+    );
+    assert.equal(evaluated.rows[0].readiness.ready, true);
+    assert.deepEqual(blockerCodes(evaluated.rows[0].readiness), []);
+  });
+
+  test('readiness keeps a Quick assignment effective without Community membership or responsibility', async () => {
+    const organizer = await newUser('readiness-effective-quick@test.local');
+    const ready = await createReadySession(organizer);
+    const assignment = await client.query<{
+      organizer_user_id: string;
+      community_membership_id: string | null;
+    }>(
+      `select organizer_user_id, community_membership_id
+         from public.session_organizer_assignments
+        where session_id = $1 and revoked_at is null`,
+      [ready.sessionId],
+    );
+    assert.deepEqual(assignment.rows, [
+      { organizer_user_id: organizer, community_membership_id: null },
+    ]);
+    const readiness = await readReadiness(organizer, ready.sessionId);
+    assert.equal(readiness.rows[0].ready, true);
+  });
+
   test('replacing the roster with an empty revision yields exactly NO_EFFECTIVE_ROSTER', async () => {
     const organizer = await newUser('readiness-empty-roster@test.local');
     const ready = await createReadySession(organizer);
@@ -1004,34 +1122,20 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(missingIndexRows, []);
   });
 
-  test('a target Session cancelled without cancelled_at or cancelled_by_user_id is rejected with 23514', async () => {
+  test('a target Session cancelled without cancelled_at is rejected with 23514', async () => {
     const organizer = await newUser('cancel-missing-audit@test.local');
-    const cases: Array<[string, string, unknown[]]> = [
-      [
-        await createTargetSession(organizer),
+    const sessionId = await createTargetSession(organizer);
+    const rejected = await client
+      .query(
         `update public.sessions
             set lifecycle_status = 'CANCELLED',
                 cancelled_by_user_id = $2,
                 cancel_reason = 'Chuva'
           where id = $1`,
-        [organizer],
-      ],
-      [
-        await createTargetSession(organizer),
-        `update public.sessions
-            set lifecycle_status = 'CANCELLED',
-                cancelled_at = now(),
-                cancel_reason = 'Chuva'
-          where id = $1`,
-        [],
-      ],
-    ];
-    for (const [sessionId, sql, params] of cases) {
-      const rejected = await client
-        .query(sql, [sessionId, ...params])
-        .catch((error: Error) => error);
-      assertSqlState(rejected, '23514');
-    }
+        [sessionId, organizer],
+      )
+      .catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
   });
 
   test('a blank cancel_reason is rejected with 23514', async () => {
@@ -1140,6 +1244,28 @@ if (!isTestDatabaseConfigured()) {
     assert.ok(state.actual_started_at);
   });
 
+  test('start_target_session rejects a ready Community Session in DRAFT without effects or a receipt', async () => {
+    const owner = await newUser('lifecycle-start-community-draft-owner@test.local');
+    const organizer = await newUser('lifecycle-start-community-draft-organizer@test.local');
+    const community = await targetCommunity(owner, 'Community DRAFT start guard');
+    await activeMembership(community, organizer);
+    await grantOrganizer(community, organizer);
+    const { sessionId, revision } = await createReadyCommunitySession(organizer, community);
+    const readiness = await readReadiness(organizer, sessionId);
+    assert.equal(readiness.rows[0].ready, true);
+
+    const commandId = randomUUID();
+    const before = await sessionState(sessionId);
+    const rejected = await startSession(organizer, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+    assert.deepEqual(await sessionState(sessionId), before);
+    assert.equal((await commandReceipt(commandId)).length, 0);
+  });
+
   test('finish_target_session moves IN_PROGRESS to COMPLETED and sets actual_finished_at', async () => {
     const organizer = await newUser('lifecycle-finish-happy@test.local');
     const sessionId = await createTargetSession(organizer, { name: 'Finish happy Session' });
@@ -1212,6 +1338,32 @@ if (!isTestDatabaseConfigured()) {
     assert.ok(rosterRead.rows[0].entries.length > 0);
   });
 
+  test('anonymizing the cancellation actor preserves the cancellation audit and all Session history', async () => {
+    const organizer = await newUser('lifecycle-cancel-anonymized-actor@test.local');
+    const ready = await createReadySession(organizer);
+    const revision = await sessionRevision(ready.sessionId);
+    await cancelSession(organizer, {
+      sessionId: ready.sessionId,
+      expectedRevision: revision,
+      reason: 'Chuva forte',
+    });
+    const beforeState = await sessionState(ready.sessionId);
+    const beforeCounts = await aggregateCounts(ready.sessionId);
+    assert.equal(beforeState.cancelled_by_user_id, organizer);
+
+    await client.query('update public.sessions set cancelled_by_user_id = null where id = $1', [
+      ready.sessionId,
+    ]);
+
+    const afterState = await sessionState(ready.sessionId);
+    assert.equal(afterState.lifecycle_status, 'CANCELLED');
+    assert.equal(afterState.cancelled_by_user_id, null);
+    assert.deepEqual(afterState.cancelled_at, beforeState.cancelled_at);
+    assert.equal(afterState.cancel_reason, 'Chuva forte');
+    assert.equal(afterState.revision, beforeState.revision);
+    assert.deepEqual(await aggregateCounts(ready.sessionId), beforeCounts);
+  });
+
   test('every disallowed lifecycle transition is rejected with 23514', async () => {
     const organizer = await newUser('lifecycle-disallowed@test.local');
     const cases: Array<{
@@ -1250,11 +1402,6 @@ if (!isTestDatabaseConfigured()) {
         attempt: (id, rev) => startSession(organizer, { sessionId: id, expectedRevision: rev }),
       },
       {
-        name: 'finish from COMPLETED',
-        from: 'COMPLETED',
-        attempt: (id, rev) => finishSession(organizer, { sessionId: id, expectedRevision: rev }),
-      },
-      {
         name: 'finish from CANCELLED',
         from: 'CANCELLED',
         attempt: (id, rev) => finishSession(organizer, { sessionId: id, expectedRevision: rev }),
@@ -1267,12 +1414,6 @@ if (!isTestDatabaseConfigured()) {
       {
         name: 'cancel from COMPLETED',
         from: 'COMPLETED',
-        attempt: (id, rev) =>
-          cancelSession(organizer, { sessionId: id, expectedRevision: rev, reason: 'Chuva' }),
-      },
-      {
-        name: 'cancel from CANCELLED',
-        from: 'CANCELLED',
         attempt: (id, rev) =>
           cancelSession(organizer, { sessionId: id, expectedRevision: rev, reason: 'Chuva' }),
       },
@@ -1374,17 +1515,241 @@ if (!isTestDatabaseConfigured()) {
     assert.ok(state.actual_started_at);
   });
 
-  test('two different command IDs starting the same Session both succeed and leave one actual_started_at, proving domain idempotency independent of the receipt (QA-INV-010)', async () => {
+  test('distinct schedule command IDs with the same original revision produce one SCHEDULED effect and two receipts', async () => {
+    const organizer = await newUser('lifecycle-idempotent-schedule@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent schedule' });
+    await client.query(
+      `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
+      [sessionId],
+    );
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await scheduleSession(organizer, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedRevision: revision,
+    });
+    const second = await scheduleSession(organizer, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedRevision: revision,
+    });
+    assert.deepEqual(first.rows, [{ session_revision: revision + 1 }]);
+    assert.deepEqual(second.rows, first.rows);
+    assert.equal((await sessionState(sessionId)).lifecycle_status, 'SCHEDULED');
+    assert.equal(await sessionRevision(sessionId), revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct start command IDs with the same original revision produce one IN_PROGRESS effect and two receipts', async () => {
     const organizer = await newUser('lifecycle-idempotent-domain@test.local');
     const sessionId = await createTargetSession(organizer, { name: 'Idempotent domain retry' });
-    let revision = await sessionRevision(sessionId);
-    const first = await startSession(organizer, { sessionId, expectedRevision: revision });
-    revision = first.rows[0].session_revision;
-    const second = await startSession(organizer, { sessionId, expectedRevision: revision });
-    assert.equal(second.rows[0].session_revision, revision);
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await startSession(organizer, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedRevision: revision,
+    });
+    const afterFirst = await sessionState(sessionId);
+    const second = await startSession(organizer, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedRevision: revision,
+    });
+    const afterSecond = await sessionState(sessionId);
+    assert.deepEqual(second.rows, first.rows);
+    assert.equal(afterSecond.lifecycle_status, 'IN_PROGRESS');
+    assert.deepEqual(afterSecond.actual_started_at, afterFirst.actual_started_at);
+    assert.equal(afterSecond.revision, revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct publish command IDs with the same original revision produce one PUBLISHED effect and two receipts', async () => {
+    const organizer = await newUser('lifecycle-idempotent-publish@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent publish' });
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await publishSession(organizer, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedRevision: revision,
+    });
+    const second = await publishSession(organizer, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedRevision: revision,
+    });
+    assert.deepEqual(second.rows, first.rows);
     const state = await sessionState(sessionId);
-    assert.equal(state.lifecycle_status, 'IN_PROGRESS');
-    assert.ok(state.actual_started_at);
+    assert.equal(state.publication_state, 'PUBLISHED');
+    assert.equal(state.revision, revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct assign command IDs with the same original revision produce one active assignment and two receipts', async () => {
+    const owner = await newUser('lifecycle-idempotent-assign-owner@test.local');
+    const organizer = await newUser('lifecycle-idempotent-assign-target@test.local');
+    const sessionId = await createTargetSession(owner, { name: 'Idempotent assign' });
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const assignmentId = randomUUID();
+    const first = await assignOrganizer(owner, {
+      commandId: commandIds[0],
+      assignmentId,
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: organizer,
+    });
+    const second = await assignOrganizer(owner, {
+      commandId: commandIds[1],
+      assignmentId: randomUUID(),
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: organizer,
+    });
+    assert.deepEqual(first.rows, [{ assignment_id: assignmentId, session_revision: revision + 1 }]);
+    assert.deepEqual(second.rows, first.rows);
+    const assignments = await client.query(
+      `select 1 from public.session_organizer_assignments
+        where session_id = $1 and organizer_user_id = $2 and revoked_at is null`,
+      [sessionId, organizer],
+    );
+    assert.equal(assignments.rowCount, 1);
+    assert.equal(await sessionRevision(sessionId), revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct revoke command IDs with the same original revision preserve one revocation and write two receipts', async () => {
+    const owner = await newUser('lifecycle-idempotent-revoke-owner@test.local');
+    const organizer = await newUser('lifecycle-idempotent-revoke-target@test.local');
+    const sessionId = await createTargetSession(owner, { name: 'Idempotent revoke' });
+    const assignmentId = await directOrganizerAssignment(sessionId, organizer);
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await revokeOrganizer(owner, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: organizer,
+    });
+    const afterFirst = await client.query<{ revoked_at: string }>(
+      'select revoked_at from public.session_organizer_assignments where id = $1',
+      [assignmentId],
+    );
+    const second = await revokeOrganizer(owner, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: organizer,
+    });
+    const afterSecond = await client.query<{ revoked_at: string }>(
+      'select revoked_at from public.session_organizer_assignments where id = $1',
+      [assignmentId],
+    );
+    assert.deepEqual(second.rows, first.rows);
+    assert.deepEqual(afterSecond.rows, afterFirst.rows);
+    assert.equal(await sessionRevision(sessionId), revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct finish command IDs with the same original revision preserve one completion timestamp and write two receipts', async () => {
+    const organizer = await newUser('lifecycle-idempotent-finish@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent finish' });
+    await forceLifecycleStatus(sessionId, 'IN_PROGRESS', organizer);
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await finishSession(organizer, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedRevision: revision,
+    });
+    const afterFirst = await sessionState(sessionId);
+    const second = await finishSession(organizer, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedRevision: revision,
+    });
+    const afterSecond = await sessionState(sessionId);
+    assert.deepEqual(second.rows, first.rows);
+    assert.deepEqual(afterSecond.actual_finished_at, afterFirst.actual_finished_at);
+    assert.equal(afterSecond.revision, revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct cancel command IDs with the same original revision preserve the first audit and write two receipts', async () => {
+    const organizer = await newUser('lifecycle-idempotent-cancel@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent cancel' });
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await cancelSession(organizer, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedRevision: revision,
+      reason: 'Chuva',
+    });
+    const afterFirst = await sessionState(sessionId);
+    const second = await cancelSession(organizer, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedRevision: revision,
+      reason: 'Outro motivo valido',
+    });
+    const afterSecond = await sessionState(sessionId);
+    assert.deepEqual(second.rows, first.rows);
+    assert.deepEqual(afterSecond.cancelled_at, afterFirst.cancelled_at);
+    assert.equal(afterSecond.cancelled_by_user_id, afterFirst.cancelled_by_user_id);
+    assert.equal(afterSecond.cancel_reason, 'Chuva');
+    assert.equal(afterSecond.revision, revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+  });
+
+  test('distinct identical configure commands with the same original revision produce one Court effect and two receipts', async () => {
+    const organizer = await newUser('lifecycle-idempotent-configure@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Idempotent configure' });
+    const court = await client.query<{ id: string }>(
+      'select id from public.session_courts where session_id = $1',
+      [sessionId],
+    );
+    const courtId = court.rows[0].id;
+    const revision = await sessionRevision(sessionId);
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await configureCourt(organizer, {
+      commandId: commandIds[0],
+      courtId,
+      sessionId,
+      expectedRevision: revision,
+      label: 'Quadra Central',
+      courtOrder: 2,
+    });
+    const second = await configureCourt(organizer, {
+      commandId: commandIds[1],
+      courtId,
+      sessionId,
+      expectedRevision: revision,
+      label: '  Quadra Central  ',
+      courtOrder: 2,
+    });
+    assert.deepEqual(second.rows, first.rows);
+    const configured = await client.query<{ label: string; court_order: number }>(
+      'select label, court_order from public.session_courts where id = $1',
+      [courtId],
+    );
+    assert.deepEqual(configured.rows, [{ label: 'Quadra Central', court_order: 2 }]);
+    assert.equal(await sessionRevision(sessionId), revision + 1);
+    for (const commandId of commandIds) assert.equal((await commandReceipt(commandId)).length, 1);
+
+    const staleDifferentCommandId = randomUUID();
+    const staleDifferent = await configureCourt(organizer, {
+      commandId: staleDifferentCommandId,
+      courtId,
+      sessionId,
+      expectedRevision: revision,
+      label: 'Quadra Lateral',
+      courtOrder: 3,
+    }).catch((error: Error) => error);
+    assertSqlState(staleDifferent, '40001');
+    assert.equal((await commandReceipt(staleDifferentCommandId)).length, 0);
   });
 
   test('reusing a command_id from start_target_session on finish_target_session raises 23505 (QA-INV-011)', async () => {
@@ -1577,14 +1942,18 @@ if (!isTestDatabaseConfigured()) {
           ]),
         ).catch((error: Error) => error);
       const outcomes = await Promise.all([attempt(a, randomUUID()), attempt(b, randomUUID())]);
-      const committed = outcomes.filter((outcome) => !(outcome instanceof Error));
-      const rejected = outcomes.filter((outcome): outcome is Error => outcome instanceof Error);
-      assert.equal(committed.length, 1);
-      assert.equal(rejected.length, 1);
-      assertSqlState(rejected[0], '40001');
+      const committed = outcomes.filter(
+        (outcome): outcome is QueryResult<LifecycleCommandRow> => !(outcome instanceof Error),
+      );
+      assert.equal(committed.length, 2);
+      assert.deepEqual(
+        committed.map((outcome) => outcome.rows[0].session_revision),
+        [revision + 1, revision + 1],
+      );
       const state = await sessionState(sessionId);
       assert.equal(state.lifecycle_status, 'IN_PROGRESS');
       assert.ok(state.actual_started_at);
+      assert.equal(state.revision, revision + 1);
     } finally {
       a.release();
       b.release();
@@ -1800,6 +2169,85 @@ if (!isTestDatabaseConfigured()) {
     );
     assert.equal(assignment.rows.length, 1);
     assert.equal(assignment.rows[0].revoked_at, null);
+  });
+
+  test('assign_target_session_organizer rejects an active ordinary Community member without effects', async () => {
+    const owner = await newUser('lifecycle-assign-ordinary-owner@test.local');
+    const actor = await newUser('lifecycle-assign-ordinary-actor@test.local');
+    const ordinaryMember = await newUser('lifecycle-assign-ordinary-target@test.local');
+    const community = await targetCommunity(owner, 'Assign ordinary member Community');
+    await activeMembership(community, actor);
+    await grantOrganizer(community, actor);
+    await activeMembership(community, ordinaryMember);
+    const sessionId = await createTargetSession(actor, {
+      communityId: community,
+      context: 'COMMUNITY',
+      name: 'Reject ordinary organizer assignment',
+    });
+    const revision = await sessionRevision(sessionId);
+    const commandId = randomUUID();
+    const rejected = await assignOrganizer(actor, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: ordinaryMember,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+    assert.equal(await sessionRevision(sessionId), revision);
+    assert.equal((await commandReceipt(commandId)).length, 0);
+    assert.equal(
+      (
+        await client.query(
+          `select 1 from public.session_organizer_assignments
+            where session_id = $1 and organizer_user_id = $2`,
+          [sessionId, ordinaryMember],
+        )
+      ).rowCount,
+      0,
+    );
+  });
+
+  test('assign_target_session_organizer rejects a revoked ORGANIZER responsibility without effects', async () => {
+    const owner = await newUser('lifecycle-assign-revoked-owner@test.local');
+    const actor = await newUser('lifecycle-assign-revoked-actor@test.local');
+    const revokedOrganizer = await newUser('lifecycle-assign-revoked-target@test.local');
+    const community = await targetCommunity(owner, 'Assign revoked organizer Community');
+    await activeMembership(community, actor);
+    await grantOrganizer(community, actor);
+    await activeMembership(community, revokedOrganizer);
+    await grantOrganizer(community, revokedOrganizer);
+    await client.query(
+      `update public.community_responsibilities
+          set revoked_at = now()
+        where community_id = $1 and user_id = $2 and responsibility = 'ORGANIZER'`,
+      [community, revokedOrganizer],
+    );
+    const sessionId = await createTargetSession(actor, {
+      communityId: community,
+      context: 'COMMUNITY',
+      name: 'Reject revoked organizer assignment',
+    });
+    const revision = await sessionRevision(sessionId);
+    const commandId = randomUUID();
+    const rejected = await assignOrganizer(actor, {
+      commandId,
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: revokedOrganizer,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+    assert.equal(await sessionRevision(sessionId), revision);
+    assert.equal((await commandReceipt(commandId)).length, 0);
+    assert.equal(
+      (
+        await client.query(
+          `select 1 from public.session_organizer_assignments
+            where session_id = $1 and organizer_user_id = $2`,
+          [sessionId, revokedOrganizer],
+        )
+      ).rowCount,
+      0,
+    );
   });
 
   test('assign_target_session_organizer succeeds for a Quick Session owner', async () => {

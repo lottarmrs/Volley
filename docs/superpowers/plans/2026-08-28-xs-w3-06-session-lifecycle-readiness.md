@@ -278,6 +278,9 @@ Pin, using `createReadySession` and removing one condition per case:
 
 - a fully prepared Session returns `ready = true` with an empty blocker array;
 - revoking the organizer assignment yields exactly `REQUIRED_ORGANIZER_MISSING`;
+- a Community assignment whose Membership becomes suspended, or whose `ORGANIZER` responsibility
+  is revoked, yields the same blocker without deleting assignment history; another effective
+  assignment clears it, while a Quick assignment remains effective without Community artifacts;
 - replacing the roster with an empty revision yields exactly `NO_EFFECTIVE_ROSTER`;
 - a Session with no rules snapshot yields exactly `RULES_INVALID`;
 - a Session with no court yields exactly `COURT_CONFIGURATION_INVALID`;
@@ -311,8 +314,9 @@ Pin:
   `cancel_reason text`, all nullable;
 - `cancelled_by_user_id` references `auth.users` with `ON DELETE SET NULL` and has a
   complete leading-column btree index;
-- a target Session set to `lifecycle_status = 'CANCELLED'` without `cancelled_at` or without
-  `cancelled_by_user_id` is rejected with `23514`;
+- a target Session set to `lifecycle_status = 'CANCELLED'` without `cancelled_at` is rejected with
+  `23514`; `cancelled_by_user_id` is initially command-derived but remains nullable for
+  `ON DELETE SET NULL` anonymization;
 - a blank `cancel_reason` is rejected with `23514`;
 - a legacy Session with null `lifecycle_status` is unaffected by the constraint.
 
@@ -369,18 +373,19 @@ Add `cancelled_at`, `cancelled_by_user_id` and `cancel_reason` to `public.sessio
 `cancelled_by_user_id` referencing `auth.users` on delete set null plus a covering btree index.
 
 Add a target-only check: either `authority_model = 'legacy'`, or `lifecycle_status` is distinct
-from `'CANCELLED'`, or both `cancelled_at` and `cancelled_by_user_id` are non-null. Add a separate
-check that `cancel_reason` is null or non-blank. Keeping them separate produces a clearer
-constraint name in failures.
+from `'CANCELLED'`, or `cancelled_at` is non-null. The command derives and initially writes
+`cancelled_by_user_id`, while the nullable FK remains compatible with its `ON DELETE SET NULL`
+anonymization path. Add a separate check that `cancel_reason` is null or non-blank. Keeping the
+checks separate produces a clearer constraint name in failures.
 
 - [ ] **Step 3: Repair the roster suite fixture the constraint invalidates**
 
 `src/test/db/sessionRosterRevisions.dbtest.ts` forces `lifecycle_status = 'CANCELLED'` by direct
 UPDATE inside the test named
 `'Quick replacement enforces authentication, assignment, target context, and pre-start lifecycle'`.
-That UPDATE now violates the new constraint. Extend it to also set `cancelled_at = now()` and
-`cancelled_by_user_id` to the acting organizer. Do not weaken the constraint to accommodate the
-fixture.
+That UPDATE now violates the new constraint. Extend it to also set `cancelled_at = now()`; setting
+`cancelled_by_user_id` to the acting organizer keeps the fixture faithful to the command's initial
+write. Do not weaken the timestamp constraint to accommodate the fixture.
 
 - [ ] **Step 4: Create and seed the blocker catalog**
 
@@ -439,8 +444,10 @@ Evaluate exactly four conditions, joining each emitted code to
 `app_private.session_readiness_blockers` so `evaluation_status` and `owning_wave` come from the
 catalog rather than being written twice:
 
-- `REQUIRED_ORGANIZER_MISSING` when no `session_organizer_assignments` row for the Session has
-  `revoked_at is null`;
+- `REQUIRED_ORGANIZER_MISSING` when no effective, non-revoked assignment exists. Quick requires a
+  real `organizer_user_id` and null `community_membership_id`; Community requires that the
+  assignment's Membership is active in the Session Community and the same user currently holds a
+  non-revoked `ORGANIZER` responsibility;
 - `NO_EFFECTIVE_ROSTER` when the Session has no `roster_revisions` row, or its greatest
   `revision_number` revision has zero `roster_revision_entries`;
 - `RULES_INVALID` when no `session_rules_snapshots` row exists for the Session;
@@ -517,8 +524,9 @@ Pin:
 - it rejects a Session with no `planned_start_at` with `23514`;
 - `start_target_session` moves `SCHEDULED → IN_PROGRESS`, sets `actual_started_at`, and leaves
   `planned_start_at` untouched (`SES-INV-027`);
-- `start_target_session` accepts `DRAFT → IN_PROGRESS` directly, the reduced Quick path from
-  `N4.04.03.01`;
+- `start_target_session` accepts `DRAFT → IN_PROGRESS` directly only for Quick, the reduced path
+  from `N4.04.03.01`; an otherwise-ready Community Session in DRAFT fails `23514` without receipt,
+  revision bump or timestamp;
 - `finish_target_session` moves `IN_PROGRESS → COMPLETED` and sets `actual_finished_at`;
 - `cancel_target_session` moves `DRAFT`, `SCHEDULED` and `IN_PROGRESS` to `CANCELLED`, recording
   `cancelled_at`, `cancelled_by_user_id` and `cancel_reason`;
@@ -527,8 +535,12 @@ Pin:
   `session_organizer_assignments` for the Session before and after the command and assert every
   count is unchanged, and that the latest roster revision still returns its original entries
   through `public.read_target_roster_revision`;
+- after semantic cancellation, setting only `cancelled_by_user_id = NULL` faithfully simulates the
+  future FK anonymization action and preserves lifecycle, timestamp, reason, revision and all child
+  counts;
 - every disallowed transition fails `23514`, explicitly including finish from `DRAFT`, start from
-  `COMPLETED`, schedule from `IN_PROGRESS`, and any transition out of `COMPLETED` or `CANCELLED`;
+  `COMPLETED`, schedule from `IN_PROGRESS`, and cross-state transitions out of `COMPLETED` or
+  `CANCELLED`; finish on `COMPLETED` and cancel on `CANCELLED` are desired-state no-ops;
 - each command increments `sessions.revision` exactly once and keeps the legacy `status` mirror in
   agreement with `public.target_session_compatibility_status(lifecycle_status)`.
 
@@ -556,8 +568,12 @@ Pin, per `QA-INV-009`, `QA-INV-010` and `QA-INV-011`:
   though the Session revision has advanced and the supplied `expected_revision` is now stale —
   this proves receipt lookup precedes stale validation;
 - exactly one `actual_started_at` value survives three retries with one `command_id`;
-- two *different* command IDs starting the same Session both succeed logically and still leave one
-  `actual_started_at`, proving domain idempotency independent of the receipt;
+- for schedule, start, publish, assign, revoke, finish, cancel and configure-court, two *different*
+  command IDs carrying the same original pre-first `expected_revision` both write receipts and
+  return the current result while causing exactly one logical effect; timestamps and cancellation
+  audit remain those of the first effect;
+- an identical normalized court configuration is a no-op before stale validation, while a genuinely
+  different desired configuration with that stale revision still fails `40001`;
 - reusing a `command_id` from `start_target_session` on `finish_target_session` raises `23505`;
 - reusing a `command_id` against a different Session raises `23505`;
 - a receipt row exists after each successful command with the correct `command_type`,
@@ -568,8 +584,8 @@ Pin, per `QA-INV-009`, `QA-INV-010` and `QA-INV-011`:
 Pin, per `QA-INV-008` and `QA-INV-012`:
 
 - two concurrent `start_target_session` transactions on distinct command IDs and the same
-  `expected_revision` serialize on the Session lock; exactly one commits and the other either
-  observes the started state or fails `40001`, with exactly one `actual_started_at`;
+  `expected_revision` serialize on the Session lock; both return the one resulting revision and
+  write receipts, with exactly one `actual_started_at` effect;
 - a rejected command leaves no receipt row, no revision increment, no timestamp and no
   cancellation audit.
 
@@ -595,6 +611,9 @@ Pin:
 - `assign_target_session_organizer` creates an assignment for an eligible Community organizer and
   for a Quick Session owner, and is callable by a Community `session.manage` holder who has **no**
   assignment yet — the bootstrap case;
+- Community assignment rejects an ordinary active member and a member whose `ORGANIZER`
+  responsibility is absent or revoked with `23514`, leaving revision, receipt and assignments
+  untouched;
 - `revoke_target_session_organizer` sets `revoked_at` and the revoked user then fails `42501` on
   every other command;
 - `configure_target_session_court` updates an existing court's label and order in `DRAFT`,
@@ -661,13 +680,15 @@ test:
 4. `v_receipt := app_private.find_command_receipt(p_command_id, '<COMMAND_TYPE>', p_session_id)`;
    when non-null, return it and stop. A mismatched receipt already raised `23505` inside the
    helper;
-5. guard the transition or precondition; when the Session already holds the target state, return
-   the current state without a second revision bump;
-6. raise `40001` when `v_session.revision is distinct from p_expected_revision`;
-7. mutate, `update public.sessions set revision = revision + 1, updated_at = now()`, keeping
+5. validate command-specific input needed to identify the desired state;
+6. when the Session already holds that desired state, write this command's receipt and return the
+   current state without consulting `p_expected_revision` or causing a second revision bump;
+7. raise `40001` when a genuine mutation sees
+   `v_session.revision is distinct from p_expected_revision`;
+8. mutate, `update public.sessions set revision = revision + 1, updated_at = now()`, keeping
    `status = public.target_session_compatibility_status(<new lifecycle>)` in sync;
-8. `perform app_private.record_command_receipt(p_command_id, (select auth.uid()), '<COMMAND_TYPE>', p_session_id, <result jsonb>, 'SESSION_LIFECYCLE')`;
-9. return the result.
+9. `perform app_private.record_command_receipt(p_command_id, (select auth.uid()), '<COMMAND_TYPE>', p_session_id, <result jsonb>, 'SESSION_LIFECYCLE')`;
+10. return the result.
 
 Step 4 before step 6 is the whole point: a client that lost the response retries with a stale
 revision and must still receive its original result.
@@ -677,17 +698,19 @@ revision and must still receive its original result.
 `schedule_target_session(p_command_id, p_session_id, p_expected_revision)` requires
 `planned_start_at is not null`, else `23514`.
 
-`start_target_session(p_command_id, p_session_id, p_expected_revision)` calls
+`start_target_session(p_command_id, p_session_id, p_expected_revision)` permits direct DRAFT Start
+only when `session_context = 'QUICK'`. For `SCHEDULED → IN_PROGRESS`, it calls
 `app_private.target_session_readiness(p_session_id)` after the transition guard and raises `23514`
-when `ready` is false, naming the blocking codes in the message. It sets
-`actual_started_at = now()` and never touches `planned_start_at`.
+when `ready` is false, naming the blocking codes in the message. It sets `actual_started_at = now()`
+and never touches `planned_start_at`.
 
 `finish_target_session(p_command_id, p_session_id, p_expected_revision)` sets
 `actual_finished_at = now()`.
 
-`cancel_target_session(p_command_id, p_session_id, p_expected_revision, p_cancel_reason)` sets the
-three cancellation columns, rejecting a blank non-null reason with `23514`. It destroys no roster,
-rules, court or assignment row.
+`cancel_target_session(p_command_id, p_session_id, p_expected_revision, p_cancel_reason)` initially
+sets the three cancellation columns, rejecting a blank non-null reason with `23514`. Its actor FK
+may later anonymize to null without clearing timestamp or reason. It destroys no roster, rules,
+court or assignment row.
 
 Finish and cancel-from-`IN_PROGRESS` both call the Match guard from Step 4 first.
 
@@ -727,6 +750,11 @@ Resolve the Community from the loaded Session row, never from a client argument 
 Assign takes a caller-supplied `p_assignment_id` so the row identity is final, matching the pattern
 `add_target_session_court` and `replace_target_quick_session_roster` already use. Both commands
 reject a terminal Session with `23514`.
+
+Before insertion, Assign validates the proposed row through the same private effective-assignment
+predicate readiness uses: Quick requires a real user and no Community Membership; Community
+requires the target user's active Membership in the Session Community plus a current non-revoked
+`ORGANIZER` responsibility.
 
 - [ ] **Step 7: Implement court configuration**
 

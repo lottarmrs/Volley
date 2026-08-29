@@ -139,7 +139,7 @@ if (!isTestDatabaseConfigured()) {
   function assertNewTargetLedger(
     rows: CutoverRow[],
     sessionId: string,
-    actorId: string,
+    actorId: string | null,
   ): CutoverRow {
     assert.equal(rows.length, 1);
     const [row] = rows;
@@ -483,7 +483,7 @@ if (!isTestDatabaseConfigured()) {
     assertNewTargetLedger(
       await cutoverRows(preCutoverTargetSessionId),
       preCutoverTargetSessionId,
-      preCutoverActorId,
+      null,
     );
     assert.deepEqual(await cutoverRows(preCutoverLegacySessionId), []);
   });

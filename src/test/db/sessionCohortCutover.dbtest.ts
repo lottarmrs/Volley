@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import type { Client, Pool, QueryResultRow } from 'pg';
+import type { Client, Pool, PoolClient, QueryResultRow } from 'pg';
 import {
   asIdentityCommitting,
   connect,
@@ -29,6 +29,19 @@ interface CutoverInspectionRow extends QueryResultRow {
   blockers: string[];
   source_fingerprint: string;
   selected_player_count: number;
+}
+
+interface TransitionRow extends QueryResultRow {
+  session_id: string;
+  session_revision: number;
+  authority_model: string;
+  target_model_version: number;
+}
+
+interface ReadinessRow extends QueryResultRow {
+  ready: boolean;
+  blockers: Array<{ code: string }>;
+  revisions: Record<string, unknown>;
 }
 
 const CUTOVER_MIGRATION_NAME = '20260829120000_target_session_cohort_cutover.sql';
@@ -205,6 +218,132 @@ if (!isTestDatabaseConfigured()) {
       'select * from public.inspect_legacy_session_cutover($1)',
       [sessionId],
     );
+  }
+
+  async function transitionLegacySession(
+    actorId: string | null,
+    input: {
+      commandId: string;
+      sessionId: string;
+      expectedSourceFingerprint: string;
+      sessionContext: string;
+      playMode: string;
+    },
+  ) {
+    return call<TransitionRow>(
+      actorId,
+      `select * from public.transition_legacy_session_to_target(
+         p_command_id := $1,
+         p_session_id := $2,
+         p_expected_source_fingerprint := $3,
+         p_session_context := $4,
+         p_play_mode := $5
+       )`,
+      [
+        input.commandId,
+        input.sessionId,
+        input.expectedSourceFingerprint,
+        input.sessionContext,
+        input.playMode,
+      ],
+    );
+  }
+
+  async function setLocalIdentity(db: PoolClient, userId: string): Promise<void> {
+    await db.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', userId]);
+    await db.query('select set_config($1, $2, true)', ['request.jwt.claim.role', 'authenticated']);
+    await db.query('select set_config($1, $2, true)', [
+      'request.jwt.claims',
+      JSON.stringify({ sub: userId, role: 'authenticated' }),
+    ]);
+    await db.query('set local role authenticated');
+  }
+
+  async function beginIdentity(db: PoolClient, userId: string): Promise<void> {
+    await db.query('begin');
+    await db.query("set local statement_timeout = '10s'");
+    await setLocalIdentity(db, userId);
+  }
+
+  async function transitionInOpenTransaction(
+    db: PoolClient,
+    input: {
+      commandId: string;
+      sessionId: string;
+      expectedSourceFingerprint: string;
+      sessionContext: string;
+      playMode: string;
+    },
+  ) {
+    return db.query<TransitionRow>(
+      `select * from public.transition_legacy_session_to_target(
+         $1::uuid, $2::uuid, $3::text, $4::text, $5::text
+       )`,
+      [
+        input.commandId,
+        input.sessionId,
+        input.expectedSourceFingerprint,
+        input.sessionContext,
+        input.playMode,
+      ],
+    );
+  }
+
+  async function targetArtifactCounts(sessionId: string) {
+    const { rows } = await client.query<{
+      participants: string;
+      roster_revisions: string;
+      roster_entries: string;
+      organizer_assignments: string;
+      courts: string;
+      rules_snapshots: string;
+      ledger_rows: string;
+      receipts: string;
+    }>(
+      `select
+         (select count(*) from public.session_participants where session_id = $1)::text
+           as participants,
+         (select count(*) from public.roster_revisions where session_id = $1)::text
+           as roster_revisions,
+         (select count(*) from public.roster_revision_entries where session_id = $1)::text
+           as roster_entries,
+         (select count(*) from public.session_organizer_assignments where session_id = $1)::text
+           as organizer_assignments,
+         (select count(*) from public.session_courts where session_id = $1)::text as courts,
+         (select count(*) from public.session_rules_snapshots where session_id = $1)::text
+           as rules_snapshots,
+         (select count(*) from app_private.session_authority_cutovers where session_id = $1)::text
+           as ledger_rows,
+         (select count(*) from app_private.command_receipts where aggregate_id = $1
+            and command_type = 'transition_legacy_session_to_target')::text as receipts`,
+      [sessionId],
+    );
+    return rows[0];
+  }
+
+  async function assertLegacyWithoutTargetArtifacts(sessionId: string): Promise<void> {
+    const { rows } = await client.query<{
+      authority_model: string;
+      revision: number;
+      target_model_version: number | null;
+    }>(
+      `select authority_model, revision, target_model_version
+         from public.sessions where id = $1`,
+      [sessionId],
+    );
+    assert.deepEqual(rows, [
+      { authority_model: 'legacy', revision: 0, target_model_version: null },
+    ]);
+    assert.deepEqual(await targetArtifactCounts(sessionId), {
+      participants: '0',
+      roster_revisions: '0',
+      roster_entries: '0',
+      organizer_assignments: '0',
+      courts: '0',
+      rules_snapshots: '0',
+      ledger_rows: '0',
+      receipts: '0',
+    });
   }
 
   async function fingerprintFor(sessionId: string): Promise<string> {
@@ -1273,5 +1412,851 @@ if (!isTestDatabaseConfigured()) {
     } finally {
       await client.query('rollback');
     }
+  });
+
+  test('transition_legacy_session_to_target writes the empty Quick root, assignment, ledger, receipt, and readiness gaps without fabricating target artifacts', async () => {
+    const actor = await newUser('cutover-transition-empty@test.local');
+    const sessionId = await createLegacySession(actor, 'Empty Quick cutover');
+    const commandId = randomUUID();
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+
+    const { rows } = await transitionLegacySession(actor, {
+      commandId,
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    assert.deepEqual(rows, [
+      {
+        session_id: sessionId,
+        session_revision: 1,
+        authority_model: 'target',
+        target_model_version: 1,
+      },
+    ]);
+    const assignments = await client.query<{
+      community_membership_id: string | null;
+      organizer_user_id: string;
+      assigned_by_user_id: string;
+      revoked_at: Date | null;
+    }>(
+      `select community_membership_id, organizer_user_id, assigned_by_user_id, revoked_at
+         from public.session_organizer_assignments where session_id = $1`,
+      [sessionId],
+    );
+    assert.deepEqual(assignments.rows, [
+      {
+        community_membership_id: null,
+        organizer_user_id: actor,
+        assigned_by_user_id: actor,
+        revoked_at: null,
+      },
+    ]);
+    assert.deepEqual(await targetArtifactCounts(sessionId), {
+      participants: '0',
+      roster_revisions: '0',
+      roster_entries: '0',
+      organizer_assignments: '1',
+      courts: '0',
+      rules_snapshots: '0',
+      ledger_rows: '1',
+      receipts: '1',
+    });
+    const [ledger] = await cutoverRows(sessionId);
+    assert.ok(ledger);
+    const { cutover_at, ...ledgerShape } = ledger;
+    assert.deepEqual(ledgerShape, {
+      session_id: sessionId,
+      source_authority: 'LEGACY',
+      target_model_version: 1,
+      cutover_kind: 'LEGACY_EXPLICIT',
+      command_id: commandId,
+      source_fingerprint: fingerprint,
+      cutover_by_user_id: actor,
+    });
+    assert.ok(cutover_at instanceof Date);
+    const receipt = await client.query<{
+      actor_id: string;
+      command_type: string;
+      aggregate_id: string;
+      result: Record<string, unknown>;
+      retention_class: string;
+    }>(
+      `select actor_id, command_type, aggregate_id, result, retention_class
+         from app_private.command_receipts where command_id = $1`,
+      [commandId],
+    );
+    assert.deepEqual(receipt.rows, [
+      {
+        actor_id: actor,
+        command_type: 'transition_legacy_session_to_target',
+        aggregate_id: sessionId,
+        result: {
+          session_id: sessionId,
+          session_revision: 1,
+          authority_model: 'target',
+          target_model_version: 1,
+        },
+        retention_class: 'SESSION_AUTHORITY_CUTOVER',
+      },
+    ]);
+    const readiness = await call<ReadinessRow>(
+      actor,
+      'select * from public.read_target_session_readiness($1)',
+      [sessionId],
+    );
+    assert.equal(readiness.rows[0].ready, false);
+    assert.deepEqual(readiness.rows[0].blockers.map(({ code }) => code).sort(), [
+      'COURT_CONFIGURATION_INVALID',
+      'NO_EFFECTIVE_ROSTER',
+      'RULES_INVALID',
+    ]);
+  });
+
+  test('transition_legacy_session_to_target materializes the exact selected roster and preserves every legacy evidence byte without Registration or FIFO facts', async () => {
+    const actor = await newUser('cutover-transition-roster@test.local');
+    const uuidPlayer = await createPlayer(actor, { name: 'Alice', nickname: ' Ali ' });
+    const localPlayer = await createPlayer(actor, {
+      localId: 'cutover-transition-local-bruna',
+      name: ' Bruna ',
+    });
+    const sessionId = await createLegacySession(actor, 'Exact cutover roster', {
+      selectedPlayerIds: [uuidPlayer, 'cutover-transition-local-bruna'],
+      config: { nested: { bestOf: 3 }, courtLabel: 'Quadra antiga' },
+    });
+    await client.query(
+      `update public.sessions
+          set local_id = 'cutover-session-local-evidence', sync_version = 37
+        where id = $1`,
+      [sessionId],
+    );
+    const legacyEvidence = async () =>
+      client.query<{
+        selected_player_ids_bytes: string;
+        config_bytes: string;
+        local_id: string;
+        sync_version: number;
+        updated_at: Date;
+      }>(
+        `select pg_catalog.encode(pg_catalog.array_send(selected_player_ids), 'hex')
+                  as selected_player_ids_bytes,
+                pg_catalog.encode(pg_catalog.jsonb_send(config), 'hex') as config_bytes,
+                local_id, sync_version, updated_at
+           from public.sessions where id = $1`,
+        [sessionId],
+      );
+    const before = (await legacyEvidence()).rows;
+    const { rows: hashRows } = await client.query<{ source_hash: string }>(
+      `select pg_catalog.md5(pg_catalog.to_jsonb(selected_player_ids)::text) as source_hash
+         from public.sessions where id = $1`,
+      [sessionId],
+    );
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+
+    await transitionLegacySession(actor, {
+      commandId: randomUUID(),
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    assert.deepEqual((await legacyEvidence()).rows, before);
+    const revision = await client.query<{
+      id: string;
+      revision_number: number;
+      source_kind: string;
+      source_session_revision: number | null;
+      source_registration_revision: string | null;
+      source_payload_hash: string | null;
+      created_by_user_id: string | null;
+    }>(
+      `select id, revision_number, source_kind, source_session_revision,
+              source_registration_revision, source_payload_hash, created_by_user_id
+         from public.roster_revisions where session_id = $1`,
+      [sessionId],
+    );
+    assert.equal(revision.rows.length, 1);
+    const { id: revisionId, ...revisionShape } = revision.rows[0];
+    assert.deepEqual(revisionShape, {
+      revision_number: 1,
+      source_kind: 'LEGACY_SELECTED_ROSTER',
+      source_session_revision: 1,
+      source_registration_revision: null,
+      source_payload_hash: hashRows[0].source_hash,
+      created_by_user_id: actor,
+    });
+    const entries = await client.query<{
+      entry_order: number;
+      identity_kind: string;
+      player_id: string;
+      display_name_at_time: string;
+    }>(
+      `select entry_order, identity_kind, player_id, display_name_at_time
+         from public.roster_revision_entries
+        where roster_revision_id = $1 order by entry_order`,
+      [revisionId],
+    );
+    assert.deepEqual(entries.rows, [
+      {
+        entry_order: 0,
+        identity_kind: 'PLAYER',
+        player_id: uuidPlayer,
+        display_name_at_time: 'Ali',
+      },
+      {
+        entry_order: 1,
+        identity_kind: 'PLAYER',
+        player_id: localPlayer,
+        display_name_at_time: 'Bruna',
+      },
+    ]);
+    const participants = await client.query<{
+      player_id: string;
+      source_kind: string;
+      display_name: string;
+      participation_status: string;
+      created_by_user_id: string;
+    }>(
+      `select player_id, source_kind, display_name, participation_status, created_by_user_id
+         from public.session_participants where session_id = $1 order by display_name`,
+      [sessionId],
+    );
+    assert.deepEqual(participants.rows, [
+      {
+        player_id: uuidPlayer,
+        source_kind: 'LEGACY_SELECTED_ROSTER',
+        display_name: 'Ali',
+        participation_status: 'INCLUDED',
+        created_by_user_id: actor,
+      },
+      {
+        player_id: localPlayer,
+        source_kind: 'LEGACY_SELECTED_ROSTER',
+        display_name: 'Bruna',
+        participation_status: 'INCLUDED',
+        created_by_user_id: actor,
+      },
+    ]);
+    const registrationTables = await client.query<{ table_name: string }>(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_name like '%registration%'
+        order by table_name`,
+    );
+    assert.deepEqual(registrationTables.rows, []);
+    const noFabricatedExecution = await client.query<{ courts: string; rules: string }>(
+      `select
+         (select count(*) from public.session_courts where session_id = $1)::text as courts,
+         (select count(*) from public.session_rules_snapshots where session_id = $1)::text as rules`,
+      [sessionId],
+    );
+    assert.deepEqual(noFabricatedExecution.rows, [{ courts: '0', rules: '0' }]);
+    const immutable = await client
+      .query('update public.roster_revisions set revision_number = 2 where id = $1', [revisionId])
+      .catch((error: Error) => error);
+    assertSqlState(immutable, '55000');
+  });
+
+  test('transition_legacy_session_to_target uses explicit play_mode instead of inferring it from legacy type', async () => {
+    const actor = await newUser('cutover-explicit-mode@test.local');
+    const sessionId = await createLegacySession(actor, 'Legacy tournament as free play', {
+      type: 'tournament',
+    });
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+
+    await transitionLegacySession(actor, {
+      commandId: randomUUID(),
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    const { rows } = await client.query<{
+      play_mode: string;
+      type: string;
+      lifecycle_status: string;
+      status: string;
+    }>(`select play_mode, type, lifecycle_status, status from public.sessions where id = $1`, [
+      sessionId,
+    ]);
+    assert.deepEqual(rows, [
+      { play_mode: 'FREE_PLAY', type: 'free_play', lifecycle_status: 'DRAFT', status: 'draft' },
+    ]);
+  });
+
+  test('transition_legacy_session_to_target rejects unbounded context and play-mode literals with 23514', async () => {
+    const actor = await newUser('cutover-invalid-dimensions@test.local');
+    for (const [label, sessionContext, playMode] of [
+      ['context', 'CLUB', 'FREE_PLAY'],
+      ['play mode', 'QUICK', 'KING_OF_COURT'],
+    ]) {
+      const sessionId = await createLegacySession(actor, `Invalid ${label} cutover`);
+      const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+      const rejected = await transitionLegacySession(actor, {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: fingerprint,
+        sessionContext,
+        playMode,
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '23514');
+      await assertLegacyWithoutTargetArtifacts(sessionId);
+    }
+  });
+
+  test('transition_legacy_session_to_target rejects QUICK-with-Community and COMMUNITY-without-Community instead of fabricating context', async () => {
+    const actor = await newUser('cutover-context-community@test.local');
+    const communityId = await createCommunity(actor, 'Cutover dimension Community');
+    await setOrganizerResponsibility(communityId, actor);
+    const quickWithCommunity = await createLegacySession(actor, 'Quick with Community', {
+      communityId,
+    });
+    const communityWithoutCommunity = await createLegacySession(actor, 'Community without one');
+
+    for (const [sessionId, sessionContext] of [
+      [quickWithCommunity, 'QUICK'],
+      [communityWithoutCommunity, 'COMMUNITY'],
+    ]) {
+      const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+      const rejected = await transitionLegacySession(actor, {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: fingerprint,
+        sessionContext,
+        playMode: 'FREE_PLAY',
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '23514');
+      await assertLegacyWithoutTargetArtifacts(sessionId);
+    }
+  });
+
+  test('transition_legacy_session_to_target authorizes current Community responsibility and assigns the authenticated caller rather than the legacy owner', async () => {
+    const owner = await newUser('cutover-community-transition-owner@test.local');
+    const allowed = await newUser('cutover-community-transition-allowed@test.local');
+    const missingMembership = await newUser(
+      'cutover-community-transition-missing-membership@test.local',
+    );
+    const suspended = await newUser('cutover-community-transition-suspended@test.local');
+    const missingResponsibility = await newUser(
+      'cutover-community-transition-missing-responsibility@test.local',
+    );
+    const revoked = await newUser('cutover-community-transition-revoked@test.local');
+    const outsider = await newUser('cutover-community-transition-outsider@test.local');
+    const communityId = await createCommunity(owner, 'Transition authorization Community');
+    const outsiderCommunityId = await createCommunity(outsider, 'Other transition Community');
+    const sessionId = await createLegacySession(owner, 'Community transition draft', {
+      communityId,
+    });
+
+    await setOrganizerResponsibility(communityId, missingMembership);
+    await setMembership(communityId, suspended, 'suspended');
+    await setOrganizerResponsibility(communityId, suspended);
+    await setMembership(communityId, missingResponsibility, 'active');
+    await setMembership(communityId, revoked, 'active');
+    await setOrganizerResponsibility(communityId, revoked, '2030-01-01T00:00:00.000Z');
+    await setOrganizerResponsibility(outsiderCommunityId, outsider);
+    await setMembership(communityId, allowed, 'active');
+    await setOrganizerResponsibility(communityId, allowed);
+
+    const fingerprint = (await inspectCutover(allowed, sessionId)).rows[0].source_fingerprint;
+    for (const deniedActor of [
+      missingMembership,
+      suspended,
+      missingResponsibility,
+      revoked,
+      outsider,
+    ]) {
+      const rejected = await transitionLegacySession(deniedActor, {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: fingerprint,
+        sessionContext: 'COMMUNITY',
+        playMode: 'FREE_PLAY',
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '42501');
+      await assertLegacyWithoutTargetArtifacts(sessionId);
+    }
+
+    await transitionLegacySession(allowed, {
+      commandId: randomUUID(),
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'COMMUNITY',
+      playMode: 'FREE_PLAY',
+    });
+
+    const { rows: membershipRows } = await client.query<{ id: string }>(
+      `select id from public.community_memberships
+        where community_id = $1 and user_id = $2 and status = 'active'`,
+      [communityId, allowed],
+    );
+    assert.equal(membershipRows.length, 1);
+    const assignments = await client.query<{
+      community_membership_id: string;
+      organizer_user_id: string;
+      assigned_by_user_id: string;
+    }>(
+      `select community_membership_id, organizer_user_id, assigned_by_user_id
+         from public.session_organizer_assignments where session_id = $1`,
+      [sessionId],
+    );
+    assert.deepEqual(assignments.rows, [
+      {
+        community_membership_id: membershipRows[0].id,
+        organizer_user_id: allowed,
+        assigned_by_user_id: allowed,
+      },
+    ]);
+    assert.notEqual(assignments.rows[0].organizer_user_id, owner);
+  });
+
+  test('transition_legacy_session_to_target resolves the same-command receipt before a stale fingerprint and returns the identical row', async () => {
+    const actor = await newUser('cutover-receipt-first@test.local');
+    const sessionId = await createLegacySession(actor, 'Receipt-first cutover');
+    const commandId = randomUUID();
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+    const first = await transitionLegacySession(actor, {
+      commandId,
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    const retry = await transitionLegacySession(actor, {
+      commandId,
+      sessionId,
+      expectedSourceFingerprint: 'stale-fingerprint-must-not-be-read',
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    assert.deepEqual(retry.rows, first.rows);
+    assert.deepEqual(await targetArtifactCounts(sessionId), {
+      participants: '0',
+      roster_revisions: '0',
+      roster_entries: '0',
+      organizer_assignments: '1',
+      courts: '0',
+      rules_snapshots: '0',
+      ledger_rows: '1',
+      receipts: '1',
+    });
+  });
+
+  test('transition_legacy_session_to_target rejects command_id reuse across another Session or command type with 23505', async () => {
+    const actor = await newUser('cutover-command-collision@test.local');
+    const firstSessionId = await createLegacySession(actor, 'First collision cutover');
+    const secondSessionId = await createLegacySession(actor, 'Second collision cutover');
+    const firstFingerprint = (await inspectCutover(actor, firstSessionId)).rows[0]
+      .source_fingerprint;
+    const secondFingerprint = (await inspectCutover(actor, secondSessionId)).rows[0]
+      .source_fingerprint;
+    const reusedCommandId = randomUUID();
+    await transitionLegacySession(actor, {
+      commandId: reusedCommandId,
+      sessionId: firstSessionId,
+      expectedSourceFingerprint: firstFingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    const aggregateCollision = await transitionLegacySession(actor, {
+      commandId: reusedCommandId,
+      sessionId: secondSessionId,
+      expectedSourceFingerprint: secondFingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    }).catch((error: Error) => error);
+    assertSqlState(aggregateCollision, '23505');
+    await assertLegacyWithoutTargetArtifacts(secondSessionId);
+
+    const typeCollisionCommandId = randomUUID();
+    await client.query(
+      `select app_private.record_command_receipt(
+         $1, $2, 'another_command_type', $3, '{"ok":true}'::jsonb, 'TEST_COLLISION'
+       )`,
+      [typeCollisionCommandId, actor, secondSessionId],
+    );
+    const typeCollision = await transitionLegacySession(actor, {
+      commandId: typeCollisionCommandId,
+      sessionId: secondSessionId,
+      expectedSourceFingerprint: secondFingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    }).catch((error: Error) => error);
+    assertSqlState(typeCollision, '23505');
+    await assertLegacyWithoutTargetArtifacts(secondSessionId);
+  });
+
+  test('transition_legacy_session_to_target gives distinct commands one completed graph and one receipt each', async () => {
+    const actor = await newUser('cutover-distinct-commands@test.local');
+    const playerId = await createPlayer(actor, { name: 'Distinct command Player' });
+    const sessionId = await createLegacySession(actor, 'Distinct command cutover', {
+      selectedPlayerIds: [playerId],
+    });
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+    const commandIds = [randomUUID(), randomUUID()];
+    const first = await transitionLegacySession(actor, {
+      commandId: commandIds[0],
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+    const second = await transitionLegacySession(actor, {
+      commandId: commandIds[1],
+      sessionId,
+      expectedSourceFingerprint: fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    assert.deepEqual(second.rows, first.rows);
+    assert.deepEqual(await targetArtifactCounts(sessionId), {
+      participants: '1',
+      roster_revisions: '1',
+      roster_entries: '1',
+      organizer_assignments: '1',
+      courts: '0',
+      rules_snapshots: '0',
+      ledger_rows: '1',
+      receipts: '2',
+    });
+    const receipts = await client.query<{ command_id: string }>(
+      `select command_id from app_private.command_receipts
+        where command_id = any($1::uuid[]) order by command_id`,
+      [commandIds],
+    );
+    assert.deepEqual(
+      receipts.rows.map(({ command_id }) => command_id).sort(),
+      [...commandIds].sort(),
+    );
+  });
+
+  test('transition_legacy_session_to_target rolls back an injected unresolved roster without selecting target authority or writing any artifact', async () => {
+    const actor = await newUser('cutover-invalid-roster-rollback@test.local');
+    const sessionId = await createLegacySession(actor, 'Invalid roster rollback', {
+      selectedPlayerIds: ['missing-cutover-transition-player'],
+    });
+    const inspection = await inspectCutover(actor, sessionId);
+    assert.deepEqual(inspection.rows[0].blockers, ['ROSTER_TOKEN_UNRESOLVED']);
+
+    const rejected = await transitionLegacySession(actor, {
+      commandId: randomUUID(),
+      sessionId,
+      expectedSourceFingerprint: inspection.rows[0].source_fingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    }).catch((error: Error) => error);
+
+    assertSqlState(rejected, '23514');
+    await assertLegacyWithoutTargetArtifacts(sessionId);
+  });
+
+  test('transition_legacy_session_to_target rolls back its entire graph when the authority-ledger command key conflicts', async () => {
+    const actor = await newUser('cutover-ledger-conflict-rollback@test.local');
+    const playerId = await createPlayer(actor, { name: 'Ledger rollback Player' });
+    const sessionId = await createLegacySession(actor, 'Ledger conflict rollback', {
+      selectedPlayerIds: [playerId],
+    });
+    const conflictSessionId = await createLegacySession(actor, 'Ledger conflict fixture');
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+    const conflictFingerprint = await fingerprintFor(conflictSessionId);
+    const commandId = randomUUID();
+    const db = await pool.connect();
+    try {
+      await db.query('begin');
+      await db.query(
+        `insert into app_private.session_authority_cutovers (
+           session_id, source_authority, target_model_version, cutover_kind,
+           command_id, source_fingerprint, cutover_by_user_id
+         ) values ($1, 'LEGACY', 1, 'LEGACY_EXPLICIT', $2, $3, $4)`,
+        [conflictSessionId, commandId, conflictFingerprint, actor],
+      );
+      await setLocalIdentity(db, actor);
+      const rejected = await transitionInOpenTransaction(db, {
+        commandId,
+        sessionId,
+        expectedSourceFingerprint: fingerprint,
+        sessionContext: 'QUICK',
+        playMode: 'FREE_PLAY',
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '23505');
+    } finally {
+      await db.query('rollback').catch(() => undefined);
+      db.release();
+    }
+
+    await assertLegacyWithoutTargetArtifacts(sessionId);
+    assert.deepEqual(await cutoverRows(conflictSessionId), []);
+  });
+
+  test('transition_legacy_session_to_target rolls back roster materialization when organizer assignment fails and removes the failure fixture', async () => {
+    const actor = await newUser('cutover-assignment-failure-rollback@test.local');
+    const playerId = await createPlayer(actor, { name: 'Assignment rollback Player' });
+    const sessionId = await createLegacySession(actor, 'Assignment failure rollback', {
+      selectedPlayerIds: [playerId],
+    });
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+    await client.query(`
+      create function pg_temp.reject_cutover_assignment_fixture()
+      returns trigger
+      language plpgsql
+      as $$
+      begin
+        raise exception 'injected assignment failure' using errcode = 'P0001';
+      end;
+      $$
+    `);
+    await client.query(`
+      create trigger reject_cutover_assignment_fixture_trigger
+      before insert on public.session_organizer_assignments
+      for each row execute function pg_temp.reject_cutover_assignment_fixture()
+    `);
+    try {
+      const rejected = await transitionLegacySession(actor, {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: fingerprint,
+        sessionContext: 'QUICK',
+        playMode: 'FREE_PLAY',
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, 'P0001');
+    } finally {
+      await client.query(
+        'drop trigger if exists reject_cutover_assignment_fixture_trigger on public.session_organizer_assignments',
+      );
+      await client.query('drop function if exists pg_temp.reject_cutover_assignment_fixture()');
+    }
+
+    await assertLegacyWithoutTargetArtifacts(sessionId);
+    const { rows: fixtureRows } = await client.query<{ trigger_name: string }>(
+      `select trigger_name
+         from information_schema.triggers
+        where event_object_schema = 'public'
+          and event_object_table = 'session_organizer_assignments'
+          and trigger_name = 'reject_cutover_assignment_fixture_trigger'`,
+    );
+    assert.deepEqual(fixtureRows, []);
+  });
+
+  test('transition_legacy_session_to_target fences a committed legacy source write with 40001 before succeeding on reinspection', async () => {
+    const actor = await newUser('cutover-source-race@test.local');
+    const sessionId = await createLegacySession(actor, 'Source race before write');
+    const firstFingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+    const writer = await pool.connect();
+    const cutter = await pool.connect();
+    let writerOpen = false;
+    let cutterOpen = false;
+    try {
+      await writer.query('begin');
+      await writer.query("set local statement_timeout = '10s'");
+      writerOpen = true;
+      const changed = await writer.query(
+        `update public.sessions set notes = 'committed immediately before cutover'
+          where id = $1 returning id`,
+        [sessionId],
+      );
+      assert.equal(changed.rowCount, 1);
+      await writer.query('commit');
+      writerOpen = false;
+
+      await beginIdentity(cutter, actor);
+      cutterOpen = true;
+      const stale = await transitionInOpenTransaction(cutter, {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: firstFingerprint,
+        sessionContext: 'QUICK',
+        playMode: 'FREE_PLAY',
+      }).catch((error: Error) => error);
+      assertSqlState(stale, '40001');
+      await cutter.query('rollback');
+      cutterOpen = false;
+      await assertLegacyWithoutTargetArtifacts(sessionId);
+
+      const secondInspection = await inspectCutover(actor, sessionId);
+      const secondFingerprint = secondInspection.rows[0].source_fingerprint;
+      assert.notEqual(secondFingerprint, firstFingerprint);
+      await beginIdentity(cutter, actor);
+      cutterOpen = true;
+      const committed = await transitionInOpenTransaction(cutter, {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: secondFingerprint,
+        sessionContext: 'QUICK',
+        playMode: 'FREE_PLAY',
+      });
+      await cutter.query('commit');
+      cutterOpen = false;
+      assert.deepEqual(committed.rows, [
+        {
+          session_id: sessionId,
+          session_revision: 1,
+          authority_model: 'target',
+          target_model_version: 1,
+        },
+      ]);
+    } finally {
+      if (writerOpen) await writer.query('rollback').catch(() => undefined);
+      if (cutterOpen) await cutter.query('rollback').catch(() => undefined);
+      writer.release();
+      cutter.release();
+    }
+  });
+
+  test('concurrent transition_legacy_session_to_target commands serialize behind one row lock and a final authenticated legacy update cannot mutate target state', async () => {
+    const actor = await newUser('cutover-command-race@test.local');
+    const probeSessionId = await createLegacySession(actor, 'Concurrency RPC probe');
+    const probeFingerprint = (await inspectCutover(actor, probeSessionId)).rows[0]
+      .source_fingerprint;
+    await transitionLegacySession(actor, {
+      commandId: randomUUID(),
+      sessionId: probeSessionId,
+      expectedSourceFingerprint: probeFingerprint,
+      sessionContext: 'QUICK',
+      playMode: 'FREE_PLAY',
+    });
+
+    const playerId = await createPlayer(actor, { name: 'Concurrent cutover Player' });
+    const sessionId = await createLegacySession(actor, 'Concurrent legacy cutover', {
+      selectedPlayerIds: [playerId],
+    });
+    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+    const commandIds = [randomUUID(), randomUUID()];
+    const gate = await pool.connect();
+    const first = await pool.connect();
+    const second = await pool.connect();
+    let gateOpen = false;
+    const attempts: Array<
+      Promise<Awaited<ReturnType<typeof transitionInOpenTransaction>> | Error>
+    > = [];
+    try {
+      await gate.query('begin');
+      gateOpen = true;
+      const { rows: gatePidRows } = await gate.query<{ pid: number }>(
+        'select pg_catalog.pg_backend_pid() as pid',
+      );
+      await gate.query('select id from public.sessions where id = $1 for update', [sessionId]);
+      await beginIdentity(first, actor);
+      await beginIdentity(second, actor);
+      const { rows: firstPidRows } = await first.query<{ pid: number }>(
+        'select pg_catalog.pg_backend_pid() as pid',
+      );
+      const { rows: secondPidRows } = await second.query<{ pid: number }>(
+        'select pg_catalog.pg_backend_pid() as pid',
+      );
+
+      const attempt = async (db: PoolClient, commandId: string) => {
+        try {
+          const result = await transitionInOpenTransaction(db, {
+            commandId,
+            sessionId,
+            expectedSourceFingerprint: fingerprint,
+            sessionContext: 'QUICK',
+            playMode: 'FREE_PLAY',
+          });
+          await db.query('commit');
+          return result;
+        } catch (error) {
+          await db.query('rollback').catch(() => undefined);
+          return error as Error;
+        }
+      };
+      attempts.push(attempt(first, commandIds[0]), attempt(second, commandIds[1]));
+
+      const waiterPids = [firstPidRows[0].pid, secondPidRows[0].pid];
+      let blockedPids: number[] = [];
+      for (let poll = 0; poll < 200 && blockedPids.length < 2; poll += 1) {
+        const { rows } = await client.query<{ pid: number }>(
+          `select pid
+             from pg_catalog.pg_stat_activity
+            where pid = any($1::integer[])
+              and $2::integer = any(pg_catalog.pg_blocking_pids(pid))
+            order by pid`,
+          [waiterPids, gatePidRows[0].pid],
+        );
+        blockedPids = rows.map(({ pid }) => pid);
+      }
+      assert.deepEqual(
+        blockedPids,
+        [...waiterPids].sort((a, b) => a - b),
+      );
+      await gate.query('commit');
+      gateOpen = false;
+
+      const outcomes = await Promise.all(attempts);
+      for (const outcome of outcomes) {
+        assert.ok(
+          !(outcome instanceof Error),
+          outcome instanceof Error ? outcome.message : undefined,
+        );
+      }
+      assert.deepEqual(
+        outcomes.map((outcome) => {
+          assert.ok(!(outcome instanceof Error));
+          return outcome.rows[0];
+        }),
+        [
+          {
+            session_id: sessionId,
+            session_revision: 1,
+            authority_model: 'target',
+            target_model_version: 1,
+          },
+          {
+            session_id: sessionId,
+            session_revision: 1,
+            authority_model: 'target',
+            target_model_version: 1,
+          },
+        ],
+      );
+    } finally {
+      if (gateOpen) await gate.query('rollback').catch(() => undefined);
+      await Promise.allSettled(attempts);
+      await first.query('rollback').catch(() => undefined);
+      await second.query('rollback').catch(() => undefined);
+      gate.release();
+      first.release();
+      second.release();
+    }
+
+    assert.deepEqual(await targetArtifactCounts(sessionId), {
+      participants: '1',
+      roster_revisions: '1',
+      roster_entries: '1',
+      organizer_assignments: '1',
+      courts: '0',
+      rules_snapshots: '0',
+      ledger_rows: '1',
+      receipts: '2',
+    });
+    const beforeLegacyWrite = await client.query<{
+      authority_model: string;
+      name: string;
+      revision: number;
+    }>('select authority_model, name, revision from public.sessions where id = $1', [sessionId]);
+    const legacyWrite = await call<{ id: string }>(
+      actor,
+      `update public.sessions set name = 'forbidden legacy write after cutover'
+        where id = $1 returning id`,
+      [sessionId],
+    ).catch((error: Error) => error);
+    if (legacyWrite instanceof Error) {
+      assertSqlState(legacyWrite, '42501');
+    } else {
+      assert.equal(legacyWrite.rowCount, 0);
+    }
+    const afterLegacyWrite = await client.query<{
+      authority_model: string;
+      name: string;
+      revision: number;
+    }>('select authority_model, name, revision from public.sessions where id = $1', [sessionId]);
+    assert.deepEqual(afterLegacyWrite.rows, beforeLegacyWrite.rows);
   });
 }

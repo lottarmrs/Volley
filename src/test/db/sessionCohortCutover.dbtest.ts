@@ -24,6 +24,13 @@ interface CutoverRow extends QueryResultRow {
   cutover_at: Date;
 }
 
+interface CutoverInspectionRow extends QueryResultRow {
+  eligible: boolean;
+  blockers: string[];
+  source_fingerprint: string;
+  selected_player_count: number;
+}
+
 const CUTOVER_MIGRATION_NAME = '20260829120000_target_session_cohort_cutover.sql';
 const CUTOVER_MIGRATION_PATH = `supabase/migrations/${CUTOVER_MIGRATION_NAME}`;
 
@@ -107,14 +114,77 @@ if (!isTestDatabaseConfigured()) {
     return sessionId;
   }
 
-  async function createLegacySession(ownerId: string, name: string): Promise<string> {
+  async function createLegacySession(
+    ownerId: string,
+    name: string,
+    input: {
+      communityId?: string | null;
+      status?: string;
+      type?: 'free_play' | 'tournament';
+      selectedPlayerIds?: string[];
+      teamIds?: string[];
+      config?: Record<string, unknown>;
+      deletedAt?: string | null;
+    } = {},
+  ): Promise<string> {
     const { rows } = await client.query<{ id: string }>(
-      `insert into public.sessions (owner_id, name, date, status, type)
-       values ($1, $2, '2030-01-01', 'finished', 'free_play')
+      `insert into public.sessions (
+         owner_id, community_id, name, date, status, type,
+         selected_player_ids, team_ids, config, deleted_at
+       ) values ($1, $2, $3, '2030-01-01', $4, $5, $6::text[], $7::text[], $8::jsonb, $9)
        returning id`,
-      [ownerId, name],
+      [
+        ownerId,
+        input.communityId ?? null,
+        name,
+        input.status ?? 'draft',
+        input.type ?? 'free_play',
+        input.selectedPlayerIds ?? [],
+        input.teamIds ?? [],
+        JSON.stringify(input.config ?? {}),
+        input.deletedAt ?? null,
+      ],
     );
     return rows[0].id;
+  }
+
+  async function createPlayer(
+    ownerId: string,
+    input: { localId?: string | null; name?: string; nickname?: string | null } = {},
+  ): Promise<string> {
+    const id = randomUUID();
+    await client.query(
+      `insert into public.players (id, owner_id, local_id, name, nickname)
+       values ($1, $2, $3, $4, $5)`,
+      [id, ownerId, input.localId ?? null, input.name ?? 'Jogadora', input.nickname ?? null],
+    );
+    return id;
+  }
+
+  async function createCommunity(ownerId: string, name: string): Promise<string> {
+    const { rows } = await call<{ id: string }>(
+      ownerId,
+      'select public.create_community_with_owner($1) as id',
+      [name],
+    );
+    return rows[0].id;
+  }
+
+  async function inspectCutover(actorId: string | null, sessionId: string) {
+    return call<CutoverInspectionRow>(
+      actorId,
+      'select * from public.inspect_legacy_session_cutover($1)',
+      [sessionId],
+    );
+  }
+
+  async function fingerprintFor(sessionId: string): Promise<string> {
+    const { rows } = await client.query<{ source_fingerprint: string }>(
+      `select app_private.legacy_session_cutover_fingerprint(s) as source_fingerprint
+         from public.sessions s where s.id = $1`,
+      [sessionId],
+    );
+    return rows[0].source_fingerprint;
   }
 
   async function cutoverRows(sessionId: string): Promise<CutoverRow[]> {
@@ -560,5 +630,331 @@ if (!isTestDatabaseConfigured()) {
     const actor = await newUser('cutover-create-target@test.local');
     const sessionId = await createTargetSession(actor, 'Created target Session');
     assertNewTargetLedger(await cutoverRows(sessionId), sessionId, actor);
+  });
+
+  test('the inspector authorizes an owned empty Quick draft and returns its cutover checkpoint', async () => {
+    const actor = await newUser('cutover-inspect-owned@test.local');
+    const sessionId = await createLegacySession(actor, 'Inspectable legacy draft');
+
+    const { rows } = await inspectCutover(actor, sessionId);
+
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].blockers, []);
+    assert.equal(rows[0].eligible, true);
+    assert.match(rows[0].source_fingerprint, /^[0-9a-f]{32}$/);
+    assert.equal(rows[0].selected_player_count, 0);
+  });
+
+  test('the inspector resolves absence before authorization and denies foreign Quick and Community Sessions', async () => {
+    const owner = await newUser('cutover-inspect-owner@test.local');
+    const otherUser = await newUser('cutover-inspect-other@test.local');
+    const ownedSessionId = await createLegacySession(otherUser, 'Owned authorization draft');
+    const foreignQuickSessionId = await createLegacySession(owner, 'Foreign Quick draft');
+    const ownerCommunityId = await createCommunity(owner, 'Owner cutover Community');
+    const otherCommunityId = await createCommunity(otherUser, 'Other cutover Community');
+    const foreignCommunitySessionId = await createLegacySession(owner, 'Foreign Community draft', {
+      communityId: ownerCommunityId,
+    });
+
+    assert.equal((await inspectCutover(otherUser, ownedSessionId)).rows[0].eligible, true);
+
+    const absent = await callFailing(
+      otherUser,
+      'select * from public.inspect_legacy_session_cutover($1)',
+      [randomUUID()],
+    );
+    assertSqlState(absent, 'P0002');
+
+    const foreignQuick = await callFailing(
+      otherUser,
+      'select * from public.inspect_legacy_session_cutover($1)',
+      [foreignQuickSessionId],
+    );
+    assertSqlState(foreignQuick, '42501');
+
+    const crossCommunity = await callFailing(
+      otherUser,
+      'select * from public.inspect_legacy_session_cutover($1)',
+      [foreignCommunitySessionId],
+    );
+    assertSqlState(crossCommunity, '42501');
+    assert.notEqual(ownerCommunityId, otherCommunityId);
+  });
+
+  test('the inspector reports each legacy eligibility blocker with its bounded literal', async () => {
+    const owner = await newUser('cutover-blockers@test.local');
+    const repeatedPlayer = await createPlayer(owner, { name: 'Repetida' });
+    const ambiguousPlayer = await createPlayer(owner, { name: 'UUID' });
+    await createPlayer(owner, { localId: ambiguousPlayer, name: 'Local ambígua' });
+    const collidingPlayer = await createPlayer(owner, {
+      localId: 'cutover-local-collision',
+      name: 'Colidida',
+    });
+    const nonLegacySessionId = await createTargetSession(owner, 'Target without target artifacts');
+    await client.query('delete from public.session_courts where session_id = $1', [
+      nonLegacySessionId,
+    ]);
+    await client.query('delete from public.session_organizer_assignments where session_id = $1', [
+      nonLegacySessionId,
+    ]);
+    const notDraftSessionId = await createLegacySession(owner, 'Finished legacy draft', {
+      status: 'finished',
+    });
+    const deletedSessionId = await createLegacySession(owner, 'Deleted legacy draft', {
+      deletedAt: '2030-01-02T00:00:00.000Z',
+    });
+    const gamesSessionId = await createLegacySession(owner, 'Game evidence draft');
+    for (const [sequence, status, deletedAt] of [
+      [1, 'in_progress', null],
+      [2, 'finished', null],
+      [3, 'cancelled', '2030-01-03T00:00:00.000Z'],
+    ] as const) {
+      await client.query(
+        `insert into public.games (
+           owner_id, session_id, type, sequence_number, team_a_id, team_b_id, status, deleted_at
+         ) values ($1, $2, 'free_play', $3, 'team-a', 'team-b', $4, $5)`,
+        [owner, gamesSessionId, sequence, status, deletedAt],
+      );
+    }
+    const teamArraySessionId = await createLegacySession(owner, 'Team array evidence draft', {
+      teamIds: ['legacy-team-array'],
+    });
+    const teamsTableSessionId = await createLegacySession(owner, 'Teams table evidence draft');
+    await client.query(
+      `insert into public.teams (owner_id, session_id, name, deleted_at)
+       values ($1, $2, 'Historical team', '2030-01-03T00:00:00.000Z')`,
+      [owner, teamsTableSessionId],
+    );
+    const repeatedSessionId = await createLegacySession(owner, 'Repeated roster token', {
+      selectedPlayerIds: [repeatedPlayer, repeatedPlayer],
+    });
+    const unresolvedSessionId = await createLegacySession(owner, 'Unresolved roster token', {
+      selectedPlayerIds: ['missing-cutover-player'],
+    });
+    const ambiguousSessionId = await createLegacySession(owner, 'Ambiguous roster token', {
+      selectedPlayerIds: [ambiguousPlayer],
+    });
+    const collidingSessionId = await createLegacySession(owner, 'Colliding roster Players', {
+      selectedPlayerIds: [collidingPlayer, 'cutover-local-collision'],
+    });
+
+    for (const [sessionId, blockers] of [
+      [nonLegacySessionId, ['NOT_LEGACY']],
+      [notDraftSessionId, ['NOT_DRAFT']],
+      [deletedSessionId, ['SOFT_DELETED']],
+      [gamesSessionId, ['HAS_GAME_EVIDENCE']],
+      [teamArraySessionId, ['HAS_TEAM_EVIDENCE']],
+      [teamsTableSessionId, ['HAS_TEAM_EVIDENCE']],
+      [repeatedSessionId, ['ROSTER_TOKEN_REPEATED']],
+      [unresolvedSessionId, ['ROSTER_TOKEN_UNRESOLVED']],
+      [ambiguousSessionId, ['ROSTER_TOKEN_AMBIGUOUS']],
+      [collidingSessionId, ['ROSTER_PLAYERS_COLLIDE']],
+    ] as Array<[string, string[]]>) {
+      const { rows } = await inspectCutover(owner, sessionId);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].eligible, false);
+      assert.deepEqual(rows[0].blockers, blockers);
+    }
+  });
+
+  test('the inspector blocks every unexpected target artifact representation', async () => {
+    const owner = await newUser('cutover-target-artifacts@test.local');
+    const playerId = await createPlayer(owner, { name: 'Artifact player' });
+    const artifactSessions: string[] = [];
+    for (const artifact of ['organizer', 'court', 'rules', 'roster', 'participant']) {
+      artifactSessions.push(await createLegacySession(owner, `Unexpected ${artifact} artifact`));
+    }
+    const [
+      organizerSessionId,
+      courtSessionId,
+      rulesSessionId,
+      rosterSessionId,
+      participantSessionId,
+    ] = artifactSessions;
+    await client.query(
+      `insert into public.session_organizer_assignments (
+         session_id, organizer_user_id, assigned_by_user_id
+       ) values ($1, $2, $2)`,
+      [organizerSessionId, owner],
+    );
+    await client.query(
+      `insert into public.session_courts (id, session_id, label, court_order)
+       values ($1, $2, 'Quadra inesperada', 1)`,
+      [randomUUID(), courtSessionId],
+    );
+    await client.query(
+      `insert into public.session_rules_snapshots (
+         id, session_id, rules_scope, rules_schema_version, rules_payload, source_kind
+       ) values ($1, $2, 'SESSION_MATCH_EXECUTION', 1, '{}'::jsonb, 'SESSION_EXPLICIT')`,
+      [randomUUID(), rulesSessionId],
+    );
+    await client.query(
+      `insert into public.roster_revisions (
+         id, session_id, revision_number, source_kind
+       ) values ($1, $2, 1, 'QUICK_DIRECT')`,
+      [randomUUID(), rosterSessionId],
+    );
+    await client.query(
+      `insert into public.session_participants (
+         id, session_id, identity_kind, player_id, source_kind, display_name, participation_status
+       ) values ($1, $2, 'PLAYER', $3, 'QUICK_DIRECT', 'Artifact player', 'INCLUDED')`,
+      [randomUUID(), participantSessionId, playerId],
+    );
+
+    for (const sessionId of artifactSessions) {
+      const { rows } = await inspectCutover(owner, sessionId);
+      assert.deepEqual(rows[0].blockers, ['HAS_TARGET_ARTIFACTS']);
+      assert.equal(rows[0].eligible, false);
+    }
+  });
+
+  test('the inspector sorts simultaneous eligibility blockers instead of returning fixture order', async () => {
+    const owner = await newUser('cutover-sorted-blockers@test.local');
+    const sessionId = await createLegacySession(owner, 'Multiple cutover blockers', {
+      status: 'finished',
+      teamIds: ['legacy-team-array'],
+      selectedPlayerIds: ['missing-cutover-player'],
+    });
+    await client.query(
+      `insert into public.games (
+         owner_id, session_id, type, sequence_number, team_a_id, team_b_id, status
+       ) values ($1, $2, 'free_play', 1, 'team-a', 'team-b', 'in_progress')`,
+      [owner, sessionId],
+    );
+
+    const { rows } = await inspectCutover(owner, sessionId);
+
+    assert.deepEqual(rows[0].blockers, [
+      'HAS_GAME_EVIDENCE',
+      'HAS_TEAM_EVIDENCE',
+      'NOT_DRAFT',
+      'ROSTER_TOKEN_UNRESOLVED',
+    ]);
+  });
+
+  test('the private roster resolver preserves terminal-import token resolution, order, display snapshots, and hash', async () => {
+    const owner = await newUser('cutover-resolver@test.local');
+    const uuidPlayerId = await createPlayer(owner, { name: 'Alice', nickname: ' Ali ' });
+    const localPlayerId = await createPlayer(owner, {
+      localId: 'cutover-local-bruna',
+      name: ' Bruna ',
+    });
+    const sessionId = await createLegacySession(owner, 'Exact resolver draft', {
+      selectedPlayerIds: [uuidPlayerId, 'cutover-local-bruna'],
+    });
+    const { rows: hashRows } = await client.query<{ source_hash: string }>(
+      `select pg_catalog.md5(to_jsonb(selected_player_ids)::text) as source_hash
+         from public.sessions where id = $1`,
+      [sessionId],
+    );
+    const { rows } = await client.query<{ resolution: Record<string, unknown> }>(
+      `select app_private.resolve_legacy_session_roster(s) as resolution
+         from public.sessions s where s.id = $1`,
+      [sessionId],
+    );
+
+    assert.deepEqual(rows[0].resolution, {
+      source_hash: hashRows[0].source_hash,
+      blockers: [],
+      entries: [
+        {
+          entry_order: 0,
+          identity_kind: 'PLAYER',
+          player_id: uuidPlayerId,
+          display_name: 'Ali',
+          source_ordinal: 1,
+          source_token: uuidPlayerId,
+        },
+        {
+          entry_order: 1,
+          identity_kind: 'PLAYER',
+          player_id: localPlayerId,
+          display_name: 'Bruna',
+          source_ordinal: 2,
+          source_token: 'cutover-local-bruna',
+        },
+      ],
+    });
+  });
+
+  test('the source fingerprint covers every legacy authority field and excludes target-ledger rows', async () => {
+    const owner = await newUser('cutover-fingerprint@test.local');
+    const replacementOwner = await newUser('cutover-fingerprint-replacement@test.local');
+    const communityId = await createCommunity(owner, 'Fingerprint Community');
+    const sessionId = await createLegacySession(owner, 'Fingerprint legacy draft');
+    const changes: Array<[string, string, unknown[]]> = [
+      ['status', "update public.sessions set status = 'finished' where id = $1", [sessionId]],
+      ['type', "update public.sessions set type = 'tournament' where id = $1", [sessionId]],
+      [
+        'selected roster',
+        "update public.sessions set selected_player_ids = array['fingerprint-token'] where id = $1",
+        [sessionId],
+      ],
+      [
+        'team roster',
+        "update public.sessions set team_ids = array['fingerprint-team'] where id = $1",
+        [sessionId],
+      ],
+      [
+        'config',
+        'update public.sessions set config = \'{"bestOf":3}\'::jsonb where id = $1',
+        [sessionId],
+      ],
+      [
+        'Community',
+        'update public.sessions set community_id = $2 where id = $1',
+        [sessionId, communityId],
+      ],
+      [
+        'name',
+        "update public.sessions set name = 'Changed fingerprint name' where id = $1",
+        [sessionId],
+      ],
+      ['date', "update public.sessions set date = '2030-01-02' where id = $1", [sessionId]],
+      ['location', "update public.sessions set location = 'New court' where id = $1", [sessionId]],
+      ['notes', "update public.sessions set notes = 'New notes' where id = $1", [sessionId]],
+      [
+        'deletion marker',
+        "update public.sessions set deleted_at = '2030-01-03T00:00:00.000Z' where id = $1",
+        [sessionId],
+      ],
+      [
+        'created at',
+        "update public.sessions set created_at = '2030-01-03T00:00:00.000Z' where id = $1",
+        [sessionId],
+      ],
+      [
+        'owner control',
+        'update public.sessions set owner_id = $2 where id = $1',
+        [sessionId, replacementOwner],
+      ],
+      [
+        'local ID',
+        "update public.sessions set local_id = 'fingerprint-local' where id = $1",
+        [sessionId],
+      ],
+      ['sync version', 'update public.sessions set sync_version = 2 where id = $1', [sessionId]],
+      [
+        'updated at',
+        "update public.sessions set updated_at = '2030-01-04T00:00:00.000Z' where id = $1",
+        [sessionId],
+      ],
+    ];
+
+    for (const [field, sql, params] of changes) {
+      await client.query('begin');
+      try {
+        const before = await fingerprintFor(sessionId);
+        await client.query(sql, params);
+        const after = await fingerprintFor(sessionId);
+        assert.notEqual(after, before, `${field} must invalidate the cutover checkpoint`);
+      } finally {
+        await client.query('rollback');
+      }
+    }
+
+    const fingerprintBeforeTargetLedger = await fingerprintFor(sessionId);
+    await createTargetSession(owner, 'Unrelated target ledger Session');
+    assert.equal(await fingerprintFor(sessionId), fingerprintBeforeTargetLedger);
   });
 }

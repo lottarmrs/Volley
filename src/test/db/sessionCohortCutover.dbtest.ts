@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import type { Client, Pool, QueryResultRow } from 'pg';
 import {
   asIdentityCommitting,
@@ -8,6 +9,7 @@ import {
   createPool,
   isTestDatabaseConfigured,
   rebuildFromMigrations,
+  splitSqlStatements,
   TEST_DATABASE_URL_VAR,
 } from './harness';
 
@@ -19,7 +21,11 @@ interface CutoverRow extends QueryResultRow {
   command_id: string | null;
   source_fingerprint: string | null;
   cutover_by_user_id: string | null;
+  cutover_at: Date;
 }
+
+const CUTOVER_MIGRATION_NAME = '20260829120000_target_session_cohort_cutover.sql';
+const CUTOVER_MIGRATION_PATH = `supabase/migrations/${CUTOVER_MIGRATION_NAME}`;
 
 if (!isTestDatabaseConfigured()) {
   test(`Session cohort cutover requires ${TEST_DATABASE_URL_VAR}`, () => {
@@ -28,11 +34,26 @@ if (!isTestDatabaseConfigured()) {
 } else {
   let client: Client;
   let pool: Pool;
+  let preCutoverTargetSessionId: string;
+  let preCutoverLegacySessionId: string;
+  let preCutoverActorId: string;
 
   test.before(async () => {
     client = await connect();
-    await rebuildFromMigrations(client);
+    await rebuildFromMigrations(client, {
+      excludeMigrationNames: [CUTOVER_MIGRATION_NAME],
+    });
     pool = createPool();
+    preCutoverActorId = await newUser('cutover-pre-migration@test.local');
+    preCutoverTargetSessionId = await createTargetSession(
+      preCutoverActorId,
+      'Pre-migration target Session',
+    );
+    preCutoverLegacySessionId = await createLegacySession(
+      preCutoverActorId,
+      'Pre-migration legacy Session',
+    );
+    await applyCutoverMigrationIfPresent();
   });
 
   test.after(async () => {
@@ -99,12 +120,43 @@ if (!isTestDatabaseConfigured()) {
   async function cutoverRows(sessionId: string): Promise<CutoverRow[]> {
     const { rows } = await client.query<CutoverRow>(
       `select session_id, source_authority, target_model_version, cutover_kind,
-              command_id, source_fingerprint, cutover_by_user_id
+              command_id, source_fingerprint, cutover_by_user_id, cutover_at
          from app_private.session_authority_cutovers
         where session_id = $1`,
       [sessionId],
     );
     return rows;
+  }
+
+  async function applyCutoverMigrationIfPresent(): Promise<void> {
+    if (!existsSync(CUTOVER_MIGRATION_PATH)) return;
+    const sql = readFileSync(CUTOVER_MIGRATION_PATH, 'utf8');
+    for (const statement of splitSqlStatements(sql)) {
+      await client.query(statement);
+    }
+  }
+
+  function assertNewTargetLedger(
+    rows: CutoverRow[],
+    sessionId: string,
+    actorId: string,
+  ): CutoverRow {
+    assert.equal(rows.length, 1);
+    const [row] = rows;
+    assert.ok(row);
+    const { cutover_at, ...shape } = row;
+    assert.deepEqual(shape, {
+      session_id: sessionId,
+      source_authority: 'NONE',
+      target_model_version: 1,
+      cutover_kind: 'NEW_TARGET',
+      command_id: null,
+      source_fingerprint: null,
+      cutover_by_user_id: actorId,
+    });
+    assert.ok(cutover_at instanceof Date);
+    assert.ok(!Number.isNaN(cutover_at.getTime()));
+    return row;
   }
 
   test('the authority ledger exposes the approved literal columns and nullability', async () => {
@@ -267,6 +319,18 @@ if (!isTestDatabaseConfigured()) {
         cutoverKind: 'LEGACY_EXPLICIT',
         sourceFingerprint: null,
       },
+      {
+        sourceAuthority: 'NONE',
+        targetModelVersion: 1,
+        cutoverKind: 'LEGACY_EXPLICIT',
+        sourceFingerprint: 'fingerprint',
+      },
+      {
+        sourceAuthority: 'LEGACY',
+        targetModelVersion: 1,
+        cutoverKind: 'NEW_TARGET',
+        sourceFingerprint: null,
+      },
     ];
     for (const invalid of invalidRows) {
       const error = await client
@@ -354,18 +418,24 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(tablePrivileges, []);
 
     const { rows: functionPrivileges } = await client.query<{
+      table_name: string;
       trigger_name: string;
       role_name: string;
     }>(
       `with browser_roles(role_name) as (values ('anon'), ('authenticated'))
-       select trigger.tgname as trigger_name, browser_roles.role_name
+       select trigger.tgrelid::regclass::text as table_name,
+              trigger.tgname as trigger_name,
+              browser_roles.role_name
          from pg_trigger trigger
          join pg_proc procedure on procedure.oid = trigger.tgfoid
          cross join browser_roles
-        where trigger.tgrelid = 'app_private.session_authority_cutovers'::regclass
+        where trigger.tgrelid in (
+          'app_private.session_authority_cutovers'::regclass,
+          'public.sessions'::regclass
+        )
           and not trigger.tgisinternal
           and has_function_privilege(browser_roles.role_name, procedure.oid, 'EXECUTE')
-        order by trigger_name, role_name`,
+        order by table_name, trigger_name, role_name`,
     );
     assert.deepEqual(functionPrivileges, []);
 
@@ -388,6 +458,11 @@ if (!isTestDatabaseConfigured()) {
                  set source_authority = 'LEGACY'
                where session_id = $1`,
       },
+      {
+        sql: `update app_private.session_authority_cutovers
+                 set cutover_by_user_id = null
+               where session_id = $1`,
+      },
       { sql: 'delete from app_private.session_authority_cutovers where session_id = $1' },
     ]) {
       const error = await client.query(mutation.sql, [sessionId]).catch((error: Error) => error);
@@ -405,22 +480,12 @@ if (!isTestDatabaseConfigured()) {
   });
 
   test('pre-existing target Sessions receive one NEW_TARGET ledger row while legacy Sessions receive none', async () => {
-    const actor = await newUser('cutover-backfill@test.local');
-    const targetSessionId = await createTargetSession(actor, 'Pre-existing target Session');
-    const legacySessionId = await createLegacySession(actor, 'Pre-existing legacy Session');
-
-    assert.deepEqual(await cutoverRows(targetSessionId), [
-      {
-        session_id: targetSessionId,
-        source_authority: 'NONE',
-        target_model_version: 1,
-        cutover_kind: 'NEW_TARGET',
-        command_id: null,
-        source_fingerprint: null,
-        cutover_by_user_id: actor,
-      },
-    ]);
-    assert.deepEqual(await cutoverRows(legacySessionId), []);
+    assertNewTargetLedger(
+      await cutoverRows(preCutoverTargetSessionId),
+      preCutoverTargetSessionId,
+      preCutoverActorId,
+    );
+    assert.deepEqual(await cutoverRows(preCutoverLegacySessionId), []);
   });
 
   test('the selector cannot move a target Session back to legacy outside the cutover command', async () => {
@@ -479,16 +544,6 @@ if (!isTestDatabaseConfigured()) {
   test('create_target_session commits exactly one NEW_TARGET ledger row', async () => {
     const actor = await newUser('cutover-create-target@test.local');
     const sessionId = await createTargetSession(actor, 'Created target Session');
-    assert.deepEqual(await cutoverRows(sessionId), [
-      {
-        session_id: sessionId,
-        source_authority: 'NONE',
-        target_model_version: 1,
-        cutover_kind: 'NEW_TARGET',
-        command_id: null,
-        source_fingerprint: null,
-        cutover_by_user_id: actor,
-      },
-    ]);
+    assertNewTargetLedger(await cutoverRows(sessionId), sessionId, actor);
   });
 }

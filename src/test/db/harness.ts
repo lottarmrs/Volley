@@ -116,8 +116,16 @@ export function createPool(max = 8): Pool {
  * Suite 1 of the slice: proving the chain applies cleanly from nothing is what makes every
  * later assertion trustworthy.
  */
-export async function rebuildFromMigrations(client: Client): Promise<FreshBuildResult> {
-  const migrations = loadMigrations();
+export interface RebuildFromMigrationsOptions {
+  readonly excludeMigrationNames?: readonly string[];
+}
+
+export async function rebuildFromMigrations(
+  client: Client,
+  options: RebuildFromMigrationsOptions = {},
+): Promise<FreshBuildResult> {
+  const excludedMigrationNames = new Set(options.excludeMigrationNames ?? []);
+  const migrations = loadMigrations().filter(({ name }) => !excludedMigrationNames.has(name));
   if (migrations.length === 0)
     throw new Error('No migrations found; refusing to declare a fresh build.');
 

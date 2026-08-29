@@ -342,9 +342,10 @@ if (!isTestDatabaseConfigured()) {
     const sessionId = await createTargetSession(organizer);
     await client.query(
       `update public.sessions
-          set lifecycle_status = 'CANCELLED', status = 'cancelled'
+          set lifecycle_status = 'CANCELLED', status = 'cancelled',
+              cancelled_at = now(), cancelled_by_user_id = $2
         where id = $1`,
-      [sessionId],
+      [sessionId, organizer],
     );
 
     const rejected = await addCourt(

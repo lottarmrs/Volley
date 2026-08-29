@@ -362,9 +362,11 @@ if (!isTestDatabaseConfigured()) {
       (error: Error) => error,
     );
     await client.query(
-      `update public.sessions set lifecycle_status = 'CANCELLED', status = 'cancelled'
-       where id = $1`,
-      [sessionId],
+      `update public.sessions
+          set lifecycle_status = 'CANCELLED', status = 'cancelled',
+              cancelled_at = now(), cancelled_by_user_id = $2
+        where id = $1`,
+      [sessionId, assignedOrganizer],
     );
     const terminal = await freeze(assignedOrganizer, { sessionId }).catch((error: Error) => error);
     const legacyRejected = await freeze(assignedOrganizer, {

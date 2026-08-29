@@ -228,7 +228,7 @@ as $$
       from public.games g
      where g.session_id = p_session_id
        and g.deleted_at is null
-       and g.status not in ('finished', 'cancelled')
+       and g.status not in ('finished', 'cancelled', 'walkover')
   );
 $$;
 
@@ -377,21 +377,16 @@ begin
     v_session.lifecycle_status, 'IN_PROGRESS'
   );
 
-  -- N4.04.03.01: Quick may take the reduced DRAFT -> IN_PROGRESS path without ever having
-  -- set up an explicit roster revision, rules snapshot, or additional court -- organizer
-  -- and a default court already exist from create_target_session. N6.04.03 scopes the
-  -- readiness gate to the official SCHEDULED -> IN_PROGRESS transition (SES-INV-024): once
-  -- an explicit roster revision exists for the Session, it must still have participants at
-  -- start time. A Session that never established one is not held to that bar.
+  -- N4.04.03.01: Quick may take the reduced DRAFT -> IN_PROGRESS path without full
+  -- readiness -- organizer and a default court already exist from create_target_session.
+  -- N6.04.03 scopes the readiness gate to the official SCHEDULED -> IN_PROGRESS transition
+  -- only ("SCHEDULED -> IN_PROGRESS / via StartSession readiness checks"); the evaluator
+  -- itself (app_private.target_session_readiness) stays the single source of truth for
+  -- which codes block -- this command must not re-encode any one of them, so a future
+  -- blocker (W5/W6) gates here automatically without this function changing.
   if v_session.lifecycle_status = 'SCHEDULED' then
     v_readiness := app_private.target_session_readiness(p_session_id);
-    if v_readiness -> 'revisions' ->> 'roster_revision_id' is not null
-       and exists (
-         select 1
-           from pg_catalog.jsonb_array_elements(v_readiness -> 'blockers') b
-          where b ->> 'code' = 'NO_EFFECTIVE_ROSTER'
-       )
-    then
+    if not (v_readiness ->> 'ready')::boolean then
       select pg_catalog.string_agg(b ->> 'code', ', ')
         into v_blocker_codes
         from pg_catalog.jsonb_array_elements(v_readiness -> 'blockers') b;
@@ -543,8 +538,8 @@ begin
     v_session.lifecycle_status, 'CANCELLED'
   );
 
-  if p_cancel_reason is null or pg_catalog.btrim(p_cancel_reason) = '' then
-    raise exception 'Cancel reason is required' using errcode = '23514';
+  if p_cancel_reason is not null and pg_catalog.btrim(p_cancel_reason) = '' then
+    raise exception 'Cancel reason cannot be blank' using errcode = '23514';
   end if;
 
   if v_session.lifecycle_status = 'IN_PROGRESS'
@@ -768,6 +763,14 @@ begin
     v_membership_id := null;
   end if;
 
+  -- A reused assignment_id here is a client bug, not a genuine command_id retry (that was
+  -- already handled by find_command_receipt above). Fail it explicitly as 23514 rather than
+  -- letting the primary key violation surface as a raw 23505, which the receipt substrate
+  -- reserves for command_id collisions.
+  if exists (select 1 from public.session_organizer_assignments where id = p_assignment_id) then
+    raise exception 'Assignment id already in use' using errcode = '23514';
+  end if;
+
   insert into public.session_organizer_assignments (
     id, session_id, community_membership_id, organizer_user_id, assigned_by_user_id
   ) values (
@@ -815,6 +818,7 @@ declare
   v_new_revision integer;
   v_uid uuid := (select auth.uid());
   v_assignment_id uuid;
+  v_revoked_at timestamptz;
 begin
   if p_command_id is null or p_session_id is null then
     raise exception 'command_id and session_id are required' using errcode = '23514';
@@ -854,13 +858,23 @@ begin
     raise exception 'Organizer user id is required' using errcode = '23514';
   end if;
 
-  select id into v_assignment_id
+  -- Distinguish "already revoked" (a legitimate no-op retry) from "never assigned" (a
+  -- client bug or a probe): only the former is a valid target-state-already-achieved
+  -- shortcut. The latter has no assignment row to revoke at all and is not a state this
+  -- Session could have reached, so it is reported as not-found rather than silently
+  -- accepted.
+  select id, revoked_at into v_assignment_id, v_revoked_at
     from public.session_organizer_assignments
    where session_id = p_session_id
      and organizer_user_id = p_organizer_user_id
-     and revoked_at is null;
+   order by revoked_at is null desc, assigned_at desc
+   limit 1;
 
   if not found then
+    raise exception 'Session organizer assignment not found' using errcode = 'P0002';
+  end if;
+
+  if v_revoked_at is not null then
     if v_session.revision is distinct from p_expected_revision then
       raise exception 'Stale Session revision' using errcode = '40001';
     end if;
@@ -961,6 +975,15 @@ begin
   end if;
   if p_court_order is null or p_court_order < 1 then
     raise exception 'Court order must be at least one' using errcode = '23514';
+  end if;
+  if exists (
+    select 1
+      from public.session_courts
+     where session_id = p_session_id
+       and court_order = p_court_order
+       and id <> p_court_id
+  ) then
+    raise exception 'Court order already in use on this Session' using errcode = '23514';
   end if;
 
   if v_session.revision is distinct from p_expected_revision then

@@ -541,7 +541,7 @@ if (!isTestDatabaseConfigured()) {
       commandId?: string;
       sessionId: string;
       expectedRevision: number | null;
-      reason: string;
+      reason: string | null;
     },
   ) {
     return call<LifecycleCommandRow>(
@@ -1109,7 +1109,7 @@ if (!isTestDatabaseConfigured()) {
 
   test('start_target_session moves SCHEDULED to IN_PROGRESS, sets actual_started_at, and leaves planned_start_at untouched (SES-INV-027)', async () => {
     const organizer = await newUser('lifecycle-start-scheduled@test.local');
-    const sessionId = await createTargetSession(organizer, { name: 'Start from scheduled' });
+    const { sessionId } = await createReadySession(organizer);
     await forceLifecycleStatus(sessionId, 'SCHEDULED', organizer);
     await client.query(
       `update public.sessions set planned_start_at = '2030-06-01T10:00:00Z' where id = $1`,
@@ -1172,6 +1172,23 @@ if (!isTestDatabaseConfigured()) {
       assert.equal(state.cancel_reason, `Cancelling from ${status}`);
       assert.equal(state.status, await compatibilityStatus('CANCELLED'));
     }
+  });
+
+  test('cancel_target_session accepts a null cancel_reason (I6)', async () => {
+    const organizer = await newUser('lifecycle-cancel-null-reason@test.local');
+    const sessionId = await createTargetSession(organizer, { name: 'Cancel null reason' });
+    const revision = await sessionRevision(sessionId);
+    const result = await cancelSession(organizer, {
+      sessionId,
+      expectedRevision: revision,
+      reason: null,
+    });
+    assert.equal(result.rows[0].session_revision, revision + 1);
+    const state = await sessionState(sessionId);
+    assert.equal(state.lifecycle_status, 'CANCELLED');
+    assert.ok(state.cancelled_at);
+    assert.equal(state.cancelled_by_user_id, organizer);
+    assert.equal(state.cancel_reason, null);
   });
 
   test('cancelling a Session preserves history: participant, revision, snapshot, court and organizer counts stay unchanged (SES-INV-026)', async () => {
@@ -1805,6 +1822,37 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(result.rows[0].session_revision, revision + 1);
   });
 
+  test('assign_target_session_organizer fails 23514 when the assignment id is already in use (I5)', async () => {
+    const owner = await newUser('lifecycle-assign-reused-id-owner@test.local');
+    const firstOrganizer = await newUser('lifecycle-assign-reused-id-first@test.local');
+    const secondOrganizer = await newUser('lifecycle-assign-reused-id-second@test.local');
+    const firstSessionId = await createTargetSession(owner, { name: 'Assign reused id A' });
+    const secondSessionId = await createTargetSession(owner, { name: 'Assign reused id B' });
+
+    const reusedAssignmentId = randomUUID();
+    const first = await assignOrganizer(owner, {
+      assignmentId: reusedAssignmentId,
+      sessionId: firstSessionId,
+      expectedRevision: await sessionRevision(firstSessionId),
+      organizerUserId: firstOrganizer,
+    });
+    assert.equal(first.rows[0].assignment_id, reusedAssignmentId);
+
+    const rejected = await assignOrganizer(owner, {
+      assignmentId: reusedAssignmentId,
+      sessionId: secondSessionId,
+      expectedRevision: await sessionRevision(secondSessionId),
+      organizerUserId: secondOrganizer,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+
+    const secondSessionAssignments = await client.query(
+      'select 1 from public.session_organizer_assignments where session_id = $1 and organizer_user_id = $2',
+      [secondSessionId, secondOrganizer],
+    );
+    assert.equal(secondSessionAssignments.rowCount, 0);
+  });
+
   test('revoke_target_session_organizer sets revoked_at and the revoked user then fails 42501 on every other command', async () => {
     const owner = await newUser('lifecycle-revoke-owner@test.local');
     const organizerA = await newUser('lifecycle-revoke-a@test.local');
@@ -1839,6 +1887,20 @@ if (!isTestDatabaseConfigured()) {
 
     const rejected = await readReadiness(organizerA, sessionId).catch((error: Error) => error);
     assertSqlState(rejected, '42501');
+  });
+
+  test('revoke_target_session_organizer fails P0002 when the organizer was never assigned to the Session (I7)', async () => {
+    const owner = await newUser('lifecycle-revoke-never-assigned-owner@test.local');
+    const neverAssigned = await newUser('lifecycle-revoke-never-assigned-target@test.local');
+    const sessionId = await createTargetSession(owner, { name: 'Revoke never assigned' });
+    const revision = await sessionRevision(sessionId);
+    const rejected = await revokeOrganizer(owner, {
+      sessionId,
+      expectedRevision: revision,
+      organizerUserId: neverAssigned,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, 'P0002');
+    assert.equal(await sessionRevision(sessionId), revision);
   });
 
   test('configure_target_session_court updates an existing court label and order in DRAFT, SCHEDULED and IN_PROGRESS', async () => {
@@ -1913,6 +1975,40 @@ if (!isTestDatabaseConfigured()) {
       courtOrder: 2,
     }).catch((error: Error) => error);
     assertSqlState(rejected, 'P0002');
+  });
+
+  test('configure_target_session_court fails 23514 when the target order collides with a different Court on the same Session (I4)', async () => {
+    const organizer = await newUser('lifecycle-configure-court-order-collision@test.local');
+    const sessionId = await createTargetSession(organizer, {
+      name: 'Configure court order collision',
+    });
+    const defaultCourt = await client.query<{ id: string; court_order: number }>(
+      'select id, court_order from public.session_courts where session_id = $1',
+      [sessionId],
+    );
+    assert.equal(defaultCourt.rows.length, 1);
+    const addedCourt = await call<CourtCommandRow>(
+      organizer,
+      'select * from public.add_target_session_court($1, $2, $3, $4, $5)',
+      [randomUUID(), sessionId, await sessionRevision(sessionId), 'Quadra colidida', 2],
+    );
+
+    const revision = addedCourt.rows[0].session_revision;
+    const rejected = await configureCourt(organizer, {
+      courtId: addedCourt.rows[0].court_id,
+      sessionId,
+      expectedRevision: revision,
+      label: 'Quadra 2 renomeada',
+      courtOrder: defaultCourt.rows[0].court_order,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+
+    const unchanged = await client.query<{ label: string; court_order: number }>(
+      'select label, court_order from public.session_courts where id = $1',
+      [addedCourt.rows[0].court_id],
+    );
+    assert.deepEqual(unchanged.rows, [{ label: 'Quadra colidida', court_order: 2 }]);
+    assert.equal(await sessionRevision(sessionId), revision);
   });
 
   // --- Task 5 Step 8: authorization -------------------------------------------------------

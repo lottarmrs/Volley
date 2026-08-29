@@ -1122,7 +1122,10 @@ if (!isTestDatabaseConfigured()) {
     const after = await sessionState(sessionId);
     assert.equal(after.lifecycle_status, 'IN_PROGRESS');
     assert.ok(after.actual_started_at);
-    assert.equal(after.planned_start_at, before.planned_start_at);
+    // assert.equal uses `==`, which is reference (not value) equality once pg parses
+    // timestamptz into a Date object -- two separately-fetched Dates for the identical
+    // instant would always compare unequal. assert.deepEqual compares Date values.
+    assert.deepEqual(after.planned_start_at, before.planned_start_at);
     assert.equal(after.status, await compatibilityStatus('IN_PROGRESS'));
   });
 

@@ -1436,6 +1436,47 @@ if (!isTestDatabaseConfigured()) {
         target_model_version: 1,
       },
     ]);
+    const persistedRoot = await client.query<{
+      authority_model: string;
+      target_model_version: number;
+      session_context: string;
+      play_mode: string;
+      lifecycle_status: string;
+      publication_state: string;
+      revision: number;
+      status: string;
+      type: string;
+      actual_started_at: Date | null;
+      actual_finished_at: Date | null;
+      cancelled_at: Date | null;
+      cancelled_by_user_id: string | null;
+      cancel_reason: string | null;
+    }>(
+      `select authority_model, target_model_version, session_context, play_mode,
+              lifecycle_status, publication_state, revision, status, type,
+              actual_started_at, actual_finished_at, cancelled_at,
+              cancelled_by_user_id, cancel_reason
+         from public.sessions where id = $1`,
+      [sessionId],
+    );
+    assert.deepEqual(persistedRoot.rows, [
+      {
+        authority_model: 'target',
+        target_model_version: 1,
+        session_context: 'QUICK',
+        play_mode: 'FREE_PLAY',
+        lifecycle_status: 'DRAFT',
+        publication_state: 'PRIVATE',
+        revision: 1,
+        status: 'draft',
+        type: 'free_play',
+        actual_started_at: null,
+        actual_finished_at: null,
+        cancelled_at: null,
+        cancelled_by_user_id: null,
+        cancel_reason: null,
+      },
+    ]);
     const assignments = await client.query<{
       community_membership_id: string | null;
       organizer_user_id: string;
@@ -1588,56 +1629,66 @@ if (!isTestDatabaseConfigured()) {
       source_payload_hash: hashRows[0].source_hash,
       created_by_user_id: actor,
     });
-    const entries = await client.query<{
-      entry_order: number;
-      identity_kind: string;
-      player_id: string;
-      display_name_at_time: string;
-    }>(
-      `select entry_order, identity_kind, player_id, display_name_at_time
-         from public.roster_revision_entries
-        where roster_revision_id = $1 order by entry_order`,
-      [revisionId],
-    );
-    assert.deepEqual(entries.rows, [
-      {
-        entry_order: 0,
-        identity_kind: 'PLAYER',
-        player_id: uuidPlayer,
-        display_name_at_time: 'Ali',
-      },
-      {
-        entry_order: 1,
-        identity_kind: 'PLAYER',
-        player_id: localPlayer,
-        display_name_at_time: 'Bruna',
-      },
-    ]);
     const participants = await client.query<{
+      id: string;
       player_id: string;
       source_kind: string;
       display_name: string;
       participation_status: string;
       created_by_user_id: string;
     }>(
-      `select player_id, source_kind, display_name, participation_status, created_by_user_id
+      `select id, player_id, source_kind, display_name, participation_status, created_by_user_id
          from public.session_participants where session_id = $1 order by display_name`,
       [sessionId],
     );
-    assert.deepEqual(participants.rows, [
+    assert.equal(participants.rows.length, 2);
+    const [aliceParticipant, brunaParticipant] = participants.rows;
+    assert.notEqual(aliceParticipant.id, brunaParticipant.id);
+    assert.deepEqual(
+      participants.rows.map(({ id: _id, ...participant }) => participant),
+      [
+        {
+          player_id: uuidPlayer,
+          source_kind: 'LEGACY_SELECTED_ROSTER',
+          display_name: 'Ali',
+          participation_status: 'INCLUDED',
+          created_by_user_id: actor,
+        },
+        {
+          player_id: localPlayer,
+          source_kind: 'LEGACY_SELECTED_ROSTER',
+          display_name: 'Bruna',
+          participation_status: 'INCLUDED',
+          created_by_user_id: actor,
+        },
+      ],
+    );
+    const entries = await client.query<{
+      participant_id: string;
+      entry_order: number;
+      identity_kind: string;
+      player_id: string;
+      display_name_at_time: string;
+    }>(
+      `select participant_id, entry_order, identity_kind, player_id, display_name_at_time
+         from public.roster_revision_entries
+        where roster_revision_id = $1 order by entry_order`,
+      [revisionId],
+    );
+    assert.deepEqual(entries.rows, [
       {
+        participant_id: aliceParticipant.id,
+        entry_order: 0,
+        identity_kind: 'PLAYER',
         player_id: uuidPlayer,
-        source_kind: 'LEGACY_SELECTED_ROSTER',
-        display_name: 'Ali',
-        participation_status: 'INCLUDED',
-        created_by_user_id: actor,
+        display_name_at_time: 'Ali',
       },
       {
+        participant_id: brunaParticipant.id,
+        entry_order: 1,
+        identity_kind: 'PLAYER',
         player_id: localPlayer,
-        source_kind: 'LEGACY_SELECTED_ROSTER',
-        display_name: 'Bruna',
-        participation_status: 'INCLUDED',
-        created_by_user_id: actor,
+        display_name_at_time: 'Bruna',
       },
     ]);
     const registrationTables = await client.query<{ table_name: string }>(

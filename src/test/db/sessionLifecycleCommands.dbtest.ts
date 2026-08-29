@@ -1507,18 +1507,24 @@ if (!isTestDatabaseConfigured()) {
 
     {
       const sessionId = await createTargetSession(organizer, { name: 'Receipt shape court' });
-      const court = await client.query<{ id: string }>(
-        'select id from public.session_courts where session_id = $1',
-        [sessionId],
+      const addedCourt = await call<CourtCommandRow>(
+        organizer,
+        'select * from public.add_target_session_court($1, $2, $3, $4, $5)',
+        [randomUUID(), sessionId, await sessionRevision(sessionId), 'Quadra receipt setup', 2],
+      );
+      assert.equal(
+        addedCourt.rows.length,
+        1,
+        'expected add_target_session_court to create exactly one court',
       );
       const commandId = randomUUID();
       await configureCourt(organizer, {
         commandId,
-        courtId: court.rows[0].id,
+        courtId: addedCourt.rows[0].court_id,
         sessionId,
-        expectedRevision: await sessionRevision(sessionId),
+        expectedRevision: addedCourt.rows[0].session_revision,
         label: 'Quadra receipt',
-        courtOrder: 2,
+        courtOrder: 3,
       });
       cases.push({ commandType: 'configure_target_session_court', commandId, sessionId });
     }

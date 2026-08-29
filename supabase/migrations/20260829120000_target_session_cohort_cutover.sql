@@ -257,3 +257,600 @@ grant execute on function public.create_target_session(uuid, uuid, text, text, t
 
 alter table app_private.session_authority_cutovers enable row level security;
 revoke all on app_private.session_authority_cutovers from public, anon, authenticated;
+
+create function app_private.legacy_session_cutover_fingerprint(
+  p_session public.sessions
+)
+returns text
+language sql
+security definer
+set search_path = ''
+as $$
+  select pg_catalog.md5(
+    pg_catalog.jsonb_build_object(
+      'id', (p_session).id,
+      'owner_id', (p_session).owner_id,
+      'community_id', (p_session).community_id,
+      'name', (p_session).name,
+      'date', pg_catalog.to_char((p_session).date, 'YYYY-MM-DD'),
+      'location', (p_session).location,
+      'notes', (p_session).notes,
+      'status', (p_session).status,
+      'type', (p_session).type,
+      'selected_player_ids', (p_session).selected_player_ids,
+      'team_ids', (p_session).team_ids,
+      'config', (p_session).config,
+      'local_id', (p_session).local_id,
+      'sync_version', (p_session).sync_version,
+      'deleted_at', case
+        when (p_session).deleted_at is null then null
+        else pg_catalog.to_char(
+          pg_catalog.timezone('UTC', (p_session).deleted_at),
+          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+        )
+      end,
+      'created_at', case
+        when (p_session).created_at is null then null
+        else pg_catalog.to_char(
+          pg_catalog.timezone('UTC', (p_session).created_at),
+          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+        )
+      end,
+      'updated_at', case
+        when (p_session).updated_at is null then null
+        else pg_catalog.to_char(
+          pg_catalog.timezone('UTC', (p_session).updated_at),
+          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+        )
+      end,
+      'controlled_by_user_id', (p_session).controlled_by_user_id,
+      'control_claimed_at', case
+        when (p_session).control_claimed_at is null then null
+        else pg_catalog.to_char(
+          pg_catalog.timezone('UTC', (p_session).control_claimed_at),
+          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+        )
+      end,
+      'control_device_id', (p_session).control_device_id
+    )::text
+  );
+$$;
+
+revoke all on function app_private.legacy_session_cutover_fingerprint(public.sessions)
+  from public, anon, authenticated;
+
+create function app_private.resolve_legacy_session_roster(
+  p_session public.sessions
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tokens text[] := coalesce(p_session.selected_player_ids, '{}'::text[]);
+  v_source_hash text;
+  v_candidates jsonb;
+  v_blockers text[] := '{}'::text[];
+  v_entries jsonb;
+begin
+  v_source_hash := pg_catalog.md5(pg_catalog.to_jsonb(v_tokens)::text);
+
+  select coalesce(
+           pg_catalog.jsonb_agg(
+             pg_catalog.jsonb_build_object(
+               'ordinal', t.ordinal,
+               'token', t.token,
+               'player_ids', coalesce(resolved.player_ids, '[]'::jsonb)
+             )
+             order by t.ordinal
+           ),
+           '[]'::jsonb
+         )
+    into v_candidates
+    from pg_catalog.unnest(v_tokens) with ordinality as t(token, ordinal)
+    left join lateral (
+      select pg_catalog.jsonb_agg(candidate.id::text order by candidate.id) as player_ids
+        from (
+          select p.id
+            from public.players p
+           where p.id::text = t.token
+          union
+          select p.id
+            from public.players p
+           where p_session.owner_id is not null
+             and p.owner_id = p_session.owner_id
+             and p.local_id = t.token
+        ) candidate
+    ) resolved on true;
+
+  if exists (
+    select 1
+      from pg_catalog.jsonb_array_elements(v_candidates) c
+     where pg_catalog.jsonb_array_length(c->'player_ids') = 1
+       and exists (
+         select 1
+           from pg_catalog.jsonb_array_elements(v_candidates) other
+          where other->>'token' <> c->>'token'
+            and pg_catalog.jsonb_array_length(other->'player_ids') = 1
+            and other->'player_ids'->>0 = c->'player_ids'->>0
+       )
+  ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'ROSTER_PLAYERS_COLLIDE');
+  end if;
+
+  if exists (
+    select 1
+      from pg_catalog.jsonb_array_elements(v_candidates) c
+     where pg_catalog.jsonb_array_length(c->'player_ids') > 1
+  ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'ROSTER_TOKEN_AMBIGUOUS');
+  end if;
+
+  if exists (
+    select 1
+      from pg_catalog.unnest(v_tokens) t(token)
+     group by t.token
+    having pg_catalog.count(*) > 1
+  ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'ROSTER_TOKEN_REPEATED');
+  end if;
+
+  if exists (
+    select 1
+      from pg_catalog.jsonb_array_elements(v_candidates) c
+     where pg_catalog.jsonb_array_length(c->'player_ids') = 0
+  ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'ROSTER_TOKEN_UNRESOLVED');
+  end if;
+
+  if pg_catalog.cardinality(v_blockers) = 0 then
+    select coalesce(
+             pg_catalog.jsonb_agg(
+               pg_catalog.jsonb_build_object(
+                 'entry_order', (c->>'ordinal')::integer - 1,
+                 'identity_kind', 'PLAYER',
+                 'player_id', c->'player_ids'->>0,
+                 'display_name', coalesce(
+                   nullif(pg_catalog.btrim(coalesce(pl.nickname, '')), ''),
+                   pg_catalog.btrim(pl.name)
+                 ),
+                 'source_ordinal', (c->>'ordinal')::integer,
+                 'source_token', c->>'token'
+               )
+               order by (c->>'ordinal')::bigint
+             ),
+             '[]'::jsonb
+           )
+      into v_entries
+      from pg_catalog.jsonb_array_elements(v_candidates) c
+      join public.players pl on pl.id = (c->'player_ids'->>0)::uuid;
+  else
+    select coalesce(
+             pg_catalog.jsonb_agg(
+               c || pg_catalog.jsonb_build_object(
+                 'repeated', (
+                   select pg_catalog.count(*) > 1
+                     from pg_catalog.jsonb_array_elements(v_candidates) same_token
+                    where same_token->>'token' = c->>'token'
+                 ),
+                 'unresolved', pg_catalog.jsonb_array_length(c->'player_ids') = 0,
+                 'ambiguous', pg_catalog.jsonb_array_length(c->'player_ids') > 1,
+                 'colliding', (
+                   pg_catalog.jsonb_array_length(c->'player_ids') = 1
+                   and exists (
+                     select 1
+                       from pg_catalog.jsonb_array_elements(v_candidates) other
+                      where other->>'token' <> c->>'token'
+                        and pg_catalog.jsonb_array_length(other->'player_ids') = 1
+                        and other->'player_ids'->>0 = c->'player_ids'->>0
+                   )
+                 )
+               )
+               order by (c->>'ordinal')::bigint
+             ),
+             '[]'::jsonb
+           )
+      into v_entries
+      from pg_catalog.jsonb_array_elements(v_candidates) c;
+  end if;
+
+  return pg_catalog.jsonb_build_object(
+    'source_hash', v_source_hash,
+    'blockers', pg_catalog.to_jsonb(v_blockers),
+    'entries', v_entries
+  );
+end;
+$$;
+
+revoke all on function app_private.resolve_legacy_session_roster(public.sessions)
+  from public, anon, authenticated;
+
+create or replace function app_private.import_legacy_session_rosters(p_source_release text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_run_id uuid;
+  v_session public.sessions;
+  v_tokens text[];
+  v_hash text;
+  v_existing public.roster_revisions;
+  v_candidates jsonb;
+  v_rejected text[];
+  v_revision_id uuid;
+  v_entries jsonb;
+  v_resolution jsonb;
+  v_blockers text[];
+  v_reason text;
+begin
+  insert into app_private.migration_runs (name, source_release)
+  values ('import_legacy_session_rosters', p_source_release)
+  returning run_id into v_run_id;
+
+  for v_session in
+    select s.*
+      from public.sessions s
+     where s.authority_model = 'legacy'
+       and s.status in ('finished', 'cancelled')
+       and s.selected_player_ids is not null
+       and pg_catalog.array_length(s.selected_player_ids, 1) > 0
+     order by s.id
+  loop
+    v_tokens := v_session.selected_player_ids;
+    v_resolution := app_private.resolve_legacy_session_roster(v_session);
+    v_hash := v_resolution->>'source_hash';
+    v_blockers := array(
+      select pg_catalog.jsonb_array_elements_text(v_resolution->'blockers')
+    );
+    v_entries := v_resolution->'entries';
+
+    select * into v_existing
+      from public.roster_revisions r
+     where r.session_id = v_session.id
+       and r.source_kind = 'LEGACY_SELECTED_ROSTER';
+
+    if found then
+      if v_existing.source_payload_hash is not distinct from v_hash then
+        insert into app_private.migration_entity_map (
+          run_id, source_type, source_id, target_type, target_id,
+          mapping_kind, source_hash, confidence, reason
+        )
+        values (
+          v_run_id,
+          'legacy_session_selected_roster',
+          v_session.id::text,
+          'roster_revision',
+          v_existing.id::text,
+          'ONE_TO_ONE',
+          v_hash,
+          'EXACT',
+          'Legacy selected roster was already imported from an unchanged source'
+        )
+        on conflict do nothing;
+
+        insert into app_private.migration_entity_map (
+          run_id, source_type, source_id, target_type, target_id,
+          mapping_kind, source_hash, confidence, reason
+        )
+        select
+          v_run_id,
+          'legacy_session_selected_player',
+          v_session.id::text || '#' || (e.entry_order + 1)::text
+            || ':' || v_tokens[e.entry_order + 1],
+          'session_participant',
+          e.participant_id::text,
+          'ONE_TO_ONE',
+          v_hash,
+          'EXACT',
+          'Legacy selected roster token was already mapped to a Session Participant'
+        from public.roster_revision_entries e
+       where e.roster_revision_id = v_existing.id
+        on conflict do nothing;
+
+        continue;
+      end if;
+
+      insert into app_private.migration_anomalies (
+        run_id, source_type, source_id, reason, details
+      )
+      values (
+        v_run_id,
+        'legacy_session_selected_roster',
+        v_session.id::text,
+        'LEGACY_ROSTER_SOURCE_CHANGED_AFTER_IMPORT',
+        pg_catalog.jsonb_build_object(
+          'source_hash', v_hash,
+          'imported_source_hash', v_existing.source_payload_hash,
+          'roster_revision_id', v_existing.id::text
+        )
+      )
+      on conflict (run_id, source_type, source_id, reason) do nothing;
+
+      continue;
+    end if;
+
+    if 'ROSTER_TOKEN_REPEATED' = any (v_blockers) then
+      v_reason := 'LEGACY_ROSTER_TOKEN_REPEATED';
+      v_rejected := array(
+        select c->>'token'
+          from pg_catalog.jsonb_array_elements(v_entries) c
+         where (c->>'repeated')::boolean
+         group by c->>'token'
+         order by c->>'token'
+      );
+    elsif 'ROSTER_TOKEN_UNRESOLVED' = any (v_blockers) then
+      v_reason := case
+        when v_session.owner_id is null then 'LEGACY_ROSTER_OWNER_UNKNOWN'
+        else 'LEGACY_ROSTER_TOKEN_UNRESOLVED'
+      end;
+      v_rejected := array(
+        select c->>'token'
+          from pg_catalog.jsonb_array_elements(v_entries) c
+         where (c->>'unresolved')::boolean
+         order by (c->>'ordinal')::bigint
+      );
+    elsif 'ROSTER_TOKEN_AMBIGUOUS' = any (v_blockers) then
+      v_reason := 'LEGACY_ROSTER_TOKEN_AMBIGUOUS';
+      v_rejected := array(
+        select c->>'token'
+          from pg_catalog.jsonb_array_elements(v_entries) c
+         where (c->>'ambiguous')::boolean
+         order by (c->>'ordinal')::bigint
+      );
+    elsif 'ROSTER_PLAYERS_COLLIDE' = any (v_blockers) then
+      v_reason := 'LEGACY_ROSTER_PLAYERS_COLLIDE';
+      v_rejected := array(
+        select c->>'token'
+          from pg_catalog.jsonb_array_elements(v_entries) c
+         where (c->>'colliding')::boolean
+         order by (c->>'ordinal')::bigint
+      );
+    else
+      v_reason := null;
+      v_rejected := '{}'::text[];
+    end if;
+
+    if v_reason is not null then
+      v_candidates := v_entries;
+      perform app_private.record_legacy_roster_anomaly(
+        v_run_id,
+        v_session.id,
+        v_reason,
+        v_hash,
+        v_rejected,
+        v_candidates
+      );
+      continue;
+    end if;
+
+    select coalesce(
+             pg_catalog.jsonb_agg(
+               e || pg_catalog.jsonb_build_object(
+                 'participant_id', pg_catalog.gen_random_uuid()::text
+               )
+               order by (e->>'entry_order')::integer
+             ),
+             '[]'::jsonb
+           )
+      into v_entries
+      from pg_catalog.jsonb_array_elements(v_entries) e;
+
+    v_revision_id := pg_catalog.gen_random_uuid();
+    perform app_private.materialize_target_session_roster(
+      v_revision_id,
+      v_session.id,
+      'LEGACY_SELECTED_ROSTER',
+      null,
+      null,
+      v_hash,
+      null,
+      v_entries,
+      1
+    );
+
+    insert into app_private.migration_entity_map (
+      run_id, source_type, source_id, target_type, target_id,
+      mapping_kind, source_hash, confidence, reason
+    )
+    values (
+      v_run_id,
+      'legacy_session_selected_roster',
+      v_session.id::text,
+      'roster_revision',
+      v_revision_id::text,
+      'ONE_TO_ONE',
+      v_hash,
+      'EXACT',
+      'Terminal legacy selected roster materialized as roster revision one'
+    )
+    on conflict do nothing;
+
+    insert into app_private.migration_entity_map (
+      run_id, source_type, source_id, target_type, target_id,
+      mapping_kind, source_hash, confidence, reason
+    )
+    select
+      v_run_id,
+      'legacy_session_selected_player',
+      v_session.id::text || '#' || (e->>'source_ordinal') || ':' || (e->>'source_token'),
+      'session_participant',
+      e->>'participant_id',
+      'ONE_TO_ONE',
+      v_hash,
+      'EXACT',
+      'Legacy selected roster token resolved to exactly one Player'
+    from pg_catalog.jsonb_array_elements(v_entries) e
+    on conflict do nothing;
+  end loop;
+
+  update app_private.migration_runs
+     set status = 'COMPLETED',
+         finished_at = pg_catalog.now()
+   where run_id = v_run_id;
+
+  return v_run_id;
+end;
+$$;
+
+revoke all on function app_private.import_legacy_session_rosters(text)
+  from public, anon, authenticated;
+
+create function app_private.inspect_legacy_session_cutover_state(
+  p_session public.sessions
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_resolution jsonb;
+  v_resolution_blockers text[];
+  v_blockers text[] := '{}'::text[];
+  v_reason text;
+begin
+  v_resolution := app_private.resolve_legacy_session_roster(p_session);
+  v_resolution_blockers := array(
+    select pg_catalog.jsonb_array_elements_text(v_resolution->'blockers')
+  );
+
+  if exists (
+    select 1 from public.games g where g.session_id = p_session.id
+  ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'HAS_GAME_EVIDENCE');
+  end if;
+
+  if exists (
+       select 1
+         from public.session_organizer_assignments a
+        where a.session_id = p_session.id
+     )
+     or exists (
+       select 1 from public.session_courts c where c.session_id = p_session.id
+     )
+     or exists (
+       select 1 from public.session_rules_snapshots r where r.session_id = p_session.id
+     )
+     or exists (
+       select 1 from public.roster_revisions r where r.session_id = p_session.id
+     )
+     or exists (
+       select 1 from public.session_participants p where p.session_id = p_session.id
+     ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'HAS_TARGET_ARTIFACTS');
+  end if;
+
+  if pg_catalog.cardinality(coalesce(p_session.team_ids, '{}'::text[])) > 0
+     or exists (
+       select 1 from public.teams t where t.session_id = p_session.id
+     ) then
+    v_blockers := pg_catalog.array_append(v_blockers, 'HAS_TEAM_EVIDENCE');
+  end if;
+
+  if p_session.status <> 'draft' then
+    v_blockers := pg_catalog.array_append(v_blockers, 'NOT_DRAFT');
+  end if;
+
+  if p_session.authority_model <> 'legacy' then
+    v_blockers := pg_catalog.array_append(v_blockers, 'NOT_LEGACY');
+  end if;
+
+  foreach v_reason in array array[
+    'ROSTER_PLAYERS_COLLIDE',
+    'ROSTER_TOKEN_AMBIGUOUS',
+    'ROSTER_TOKEN_REPEATED',
+    'ROSTER_TOKEN_UNRESOLVED'
+  ]
+  loop
+    if v_reason = any (v_resolution_blockers) then
+      v_blockers := pg_catalog.array_append(v_blockers, v_reason);
+    end if;
+  end loop;
+
+  if p_session.deleted_at is not null then
+    v_blockers := pg_catalog.array_append(v_blockers, 'SOFT_DELETED');
+  end if;
+
+  return pg_catalog.jsonb_build_object(
+    'eligible', pg_catalog.cardinality(v_blockers) = 0,
+    'blockers', pg_catalog.to_jsonb(v_blockers),
+    'source_fingerprint', app_private.legacy_session_cutover_fingerprint(p_session),
+    'selected_player_count', pg_catalog.cardinality(
+      coalesce(p_session.selected_player_ids, '{}'::text[])
+    )
+  );
+end;
+$$;
+
+revoke all on function app_private.inspect_legacy_session_cutover_state(public.sessions)
+  from public, anon, authenticated;
+
+create function public.inspect_legacy_session_cutover(
+  p_session_id uuid
+)
+returns table (
+  eligible boolean,
+  blockers text[],
+  source_fingerprint text,
+  selected_player_count integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_uid uuid := (select auth.uid());
+  v_state jsonb;
+begin
+  select * into v_session
+    from public.sessions s
+   where s.id = p_session_id;
+
+  if not found then
+    raise exception 'Session not found' using errcode = 'P0002';
+  end if;
+
+  if v_session.community_id is null then
+    if v_uid is null or v_session.owner_id is distinct from v_uid then
+      raise exception 'Not authorized to inspect this Session' using errcode = '42501';
+    end if;
+  elsif v_uid is null
+     or not exists (
+       select 1
+         from public.community_memberships m
+        where m.community_id = v_session.community_id
+          and m.user_id = v_uid
+          and m.status = 'active'
+     )
+     or not exists (
+       select 1
+         from public.community_responsibilities r
+        where r.community_id = v_session.community_id
+          and r.user_id = v_uid
+          and r.responsibility = 'ORGANIZER'
+          and r.revoked_at is null
+     ) then
+    raise exception 'Not authorized to inspect this Session' using errcode = '42501';
+  end if;
+
+  v_state := app_private.inspect_legacy_session_cutover_state(v_session);
+
+  return query
+    select
+      (v_state->>'eligible')::boolean,
+      array(
+        select pg_catalog.jsonb_array_elements_text(v_state->'blockers')
+      ),
+      v_state->>'source_fingerprint',
+      (v_state->>'selected_player_count')::integer;
+end;
+$$;
+
+revoke all on function public.inspect_legacy_session_cutover(uuid)
+  from public, anon, authenticated;
+grant execute on function public.inspect_legacy_session_cutover(uuid)
+  to authenticated;

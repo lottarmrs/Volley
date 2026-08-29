@@ -1673,6 +1673,37 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(cancelResult.rows[0].session_revision, cancelRevision + 1);
   });
 
+  test('finish_target_session and cancel_target_session accept a walkover Match as terminal (SES-INV-025)', async () => {
+    const organizer = await newUser('lifecycle-match-guard-walkover@test.local');
+
+    const finishSessionId = await createTargetSession(organizer, {
+      name: 'Match guard walkover finish',
+    });
+    await forceLifecycleStatus(finishSessionId, 'IN_PROGRESS', organizer);
+    await legacyGame(finishSessionId, 'walkover');
+    const finishRevision = await sessionRevision(finishSessionId);
+    const finishResult = await finishSession(organizer, {
+      sessionId: finishSessionId,
+      expectedRevision: finishRevision,
+    });
+    assert.equal(finishResult.rows[0].session_revision, finishRevision + 1);
+    assert.equal((await sessionState(finishSessionId)).lifecycle_status, 'COMPLETED');
+
+    const cancelSessionId = await createTargetSession(organizer, {
+      name: 'Match guard walkover cancel',
+    });
+    await forceLifecycleStatus(cancelSessionId, 'IN_PROGRESS', organizer);
+    await legacyGame(cancelSessionId, 'walkover');
+    const cancelRevision = await sessionRevision(cancelSessionId);
+    const cancelResult = await cancelSession(organizer, {
+      sessionId: cancelSessionId,
+      expectedRevision: cancelRevision,
+      reason: 'Chuva',
+    });
+    assert.equal(cancelResult.rows[0].session_revision, cancelRevision + 1);
+    assert.equal((await sessionState(cancelSessionId)).lifecycle_status, 'CANCELLED');
+  });
+
   test('a Match belonging to a different Session never blocks finish_target_session', async () => {
     const organizer = await newUser('lifecycle-match-guard-cross-session@test.local');
     const sessionId = await createTargetSession(organizer, {

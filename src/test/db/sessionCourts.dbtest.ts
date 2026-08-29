@@ -499,16 +499,21 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(read.rows, []);
   });
 
-  test('deleting a Session deletes its Courts as aggregate composition', async () => {
+  test('authority provenance prevents deleting a target Session or its Courts', async () => {
     const organizer = await newUser('court-delete@test.local');
     const sessionId = await createTargetSession(organizer);
     await addCourt(organizer, randomUUID(), sessionId, 1, 'Quadra 2', 2);
 
-    await client.query('delete from public.sessions where id = $1', [sessionId]);
-    const { rows } = await client.query<{ count: string }>(
-      'select count(*) from public.session_courts where session_id = $1',
+    const rejected = await client
+      .query('delete from public.sessions where id = $1', [sessionId])
+      .catch((error: Error) => error);
+    assertSqlState(rejected, '23503');
+    const { rows } = await client.query<{ sessions: string; courts: string }>(
+      `select
+         (select count(*) from public.sessions where id = $1)::text as sessions,
+         (select count(*) from public.session_courts where session_id = $1)::text as courts`,
       [sessionId],
     );
-    assert.equal(rows[0].count, '0');
+    assert.deepEqual(rows, [{ sessions: '1', courts: '2' }]);
   });
 }

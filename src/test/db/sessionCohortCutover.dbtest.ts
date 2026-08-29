@@ -2224,11 +2224,25 @@ if (!isTestDatabaseConfigured()) {
       let blockedPids: number[] = [];
       for (let poll = 0; poll < 200 && blockedPids.length < 2; poll += 1) {
         const { rows } = await client.query<{ pid: number }>(
-          `select pid
-             from pg_catalog.pg_stat_activity
-            where pid = any($1::integer[])
-              and $2::integer = any(pg_catalog.pg_blocking_pids(pid))
-            order by pid`,
+          `with recursive blocker_chain(waiter_pid, blocker_pid) as (
+             select activity.pid, blocker.pid
+               from pg_catalog.pg_stat_activity activity
+               cross join lateral pg_catalog.unnest(
+                 pg_catalog.pg_blocking_pids(activity.pid)
+               ) blocker(pid)
+              where activity.pid = any($1::integer[])
+             union
+             select blocker_chain.waiter_pid, blocker.pid
+               from blocker_chain
+               cross join lateral pg_catalog.unnest(
+                 pg_catalog.pg_blocking_pids(blocker_chain.blocker_pid)
+               ) blocker(pid)
+           )
+           select waiter_pid as pid
+             from blocker_chain
+            where blocker_pid = $2::integer
+            group by waiter_pid
+            order by waiter_pid`,
           [waiterPids, gatePidRows[0].pid],
         );
         blockedPids = rows.map(({ pid }) => pid);

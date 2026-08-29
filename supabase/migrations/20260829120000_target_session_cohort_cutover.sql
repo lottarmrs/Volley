@@ -854,3 +854,255 @@ revoke all on function public.inspect_legacy_session_cutover(uuid)
   from public, anon, authenticated;
 grant execute on function public.inspect_legacy_session_cutover(uuid)
   to authenticated;
+
+create function public.transition_legacy_session_to_target(
+  p_command_id uuid,
+  p_session_id uuid,
+  p_expected_source_fingerprint text,
+  p_session_context text,
+  p_play_mode text
+)
+returns table (
+  session_id uuid,
+  session_revision integer,
+  authority_model text,
+  target_model_version integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_cutover app_private.session_authority_cutovers;
+  v_uid uuid;
+  v_membership_id uuid;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_fingerprint text;
+  v_state jsonb;
+  v_blockers text[];
+  v_resolution jsonb;
+  v_entries jsonb;
+begin
+  if p_command_id is null then
+    raise exception 'Command id is required' using errcode = '23514';
+  end if;
+  if p_session_id is null then
+    raise exception 'Session id is required' using errcode = '23514';
+  end if;
+  if nullif(pg_catalog.btrim(p_expected_source_fingerprint), '') is null then
+    raise exception 'Expected source fingerprint is required' using errcode = '23514';
+  end if;
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id,
+    'transition_legacy_session_to_target',
+    p_session_id
+  );
+  if v_receipt is not null then
+    return query
+      select
+        (v_receipt->>'session_id')::uuid,
+        (v_receipt->>'session_revision')::integer,
+        v_receipt->>'authority_model',
+        (v_receipt->>'target_model_version')::integer;
+    return;
+  end if;
+
+  select * into v_session
+    from public.sessions s
+   where s.id = p_session_id
+   for update;
+
+  if not found then
+    raise exception 'Session not found' using errcode = 'P0002';
+  end if;
+
+  v_uid := (select auth.uid());
+  if v_session.community_id is null then
+    if v_uid is null or v_session.owner_id is distinct from v_uid then
+      raise exception 'Not authorized to transition this Session' using errcode = '42501';
+    end if;
+  else
+    select m.id into v_membership_id
+      from public.community_memberships m
+     where m.community_id = v_session.community_id
+       and m.user_id = v_uid
+       and m.status = 'active';
+
+    if v_uid is null
+       or v_membership_id is null
+       or not exists (
+         select 1
+           from public.community_responsibilities r
+          where r.community_id = v_session.community_id
+            and r.user_id = v_uid
+            and r.responsibility = 'ORGANIZER'
+            and r.revoked_at is null
+       ) then
+      raise exception 'Not authorized to transition this Session' using errcode = '42501';
+    end if;
+  end if;
+
+  if p_session_context is null or p_session_context not in ('QUICK', 'COMMUNITY') then
+    raise exception 'Invalid Session context' using errcode = '23514';
+  end if;
+  if p_play_mode is null or p_play_mode not in ('FREE_PLAY', 'STRUCTURED_MATCHES') then
+    raise exception 'Invalid Session play mode' using errcode = '23514';
+  end if;
+  if p_session_context = 'COMMUNITY' and v_session.community_id is null then
+    raise exception 'COMMUNITY Session requires a Community' using errcode = '23514';
+  end if;
+  if p_session_context = 'QUICK' and v_session.community_id is not null then
+    raise exception 'QUICK Session cannot have a Community' using errcode = '23514';
+  end if;
+
+  if v_session.authority_model = 'target' then
+    select * into v_cutover
+      from app_private.session_authority_cutovers c
+     where c.session_id = v_session.id;
+
+    if found
+       and v_cutover.source_authority = 'LEGACY'
+       and v_cutover.cutover_kind = 'LEGACY_EXPLICIT'
+       and v_cutover.target_model_version = 1
+       and v_cutover.source_fingerprint is not distinct from p_expected_source_fingerprint
+       and v_session.target_model_version = 1
+       and v_session.session_context is not distinct from p_session_context
+       and v_session.play_mode is not distinct from p_play_mode then
+      v_result := pg_catalog.jsonb_build_object(
+        'session_id', v_session.id,
+        'session_revision', v_session.revision,
+        'authority_model', v_session.authority_model,
+        'target_model_version', v_session.target_model_version
+      );
+      perform app_private.record_command_receipt(
+        p_command_id,
+        v_uid,
+        'transition_legacy_session_to_target',
+        p_session_id,
+        v_result,
+        'SESSION_AUTHORITY_CUTOVER'
+      );
+
+      return query
+        select
+          v_session.id,
+          v_session.revision,
+          v_session.authority_model,
+          v_session.target_model_version;
+      return;
+    end if;
+
+    raise exception 'Session is already governed by target authority' using errcode = '23514';
+  end if;
+
+  v_fingerprint := app_private.legacy_session_cutover_fingerprint(v_session);
+  if v_fingerprint is distinct from p_expected_source_fingerprint then
+    raise exception 'Stale legacy Session source fingerprint' using errcode = '40001';
+  end if;
+
+  v_state := app_private.inspect_legacy_session_cutover_state(v_session);
+  v_blockers := array(
+    select pg_catalog.jsonb_array_elements_text(v_state->'blockers')
+  );
+  if pg_catalog.cardinality(v_blockers) > 0 then
+    raise exception 'Legacy Session cutover blocked: %',
+      pg_catalog.array_to_string(v_blockers, ', ')
+      using errcode = '23514';
+  end if;
+
+  v_resolution := app_private.resolve_legacy_session_roster(v_session);
+  v_entries := v_resolution->'entries';
+  if pg_catalog.jsonb_array_length(v_entries) > 0 then
+    select pg_catalog.jsonb_agg(
+             e || pg_catalog.jsonb_build_object(
+               'participant_id', pg_catalog.gen_random_uuid()::text
+             )
+             order by (e->>'entry_order')::integer
+           )
+      into v_entries
+      from pg_catalog.jsonb_array_elements(v_entries) e;
+
+    perform app_private.materialize_target_session_roster(
+      pg_catalog.gen_random_uuid(),
+      p_session_id,
+      'LEGACY_SELECTED_ROSTER',
+      1,
+      null,
+      v_resolution->>'source_hash',
+      v_uid,
+      v_entries,
+      1
+    );
+  end if;
+
+  insert into public.session_organizer_assignments (
+    session_id,
+    community_membership_id,
+    organizer_user_id,
+    assigned_by_user_id
+  )
+  values (p_session_id, v_membership_id, v_uid, v_uid);
+
+  perform pg_catalog.set_config('app.session_authority_cutover', 'on', true);
+  update public.sessions s
+     set authority_model = 'target',
+         target_model_version = 1,
+         session_context = p_session_context,
+         play_mode = p_play_mode,
+         lifecycle_status = 'DRAFT',
+         publication_state = 'PRIVATE',
+         revision = 1,
+         status = public.target_session_compatibility_status('DRAFT'),
+         type = public.target_session_compatibility_type(p_play_mode),
+         actual_started_at = null,
+         actual_finished_at = null,
+         cancelled_at = null,
+         cancelled_by_user_id = null,
+         cancel_reason = null
+   where s.id = p_session_id;
+
+  insert into app_private.session_authority_cutovers (
+    session_id,
+    source_authority,
+    target_model_version,
+    cutover_kind,
+    command_id,
+    source_fingerprint,
+    cutover_by_user_id
+  )
+  values (
+    p_session_id,
+    'LEGACY',
+    1,
+    'LEGACY_EXPLICIT',
+    p_command_id,
+    v_fingerprint,
+    v_uid
+  );
+
+  v_result := pg_catalog.jsonb_build_object(
+    'session_id', p_session_id,
+    'session_revision', 1,
+    'authority_model', 'target',
+    'target_model_version', 1
+  );
+  perform app_private.record_command_receipt(
+    p_command_id,
+    v_uid,
+    'transition_legacy_session_to_target',
+    p_session_id,
+    v_result,
+    'SESSION_AUTHORITY_CUTOVER'
+  );
+
+  return query select p_session_id, 1, 'target'::text, 1;
+end;
+$$;
+
+revoke all on function public.transition_legacy_session_to_target(uuid, uuid, text, text, text)
+  from public, anon, authenticated;
+grant execute on function public.transition_legacy_session_to_target(uuid, uuid, text, text, text)
+  to authenticated;

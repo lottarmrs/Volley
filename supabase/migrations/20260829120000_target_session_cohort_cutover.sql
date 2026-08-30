@@ -900,15 +900,6 @@ begin
     'transition_legacy_session_to_target',
     p_session_id
   );
-  if v_receipt is not null then
-    return query
-      select
-        (v_receipt->>'session_id')::uuid,
-        (v_receipt->>'session_revision')::integer,
-        v_receipt->>'authority_model',
-        (v_receipt->>'target_model_version')::integer;
-    return;
-  end if;
 
   select * into v_session
     from public.sessions s
@@ -943,6 +934,21 @@ begin
        ) then
       raise exception 'Not authorized to transition this Session' using errcode = '42501';
     end if;
+  end if;
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id,
+    'transition_legacy_session_to_target',
+    p_session_id
+  );
+  if v_receipt is not null then
+    return query
+      select
+        (v_receipt->>'session_id')::uuid,
+        (v_receipt->>'session_revision')::integer,
+        v_receipt->>'authority_model',
+        (v_receipt->>'target_model_version')::integer;
+    return;
   end if;
 
   if p_session_context is null or p_session_context not in ('QUICK', 'COMMUNITY') then

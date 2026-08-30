@@ -1,9 +1,13 @@
 # XS-W3-07 — Session Cohort Cutover Design
 
-**Status:** Approved design  
-**Date:** 2026-08-29  
-**Execution slice:** `XS-W3-07`  
-**Authority change:** `CUTS_OVER`, one eligible Session at a time  
+**Status:** Approved design
+
+**Date:** 2026-08-29
+
+**Execution slice:** `XS-W3-07`
+
+**Authority change:** `CUTS_OVER`, one eligible Session at a time
+
 **Schema phase:** `EXPAND / CUTOVER`, no contract removal
 
 ## Purpose

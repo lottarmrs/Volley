@@ -265,6 +265,40 @@ if (!isTestDatabaseConfigured()) {
     await setLocalIdentity(db, userId);
   }
 
+  async function assertBlockedBy(waiterPids: number[], blockerPid: number): Promise<void> {
+    let blockedPids: number[] = [];
+    const deadline = Date.now() + 5000;
+    while (blockedPids.length < waiterPids.length && Date.now() < deadline) {
+      const { rows } = await client.query<{ pid: number }>(
+        `with recursive blocker_chain(waiter_pid, blocker_pid) as (
+           select activity.pid, blocker.pid
+             from pg_catalog.pg_stat_activity activity
+             cross join lateral pg_catalog.unnest(
+               pg_catalog.pg_blocking_pids(activity.pid)
+             ) blocker(pid)
+            where activity.pid = any($1::integer[])
+           union
+           select blocker_chain.waiter_pid, blocker.pid
+             from blocker_chain
+             cross join lateral pg_catalog.unnest(
+               pg_catalog.pg_blocking_pids(blocker_chain.blocker_pid)
+             ) blocker(pid)
+         )
+         select waiter_pid as pid
+           from blocker_chain
+          where blocker_pid = $2::integer
+          group by waiter_pid
+          order by waiter_pid`,
+        [waiterPids, blockerPid],
+      );
+      blockedPids = rows.map(({ pid }) => pid);
+    }
+    assert.deepEqual(
+      blockedPids,
+      [...waiterPids].sort((a, b) => a - b),
+    );
+  }
+
   async function transitionInOpenTransaction(
     db: PoolClient,
     input: {
@@ -1151,6 +1185,7 @@ if (!isTestDatabaseConfigured()) {
       [unresolvedAndDeleted, ['ROSTER_TOKEN_UNRESOLVED', 'SOFT_DELETED']],
     ] as Array<[string, string[]]>) {
       const { rows } = await inspectCutover(owner, sessionId);
+      assert.equal(rows[0].eligible, false);
       assert.deepEqual(rows[0].blockers, blockers);
     }
   });
@@ -1898,6 +1933,48 @@ if (!isTestDatabaseConfigured()) {
     });
   });
 
+  for (const replayCase of [
+    'foreign Quick actor',
+    'cross-Community actor',
+    'revoked responsibility',
+  ]) {
+    test(`transition_legacy_session_to_target denies saved receipt replay by ${replayCase}`, async () => {
+      const actor = await newUser(`cutover-replay-${replayCase}@test.local`);
+      const outsider = await newUser(`cutover-replay-outsider-${replayCase}@test.local`);
+      const communityId =
+        replayCase === 'foreign Quick actor'
+          ? null
+          : await createCommunity(actor, `Replay ${replayCase}`);
+      if (communityId) await setOrganizerResponsibility(communityId, actor);
+      if (replayCase === 'cross-Community actor') {
+        const outsiderCommunity = await createCommunity(outsider, 'Replay outsider Community');
+        await setOrganizerResponsibility(outsiderCommunity, outsider);
+      }
+      const sessionId = await createLegacySession(actor, `Replay ${replayCase}`, { communityId });
+      const input = {
+        commandId: randomUUID(),
+        sessionId,
+        expectedSourceFingerprint: (await inspectCutover(actor, sessionId)).rows[0]
+          .source_fingerprint,
+        sessionContext: communityId ? 'COMMUNITY' : 'QUICK',
+        playMode: 'FREE_PLAY',
+      };
+      await transitionLegacySession(actor, input);
+      const before = await targetArtifactCounts(sessionId);
+      if (replayCase === 'revoked responsibility') {
+        await setOrganizerResponsibility(communityId!, actor, '2030-01-01T00:00:00.000Z');
+      }
+
+      const replay = await transitionLegacySession(
+        replayCase === 'revoked responsibility' ? actor : outsider,
+        { ...input, expectedSourceFingerprint: 'stale-replay-fingerprint' },
+      ).catch((error: Error) => error);
+
+      assertSqlState(replay, '42501');
+      assert.deepEqual(await targetArtifactCounts(sessionId), before);
+    });
+  }
+
   test('transition_legacy_session_to_target rejects command_id reuse across another Session or command type with 23505', async () => {
     const actor = await newUser('cutover-command-collision@test.local');
     const firstSessionId = await createLegacySession(actor, 'First collision cutover');
@@ -2095,7 +2172,7 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(fixtureRows, []);
   });
 
-  test('transition_legacy_session_to_target fences a committed legacy source write with 40001 before succeeding on reinspection', async () => {
+  test('transition_legacy_session_to_target waits across a final legacy UPDATE and fences its committed source with 40001 before reinspection', async () => {
     const actor = await newUser('cutover-source-race@test.local');
     const sessionId = await createLegacySession(actor, 'Source race before write');
     const firstFingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
@@ -2103,28 +2180,39 @@ if (!isTestDatabaseConfigured()) {
     const cutter = await pool.connect();
     let writerOpen = false;
     let cutterOpen = false;
+    let pendingCutover:
+      | Promise<Awaited<ReturnType<typeof transitionInOpenTransaction>> | Error>
+      | undefined;
     try {
       await writer.query('begin');
       await writer.query("set local statement_timeout = '10s'");
       writerOpen = true;
+      const { rows: writerPidRows } = await writer.query<{ pid: number }>(
+        'select pg_catalog.pg_backend_pid() as pid',
+      );
       const changed = await writer.query(
         `update public.sessions set notes = 'committed immediately before cutover'
           where id = $1 returning id`,
         [sessionId],
       );
       assert.equal(changed.rowCount, 1);
-      await writer.query('commit');
-      writerOpen = false;
 
       await beginIdentity(cutter, actor);
       cutterOpen = true;
-      const stale = await transitionInOpenTransaction(cutter, {
+      const { rows: cutterPidRows } = await cutter.query<{ pid: number }>(
+        'select pg_catalog.pg_backend_pid() as pid',
+      );
+      pendingCutover = transitionInOpenTransaction(cutter, {
         commandId: randomUUID(),
         sessionId,
         expectedSourceFingerprint: firstFingerprint,
         sessionContext: 'QUICK',
         playMode: 'FREE_PLAY',
       }).catch((error: Error) => error);
+      await assertBlockedBy([cutterPidRows[0].pid], writerPidRows[0].pid);
+      await writer.query('commit');
+      writerOpen = false;
+      const stale = await pendingCutover;
       assertSqlState(stale, '40001');
       await cutter.query('rollback');
       cutterOpen = false;
@@ -2133,6 +2221,11 @@ if (!isTestDatabaseConfigured()) {
       const secondInspection = await inspectCutover(actor, sessionId);
       const secondFingerprint = secondInspection.rows[0].source_fingerprint;
       assert.notEqual(secondFingerprint, firstFingerprint);
+      const { rows: sourceRows } = await client.query<{ notes: string }>(
+        'select notes from public.sessions where id = $1',
+        [sessionId],
+      );
+      assert.equal(sourceRows[0].notes, 'committed immediately before cutover');
       await beginIdentity(cutter, actor);
       cutterOpen = true;
       const committed = await transitionInOpenTransaction(cutter, {
@@ -2152,176 +2245,159 @@ if (!isTestDatabaseConfigured()) {
           target_model_version: 1,
         },
       ]);
+      const { rows: targetRows } = await client.query<{ notes: string; authority_model: string }>(
+        'select notes, authority_model from public.sessions where id = $1',
+        [sessionId],
+      );
+      assert.deepEqual(targetRows, [
+        { notes: 'committed immediately before cutover', authority_model: 'target' },
+      ]);
+      assert.equal((await cutoverRows(sessionId))[0].source_fingerprint, secondFingerprint);
     } finally {
       if (writerOpen) await writer.query('rollback').catch(() => undefined);
+      if (pendingCutover) await pendingCutover;
       if (cutterOpen) await cutter.query('rollback').catch(() => undefined);
       writer.release();
       cutter.release();
     }
   });
 
-  test('concurrent transition_legacy_session_to_target commands serialize behind one row lock and a final authenticated legacy update cannot mutate target state', async () => {
-    const actor = await newUser('cutover-command-race@test.local');
-    const probeSessionId = await createLegacySession(actor, 'Concurrency RPC probe');
-    const probeFingerprint = (await inspectCutover(actor, probeSessionId)).rows[0]
-      .source_fingerprint;
-    await transitionLegacySession(actor, {
-      commandId: randomUUID(),
-      sessionId: probeSessionId,
-      expectedSourceFingerprint: probeFingerprint,
-      sessionContext: 'QUICK',
-      playMode: 'FREE_PLAY',
-    });
+  for (const commandMode of ['same', 'distinct'] as const) {
+    test(`concurrent ${commandMode}-command transition_legacy_session_to_target retries serialize behind one row lock and a final authenticated legacy update cannot mutate target state`, async () => {
+      const actor = await newUser(`cutover-${commandMode}-command-race@test.local`);
+      const probeSessionId = await createLegacySession(actor, 'Concurrency RPC probe');
+      const probeFingerprint = (await inspectCutover(actor, probeSessionId)).rows[0]
+        .source_fingerprint;
+      await transitionLegacySession(actor, {
+        commandId: randomUUID(),
+        sessionId: probeSessionId,
+        expectedSourceFingerprint: probeFingerprint,
+        sessionContext: 'QUICK',
+        playMode: 'FREE_PLAY',
+      });
 
-    const playerId = await createPlayer(actor, { name: 'Concurrent cutover Player' });
-    const sessionId = await createLegacySession(actor, 'Concurrent legacy cutover', {
-      selectedPlayerIds: [playerId],
-    });
-    const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
-    const commandIds = [randomUUID(), randomUUID()];
-    const gate = await pool.connect();
-    const first = await pool.connect();
-    const second = await pool.connect();
-    let gateOpen = false;
-    const attempts: Array<
-      Promise<Awaited<ReturnType<typeof transitionInOpenTransaction>> | Error>
-    > = [];
-    try {
-      await gate.query('begin');
-      gateOpen = true;
-      const { rows: gatePidRows } = await gate.query<{ pid: number }>(
-        'select pg_catalog.pg_backend_pid() as pid',
-      );
-      await gate.query('select id from public.sessions where id = $1 for update', [sessionId]);
-      await beginIdentity(first, actor);
-      await beginIdentity(second, actor);
-      const { rows: firstPidRows } = await first.query<{ pid: number }>(
-        'select pg_catalog.pg_backend_pid() as pid',
-      );
-      const { rows: secondPidRows } = await second.query<{ pid: number }>(
-        'select pg_catalog.pg_backend_pid() as pid',
-      );
+      const playerId = await createPlayer(actor, { name: 'Concurrent cutover Player' });
+      const sessionId = await createLegacySession(actor, 'Concurrent legacy cutover', {
+        selectedPlayerIds: [playerId],
+      });
+      const fingerprint = (await inspectCutover(actor, sessionId)).rows[0].source_fingerprint;
+      const firstCommandId = randomUUID();
+      const commandIds = [firstCommandId, commandMode === 'same' ? firstCommandId : randomUUID()];
+      const gate = await pool.connect();
+      const first = await pool.connect();
+      const second = await pool.connect();
+      let gateOpen = false;
+      const attempts: Array<
+        Promise<Awaited<ReturnType<typeof transitionInOpenTransaction>> | Error>
+      > = [];
+      try {
+        await gate.query('begin');
+        gateOpen = true;
+        const { rows: gatePidRows } = await gate.query<{ pid: number }>(
+          'select pg_catalog.pg_backend_pid() as pid',
+        );
+        await gate.query('select id from public.sessions where id = $1 for update', [sessionId]);
+        await beginIdentity(first, actor);
+        await beginIdentity(second, actor);
+        const { rows: firstPidRows } = await first.query<{ pid: number }>(
+          'select pg_catalog.pg_backend_pid() as pid',
+        );
+        const { rows: secondPidRows } = await second.query<{ pid: number }>(
+          'select pg_catalog.pg_backend_pid() as pid',
+        );
 
-      const attempt = async (db: PoolClient, commandId: string) => {
-        try {
-          const result = await transitionInOpenTransaction(db, {
-            commandId,
-            sessionId,
-            expectedSourceFingerprint: fingerprint,
-            sessionContext: 'QUICK',
-            playMode: 'FREE_PLAY',
-          });
-          await db.query('commit');
-          return result;
-        } catch (error) {
-          await db.query('rollback').catch(() => undefined);
-          return error as Error;
+        const attempt = async (db: PoolClient, commandId: string) => {
+          try {
+            const result = await transitionInOpenTransaction(db, {
+              commandId,
+              sessionId,
+              expectedSourceFingerprint: fingerprint,
+              sessionContext: 'QUICK',
+              playMode: 'FREE_PLAY',
+            });
+            await db.query('commit');
+            return result;
+          } catch (error) {
+            await db.query('rollback').catch(() => undefined);
+            return error as Error;
+          }
+        };
+        attempts.push(attempt(first, commandIds[0]), attempt(second, commandIds[1]));
+
+        const waiterPids = [firstPidRows[0].pid, secondPidRows[0].pid];
+        await assertBlockedBy(waiterPids, gatePidRows[0].pid);
+        await gate.query('commit');
+        gateOpen = false;
+
+        const outcomes = await Promise.all(attempts);
+        for (const outcome of outcomes) {
+          assert.ok(
+            !(outcome instanceof Error),
+            outcome instanceof Error ? outcome.message : undefined,
+          );
         }
-      };
-      attempts.push(attempt(first, commandIds[0]), attempt(second, commandIds[1]));
-
-      const waiterPids = [firstPidRows[0].pid, secondPidRows[0].pid];
-      let blockedPids: number[] = [];
-      for (let poll = 0; poll < 200 && blockedPids.length < 2; poll += 1) {
-        const { rows } = await client.query<{ pid: number }>(
-          `with recursive blocker_chain(waiter_pid, blocker_pid) as (
-             select activity.pid, blocker.pid
-               from pg_catalog.pg_stat_activity activity
-               cross join lateral pg_catalog.unnest(
-                 pg_catalog.pg_blocking_pids(activity.pid)
-               ) blocker(pid)
-              where activity.pid = any($1::integer[])
-             union
-             select blocker_chain.waiter_pid, blocker.pid
-               from blocker_chain
-               cross join lateral pg_catalog.unnest(
-                 pg_catalog.pg_blocking_pids(blocker_chain.blocker_pid)
-               ) blocker(pid)
-           )
-           select waiter_pid as pid
-             from blocker_chain
-            where blocker_pid = $2::integer
-            group by waiter_pid
-            order by waiter_pid`,
-          [waiterPids, gatePidRows[0].pid],
+        assert.deepEqual(
+          outcomes.map((outcome) => {
+            assert.ok(!(outcome instanceof Error));
+            return outcome.rows[0];
+          }),
+          [
+            {
+              session_id: sessionId,
+              session_revision: 1,
+              authority_model: 'target',
+              target_model_version: 1,
+            },
+            {
+              session_id: sessionId,
+              session_revision: 1,
+              authority_model: 'target',
+              target_model_version: 1,
+            },
+          ],
         );
-        blockedPids = rows.map(({ pid }) => pid);
+      } finally {
+        if (gateOpen) await gate.query('rollback').catch(() => undefined);
+        await Promise.allSettled(attempts);
+        await first.query('rollback').catch(() => undefined);
+        await second.query('rollback').catch(() => undefined);
+        gate.release();
+        first.release();
+        second.release();
       }
-      assert.deepEqual(
-        blockedPids,
-        [...waiterPids].sort((a, b) => a - b),
-      );
-      await gate.query('commit');
-      gateOpen = false;
 
-      const outcomes = await Promise.all(attempts);
-      for (const outcome of outcomes) {
-        assert.ok(
-          !(outcome instanceof Error),
-          outcome instanceof Error ? outcome.message : undefined,
-        );
-      }
-      assert.deepEqual(
-        outcomes.map((outcome) => {
-          assert.ok(!(outcome instanceof Error));
-          return outcome.rows[0];
-        }),
-        [
-          {
-            session_id: sessionId,
-            session_revision: 1,
-            authority_model: 'target',
-            target_model_version: 1,
-          },
-          {
-            session_id: sessionId,
-            session_revision: 1,
-            authority_model: 'target',
-            target_model_version: 1,
-          },
-        ],
-      );
-    } finally {
-      if (gateOpen) await gate.query('rollback').catch(() => undefined);
-      await Promise.allSettled(attempts);
-      await first.query('rollback').catch(() => undefined);
-      await second.query('rollback').catch(() => undefined);
-      gate.release();
-      first.release();
-      second.release();
-    }
-
-    assert.deepEqual(await targetArtifactCounts(sessionId), {
-      participants: '1',
-      roster_revisions: '1',
-      roster_entries: '1',
-      organizer_assignments: '1',
-      courts: '0',
-      rules_snapshots: '0',
-      ledger_rows: '1',
-      receipts: '2',
-    });
-    const beforeLegacyWrite = await client.query<{
-      authority_model: string;
-      name: string;
-      revision: number;
-    }>('select authority_model, name, revision from public.sessions where id = $1', [sessionId]);
-    const legacyWrite = await call<{ id: string }>(
-      actor,
-      `update public.sessions set name = 'forbidden legacy write after cutover'
+      assert.deepEqual(await targetArtifactCounts(sessionId), {
+        participants: '1',
+        roster_revisions: '1',
+        roster_entries: '1',
+        organizer_assignments: '1',
+        courts: '0',
+        rules_snapshots: '0',
+        ledger_rows: '1',
+        receipts: commandMode === 'same' ? '1' : '2',
+      });
+      const beforeLegacyWrite = await client.query<{
+        authority_model: string;
+        name: string;
+        revision: number;
+      }>('select authority_model, name, revision from public.sessions where id = $1', [sessionId]);
+      const legacyWrite = await call<{ id: string }>(
+        actor,
+        `update public.sessions set name = 'forbidden legacy write after cutover'
         where id = $1 returning id`,
-      [sessionId],
-    ).catch((error: Error) => error);
-    if (legacyWrite instanceof Error) {
-      assertSqlState(legacyWrite, '42501');
-    } else {
-      assert.equal(legacyWrite.rowCount, 0);
-    }
-    const afterLegacyWrite = await client.query<{
-      authority_model: string;
-      name: string;
-      revision: number;
-    }>('select authority_model, name, revision from public.sessions where id = $1', [sessionId]);
-    assert.deepEqual(afterLegacyWrite.rows, beforeLegacyWrite.rows);
-  });
+        [sessionId],
+      ).catch((error: Error) => error);
+      if (legacyWrite instanceof Error) {
+        assertSqlState(legacyWrite, '42501');
+      } else {
+        assert.equal(legacyWrite.rowCount, 0);
+      }
+      const afterLegacyWrite = await client.query<{
+        authority_model: string;
+        name: string;
+        revision: number;
+      }>('select authority_model, name, revision from public.sessions where id = $1', [sessionId]);
+      assert.deepEqual(afterLegacyWrite.rows, beforeLegacyWrite.rows);
+    });
+  }
 }

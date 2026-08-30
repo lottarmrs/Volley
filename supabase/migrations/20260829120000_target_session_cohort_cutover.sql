@@ -895,6 +895,12 @@ begin
     raise exception 'Expected source fingerprint is required' using errcode = '23514';
   end if;
 
+  -- Load-bearing despite the discarded result: find_command_receipt raises 23505 when this
+  -- command id already belongs to another Session or command type, and that collision must be
+  -- detected before the row lock. The replay itself happens only after authorization below, so
+  -- a caller whose capability was revoked cannot read back an earlier result. Deleting this
+  -- call because v_receipt is reassigned later would silently drop the collision guard while
+  -- every replay test still passes.
   v_receipt := app_private.find_command_receipt(
     p_command_id,
     'transition_legacy_session_to_target',

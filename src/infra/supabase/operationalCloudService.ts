@@ -33,6 +33,17 @@ type OperationalTable =
   | 'community_presence'
   | 'whatsapp_list_drafts';
 
+type OperationalClient = Pick<typeof supabase, 'from'>;
+
+export class TargetSessionRequiresSemanticCommandError extends Error {
+  readonly code = 'TARGET_SESSION_REQUIRES_SEMANTIC_COMMAND';
+
+  constructor(sessionId: string) {
+    super(`Session ${sessionId} requires a semantic command.`);
+    this.name = 'TargetSessionRequiresSemanticCommandError';
+  }
+}
+
 const syncedAt = () => new Date().toISOString();
 const arrayOrEmpty = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
 
@@ -46,6 +57,19 @@ function isCardinalityViolation(error: any): boolean {
     error?.code === '21000' ||
     error?.message?.includes('ON CONFLICT DO UPDATE command cannot affect row a second time')
   );
+}
+
+function isAuthorizationError(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
+  );
+}
+
+export function scopeOperationalFetch<T extends { eq(column: string, value: string): T }>(
+  table: OperationalTable,
+  query: T,
+): T {
+  return table === 'sessions' ? query.eq('authority_model', 'legacy') : query;
 }
 
 function withoutCloudMeta<T extends DbRecord>(entity: T) {
@@ -74,6 +98,7 @@ export function mapSessionToDb(local: Session, ownerId: string) {
     selected_player_ids: local.selectedPlayerIds || [],
     team_ids: local.teamIds || [],
     config: local.config || {},
+    authority_model: 'legacy',
     local_id: local.id,
     deleted_at: local.deletedAt || null,
     created_at: local.createdAt,
@@ -426,7 +451,10 @@ export function mapDbToDraft(db: DbRecord): WhatsAppListDraft {
   };
 }
 
-async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
+export async function fetchRows(
+  table: OperationalTable,
+  client: OperationalClient = supabase,
+): Promise<DbRecord[]> {
   const pageSize = 1000;
   let allData: DbRecord[] = [];
   let from = 0;
@@ -434,7 +462,8 @@ async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await supabase.from(table).select('*').range(from, to);
+    const query = scopeOperationalFetch(table, client.from(table).select('*'));
+    const { data, error } = await query.range(from, to);
 
     if (error) throw error;
     if (data && data.length > 0) {
@@ -452,37 +481,83 @@ async function fetchRows(table: OperationalTable): Promise<DbRecord[]> {
   return allData;
 }
 
-async function upsertRow(table: OperationalTable, record: DbRecord): Promise<DbRecord> {
+async function isVisibleTargetSession(
+  record: DbRecord,
+  client: OperationalClient,
+): Promise<boolean> {
+  const isTarget = async (query: {
+    maybeSingle(): Promise<{ data?: { authority_model?: unknown } | null; error?: unknown }>;
+  }): Promise<boolean> => {
+    try {
+      const { data, error } = await query.maybeSingle();
+      return !error && data?.authority_model === 'target';
+    } catch {
+      return false;
+    }
+  };
+
+  const ownerAndLocalIdTarget = await isTarget(
+    client
+      .from('sessions')
+      .select('id, authority_model')
+      .eq('owner_id', record.owner_id)
+      .eq('local_id', record.local_id),
+  );
+  const primaryKeyTarget = await isTarget(
+    client.from('sessions').select('id, authority_model').eq('id', record.id),
+  );
+  return ownerAndLocalIdTarget || primaryKeyTarget;
+}
+
+export async function upsertRow(
+  table: OperationalTable,
+  record: DbRecord,
+  client: OperationalClient = supabase,
+): Promise<DbRecord> {
   try {
-    const { data, error } = await supabase
-      .from(table)
-      .upsert(record, { onConflict: 'owner_id,local_id' })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error: any) {
-    if (
-      error &&
-      (error.code === '23505' || error.statusCode === '23505') &&
-      error.message?.includes('_pkey')
-    ) {
-      // PK collision: the row exists with this id but has a different local_id
-      // (pre-migration value). Update it in place to align local_id.
-      console.warn(`Primary key collision in table ${table}. Updating existing row by PK.`);
-      const updateRecord = { ...record };
-      delete updateRecord.id;
-
-      const { data: fallbackData, error: fallbackError } = await supabase
+    try {
+      const { data, error } = await client
         .from(table)
-        .update(updateRecord)
-        .eq('id', record.id)
+        .upsert(record, { onConflict: 'owner_id,local_id' })
         .select()
         .single();
 
-      if (fallbackError) throw fallbackError;
-      return fallbackData;
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      if (
+        error &&
+        (error.code === '23505' || error.statusCode === '23505') &&
+        error.message?.includes('_pkey')
+      ) {
+        console.warn(`Primary key collision in table ${table}. Updating existing row by PK.`);
+        const updateRecord = { ...record };
+        delete updateRecord.id;
+
+        const { data: fallbackData, error: fallbackError } = await client
+          .from(table)
+          .update(updateRecord)
+          .eq('id', record.id)
+          .select()
+          .single();
+
+        if (
+          table === 'sessions' &&
+          fallbackError?.code === 'PGRST116' &&
+          (await isVisibleTargetSession(record, client))
+        ) {
+          throw new TargetSessionRequiresSemanticCommandError(record.local_id || record.id);
+        }
+        if (fallbackError) throw fallbackError;
+        return fallbackData;
+      }
+      throw error;
+    }
+  } catch (error: unknown) {
+    if (table === 'sessions' && isAuthorizationError(error)) {
+      if (await isVisibleTargetSession(record, client)) {
+        throw new TargetSessionRequiresSemanticCommandError(record.local_id || record.id);
+      }
     }
     throw error;
   }

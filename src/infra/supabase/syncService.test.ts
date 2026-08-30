@@ -10,7 +10,10 @@ import {
   syncService,
   type LocalSyncPayload,
 } from './syncService';
-import { operationalCloudService } from './operationalCloudService';
+import {
+  operationalCloudService,
+  TargetSessionRequiresSemanticCommandError,
+} from './operationalCloudService';
 import { playerCloudService } from './playerCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { selfEvaluationCloudService } from './selfEvaluationCloudService';
@@ -27,6 +30,7 @@ import {
   Championship,
   ChampionshipRound,
   ChampionshipTeam,
+  Game,
   Player,
   PlayerEvaluation,
   PointEvent,
@@ -480,6 +484,23 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
   };
 }
 
+function makeGame(overrides: Partial<Game> = {}): Game {
+  return {
+    id: 'game-local',
+    sessionId: 'session-local',
+    type: 'free_play',
+    sequenceNumber: 1,
+    teamAId: 'team-a',
+    teamBId: 'team-b',
+    scoreA: 0,
+    scoreB: 0,
+    status: 'scheduled',
+    pointIds: [],
+    syncStatus: 'pending',
+    ...overrides,
+  };
+}
+
 function makeSharedCommunity(overrides: Partial<Community> = {}): Community {
   return {
     id: 'community-local',
@@ -552,6 +573,63 @@ function silenceConsoleError() {
     console.error = originalConsoleError;
   };
 }
+
+test('uploadLocalDataToCloud keeps a target-cohort Session pending and reports one issue', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const session = makeSession();
+  const issues: Array<{ context: string; error: unknown }> = [];
+
+  try {
+    operationalCloudService.upsertSession = async () => {
+      throw new TargetSessionRequiresSemanticCommandError(session.id);
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({ sessions: [session] }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(result.sessions[0].id, session.id);
+    assert.equal(result.sessions[0].syncStatus, 'pending');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão/i);
+    assert.ok(issues[0].error instanceof TargetSessionRequiresSemanticCommandError);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
+test('uploadLocalDataToCloud uploads Team and Game children after a legacy Session succeeds', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalBulkUpsertTeams = operationalCloudService.bulkUpsertTeams;
+  const originalBulkUpsertGames = operationalCloudService.bulkUpsertGames;
+  const session = makeSession();
+  const team = makeTeam();
+  const game = makeGame();
+
+  try {
+    operationalCloudService.upsertSession = async (item) => ({ ...item, cloudId: 'session-cloud' });
+    operationalCloudService.bulkUpsertTeams = async (items) =>
+      items.map((item) => ({ ...item, cloudId: 'team-cloud' }));
+    operationalCloudService.bulkUpsertGames = async (items) =>
+      items.map((item) => ({ ...item, cloudId: 'game-cloud' }));
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({ sessions: [session], teams: [team], games: [game] }),
+      'owner-1',
+    );
+
+    assert.equal(result.teams[0].cloudId, 'team-cloud');
+    assert.equal(result.teams[0].syncStatus, 'synced');
+    assert.equal(result.games[0].cloudId, 'game-cloud');
+    assert.equal(result.games[0].syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    operationalCloudService.bulkUpsertTeams = originalBulkUpsertTeams;
+    operationalCloudService.bulkUpsertGames = originalBulkUpsertGames;
+  }
+});
 
 test('uploadLocalDataToCloud reports thrown bulk session child failures through onIssue', async () => {
   const originalUpsertSession = operationalCloudService.upsertSession;
@@ -1460,6 +1538,17 @@ function emptyOperationalPayload() {
     drafts: [],
   };
 }
+
+test('mergeEntityLists retains local Sessions when the operational download omits target roots', () => {
+  const localSession = makeSession({ id: 'target-session-local', cloudId: 'target-session-cloud' });
+  const downloadedLegacySessions = emptyOperationalPayload().sessions;
+
+  const merged = mergeEntityLists([localSession], downloadedLegacySessions, {
+    getId: (session) => session.id,
+  });
+
+  assert.deepEqual(merged, [localSession]);
+});
 
 test('downloadCloudDataToLocal fetches and merges the current user own self-evaluation only', async () => {
   const originalCommunities = communityCloudService.fetchAll;

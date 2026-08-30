@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import type { LocalSyncPayload } from '@infra/supabase/syncService';
 import type { Session } from '@shared/types/session';
+import { mapSessionToDb, scopeOperationalFetch } from '@infra/supabase/operationalCloudService';
 import { getArchitectureFitness } from './fitnessManifest';
 
 /**
@@ -34,4 +35,39 @@ test('AF-TRANS-002: legacy Session ID arrays remain explicit until W3/W6/W14 ret
   assert.equal(fitness.lifecycle, 'TRANSITIONAL');
   assert.deepEqual(session.selectedPlayerIds, ['player-1']);
   assert.deepEqual(session.teamIds, []);
+});
+
+test('AF-TARGET-005: generic sync keeps legacy Session roots explicit', () => {
+  const fitness = getArchitectureFitness('AF-TARGET-005');
+  const payload: Pick<LocalSyncPayload, 'sessions' | 'teams' | 'games'> = {
+    sessions: [],
+    teams: [],
+    games: [],
+  };
+  const mapped = mapSessionToDb(
+    {
+      id: 'legacy-session-1',
+      name: 'Treino legado',
+      date: '2026-08-29',
+      status: 'active',
+      selectedPlayerIds: [],
+      teamIds: [],
+      createdAt: '2026-08-29T20:00:00.000Z',
+      updatedAt: '2026-08-29T20:00:00.000Z',
+    },
+    'owner-1',
+  );
+  const filters: Array<[string, string]> = [];
+  const sessionQuery = {
+    eq(column: string, value: string) {
+      filters.push([column, value]);
+      return this;
+    },
+  };
+
+  assert.equal(fitness.lifecycle, 'TARGET');
+  assert.deepEqual(payload, { sessions: [], teams: [], games: [] });
+  assert.equal(mapped.authority_model, 'legacy');
+  scopeOperationalFetch('sessions', sessionQuery);
+  assert.deepEqual(filters, [['authority_model', 'legacy']]);
 });

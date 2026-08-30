@@ -46,6 +46,15 @@ export const architectureFitnessManifest: readonly ArchitectureFitnessRecord[] =
       'Replace if domain contracts move to a new canonical package/module model with equivalent dependency protection.',
   },
   {
+    id: 'AF-TARGET-005',
+    slice: 'XS-W3-07',
+    owner: 'Session W3 / Migration W13',
+    lifecycle: 'TARGET',
+    protects:
+      'Target Session roots never enter generic operational sync authority or timestamp merge.',
+    removalOrReplacementTrigger: 'Replace only with an equal or stronger target Session boundary.',
+  },
+  {
     id: 'AF-TRANS-001',
     owner: 'Migration W13 / Architecture Governance',
     lifecycle: 'TRANSITIONAL',

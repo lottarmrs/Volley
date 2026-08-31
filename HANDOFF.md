@@ -1,6 +1,6 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-08-30**, ao fechar `XS-W3-07`. Este é o ponto de retomada canônico se o
+> Atualizado em **2026-08-31**, ao fechar `XS-W4-03`. Este é o ponto de retomada canônico se o
 > limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -27,7 +27,8 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W3-07 | Session cohort cutover                | concluída   |
 | XS-W4-01 | Registration schema e invariantes     | concluída   |
 | XS-W4-02 | Open/Close/Lock Registration          | concluída   |
-| XS-W4-03 | JoinRegistration                      | **próxima** |
+| XS-W4-03 | JoinRegistration                      | concluída   |
+| XS-W4-04 | Leave / promoção / capacidade         | **próxima** |
 
 ### Branches — cadeia não mergeada
 
@@ -40,7 +41,8 @@ main
         └── exec/c6-w3-06-session-lifecycle-readiness
             └── exec/c6-w3-07-session-cohort-cutover
                 └── exec/c6-w4-01-registration-schema
-                    └── exec/c6-w4-02-registration-lifecycle   ← HEAD atual
+                    └── exec/c6-w4-02-registration-lifecycle
+                        └── exec/c6-w4-03-join-registration   ← HEAD atual
 ```
 
 Ao retomar, confirme o branch antes de qualquer coisa. Não abra uma fatia nova a partir de `main`
@@ -96,20 +98,65 @@ confirmado.
 1. **W4-05** precisa travar `sessions FOR UPDATE` **antes** de `registration_windows FOR UPDATE`.
    Nada no código força isso e nenhum teste cobre, porque só existe um comando que trava as duas.
    Inverter dá deadlock no primeiro par concorrente com `close`/`lock_registration`.
-2. **W4-03** não pode reusar a autorização desta fatia: os quatro comandos usam
-   `assert_target_session_write_authorized`, que exige assignment de Organizer, e `JoinRegistration`
-   é ação de membro. Além disso `closes_at` é inerte aqui, então `status = 'OPEN'` sozinho **não** é
-   predicado suficiente para entrar na fila (`REG-INV-018` exige comparar `now()`).
+2. ~~**W4-03** não pode reusar a autorização desta fatia~~ — **atendido**. `join_registration`
+   autoriza por membership ativa, não por `assert_target_session_write_authorized`, e compara
+   `now()` com `closes_at` (`REG-INV-018`). `closes_at` continua inerte fora desse comando: nada
+   fecha uma Window automaticamente, e `add_registration_entry` aceita depois do prazo de propósito.
+   Se a W4-04 introduzir fechamento automático, essa assimetria muda de sentido.
 3. **W4-06**: a tabela de transições é indexada só por `(from, to)`, não por qual comando pode
    executar o par. Acrescentar `CLOSED → OPEN` para reopen ensinaria `open_registration` a reabrir
    junto. Existe teste que falha alto nessa hora — leia como sinal de design, não como teste a
    atualizar.
 
+### O que a W4-03 entregou
+
+- `join_registration` (membro entra por conta própria) e `add_registration_entry` (Organizer
+  inscreve um Player que pode não ter conta nenhuma); os dois delegam capacidade e FIFO inteiros ao
+  alocador da W4-01;
+- o cliente **nunca** nomeia um Player no auto-cadastro: `join_registration` não tem parâmetro de
+  Player e resolve a identidade por `current_user_active_player_id()`, sem fallback
+  (`REG-INV-004`/`REG-INV-005`). A revisão final enumerou nove caminhos — assinatura, resolução,
+  fallback, determinismo do `limit 1`, grants que poderiam forjar um link `ACTIVE`, `auth.uid()`,
+  redirecionamento cross-Community, alcance direto do alocador e o caminho do Organizer — e nenhum
+  permite inscrever outra pessoa;
+- assimetria deliberada de elegibilidade: auto-cadastro exige membership + link `ACTIVE` + relação
+  viva de roster; o Organizer exige só a relação viva, que é justamente o caso de uso;
+- os dois comandos exigem **também** que a linha de `players` esteja viva (`deleted_at is null` e
+  `active`), não só a relação — sem isso um Player com soft-delete consumiria vaga e apareceria no
+  roster que a W4-05 materializa;
+- o retorno expõe apenas `entry_status` e `window_revision`; nada de `queue_sequence`, contagem ou
+  id de player, e `registration_entries` continua sem grant de browser.
+
+**Um vazamento conhecido, deliberadamente adiado:** `registration_windows` tem `select` para
+membros ativos, e a coluna `next_queue_sequence` deixa um membro **derivar** a própria posição na
+fila lendo a linha antes de entrar. A garantia por-linha continua de pé, mas a agregada não.
+Fechar isso (restringir a coluna no grant, ou mover para um espelho privado) pertence à fatia que
+resolver `OPEN-REG-003` — está registrado para ser decidido, não descoberto.
+
+**Três avisos para a W4-04/W4-05:**
+
+1. `ChangeRegistrationCapacity` precisa **decidir** `expected_revision` explicitamente em vez de
+   herdar o molde da W4-02. A revisão da Window sobe a cada inscrição, então um Organizer segurando
+   uma revisão da carga da tela levaria `40001` por causa da inscrição de terceiros — foi
+   exatamente o argumento que a W4-03 usou para não pedir `expected_revision`.
+2. `Leave` e a promoção precisam manter **Session antes de Window**. A promoção quer naturalmente
+   partir de `registration_entries`; se travar a Window (ou uma entry) antes da Session, dá deadlock
+   contra todos os comandos desta cadeia.
+3. A ausência de buracos na fila é propriedade **pré-promoção**. Assim que a promoção mudar um
+   `WAITLISTED` para `CONFIRMED`, a lista de espera deixa de ser `1..N` e a asserção do teste de
+   rajada precisa de outro invariante (estritamente crescente, sem repetição) — ninguém deve
+   "consertar" renumerando.
+
+E para a W4-05: sem nenhum grant em `registration_entries`, `FinalizeSessionRoster` **tem** que ler
+a fila dentro de uma função `SECURITY DEFINER`. Essa é a forma certa e é também o ponto exato onde
+um `select` de conveniência fecharia `OPEN-REG-003` sem ninguém decidir.
+
 ### Decisões em aberto que a W3 preservou
 
 `OPEN-SES-002` (unpublish), `OPEN-SES-004` (roster pós-início), `OPEN-COM-005` (takeover
-administrativo), `OPEN-API-002` (retenção de command receipts) e `OPEN-MIG-005..007` (coortes
-legadas mais ricas) continuam **abertas**. Nenhuma foi fechada implicitamente — ver a seção
+administrativo), `OPEN-API-002` (retenção de command receipts), `OPEN-MIG-005..007` (coortes
+legadas mais ricas) e `OPEN-REG-001..006` (superfície de leitura da fila, entre outras) continuam
+**abertas**. Nenhuma foi fechada implicitamente — ver a seção
 "Non-goals" de cada design em `docs/superpowers/specs/`.
 
 ### Dívida conhecida ao retomar

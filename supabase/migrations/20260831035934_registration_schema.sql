@@ -105,3 +105,85 @@ create policy "Target Session readers can read Registration Windows"
 
 alter table public.registration_entries enable row level security;
 revoke all on public.registration_entries from public, anon, authenticated;
+
+create function app_private.allocate_registration_slot(
+  p_entry_id uuid,
+  p_window_id uuid,
+  p_player_id uuid,
+  p_source text,
+  p_actor_user_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_window public.registration_windows;
+  v_confirmed bigint;
+  v_status text;
+  v_queue_sequence bigint;
+  v_next_queue_sequence bigint;
+begin
+  if p_entry_id is null or p_window_id is null or p_player_id is null or p_source is null then
+    raise exception 'entry_id, window_id, player_id and source are required'
+      using errcode = '23514';
+  end if;
+
+  select * into v_window
+    from public.registration_windows
+   where id = p_window_id
+   for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  if exists (
+    select 1
+      from public.registration_entries
+     where registration_window_id = p_window_id
+       and player_id = p_player_id
+       and status in ('CONFIRMED', 'WAITLISTED')
+  ) then
+    raise exception 'Player already holds an effective Registration entry for this Window'
+      using errcode = '23514';
+  end if;
+
+  select pg_catalog.count(*) into v_confirmed
+    from public.registration_entries
+   where registration_window_id = p_window_id
+     and status = 'CONFIRMED';
+
+  if v_confirmed < v_window.capacity then
+    v_status := 'CONFIRMED';
+    v_queue_sequence := null;
+    v_next_queue_sequence := v_window.next_queue_sequence;
+  else
+    v_status := 'WAITLISTED';
+    v_queue_sequence := v_window.next_queue_sequence;
+    v_next_queue_sequence := v_window.next_queue_sequence + 1;
+  end if;
+
+  insert into public.registration_entries (
+    id, registration_window_id, player_id, status, queue_sequence, source, created_by_user_id
+  ) values (
+    p_entry_id, p_window_id, p_player_id, v_status, v_queue_sequence, p_source, p_actor_user_id
+  );
+
+  update public.registration_windows
+     set revision = revision + 1,
+         next_queue_sequence = v_next_queue_sequence,
+         updated_at = pg_catalog.now()
+   where id = p_window_id;
+
+  return pg_catalog.jsonb_build_object(
+    'entry_id', p_entry_id,
+    'status', v_status,
+    'queue_sequence', v_queue_sequence::text,
+    'window_revision', v_window.revision + 1
+  );
+end;
+$$;
+
+revoke all on function app_private.allocate_registration_slot(uuid, uuid, uuid, text, uuid)
+  from public, anon, authenticated;

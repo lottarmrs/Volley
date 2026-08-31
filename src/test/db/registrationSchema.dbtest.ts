@@ -475,7 +475,7 @@ if (!isTestDatabaseConfigured()) {
     const { rows } = await client.query<{
       id: string;
       status: string;
-      queue_sequence: number | null;
+      queue_sequence: string | null;
     }>(
       `select id, status, queue_sequence from public.registration_entries
         where id in ($1, $2) order by id`,
@@ -487,7 +487,7 @@ if (!isTestDatabaseConfigured()) {
       ),
       new Map([
         [walkedInId, { status: 'CONFIRMED', queue_sequence: null }],
-        [promotedId, { status: 'CONFIRMED', queue_sequence: 1 }],
+        [promotedId, { status: 'CONFIRMED', queue_sequence: '1' }],
       ]),
     );
   });

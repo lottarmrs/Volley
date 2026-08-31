@@ -2557,12 +2557,19 @@ if (!isTestDatabaseConfigured()) {
       targetTypes.rows.map((row) => row.target_type),
       ['roster_revision', 'session_participant'],
     );
-    const registrationTables = await client.query<{ table_name: string }>(
-      `select table_name from information_schema.tables
-        where table_schema = 'public' and table_name like '%registration%'
-        order by table_name`,
+    // XS-W4-01 gives public.registration_windows/registration_entries real schema, unrelated
+    // to this legacy import. The invariant this proves is unchanged: the import must not
+    // invent a Registration or FIFO fact for this Session, so assert zero rows for it rather
+    // than the tables' prior nonexistence.
+    const noRegistrationFacts = await client.query<{ windows: string; entries: string }>(
+      `select
+         (select count(*) from public.registration_windows where session_id = $1)::text as windows,
+         (select count(*) from public.registration_entries e
+            join public.registration_windows w on w.id = e.registration_window_id
+           where w.session_id = $1)::text as entries`,
+      [finishedSession],
     );
-    assert.deepEqual(registrationTables.rows, []);
+    assert.deepEqual(noRegistrationFacts.rows, [{ windows: '0', entries: '0' }]);
     assert.deepEqual(await runRow(runId), [
       {
         name: 'import_legacy_session_rosters',

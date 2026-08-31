@@ -1,7 +1,103 @@
-# HANDOFF — Panelinha / Plano 5 Fase 3
+# HANDOFF — Panelinha
 
-> Atualizado em **2026-08-11**, ao integrar o spike A1 e a spec da Fase 3 com o Gate 0 já
-> mergeado. Este é o ponto de retomada canônico se o limite da conversa acabar.
+> Atualizado em **2026-08-30**, ao fechar `XS-W3-07`. Este é o ponto de retomada canônico se o
+> limite da conversa acabar.
+
+## 0. Trabalho corrente — execução arquitetural C6
+
+O trabalho ativo **não é mais o Plano 5**, que foi concluído em 2026-08-12. Hoje o repositório
+executa o programa de arquitetura C6, fatia por fatia (`XS-Wx-yy`), no modelo _strangler_: o
+modelo legado continua existindo e a autoridade migra por contexto.
+
+**Fonte canônica da ordem de trabalho:**
+`docs/architecture/execution/C6-EXECUTION-MASTER.md` (waves e pré-condições) e
+`docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` (fatias W3–W6).
+As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
+
+### Estado das fatias
+
+| Fatia    | Assunto                               | Estado      |
+| -------- | ------------------------------------- | ----------- |
+| XS-W3-01 | Session target root                   | concluída   |
+| XS-W3-02 | Session organizer assignment          | concluída   |
+| XS-W3-03 | Session courts                        | concluída   |
+| XS-W3-04 | Session rules snapshot                | concluída   |
+| XS-W3-05 | SessionParticipant + RosterRevision   | concluída   |
+| XS-W3-06 | Lifecycle/readiness semantic commands | concluída   |
+| XS-W3-07 | Session cohort cutover                | concluída   |
+| XS-W4-01 | Registration schema e invariantes     | **próxima** |
+
+### Branches — cadeia não mergeada
+
+Cada fatia vive em seu próprio branch `exec/c6-...`, encadeado sobre o anterior. **Nada foi
+mergeado em `main`**, por decisão explícita do usuário a cada fatia:
+
+```text
+main
+└── … → exec/c6-w3-05-session-participant-roster-revision
+        └── exec/c6-w3-06-session-lifecycle-readiness
+            └── exec/c6-w3-07-session-cohort-cutover   ← HEAD atual
+```
+
+Ao retomar, confirme o branch antes de qualquer coisa. Não abra uma fatia nova a partir de `main`
+sem decidir explicitamente o que fazer com a cadeia.
+
+### O que a wave W3 entregou
+
+- `sessions.authority_model` (`legacy | target`) é o seletor efetivo de autoridade;
+- comandos semânticos para criar, agendar, publicar, iniciar, finalizar e cancelar uma Session
+  target — nenhuma transição passa por `update` genérico de `status`;
+- readiness **derivada**, nunca persistida, revalidada dentro de `StartSession`;
+- roster normalizado em revisões imutáveis, com Guest que nunca vira Player global;
+- `app_private.command_receipts` — idempotência durável por `command_id` (`ADR-API-006`);
+- cutover explícito de uma Session legada elegível por vez, irreversível, com ledger de
+  proveniência;
+- o sync genérico deixou de baixar, mesclar ou escrever raízes de Session target.
+
+### Decisões em aberto que a W3 preservou
+
+`OPEN-SES-002` (unpublish), `OPEN-SES-004` (roster pós-início), `OPEN-COM-005` (takeover
+administrativo), `OPEN-API-002` (retenção de command receipts) e `OPEN-MIG-005..007` (coortes
+legadas mais ricas) continuam **abertas**. Nenhuma foi fechada implicitamente — ver a seção
+"Non-goals" de cada design em `docs/superpowers/specs/`.
+
+### Dívida conhecida ao retomar
+
+- `softDelete('sessions')` é um `update` genérico sem `.select().single()`: o RLS filtra a linha
+  target em silêncio, sem erro classificado. É o único caminho de escrita de raiz que a
+  classificação nova não cobre.
+- Filhos de Session target (teams/games) ainda passam pelo sync genérico; só a raiz está cercada.
+  A autoridade deles pertence a W6/W7.
+- Uma Session target retida localmente falha o upload genérico a cada sync, indefinidamente.
+
+### Ambiente obrigatório da suíte de banco
+
+`npm run test:db` exige PostgreSQL real (`QA-INV-003/004`) e **nunca** usa mock:
+
+```text
+container  volley_test_pg  →  127.0.0.1:55432
+VOLLEY_TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55432/volley_test'
+```
+
+Preservar o container entre sessões; não derrubar.
+
+### Ruído conhecido dos gates globais
+
+`npm run lint:eslint` e `npm run format:check` falham no repositório inteiro por causa de
+diretórios não rastreados (`.agent/`, `.claude/`, `.gemini/`, `.github/skills/`) e do worktree
+irmão `.worktrees/`. **Não são da sua branch.** Para provar que uma branch está limpa, mostre que
+`git diff <base>...HEAD --name-only` não contém nenhum caminho reportado, e rode
+`npx eslint`/`npx prettier --check` apenas nos arquivos alterados. Nunca rode `prettier --write`
+no repositório inteiro.
+
+---
+
+# Histórico — Plano 5 / Fase 3 (concluída em 2026-08-12)
+
+> Tudo abaixo desta linha descreve o **Plano 5**, já concluído. Fica preservado porque a auditoria
+> de produto das seções 4–13 continua sendo o registro mais completo das superfícies do app, e a
+> §13.1 documenta por que cada branch antigo foi descartado. **Não é a ordem de trabalho atual** —
+> essa está na seção 0 acima, e os caminhos de workspace/branch citados abaixo estão obsoletos.
 
 ## 1. Objetivo em andamento
 
@@ -532,6 +628,17 @@ npm run format:check
 npm test
 npm run build
 ```
+
+O trabalho C6 acrescenta dois gates que **não** estão na ordem acima e são obrigatórios ao fechar
+uma fatia:
+
+```text
+npm run check:architecture
+npm run test:db          # duas vezes, cada uma reconstruindo as migrations do zero
+```
+
+`test:db` precisa do PostgreSQL real descrito na seção 0. Rodar duas vezes é o que prova que a
+cadeia de migrations reconstrói de forma determinística.
 
 Não executar a suíte completa apenas por editar artefatos de auditoria. Executá-la quando houver
 mudança em código-fonte, ou antes de fechar uma fase de implementação.

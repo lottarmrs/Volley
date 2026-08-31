@@ -21,7 +21,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if (p_from, p_to) not in (
+  if p_from is null or p_to is null or (p_from, p_to) not in (
     ('DRAFT', 'OPEN'),
     ('OPEN', 'CLOSED'),
     ('CLOSED', 'LOCKED')
@@ -81,10 +81,14 @@ begin
       using errcode = '23514';
   end if;
 
-  -- Pre-check rather than let W4-01's unique session_id surface a raw 23505: this codebase
-  -- reserves 23505 for command_id collisions in the receipt substrate.
+  -- Pre-check rather than let W4-01's unique session_id or the primary key surface a raw
+  -- 23505: this codebase reserves 23505 for command_id collisions in the receipt substrate.
   if exists (select 1 from public.registration_windows where session_id = p_session_id) then
     raise exception 'Session already has a Registration Window' using errcode = '23514';
+  end if;
+
+  if exists (select 1 from public.registration_windows where id = p_window_id) then
+    raise exception 'Registration Window id already exists' using errcode = '23514';
   end if;
 
   insert into public.registration_windows (
@@ -178,9 +182,9 @@ begin
          opened_at = pg_catalog.now(),
          revision = revision + 1,
          updated_at = pg_catalog.now()
-   where id = p_window_id;
+   where id = p_window_id
+  returning revision into v_new_revision;
 
-  v_new_revision := v_window.revision + 1;
   v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
   perform app_private.record_command_receipt(
     p_command_id, (select auth.uid()), 'open_registration', p_window_id,
@@ -263,9 +267,9 @@ begin
          closed_at = pg_catalog.now(),
          revision = revision + 1,
          updated_at = pg_catalog.now()
-   where id = p_window_id;
+   where id = p_window_id
+  returning revision into v_new_revision;
 
-  v_new_revision := v_window.revision + 1;
   v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
   perform app_private.record_command_receipt(
     p_command_id, (select auth.uid()), 'close_registration', p_window_id,
@@ -348,9 +352,9 @@ begin
          locked_at = pg_catalog.now(),
          revision = revision + 1,
          updated_at = pg_catalog.now()
-   where id = p_window_id;
+   where id = p_window_id
+  returning revision into v_new_revision;
 
-  v_new_revision := v_window.revision + 1;
   v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
   perform app_private.record_command_receipt(
     p_command_id, (select auth.uid()), 'lock_registration', p_window_id,

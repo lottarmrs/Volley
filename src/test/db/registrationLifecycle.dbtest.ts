@@ -12,13 +12,14 @@ import {
 } from './harness';
 
 /**
- * RED contract for the Registration lifecycle commands (XS-W4-02 task 1).
+ * Contract tests for the Registration lifecycle commands (XS-W4-02 task 2).
  *
  * `public.create_registration_window`, `public.open_registration`, `public.close_registration`
- * and `public.lock_registration` do not exist yet -- a later task implements them. Every test
- * below is expected to fail with `42883` (undefined function) until then, with ONE deliberate
- * exception: the exit-gate test in the "Step 7" section may already pass, because W4-01 granted
- * no browser UPDATE on `registration_windows`.
+ * and `public.lock_registration` move a `registration_windows` row through
+ * `DRAFT -> OPEN -> CLOSED -> LOCKED`, implemented in
+ * `20260831132100_registration_lifecycle_commands.sql`. The suite below pins their creation
+ * shape, transition rules, idempotency, authorization, Session gate, concurrency and receipt
+ * behavior.
  */
 
 if (!isTestDatabaseConfigured()) {
@@ -275,10 +276,11 @@ if (!isTestDatabaseConfigured()) {
     'lock_registration',
   ];
 
-  // Privileged direct insert, used ONLY for the Step 7 exit-gate fixture: that test must stand
-  // up an existing Window row without depending on create_registration_window, which does not
-  // exist yet and would otherwise make the one test this brief expects to already pass
-  // impossible to set up.
+  // Privileged direct insert, used ONLY for the Step 7 exit-gate fixture. The exit-gate test is
+  // stronger when it does not depend on create_registration_window: it is proving that a direct
+  // browser UPDATE is rejected, and that guarantee comes from the PREVIOUS slice's (W4-01)
+  // absent UPDATE grant on registration_windows, not from anything in this migration. Standing
+  // up the fixture with a command under test here would muddy which slice the assertion pins.
   async function insertWindowPrivileged(input: { sessionId: string }): Promise<string> {
     const id = randomUUID();
     await client.query(
@@ -320,6 +322,50 @@ if (!isTestDatabaseConfigured()) {
         [sessionId],
       );
     }
+  }
+
+  // ── Step 1 (prologue): null argument guard ─────────────────────────────────────────────
+
+  for (const name of ALL_COMMANDS) {
+    test(`${name}: a null command_id raises 23514, not the receipt substrate's 23502`, async () => {
+      const organizer = await newUser(`lifecycle-null-command-id-${name}@test.local`);
+      const community = await targetCommunity(organizer, `Null command id ${name}`);
+      const sessionId = await communitySession(organizer, community);
+
+      const result =
+        name === 'create_registration_window'
+          ? await call(
+              organizer,
+              `select * from public.create_registration_window($1, $2, $3, $4, $5::timestamptz)`,
+              [null, randomUUID(), sessionId, 12, null],
+            ).catch((error: Error) => error)
+          : await call(organizer, `select * from public.${name}($1, $2, $3)`, [
+              null,
+              randomUUID(),
+              0,
+            ]).catch((error: Error) => error);
+      assertSqlState(result, '23514');
+    });
+
+    test(`${name}: a null window_id raises 23514, not the receipt substrate's 23502`, async () => {
+      const organizer = await newUser(`lifecycle-null-window-id-${name}@test.local`);
+      const community = await targetCommunity(organizer, `Null window id ${name}`);
+      const sessionId = await communitySession(organizer, community);
+
+      const result =
+        name === 'create_registration_window'
+          ? await call(
+              organizer,
+              `select * from public.create_registration_window($1, $2, $3, $4, $5::timestamptz)`,
+              [randomUUID(), null, sessionId, 12, null],
+            ).catch((error: Error) => error)
+          : await call(organizer, `select * from public.${name}($1, $2, $3)`, [
+              randomUUID(),
+              null,
+              0,
+            ]).catch((error: Error) => error);
+      assertSqlState(result, '23514');
+    });
   }
 
   // ── Step 2: creation ───────────────────────────────────────────────────────────────────
@@ -381,6 +427,20 @@ if (!isTestDatabaseConfigured()) {
 
     const second = await createWindow(organizer, { sessionId }).catch((error: Error) => error);
     assertSqlState(second, '23514');
+  });
+
+  test("reusing a window_id across two different Sessions raises 23514, not the primary key's raw 23505", async () => {
+    const organizer = await newUser('lifecycle-create-reused-window-id@test.local');
+    const community = await targetCommunity(organizer, 'Reused window id');
+    const firstSessionId = await communitySession(organizer, community, 'Reused window id A');
+    const secondSessionId = await communitySession(organizer, community, 'Reused window id B');
+    const windowId = randomUUID();
+    await createWindow(organizer, { windowId, sessionId: firstSessionId });
+
+    const collision = await createWindow(organizer, { windowId, sessionId: secondSessionId }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(collision, '23514');
   });
 
   test('create_registration_window does not change sessions.revision; the Window is its own aggregate root', async () => {
@@ -499,26 +559,35 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(replay.rows, first.rows);
   });
 
-  test('calling open_registration again with a FRESH command_id and the current revision does not bump revision a second time (REG-INV-032)', async () => {
-    const organizer = await newUser('lifecycle-idempotent-fresh@test.local');
-    const community = await targetCommunity(organizer, 'Idempotent fresh');
-    const sessionId = await communitySession(organizer, community);
-    const created = await createWindow(organizer, { sessionId });
-    const windowId = created.rows[0].window_id;
+  const TRANSITION_COMMANDS: TransitionCommand[] = [
+    'open_registration',
+    'close_registration',
+    'lock_registration',
+  ];
 
-    const opened = await transition(organizer, 'open_registration', {
-      windowId,
-      expectedRevision: created.rows[0].window_revision,
+  for (const command of TRANSITION_COMMANDS) {
+    test(`calling ${command} again with a FRESH command_id and the current revision does not bump revision a second time (REG-INV-032)`, async () => {
+      const organizer = await newUser(`lifecycle-idempotent-fresh-${command}@test.local`);
+      const community = await targetCommunity(organizer, `Idempotent fresh ${command}`);
+      const sessionId = await communitySession(organizer, community);
+      const precursor = precursorFor(command) as WindowStatus;
+      const windowId = await windowAt(organizer, sessionId, precursor);
+      const before = await windowRow(windowId);
+
+      const first = await transition(organizer, command, {
+        windowId,
+        expectedRevision: before[0].revision,
+      });
+      const revisionAfterFirst = first.rows[0].window_revision;
+
+      const secondCall = await transition(organizer, command, {
+        windowId,
+        expectedRevision: revisionAfterFirst,
+      });
+
+      assert.equal(secondCall.rows[0].window_revision, revisionAfterFirst);
     });
-    const revisionAfterOpen = opened.rows[0].window_revision;
-
-    const secondCall = await transition(organizer, 'open_registration', {
-      windowId,
-      expectedRevision: revisionAfterOpen,
-    });
-
-    assert.equal(secondCall.rows[0].window_revision, revisionAfterOpen);
-  });
+  }
 
   test('reusing an open_registration command_id on a DIFFERENT Window raises 23505', async () => {
     const organizer = await newUser('lifecycle-idempotent-cross-aggregate@test.local');
@@ -806,6 +875,7 @@ if (!isTestDatabaseConfigured()) {
         (outcome): outcome is WindowCommandRow => !(outcome instanceof Error),
       );
       assert.ok(successes.length >= 1, 'at least one racer must perform or observe the transition');
+      for (const s of successes) assert.equal(s.window_revision, 2);
 
       const finalRow = await windowRow(windowId);
       assert.equal(finalRow[0].status, 'OPEN');

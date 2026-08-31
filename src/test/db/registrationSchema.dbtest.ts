@@ -13,11 +13,6 @@ import {
 
 /**
  * RED contract for the Registration schema (XS-W4-01 task 1).
- *
- * Nothing under test exists yet: `public.registration_windows` and
- * `public.registration_entries` are both created by a later task (XS-W4-02). Every
- * assertion here is expected to fail against the missing tables (`42P01`) or against an
- * assertion on an empty catalog-query result until that task lands.
  */
 
 if (!isTestDatabaseConfigured()) {
@@ -193,7 +188,7 @@ if (!isTestDatabaseConfigured()) {
     return id;
   }
 
-  // Privileged direct insert. Entries have no command until XS-W4-02.
+  // Privileged direct insert. Entries have no command until XS-W4-03.
   async function insertEntry(input: {
     id?: string;
     registrationWindowId: string;
@@ -221,8 +216,7 @@ if (!isTestDatabaseConfigured()) {
     return id;
   }
 
-  // Fixture for `app_private.allocate_registration_slot` (XS-W4-01 task 3). The function
-  // does not exist yet, so every call below fails 42883 until task 4 lands.
+  // Fixture for `app_private.allocate_registration_slot` (XS-W4-01 task 3).
   interface AllocationResult {
     entry_id: string;
     status: string;
@@ -893,7 +887,7 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
-  // ── Step 7 (task 3): allocate_registration_slot — RED, function does not exist yet ────
+  // ── Steps 2-6 (task 3): allocate_registration_slot ─────────────────────────
 
   test('allocation confirms up to capacity, then waitlists with strictly increasing sequence, and revision advances once per call (REG-INV-006)', async () => {
     const organizer = await newUser('registration-allocate-capacity@test.local');
@@ -1164,9 +1158,24 @@ if (!isTestDatabaseConfigured()) {
 
     const a = await pool.connect();
     const b = await pool.connect();
+    const barrier = await pool.connect();
     try {
       await a.query('begin');
       await b.query('begin');
+
+      // The barrier connection takes the Window row lock first and holds it, so both racers
+      // are dispatched together and genuinely block behind the SAME lock before it is
+      // released. This makes the test deterministic rather than timing-dependent: against a
+      // correct `for update` implementation, both racers queue behind the barrier and are
+      // freed together, so they truly contend for the last slot. Against an implementation
+      // with no `for update` (or one that counts before locking), neither racer blocks on the
+      // barrier — a plain SELECT does not queue behind a row lock — so both would read 11
+      // confirmed and both would return CONFIRMED, failing every run instead of only
+      // sometimes.
+      await barrier.query('begin');
+      await barrier.query('select 1 from public.registration_windows where id = $1 for update', [
+        windowId,
+      ]);
 
       // Each racer commits (or rolls back) INSIDE its own chain, not after Promise.all.
       // Row locks taken by allocate_registration_slot are held until end-of-transaction, so
@@ -1196,7 +1205,15 @@ if (!isTestDatabaseConfigured()) {
             return error;
           });
 
-      const outcomes = await Promise.all([race(a, racerA), race(b, racerB)]);
+      // Dispatch both racers now — each blocks inside allocate_registration_slot's own
+      // `for update` behind the barrier's lock on the same Window row. Only after both are
+      // sent do we release the barrier, so both racers are freed together and genuinely
+      // contend for the last slot.
+      const racingA = race(a, racerA);
+      const racingB = race(b, racerB);
+      await barrier.query('commit');
+
+      const outcomes = await Promise.all([racingA, racingB]);
 
       const succeeded = outcomes.filter(
         (outcome): outcome is AllocationResult => !(outcome instanceof Error),
@@ -1218,8 +1235,10 @@ if (!isTestDatabaseConfigured()) {
     } finally {
       await a.query('rollback').catch(() => undefined);
       await b.query('rollback').catch(() => undefined);
+      await barrier.query('rollback').catch(() => undefined);
       a.release();
       b.release();
+      barrier.release();
     }
   });
 

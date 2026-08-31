@@ -257,9 +257,9 @@ declare
   v_session public.sessions;
 begin
   select * into v_session from public.sessions where id = new.session_id;
-  if not found
-     or v_session.authority_model <> 'target'
-     or v_session.session_context is distinct from 'COMMUNITY' then
+  if found
+     and (v_session.authority_model <> 'target'
+          or v_session.session_context is distinct from 'COMMUNITY') then
     raise exception 'Registration windows require a COMMUNITY target Session'
       using errcode = '23514';
   end if;
@@ -272,6 +272,11 @@ Attach it `before insert or update of session_id on public.registration_windows 
 revoke execution from `public`, `anon` and `authenticated`.
 
 It is a trigger rather than a CHECK because the condition reads another table.
+
+The trigger must only reject an existing-but-wrong-context Session, never a missing one: this is a
+BEFORE ROW trigger, which fires before the foreign key on `session_id` is enforced, so raising on
+`not found` here would pre-empt and mask the `23503` that Task 1 Step 4 requires for a Session that
+does not exist at all.
 
 - [ ] **Step 4: Create `registration_entries`**
 
@@ -509,7 +514,10 @@ Body, in this exact order:
 7. `update public.registration_windows set revision = revision + 1, next_queue_sequence = <counter>,
    updated_at = pg_catalog.now() where id = p_window_id`;
 8. return `pg_catalog.jsonb_build_object('entry_id', p_entry_id, 'status', v_status,
-   'queue_sequence', v_queue_sequence, 'window_revision', v_window.revision + 1)`.
+   'queue_sequence', v_queue_sequence::text, 'window_revision', v_window.revision + 1)`.
+   The `::text` cast is required: the return type is `jsonb`, node-postgres parses `jsonb` with
+   `JSON.parse`, and an uncast `bigint` would arrive at the pinned tests as a JS `number` instead
+   of the string they assert against.
 
 Step 4 must run AFTER step 2. Under READ COMMITTED the count then observes a competing
 transaction's committed insert rather than a stale snapshot — that ordering is what makes the

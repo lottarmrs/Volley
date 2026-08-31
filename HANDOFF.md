@@ -25,7 +25,8 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W3-05 | SessionParticipant + RosterRevision   | concluída   |
 | XS-W3-06 | Lifecycle/readiness semantic commands | concluída   |
 | XS-W3-07 | Session cohort cutover                | concluída   |
-| XS-W4-01 | Registration schema e invariantes     | **próxima** |
+| XS-W4-01 | Registration schema e invariantes     | concluída   |
+| XS-W4-02 | Open/Close/Lock Registration          | **próxima** |
 
 ### Branches — cadeia não mergeada
 
@@ -36,7 +37,8 @@ mergeado em `main`**, por decisão explícita do usuário a cada fatia:
 main
 └── … → exec/c6-w3-05-session-participant-roster-revision
         └── exec/c6-w3-06-session-lifecycle-readiness
-            └── exec/c6-w3-07-session-cohort-cutover   ← HEAD atual
+            └── exec/c6-w3-07-session-cohort-cutover
+                └── exec/c6-w4-01-registration-schema   ← HEAD atual
 ```
 
 Ao retomar, confirme o branch antes de qualquer coisa. Não abra uma fatia nova a partir de `main`
@@ -53,6 +55,26 @@ sem decidir explicitamente o que fazer com a cadeia.
 - cutover explícito de uma Session legada elegível por vez, irreversível, com ledger de
   proveniência;
 - o sync genérico deixou de baixar, mesclar ou escrever raízes de Session target.
+
+### O que a W4-01 entregou
+
+- `registration_windows` (uma por Session COMMUNITY target, com capacidade e contador FIFO) e
+  `registration_entries`;
+- `app_private.allocate_registration_slot`, que serializa na linha da Window com
+  `select ... for update`, conta os confirmados **depois** do lock e decide a última vaga no
+  servidor — sem contagem no cliente;
+- posição de fila vinda de `next_queue_sequence`, nunca de timestamp; uma posição nunca é reemitida
+  depois de uma desistência;
+- no máximo uma inscrição efetiva por Window/Player, com rejoin indo para o fim da fila.
+
+O alocador **não** verifica autorização, elegibilidade, lifecycle da Window nem `closes_at` — isso
+pertence a W4-02/W4-03, e W4-06 precisa alocar numa Window que não está `OPEN`.
+`registration_entries` não tem nenhum grant de browser, preservando `OPEN-REG-003`.
+
+Dois pontos para as próximas fatias: o alocador não tem parâmetro `p_joined_at` (`joined_at` usa
+`now()`), então W4-06 não consegue preservar o timestamp original de inscrição por esse caminho —
+decida a assinatura antes de W4-06; e nada impede W4-02 de reduzir `capacity` abaixo do total já
+confirmado.
 
 ### Decisões em aberto que a W3 preservou
 

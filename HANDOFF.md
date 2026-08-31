@@ -26,7 +26,8 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W3-06 | Lifecycle/readiness semantic commands | concluída   |
 | XS-W3-07 | Session cohort cutover                | concluída   |
 | XS-W4-01 | Registration schema e invariantes     | concluída   |
-| XS-W4-02 | Open/Close/Lock Registration          | **próxima** |
+| XS-W4-02 | Open/Close/Lock Registration          | concluída   |
+| XS-W4-03 | JoinRegistration                      | **próxima** |
 
 ### Branches — cadeia não mergeada
 
@@ -38,7 +39,8 @@ main
 └── … → exec/c6-w3-05-session-participant-roster-revision
         └── exec/c6-w3-06-session-lifecycle-readiness
             └── exec/c6-w3-07-session-cohort-cutover
-                └── exec/c6-w4-01-registration-schema   ← HEAD atual
+                └── exec/c6-w4-01-registration-schema
+                    └── exec/c6-w4-02-registration-lifecycle   ← HEAD atual
 ```
 
 Ao retomar, confirme o branch antes de qualquer coisa. Não abra uma fatia nova a partir de `main`
@@ -75,6 +77,33 @@ Dois pontos para as próximas fatias: o alocador não tem parâmetro `p_joined_a
 `now()`), então W4-06 não consegue preservar o timestamp original de inscrição por esse caminho —
 decida a assinatura antes de W4-06; e nada impede W4-02 de reduzir `capacity` abaixo do total já
 confirmado.
+
+### O que a W4-02 entregou
+
+- `create_registration_window`, `open_registration`, `close_registration` e `lock_registration`
+  como comandos semânticos; a máquina `DRAFT → OPEN → CLOSED → LOCKED` é estritamente sequencial e
+  a tabela de transições vive em uma única função;
+- nenhum papel de browser consegue mudar `registration_windows.status` por UPDATE — o exit gate foi
+  verificado enumerando grants, policies, todos os `SECURITY DEFINER` que escrevem `status`,
+  triggers e o `USAGE` do schema `app_private`;
+- idempotência dupla: o receipt cobre o retry do mesmo `command_id`, e o no-op de estado-alvo cobre
+  dois `command_id` diferentes em duplo clique;
+- os quatro comandos exigem a Session em `DRAFT` ou `SCHEDULED`, e nunca escrevem
+  `sessions.revision` — a Window é aggregate root própria.
+
+**Três avisos para as próximas fatias** (levantados na revisão final):
+
+1. **W4-05** precisa travar `sessions FOR UPDATE` **antes** de `registration_windows FOR UPDATE`.
+   Nada no código força isso e nenhum teste cobre, porque só existe um comando que trava as duas.
+   Inverter dá deadlock no primeiro par concorrente com `close`/`lock_registration`.
+2. **W4-03** não pode reusar a autorização desta fatia: os quatro comandos usam
+   `assert_target_session_write_authorized`, que exige assignment de Organizer, e `JoinRegistration`
+   é ação de membro. Além disso `closes_at` é inerte aqui, então `status = 'OPEN'` sozinho **não** é
+   predicado suficiente para entrar na fila (`REG-INV-018` exige comparar `now()`).
+3. **W4-06**: a tabela de transições é indexada só por `(from, to)`, não por qual comando pode
+   executar o par. Acrescentar `CLOSED → OPEN` para reopen ensinaria `open_registration` a reabrir
+   junto. Existe teste que falha alto nessa hora — leia como sinal de design, não como teste a
+   atualizar.
 
 ### Decisões em aberto que a W3 preservou
 

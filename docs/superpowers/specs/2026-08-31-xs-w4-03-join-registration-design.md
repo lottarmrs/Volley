@@ -82,7 +82,7 @@ value rather than specified, and this design states that rather than implying ot
 | Authorization | active `community_memberships` row in the Session's Community | assigned Session Organizer, via `public.assert_target_session_write_authorized` |
 | Player | resolved from `public.current_user_active_player_id()` | supplied as `p_player_id` |
 | Requires an ACTIVE account link | yes | **no** |
-| Requires a live `community_players` relation | yes | yes |
+| Requires a live roster standing (relation **and** `players` row) | yes | yes |
 | `source` recorded | `SELF_JOIN` | `ORGANIZER_ADDED` |
 
 The account-link asymmetry is deliberate. A self-joiner must have claimed their Player, because the
@@ -213,11 +213,13 @@ PostgreSQL (`QA-INV-004`), and prove:
    counts, no player id;
 4. self-join is rejected `42501` for each broken link in the chain: no membership; membership
    without an ACTIVE account link; linked Player with no `community_players` relation; a
-   soft-deleted relation; an inactive relation;
+   soft-deleted relation; an inactive relation; and a live relation whose `players` row is
+   soft-deleted;
 5. `add_registration_entry` succeeds for a Player who has a live roster relation and **no account
    link at all** — the case the command exists for;
-6. `add_registration_entry` is rejected `42501` for a Player off the roster, and `42501` for a
-   caller who is a member but not the assigned organizer;
+6. `add_registration_entry` is rejected `42501` for a Player off the roster, for a Player whose
+   `players` row is soft-deleted despite a live relation, for a Player live on a *different*
+   Community's roster, and for a caller who is a member but not the assigned organizer;
 7. self-join is rejected `23514` once `now() >= closes_at`, and succeeds when `closes_at` is null or
    in the future; `add_registration_entry` succeeds after that deadline while the Window is `OPEN`;
 8. both commands are rejected `23514` on `DRAFT`, `CLOSED` and `LOCKED` Windows, and on

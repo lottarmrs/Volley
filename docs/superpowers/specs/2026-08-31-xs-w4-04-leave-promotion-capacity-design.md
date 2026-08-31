@@ -135,12 +135,16 @@ membership check and one test.
 
 ```sql
 app_private.promote_waitlist_to_capacity(
-  p_window_id uuid,
-  p_actor_user_id uuid
+  p_window_id uuid
 ) returns jsonb
 ```
 
 Revoked from `public, anon, authenticated`; reachable only from the three commands above.
+
+It takes no actor. A promotion is a consequence of someone else's command, not an act with an
+author: `registration_entries` has no column recording who caused a status change, `created_by_user_id`
+keeps naming whoever created the entry, and threading an actor through only to discard it would be a
+parameter the body never reads.
 
 It assumes its caller already holds the Window row lock, and it fills **every** free slot:
 

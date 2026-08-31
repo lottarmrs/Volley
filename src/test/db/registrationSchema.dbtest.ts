@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Client, Pool, QueryResultRow } from 'pg';
+import type { Client, Pool, PoolClient, QueryResultRow } from 'pg';
 import {
   asIdentityCommitting,
   connect,
@@ -219,6 +219,35 @@ if (!isTestDatabaseConfigured()) {
       ],
     );
     return id;
+  }
+
+  // Fixture for `app_private.allocate_registration_slot` (XS-W4-01 task 3). The function
+  // does not exist yet, so every call below fails 42883 until task 4 lands.
+  interface AllocationResult {
+    entry_id: string;
+    status: string;
+    queue_sequence: string | null;
+    window_revision: number;
+  }
+
+  async function allocate(input: {
+    entryId?: string;
+    windowId: string;
+    playerId: string;
+    source?: string;
+    actorId?: string | null;
+  }): Promise<AllocationResult> {
+    const { rows } = await client.query<{ result: AllocationResult }>(
+      `select app_private.allocate_registration_slot($1, $2, $3, $4, $5) as result`,
+      [
+        input.entryId ?? randomUUID(),
+        input.windowId,
+        input.playerId,
+        input.source ?? 'SELF_JOIN',
+        input.actorId ?? null,
+      ],
+    );
+    return rows[0].result;
   }
 
   // ── Step 2: literal columns ──────────────────────────────────────────────
@@ -862,5 +891,375 @@ if (!isTestDatabaseConfigured()) {
       [],
       'a member of the first Community must not see a real Window belonging to the second',
     );
+  });
+
+  // ── Step 7 (task 3): allocate_registration_slot — RED, function does not exist yet ────
+
+  test('allocation confirms up to capacity, then waitlists with strictly increasing sequence, and revision advances once per call (REG-INV-006)', async () => {
+    const organizer = await newUser('registration-allocate-capacity@test.local');
+    const community = await targetCommunity(organizer, 'Allocate capacity');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 2 });
+    const players = await Promise.all(
+      ['First', 'Second', 'Third', 'Fourth'].map((name) =>
+        createPlayer(organizer, { name: `Capacity ${name}` }),
+      ),
+    );
+
+    const before = await client.query<{ revision: number }>(
+      'select revision from public.registration_windows where id = $1',
+      [windowId],
+    );
+    let previousRevision = before.rows[0].revision;
+
+    const results: AllocationResult[] = [];
+    for (const playerId of players) {
+      const result = await allocate({ windowId, playerId, actorId: organizer });
+      assert.equal(result.window_revision, previousRevision + 1);
+      previousRevision = result.window_revision;
+      results.push(result);
+    }
+
+    assert.deepEqual(
+      results.map((result) => ({ status: result.status, queue_sequence: result.queue_sequence })),
+      [
+        { status: 'CONFIRMED', queue_sequence: null },
+        { status: 'CONFIRMED', queue_sequence: null },
+        { status: 'WAITLISTED', queue_sequence: '1' },
+        { status: 'WAITLISTED', queue_sequence: '2' },
+      ],
+    );
+
+    const after = await client.query<{ next_queue_sequence: string }>(
+      'select next_queue_sequence from public.registration_windows where id = $1',
+      [windowId],
+    );
+    assert.equal(after.rows[0].next_queue_sequence, '3');
+
+    const confirmedCount = await client.query<{ n: string }>(
+      `select count(*)::text as n from public.registration_entries
+        where registration_window_id = $1 and status = 'CONFIRMED'`,
+      [windowId],
+    );
+    assert.equal(confirmedCount.rows[0].n, '2', 'confirmed count must never exceed capacity');
+  });
+
+  test('waitlist queue_sequence increases strictly across consecutive allocations', async () => {
+    const organizer = await newUser('registration-allocate-fifo@test.local');
+    const community = await targetCommunity(organizer, 'Allocate FIFO');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 1 });
+    const players = await Promise.all(
+      ['First', 'Second', 'Third', 'Fourth'].map((name) =>
+        createPlayer(organizer, { name: `FIFO ${name}` }),
+      ),
+    );
+
+    const results: AllocationResult[] = [];
+    for (const playerId of players) {
+      results.push(await allocate({ windowId, playerId, actorId: organizer }));
+    }
+
+    assert.equal(results[0].status, 'CONFIRMED');
+    const waitlisted = results.slice(1);
+    assert.deepEqual(
+      waitlisted.map((result) => result.status),
+      ['WAITLISTED', 'WAITLISTED', 'WAITLISTED'],
+    );
+    const sequences = waitlisted.map((result) => Number(result.queue_sequence));
+    assert.deepEqual(sequences, [1, 2, 3]);
+    assert.ok(
+      sequences.every((sequence, index) => index === 0 || sequence > sequences[index - 1]),
+      'queue_sequence must be strictly increasing',
+    );
+  });
+
+  test('rejoining after a waitlisted withdrawal gets a higher sequence and the abandoned row keeps its original one (REG-INV-011)', async () => {
+    const organizer = await newUser('registration-allocate-rejoin@test.local');
+    const community = await targetCommunity(organizer, 'Allocate rejoin');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 1 });
+    const confirmedPlayer = await createPlayer(organizer, { name: 'Confirmed' });
+    const rejoiningPlayer = await createPlayer(organizer, { name: 'Rejoining' });
+
+    await allocate({ windowId, playerId: confirmedPlayer, actorId: organizer });
+    const firstEntryId = randomUUID();
+    const first = await allocate({
+      entryId: firstEntryId,
+      windowId,
+      playerId: rejoiningPlayer,
+      actorId: organizer,
+    });
+    assert.equal(first.status, 'WAITLISTED');
+
+    await client.query(
+      `update public.registration_entries set status = 'WITHDRAWN', withdrawn_at = now()
+        where id = $1`,
+      [firstEntryId],
+    );
+
+    const second = await allocate({ windowId, playerId: rejoiningPlayer, actorId: organizer });
+    assert.equal(second.status, 'WAITLISTED');
+    assert.ok(
+      Number(second.queue_sequence) > Number(first.queue_sequence),
+      'the rejoined entry must receive a higher sequence than the abandoned one',
+    );
+
+    const abandoned = await client.query<{ queue_sequence: string }>(
+      'select queue_sequence from public.registration_entries where id = $1',
+      [firstEntryId],
+    );
+    assert.equal(abandoned.rows[0].queue_sequence, first.queue_sequence);
+  });
+
+  test('next_queue_sequence is a persistent Window counter, not max(queue_sequence) + 1, so it never regresses after a withdrawal', async () => {
+    const organizer = await newUser('registration-allocate-sequence-counter@test.local');
+    const community = await targetCommunity(organizer, 'Allocate sequence counter');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 1 });
+    const confirmedPlayer = await createPlayer(organizer, { name: 'Confirmed' });
+    const firstWaitlisted = await createPlayer(organizer, { name: 'First waitlisted' });
+    const secondWaitlisted = await createPlayer(organizer, { name: 'Second waitlisted' });
+
+    await allocate({ windowId, playerId: confirmedPlayer, actorId: organizer });
+    const firstEntryId = randomUUID();
+    const first = await allocate({
+      entryId: firstEntryId,
+      windowId,
+      playerId: firstWaitlisted,
+      actorId: organizer,
+    });
+    assert.equal(first.queue_sequence, '1');
+
+    await client.query(
+      `update public.registration_entries set status = 'WITHDRAWN', withdrawn_at = now()
+        where id = $1`,
+      [firstEntryId],
+    );
+
+    const second = await allocate({ windowId, playerId: secondWaitlisted, actorId: organizer });
+    assert.equal(
+      second.queue_sequence,
+      '2',
+      'the counter must not fall back to 1 just because no effective row currently holds it',
+    );
+
+    const thirdPlayer = await createPlayer(organizer, { name: 'Third waitlisted' });
+    const third = await allocate({ windowId, playerId: thirdPlayer, actorId: organizer });
+    assert.equal(
+      third.queue_sequence,
+      '3',
+      'the counter must keep climbing on the next allocation',
+    );
+
+    const window = await client.query<{ next_queue_sequence: string }>(
+      'select next_queue_sequence from public.registration_windows where id = $1',
+      [windowId],
+    );
+    assert.equal(window.rows[0].next_queue_sequence, '4');
+  });
+
+  test('allocating for a Player already holding a CONFIRMED entry fails 23514, not 23505', async () => {
+    const organizer = await newUser('registration-allocate-duplicate-confirmed@test.local');
+    const community = await targetCommunity(organizer, 'Allocate duplicate confirmed');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 2 });
+    const playerId = await createPlayer(organizer);
+
+    await allocate({ windowId, playerId, actorId: organizer });
+    const duplicate = await allocate({ windowId, playerId, actorId: organizer }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(duplicate, '23514');
+  });
+
+  test('allocating for a Player already holding a WAITLISTED entry fails 23514, not 23505', async () => {
+    const organizer = await newUser('registration-allocate-duplicate-waitlisted@test.local');
+    const community = await targetCommunity(organizer, 'Allocate duplicate waitlisted');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 1 });
+    const confirmedPlayer = await createPlayer(organizer, { name: 'Confirmed' });
+    const waitlistedPlayer = await createPlayer(organizer, { name: 'Waitlisted' });
+
+    await allocate({ windowId, playerId: confirmedPlayer, actorId: organizer });
+    await allocate({ windowId, playerId: waitlistedPlayer, actorId: organizer });
+    const duplicate = await allocate({
+      windowId,
+      playerId: waitlistedPlayer,
+      actorId: organizer,
+    }).catch((error: Error) => error);
+    assertSqlState(duplicate, '23514');
+  });
+
+  test('allocating against a missing Window id fails P0002', async () => {
+    const organizer = await newUser('registration-allocate-missing-window@test.local');
+    const playerId = await createPlayer(organizer);
+    const missing = await allocate({
+      windowId: randomUUID(),
+      playerId,
+      actorId: organizer,
+    }).catch((error: Error) => error);
+    assertSqlState(missing, 'P0002');
+  });
+
+  test('an invalid source fails 23514', async () => {
+    const organizer = await newUser('registration-allocate-invalid-source@test.local');
+    const community = await targetCommunity(organizer, 'Allocate invalid source');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId });
+    const playerId = await createPlayer(organizer);
+
+    const rejected = await allocate({
+      windowId,
+      playerId,
+      source: 'ROBOT',
+      actorId: organizer,
+    }).catch((error: Error) => error);
+    assertSqlState(rejected, '23514');
+  });
+
+  test('anon and authenticated hold no EXECUTE privilege on app_private.allocate_registration_slot', async () => {
+    const { rows } = await client.query<{ anon_execute: boolean; authenticated_execute: boolean }>(
+      `select
+         has_function_privilege(
+           'anon',
+           'app_private.allocate_registration_slot(uuid, uuid, uuid, text, uuid)',
+           'EXECUTE'
+         ) as anon_execute,
+         has_function_privilege(
+           'authenticated',
+           'app_private.allocate_registration_slot(uuid, uuid, uuid, text, uuid)',
+           'EXECUTE'
+         ) as authenticated_execute`,
+    );
+    assert.deepEqual(rows, [{ anon_execute: false, authenticated_execute: false }]);
+  });
+
+  // Two connections BEGIN sequentially, before either connection's allocate call is sent, so
+  // both transactions are provably open at once when Promise.all races the two selects below.
+  // If the second transaction only started after the first committed, this would prove nothing
+  // about locking. `allocate_registration_slot` is called directly on the pooled connections
+  // (which authenticate as the same privileged owner role as `client`/`pool`) rather than
+  // through `asIdentityCommitting`: that helper only ever switches the transaction role to
+  // `anon` or `authenticated`, and the privilege test immediately above pins that BOTH of
+  // those roles hold no EXECUTE grant on this function — routing the race through either role
+  // would make this test unwinnable once task 4 honors that grant.
+  test('two concurrent allocations against the last open slot serialize to one CONFIRMED and one WAITLISTED (EXIT GATE)', async () => {
+    const organizer = await newUser('registration-allocate-concurrency@test.local');
+    const community = await targetCommunity(organizer, 'Allocate concurrency');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 12 });
+
+    const confirmedPlayers = await Promise.all(
+      Array.from({ length: 11 }, (_, index) =>
+        createPlayer(organizer, { name: `Confirmed ${index}` }),
+      ),
+    );
+    for (const playerId of confirmedPlayers) {
+      await insertEntry({ registrationWindowId: windowId, playerId, status: 'CONFIRMED' });
+    }
+
+    const racerA = await createPlayer(organizer, { name: 'Racer A' });
+    const racerB = await createPlayer(organizer, { name: 'Racer B' });
+
+    const a = await pool.connect();
+    const b = await pool.connect();
+    try {
+      await a.query('begin');
+      await b.query('begin');
+
+      const race = (db: PoolClient, playerId: string) =>
+        db
+          .query<{
+            result: AllocationResult;
+          }>(`select app_private.allocate_registration_slot($1, $2, $3, $4, $5) as result`, [
+            randomUUID(),
+            windowId,
+            playerId,
+            'SELF_JOIN',
+            organizer,
+          ])
+          .then((result) => result.rows[0].result);
+
+      const outcomes = await Promise.all([
+        race(a, racerA).catch((error: Error) => error),
+        race(b, racerB).catch((error: Error) => error),
+      ]);
+
+      await a.query('commit').catch(() => undefined);
+      await b.query('commit').catch(() => undefined);
+
+      const succeeded = outcomes.filter(
+        (outcome): outcome is AllocationResult => !(outcome instanceof Error),
+      );
+      assert.equal(succeeded.length, 2, 'both concurrent allocations must succeed');
+
+      const confirmedOutcomes = succeeded.filter((outcome) => outcome.status === 'CONFIRMED');
+      const waitlistedOutcomes = succeeded.filter((outcome) => outcome.status === 'WAITLISTED');
+      assert.equal(confirmedOutcomes.length, 1);
+      assert.equal(waitlistedOutcomes.length, 1);
+      assert.equal(waitlistedOutcomes[0].queue_sequence, '1');
+
+      const finalConfirmed = await client.query<{ n: string }>(
+        `select count(*)::text as n from public.registration_entries
+          where registration_window_id = $1 and status = 'CONFIRMED'`,
+        [windowId],
+      );
+      assert.equal(finalConfirmed.rows[0].n, '12');
+    } finally {
+      await a.query('rollback').catch(() => undefined);
+      await b.query('rollback').catch(() => undefined);
+      a.release();
+      b.release();
+    }
+  });
+
+  test('a failed allocation inside a transaction rolls back the sequence advance, revision bump, and entry insert together (QA-INV-012)', async () => {
+    const organizer = await newUser('registration-allocate-rollback@test.local');
+    const community = await targetCommunity(organizer, 'Allocate rollback');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await insertWindow({ sessionId, capacity: 1 });
+    const playerId = await createPlayer(organizer);
+
+    const before = await client.query<{ next_queue_sequence: string; revision: number }>(
+      'select next_queue_sequence, revision from public.registration_windows where id = $1',
+      [windowId],
+    );
+
+    const db = await pool.connect();
+    try {
+      await db.query('begin');
+      await db.query<{ result: AllocationResult }>(
+        `select app_private.allocate_registration_slot($1, $2, $3, $4, $5) as result`,
+        [randomUUID(), windowId, playerId, 'SELF_JOIN', organizer],
+      );
+      const secondAttempt = await db
+        .query<{
+          result: AllocationResult;
+        }>(`select app_private.allocate_registration_slot($1, $2, $3, $4, $5) as result`, [
+          randomUUID(),
+          windowId,
+          playerId,
+          'SELF_JOIN',
+          organizer,
+        ])
+        .catch((error: Error) => error);
+      assertSqlState(secondAttempt, '23514');
+    } finally {
+      await db.query('rollback').catch(() => undefined);
+      db.release();
+    }
+
+    const after = await client.query<{ next_queue_sequence: string; revision: number }>(
+      'select next_queue_sequence, revision from public.registration_windows where id = $1',
+      [windowId],
+    );
+    assert.deepEqual(after.rows, before.rows);
+
+    const entries = await client.query<{ n: string }>(
+      'select count(*)::text as n from public.registration_entries where registration_window_id = $1',
+      [windowId],
+    );
+    assert.equal(entries.rows[0].n, '0');
   });
 }

@@ -91,10 +91,12 @@ register and no way to derive one without violating `REG-INV-005`. An organizer 
 someone who has no account at all: a player who exists on the Community's sports roster and never
 signed up. Requiring a link there would make the command useless for the case it exists to serve.
 
-What both require is the `community_players` relation — live, meaning `deleted_at is null` and
-`active`. A Player who is not on this Community's roster cannot be registered by either path. This
-repository separates the two relations deliberately (W2 split membership from sports roster), so
-"member" and "player on the roster" are different facts and this slice needs both for a self-join.
+What both require is a live roster relation: the `community_players` relation itself — `deleted_at
+is null` and `active` — and the underlying `players` row — `deleted_at is null` and `active`. A
+Player who is not on this Community's roster, or whose canonical Player row is no longer live,
+cannot be registered by either path. This repository separates the two relations deliberately (W2
+split membership from sports roster), so "member" and "player on the roster" are different facts
+and this slice needs both for a self-join.
 
 ### The `closes_at` deadline
 
@@ -128,7 +130,7 @@ Both commands execute in this order; only steps 4 and 8 differ.
    through `public.current_user_active_player_id()`; a null result means the caller has no ACTIVE
    account link and therefore no Player to register, which is an eligibility failure rather than a
    missing argument. For organizer-add, take `p_player_id`. Both then require a live
-   `community_players` relation in the Session's Community;
+   `community_players` relation in the Session's Community and a live `players` row;
 10. delegate to `app_private.allocate_registration_slot(p_entry_id, p_window_id, v_player_id,
     '<source>', (select auth.uid()))`;
 11. record the receipt with `aggregate_id = p_window_id` and

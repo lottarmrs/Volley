@@ -67,9 +67,6 @@ if (!isTestDatabaseConfigured()) {
     }
   }
 
-  const callFailing = (userId: string | null, sql: string, params: unknown[] = []) =>
-    call(userId, sql, params).catch((error: Error) => error);
-
   function assertSqlState(error: unknown, expectedCode: string): asserts error is Error {
     assert.ok(error instanceof Error);
     assert.equal((error as { code?: string }).code, expectedCode);
@@ -374,6 +371,61 @@ if (!isTestDatabaseConfigured()) {
     return playerId;
   }
 
+  // A Player with a fully live community_players relation (deleted_at null, active true) but
+  // a soft-deleted players row -- the exact gap Fix 1 closes.
+  //
+  // ORDER MATTERS. `trg_guard_active_player_reference` (before insert or update on
+  // community_players, 20260724000000_remove_player_link_proposal_system.sql:23-45) raises
+  // 23503 if the referenced player is ALREADY soft-deleted at insert time. Building the roster
+  // row first (against a live player) and soft-deleting the players row SECOND, with a plain
+  // UPDATE, avoids that guard entirely -- it only fires on community_players/
+  // player_evaluations/player_avatar_proposals writes, never on an UPDATE of players itself.
+  // This is also the real production sequence: playerCloudService.softDelete only UPDATEs
+  // players and never touches community_players, so a pre-existing live roster relation is
+  // exactly what survives a soft delete today.
+  async function softDeletedRosterPlayer(
+    communityId: string,
+    ownerId: string,
+    name: string,
+  ): Promise<string> {
+    const playerId = await createPlayer(ownerId, { name });
+    await client.query(
+      `insert into public.community_players (community_id, player_id, owner_id, active, status)
+       values ($1, $2, $3, true, 'active')`,
+      [communityId, playerId, ownerId],
+    );
+    await client.query(`update public.players set deleted_at = now() where id = $1`, [playerId]);
+    return playerId;
+  }
+
+  // Reads back what the fixture actually wrote, per the brief's warning: a fixture that
+  // silently built an eligible Player (e.g. a trigger overwriting deleted_at or active) would
+  // make the Fix 1 tests pass for the wrong reason.
+  async function assertSoftDeletedButLiveOnRoster(
+    playerId: string,
+    communityId: string,
+  ): Promise<void> {
+    const { rows } = await client.query<{
+      player_deleted_at: string | null;
+      player_active: boolean;
+      roster_deleted_at: string | null;
+      roster_active: boolean;
+    }>(
+      `select p.deleted_at as player_deleted_at, p.active as player_active,
+              cp.deleted_at as roster_deleted_at, cp.active as roster_active
+         from public.players p
+         join public.community_players cp
+           on cp.player_id = p.id and cp.community_id = $2
+        where p.id = $1`,
+      [playerId, communityId],
+    );
+    assert.equal(rows.length, 1);
+    assert.notEqual(rows[0].player_deleted_at, null, 'fixture must soft-delete the players row');
+    assert.equal(rows[0].player_active, true, 'fixture must leave players.active true');
+    assert.equal(rows[0].roster_deleted_at, null, 'fixture must leave community_players.deleted_at null');
+    assert.equal(rows[0].roster_active, true, 'fixture must leave community_players.active true');
+  }
+
   async function entryRow(entryId: string) {
     const { rows } = await client.query<{
       player_id: string;
@@ -510,7 +562,13 @@ if (!isTestDatabaseConfigured()) {
     | 'roster_deleted'
     | 'roster_inactive';
 
-  const BROKEN_LINK_CASES: Array<{ kind: BrokenLinkCase; label: string }> = [
+  const ROSTER_MESSAGE = /is not on this Community's roster/;
+
+  const BROKEN_LINK_CASES: Array<{
+    kind: BrokenLinkCase;
+    label: string;
+    expectedMessage?: RegExp;
+  }> = [
     { kind: 'no_membership', label: 'a user with no community_memberships row at all' },
     { kind: 'no_link', label: 'an active member with no player_account_links row' },
     {
@@ -520,14 +578,17 @@ if (!isTestDatabaseConfigured()) {
     {
       kind: 'no_roster_row',
       label: 'an active member with an ACTIVE link but no community_players row for that Player',
+      expectedMessage: ROSTER_MESSAGE,
     },
     {
       kind: 'roster_deleted',
       label: 'an active member with an ACTIVE link whose community_players row has deleted_at set',
+      expectedMessage: ROSTER_MESSAGE,
     },
     {
       kind: 'roster_inactive',
       label: 'an active member with an ACTIVE link whose community_players row has active = false',
+      expectedMessage: ROSTER_MESSAGE,
     },
   ];
 
@@ -592,7 +653,7 @@ if (!isTestDatabaseConfigured()) {
     return userId;
   }
 
-  for (const { kind, label } of BROKEN_LINK_CASES) {
+  for (const { kind, label, expectedMessage } of BROKEN_LINK_CASES) {
     test(`join_registration: ${label} raises 42501`, async () => {
       const suffix = randomUUID();
       const organizer = await newUser(`join-eligibility-${kind}-${suffix}@test.local`);
@@ -602,6 +663,9 @@ if (!isTestDatabaseConfigured()) {
 
       const result = await joinRegistration(userId, { windowId }).catch((error: Error) => error);
       assertSqlState(result, '42501');
+      if (expectedMessage) {
+        assert.match((result as Error).message, expectedMessage);
+      }
     });
   }
 
@@ -638,6 +702,32 @@ if (!isTestDatabaseConfigured()) {
     assertSqlState(result, '42501');
   });
 
+  test('join_registration: a fully live community_players relation does not exempt a soft-deleted Player -- the Player row itself must also be live (Fix 1)', async () => {
+    const organizer = await newUser('join-player-soft-deleted-organizer@test.local');
+    const community = await targetCommunity(organizer, 'Player soft deleted join');
+    const windowId = await openWindow(organizer, community, 12);
+
+    const userId = await newUser('join-player-soft-deleted-member@test.local');
+    await activeMembership(community, userId);
+    const playerId = await softDeletedRosterPlayer(
+      community,
+      organizer,
+      'Soft deleted join player',
+    );
+    // An ACTIVE link and active membership so current_user_active_player_id() resolves this
+    // Player and the membership authorization check passes -- this test must fail at the
+    // PLAYER-liveness gate, not at an earlier one.
+    await client.query(
+      `insert into public.player_account_links (player_id, user_id, status, provenance, activated_at)
+       values ($1, $2, 'ACTIVE', 'SELF_CLAIM', now())`,
+      [playerId, userId],
+    );
+    await assertSoftDeletedButLiveOnRoster(playerId, community);
+
+    const result = await joinRegistration(userId, { windowId }).catch((error: Error) => error);
+    assertSqlState(result, '42501');
+  });
+
   // ── Step 4: organizer-add RED tests ────────────────────────────────────────────────────
 
   test("the asymmetry case: add_registration_entry by the assigned organizer succeeds for a roster-only Player (no link, no membership), returning CONFIRMED with source = ORGANIZER_ADDED and created_by_user_id = the organizer, not the Player's owner", async () => {
@@ -670,6 +760,41 @@ if (!isTestDatabaseConfigured()) {
     const playerId = await createPlayer(organizer, { name: 'Rosterless' });
 
     const result = await addEntry(organizer, { windowId, playerId }).catch((error: Error) => error);
+    assertSqlState(result, '42501');
+  });
+
+  test('add_registration_entry: a fully live community_players relation does not exempt a soft-deleted Player -- the Player row itself must also be live (Fix 1)', async () => {
+    const organizer = await newUser('add-player-soft-deleted-organizer@test.local');
+    const community = await targetCommunity(organizer, 'Player soft deleted add');
+    const windowId = await openWindow(organizer, community, 12);
+    const playerId = await softDeletedRosterPlayer(community, organizer, 'Soft deleted add player');
+    await assertSoftDeletedButLiveOnRoster(playerId, community);
+
+    const result = await addEntry(organizer, { windowId, playerId }).catch((error: Error) => error);
+    assertSqlState(result, '42501');
+  });
+
+  test('BOLA: the organizer of one Community cannot add_registration_entry a Player who is live on a second Community\'s roster, against the first Community\'s own Window (QA-INV-006)', async () => {
+    const firstOrganizer = await newUser('add-bola-first-organizer@test.local');
+    const firstCommunity = await targetCommunity(firstOrganizer, 'BOLA add first');
+    const firstWindowId = await openWindow(firstOrganizer, firstCommunity, 12);
+
+    const secondOrganizer = await newUser('add-bola-second-organizer@test.local');
+    const secondCommunity = await targetCommunity(secondOrganizer, 'BOLA add second');
+    const secondCommunityPlayerId = await rosterOnlyPlayer(
+      secondCommunity,
+      secondOrganizer,
+      'BOLA add second player',
+    );
+
+    // Use the FIRST Community's real window id and the FIRST organizer as caller: a Player who
+    // is genuinely live on the SECOND Community's roster but has no relation at all in the
+    // first must still be rejected -- the roster check must scope to v_session.community_id,
+    // not just check that a live community_players row exists somewhere.
+    const result = await addEntry(firstOrganizer, {
+      windowId: firstWindowId,
+      playerId: secondCommunityPlayerId,
+    }).catch((error: Error) => error);
     assertSqlState(result, '42501');
   });
 

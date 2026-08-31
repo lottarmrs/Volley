@@ -102,6 +102,10 @@ begin
   if not exists (
     select 1
       from public.community_players cp
+      join public.players p
+        on p.id = cp.player_id
+       and p.deleted_at is null
+       and p.active
      where cp.community_id = v_session.community_id
        and cp.player_id = v_player_id
        and cp.deleted_at is null
@@ -192,6 +196,10 @@ begin
   if not exists (
     select 1
       from public.community_players cp
+      join public.players p
+        on p.id = cp.player_id
+       and p.deleted_at is null
+       and p.active
      where cp.community_id = v_session.community_id
        and cp.player_id = p_player_id
        and cp.deleted_at is null

@@ -576,9 +576,17 @@ if (!isTestDatabaseConfigured()) {
     }
 
     // roster_inactive
+    //
+    // DEVIATION FROM THE BRIEF (verified against the live database): inserting
+    // `active = false, status = 'active'` does NOT stick -- the pre-existing
+    // `trigger_sync_community_player_active_status` (20260617180615_community_players_optimization.sql)
+    // fires BEFORE INSERT and derives `active` FROM `status` whenever `status` is provided and
+    // changing, overwriting the explicit `active = false` back to `true`. Passing only
+    // `status = 'inactive'` lets that same trigger derive `active = false` correctly, which is
+    // what this fixture actually needs.
     await client.query(
-      `insert into public.community_players (community_id, player_id, owner_id, active, status)
-       values ($1, $2, $3, false, 'active')`,
+      `insert into public.community_players (community_id, player_id, owner_id, status)
+       values ($1, $2, $3, 'inactive')`,
       [communityId, playerId, ownerId],
     );
     return userId;

@@ -1168,6 +1168,14 @@ if (!isTestDatabaseConfigured()) {
       await a.query('begin');
       await b.query('begin');
 
+      // Each racer commits (or rolls back) INSIDE its own chain, not after Promise.all.
+      // Row locks taken by allocate_registration_slot are held until end-of-transaction, so
+      // if the commit were issued only after both promises settle, a correct `for update`
+      // implementation would deadlock: the loser blocks inside the function waiting on the
+      // winner's row lock, the winner's transaction never reaches a commit statement because
+      // Promise.all cannot resolve until the loser also resolves, and neither side is ever
+      // sent. Committing per-connection as soon as that connection's own query settles is
+      // what lets the winner release its lock and unblock the loser.
       const race = (db: PoolClient, playerId: string) =>
         db
           .query<{
@@ -1179,15 +1187,16 @@ if (!isTestDatabaseConfigured()) {
             'SELF_JOIN',
             organizer,
           ])
-          .then((result) => result.rows[0].result);
+          .then(async (result) => {
+            await db.query('commit');
+            return result.rows[0].result;
+          })
+          .catch(async (error: Error) => {
+            await db.query('rollback').catch(() => undefined);
+            return error;
+          });
 
-      const outcomes = await Promise.all([
-        race(a, racerA).catch((error: Error) => error),
-        race(b, racerB).catch((error: Error) => error),
-      ]);
-
-      await a.query('commit').catch(() => undefined);
-      await b.query('commit').catch(() => undefined);
+      const outcomes = await Promise.all([race(a, racerA), race(b, racerB)]);
 
       const succeeded = outcomes.filter(
         (outcome): outcome is AllocationResult => !(outcome instanceof Error),
@@ -1219,7 +1228,15 @@ if (!isTestDatabaseConfigured()) {
     const community = await targetCommunity(organizer, 'Allocate rollback');
     const sessionId = await communitySession(organizer, community);
     const windowId = await insertWindow({ sessionId, capacity: 1 });
-    const playerId = await createPlayer(organizer);
+    // The Window is already full before the transaction under test opens, so the
+    // in-transaction allocation below is forced onto the waitlist and genuinely consumes a
+    // queue_sequence. A CONFIRMED-only scenario would never touch next_queue_sequence at all
+    // (Step 2: CONFIRMED entries carry a null sequence), which would make the assertion below
+    // vacuously true even against an implementation that reaches for a real, non-transactional
+    // SEQUENCE/nextval() that survives rollback.
+    const occupant = await createPlayer(organizer, { name: 'Occupant' });
+    await insertEntry({ registrationWindowId: windowId, playerId: occupant, status: 'CONFIRMED' });
+    const playerId = await createPlayer(organizer, { name: 'Rolled back' });
 
     const before = await client.query<{ next_queue_sequence: string; revision: number }>(
       'select next_queue_sequence, revision from public.registration_windows where id = $1',
@@ -1254,12 +1271,17 @@ if (!isTestDatabaseConfigured()) {
       'select next_queue_sequence, revision from public.registration_windows where id = $1',
       [windowId],
     );
-    assert.deepEqual(after.rows, before.rows);
+    assert.deepEqual(
+      after.rows,
+      before.rows,
+      'next_queue_sequence and revision must roll back together with the entry insert',
+    );
 
     const entries = await client.query<{ n: string }>(
-      'select count(*)::text as n from public.registration_entries where registration_window_id = $1',
-      [windowId],
+      `select count(*)::text as n from public.registration_entries
+        where registration_window_id = $1 and player_id = $2`,
+      [windowId, playerId],
     );
-    assert.equal(entries.rows[0].n, '0');
+    assert.equal(entries.rows[0].n, '0', 'no entry for the rolled-back Player must survive');
   });
 }

@@ -269,7 +269,9 @@ if (!isTestDatabaseConfigured()) {
       );
       const join = await joinRegistration(member.userId, created.windowId);
       revision = join.window_revision;
-      (join.entry_status === 'CONFIRMED' ? confirmedPlayerIds : waitlistedPlayerIds).push(
+      const expectedStatus = confirmedPlayerIds.length < capacity ? 'CONFIRMED' : 'WAITLISTED';
+      assert.equal(join.entry_status, expectedStatus);
+      (expectedStatus === 'CONFIRMED' ? confirmedPlayerIds : waitlistedPlayerIds).push(
         member.playerId,
       );
     }
@@ -277,10 +279,13 @@ if (!isTestDatabaseConfigured()) {
       const playerId = await rosterOnlyPlayer(communityId, organizerId, name);
       const added = await addRegistrationEntry(organizerId, created.windowId, playerId);
       revision = added.window_revision;
-      (added.entry_status === 'CONFIRMED' ? confirmedPlayerIds : waitlistedPlayerIds).push(
-        playerId,
-      );
+      const expectedStatus = confirmedPlayerIds.length < capacity ? 'CONFIRMED' : 'WAITLISTED';
+      assert.equal(added.entry_status, expectedStatus);
+      (expectedStatus === 'CONFIRMED' ? confirmedPlayerIds : waitlistedPlayerIds).push(playerId);
     }
+    const totalEntries = confirmedSelfJoins + waitlistedSelfJoins + organizerAddedNames.length;
+    assert.equal(confirmedPlayerIds.length, Math.min(capacity, totalEntries));
+    assert.equal(waitlistedPlayerIds.length, Math.max(0, totalEntries - capacity));
     revision = await transitionWindow(
       organizerId,
       'close_registration',
@@ -434,27 +439,57 @@ if (!isTestDatabaseConfigured()) {
   test('finalize_session_roster orders equal joined_at entries by entry UUID and snapshots trimmed names', async () => {
     const organizer = await newUser(`finalize-order-${randomUUID()}@test.local`);
     const communityId = await targetCommunity(organizer, 'Finalize ordering');
-    const fixture = await lockedWindow(organizer, communityId, 2, 2);
-    const [first, second] = fixture.confirmedPlayerIds;
-    await client.query(
-      `update public.players set nickname = case id when $1::uuid then '  Apelido  ' else '   ' end,
-         name = case id when $1::uuid then 'Nome um' else '  Nome dois  ' end where id in ($1, $2)`,
-      [first, second],
+    const sessionId = await communitySession(
+      organizer,
+      communityId,
+      `Finalize ordering ${randomUUID()}`,
     );
+    const created = await createWindow(organizer, sessionId, 2);
+    let revision = await transitionWindow(
+      organizer,
+      'open_registration',
+      created.windowId,
+      created.revision,
+    );
+    const firstUser = await newUser(`finalize-order-first-${randomUUID()}@test.local`);
+    const secondUser = await newUser(`finalize-order-second-${randomUUID()}@test.local`);
+    await activeMembership(communityId, firstUser);
+    await activeMembership(communityId, secondUser);
+    const first = await createPlayer(organizer, { name: 'Nome um', nickname: '  Apelido  ' });
+    const second = await createPlayer(organizer, { name: '  Nome dois  ', nickname: '   ' });
+    for (const [playerId, userId] of [
+      [first, firstUser],
+      [second, secondUser],
+    ]) {
+      await client.query(
+        `insert into public.player_account_links (player_id, user_id, status, provenance, activated_at)
+         values ($1, $2, 'ACTIVE', 'SELF_CLAIM', now())`,
+        [playerId, userId],
+      );
+      await addCommunityPlayer(communityId, playerId, organizer);
+    }
+    revision = (await joinRegistration(firstUser, created.windowId)).window_revision;
+    revision = (await joinRegistration(secondUser, created.windowId)).window_revision;
     await client.query(
       `update public.registration_entries set joined_at = '2026-09-02T12:00:00Z'
         where registration_window_id = $1 and player_id in ($2, $3)`,
-      [fixture.windowId, first, second],
+      [created.windowId, first, second],
     );
     const expected = await client.query<{ id: string; player_id: string }>(
       `select id, player_id from public.registration_entries
         where registration_window_id = $1 and status = 'CONFIRMED' order by joined_at, id`,
-      [fixture.windowId],
+      [created.windowId],
     );
+    const expectedNameByPlayerId = new Map([
+      [first, 'Apelido'],
+      [second, 'Nome dois'],
+    ]);
+    revision = await transitionWindow(organizer, 'close_registration', created.windowId, revision);
+    revision = await transitionWindow(organizer, 'lock_registration', created.windowId, revision);
 
     const result = await finalizeRoster(organizer, {
-      windowId: fixture.windowId,
-      expectedRevision: fixture.revision,
+      windowId: created.windowId,
+      expectedRevision: revision,
     });
     const entries = await rosterEntries(result.rows[0].roster_revision_id);
     assert.deepEqual(
@@ -463,7 +498,7 @@ if (!isTestDatabaseConfigured()) {
     );
     assert.deepEqual(
       entries.rows.map((entry) => entry.display_name_at_time),
-      ['Apelido', 'Nome dois'],
+      expected.rows.map((entry) => expectedNameByPlayerId.get(entry.player_id)),
     );
     await client.query(
       `update public.players set nickname = 'Mudou', name = 'Mudou tambem' where id in ($1, $2)`,
@@ -473,7 +508,7 @@ if (!isTestDatabaseConfigured()) {
       (await rosterEntries(result.rows[0].roster_revision_id)).rows.map(
         (entry) => entry.display_name_at_time,
       ),
-      ['Apelido', 'Nome dois'],
+      expected.rows.map((entry) => expectedNameByPlayerId.get(entry.player_id)),
     );
   });
 
@@ -500,16 +535,24 @@ if (!isTestDatabaseConfigured()) {
       expectedRevision: fixture.revision,
     });
     const entries = await rosterEntries(result.rows[0].roster_revision_id);
-    assert.equal(
-      entries.rows.find((entry) => entry.player_id === fixture.confirmedPlayerIds[0])
-        ?.participant_id,
-      existingParticipantId,
+    const reusedEntry = entries.rows.find(
+      (entry) => entry.player_id === fixture.confirmedPlayerIds[0],
     );
-    assert.notEqual(
-      entries.rows.find((entry) => entry.player_id === fixture.confirmedPlayerIds[1])
-        ?.participant_id,
-      registrationEntry.rows[0].id,
+    const newEntry = entries.rows.find(
+      (entry) => entry.player_id === fixture.confirmedPlayerIds[1],
     );
+    assert.ok(reusedEntry);
+    assert.ok(newEntry);
+    assert.equal(reusedEntry.participant_id, existingParticipantId);
+    assert.notEqual(newEntry.participant_id, existingParticipantId);
+    assert.equal(registrationEntry.rowCount, 1);
+    assert.notEqual(newEntry.participant_id, registrationEntry.rows[0].id);
+    const participant = await client.query<{ id: string }>(
+      `select id from public.session_participants where session_id = $1 and player_id = $2`,
+      [fixture.sessionId, fixture.confirmedPlayerIds[1]],
+    );
+    assert.equal(participant.rowCount, 1);
+    assert.equal(participant.rows[0].id, newEntry.participant_id);
   });
 
   for (const status of ['DRAFT', 'OPEN', 'CLOSED'] as const) {

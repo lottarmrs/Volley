@@ -1,3 +1,7 @@
+create unique index roster_revisions_registration_source_key
+  on public.roster_revisions (session_id, source_registration_revision)
+  where source_kind = 'REGISTRATION';
+
 create function public.finalize_session_roster(
   p_command_id uuid,
   p_window_id uuid,
@@ -22,6 +26,9 @@ declare
   v_roster_revision_id uuid;
   v_roster_revision_number integer;
   v_new_session_revision integer;
+  v_receipt jsonb;
+  v_existing public.roster_revisions;
+  v_result jsonb;
 begin
   if p_command_id is null or p_window_id is null or p_expected_registration_revision is null then
     raise exception 'command_id, window_id and expected Registration revision are required'
@@ -56,6 +63,18 @@ begin
 
   perform public.assert_target_session_write_authorized(v_session);
 
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'finalize_session_roster', p_window_id
+  );
+  if v_receipt is not null then
+    return query
+      select (v_receipt ->> 'roster_revision_id')::uuid,
+             (v_receipt ->> 'roster_revision_number')::integer,
+             (v_receipt ->> 'source_registration_revision')::bigint,
+             (v_receipt ->> 'session_revision')::integer;
+    return;
+  end if;
+
   if v_session.lifecycle_status not in ('DRAFT', 'SCHEDULED') then
     raise exception 'Session must be DRAFT or SCHEDULED to finalize Registration roster'
       using errcode = '23514';
@@ -66,6 +85,35 @@ begin
   end if;
   if v_window.revision is distinct from p_expected_registration_revision then
     raise exception 'Stale Registration revision' using errcode = '40001';
+  end if;
+
+  select * into v_existing
+    from public.roster_revisions r
+   where r.session_id = v_session.id
+     and r.source_kind = 'REGISTRATION'
+     and r.source_registration_revision = v_window.revision::bigint;
+
+  if found then
+    v_result := pg_catalog.jsonb_build_object(
+      'roster_revision_id', v_existing.id,
+      'roster_revision_number', v_existing.revision_number,
+      'source_registration_revision', v_existing.source_registration_revision,
+      'session_revision', v_session.revision
+    );
+    perform app_private.record_command_receipt(
+      p_command_id,
+      (select auth.uid()),
+      'finalize_session_roster',
+      p_window_id,
+      v_result,
+      'SESSION_ROSTER'
+    );
+    return query
+      select v_existing.id,
+             v_existing.revision_number,
+             v_existing.source_registration_revision,
+             v_session.revision;
+    return;
   end if;
 
   select e.id into v_ineligible_entry_id
@@ -127,11 +175,26 @@ begin
    where id = v_session.id;
   v_new_session_revision := v_session.revision + 1;
 
+  v_result := pg_catalog.jsonb_build_object(
+    'roster_revision_id', v_roster_revision_id,
+    'roster_revision_number', v_roster_revision_number,
+    'source_registration_revision', v_window.revision,
+    'session_revision', v_new_session_revision
+  );
+  perform app_private.record_command_receipt(
+    p_command_id,
+    (select auth.uid()),
+    'finalize_session_roster',
+    p_window_id,
+    v_result,
+    'SESSION_ROSTER'
+  );
+
   return query
-    select v_roster_revision_id,
-           v_roster_revision_number,
-           v_window.revision::bigint,
-           v_new_session_revision;
+    select (v_result ->> 'roster_revision_id')::uuid,
+           (v_result ->> 'roster_revision_number')::integer,
+           (v_result ->> 'source_registration_revision')::bigint,
+           (v_result ->> 'session_revision')::integer;
 end;
 $$;
 

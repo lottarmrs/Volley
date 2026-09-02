@@ -878,15 +878,23 @@ if (!isTestDatabaseConfigured()) {
       windowId: fixture.windowId,
       expectedRevision: fixture.revision,
     });
+    const afterFirst = await finalizeEffectSnapshot(fixture.sessionId, fixture.windowId);
     const second = await finalizeRoster(organizer, {
       commandId,
       windowId: fixture.windowId,
       expectedRevision: fixture.revision,
     });
+    const afterSecond = await finalizeEffectSnapshot(fixture.sessionId, fixture.windowId);
 
     assert.deepEqual(second.rows, first.rows);
-    assert.equal(await rosterRevisionCount(fixture.sessionId), 1);
-    assert.equal(await finalizeReceiptCount(fixture.windowId), 1);
+    assert.deepEqual(afterSecond, afterFirst);
+    assert.deepEqual(afterSecond, {
+      rosterRevisions: 1,
+      rosterEntries: 1,
+      participants: 1,
+      sessionRevision: first.rows[0].session_revision,
+      finalizeReceipts: 1,
+    });
     assert.equal(await commandReceiptCount(commandId), 1);
   });
 
@@ -1053,8 +1061,8 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(fn.rows, [{ prosecdef: true, proconfig: ['search_path=""'] }]);
   });
 
-  // Detects widened browser SQL privileges or removal of authenticated RPC execution.
-  test('finalize_session_roster grants only authenticated execution and exposes no browser table mutations', async () => {
+  // Detects public/anonymous execution or removal of authenticated RPC execution.
+  test('finalize_session_roster grants execution only to authenticated', async () => {
     const routineGrants = await client.query<{ grantee: string; privilege_type: string }>(
       `select grantee, privilege_type
          from information_schema.role_routine_grants
@@ -1084,8 +1092,64 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(execution.rows, [
       { public_execute: false, anon_execute: false, authenticated_execute: true },
     ]);
+  });
 
+  // Detects any browser table/column grant or effective privilege over private Registration rows.
+  test('registration_entries exposes no explicit or effective browser privilege', async () => {
     const tableGrants = await client.query<{
+      grantee: string;
+      privilege_type: string;
+    }>(
+      `select grantee, privilege_type
+         from information_schema.role_table_grants
+        where table_schema = 'public'
+          and table_name = 'registration_entries'
+          and grantee in ('PUBLIC', 'anon', 'authenticated')
+        order by grantee, privilege_type`,
+    );
+    assert.deepEqual(tableGrants.rows, []);
+
+    const columnGrants = await client.query<{
+      column_name: string;
+      grantee: string;
+      privilege_type: string;
+    }>(
+      `select column_name, grantee, privilege_type
+         from information_schema.role_column_grants
+        where table_schema = 'public'
+          and table_name = 'registration_entries'
+          and grantee in ('PUBLIC', 'anon', 'authenticated')
+        order by column_name, grantee, privilege_type`,
+    );
+    assert.deepEqual(columnGrants.rows, []);
+
+    const effectivePrivileges = await client.query<{
+      role_name: string;
+      any_table_privilege: boolean;
+      any_column_privilege: boolean;
+    }>(
+      `select role_name,
+              pg_catalog.has_table_privilege(
+                role_name, 'public.registration_entries',
+                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+              ) as any_table_privilege,
+              pg_catalog.has_any_column_privilege(
+                role_name, 'public.registration_entries',
+                'SELECT,INSERT,UPDATE,REFERENCES'
+              ) as any_column_privilege
+         from (values ('public'), ('anon'), ('authenticated')) browser_roles(role_name)
+        order by role_name`,
+    );
+    assert.deepEqual(effectivePrivileges.rows, [
+      { role_name: 'anon', any_table_privilege: false, any_column_privilege: false },
+      { role_name: 'authenticated', any_table_privilege: false, any_column_privilege: false },
+      { role_name: 'public', any_table_privilege: false, any_column_privilege: false },
+    ]);
+  });
+
+  // Detects explicit, column-level, inherited, or PUBLIC browser mutation access to roster state.
+  test('roster tables expose no explicit or effective browser mutation privilege', async () => {
+    const mutableTableGrants = await client.query<{
       table_name: string;
       grantee: string;
       privilege_type: string;
@@ -1093,42 +1157,67 @@ if (!isTestDatabaseConfigured()) {
       `select table_name, grantee, privilege_type
          from information_schema.role_table_grants
         where table_schema = 'public'
-          and table_name in (
-            'registration_entries', 'session_participants', 'roster_revisions',
-            'roster_revision_entries'
-          )
+          and table_name in ('session_participants', 'roster_revisions', 'roster_revision_entries')
           and grantee in ('PUBLIC', 'anon', 'authenticated')
+          and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
         order by table_name, grantee, privilege_type`,
     );
-    assert.deepEqual(tableGrants.rows, [
-      {
-        table_name: 'roster_revision_entries',
-        grantee: 'authenticated',
-        privilege_type: 'SELECT',
-      },
-      { table_name: 'roster_revisions', grantee: 'authenticated', privilege_type: 'SELECT' },
-      {
-        table_name: 'session_participants',
-        grantee: 'authenticated',
-        privilege_type: 'SELECT',
-      },
-    ]);
+    assert.deepEqual(mutableTableGrants.rows, []);
+
+    const mutableColumnGrants = await client.query<{
+      table_name: string;
+      column_name: string;
+      grantee: string;
+      privilege_type: string;
+    }>(
+      `select table_name, column_name, grantee, privilege_type
+         from information_schema.role_column_grants
+        where table_schema = 'public'
+          and table_name in ('session_participants', 'roster_revisions', 'roster_revision_entries')
+          and grantee in ('PUBLIC', 'anon', 'authenticated')
+          and privilege_type in ('INSERT', 'UPDATE', 'REFERENCES')
+        order by table_name, column_name, grantee, privilege_type`,
+    );
+    assert.deepEqual(mutableColumnGrants.rows, []);
+
+    const effectiveMutations = await client.query<{ table_name: string; role_name: string }>(
+      `select table_name, role_name
+         from (
+           values ('session_participants'), ('roster_revisions'), ('roster_revision_entries')
+         ) roster_tables(table_name)
+         cross join (values ('public'), ('anon'), ('authenticated')) browser_roles(role_name)
+        where pg_catalog.has_table_privilege(
+                role_name, 'public.' || table_name,
+                'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+              )
+           or pg_catalog.has_any_column_privilege(
+                role_name, 'public.' || table_name, 'INSERT,UPDATE,REFERENCES'
+              )
+        order by table_name, role_name`,
+    );
+    assert.deepEqual(effectiveMutations.rows, []);
   });
 
   // Detects removal, widening, de-duplication loss, or column-order reversal in the source key.
   test('roster revisions have the exact unique partial Registration source index', async () => {
     const indexes = await client.query<{
       indisunique: boolean;
+      indisvalid: boolean;
+      indisready: boolean;
+      indnkeyatts: number;
+      indexprs_is_null: boolean;
       columns: string[];
       predicate: string;
     }>(
-      `select i.indisunique,
+      `select i.indisunique, i.indisvalid, i.indisready, i.indnkeyatts,
+              i.indexprs is null as indexprs_is_null,
               array(
                 select a.attname
                   from unnest(i.indkey::smallint[]) with ordinality as key(attnum, position)
                   join pg_catalog.pg_attribute a
                     on a.attrelid = i.indrelid and a.attnum = key.attnum
                  where key.attnum > 0
+                   and key.position <= i.indnkeyatts
                  order by key.position
               ) as columns,
               pg_catalog.pg_get_expr(i.indpred, i.indrelid) as predicate
@@ -1137,13 +1226,16 @@ if (!isTestDatabaseConfigured()) {
          join pg_catalog.pg_namespace n on n.oid = t.relnamespace
         where n.nspname = 'public'
           and t.relname = 'roster_revisions'
-          and i.indisunique
           and pg_catalog.pg_get_expr(i.indpred, i.indrelid) =
               '(source_kind = ''REGISTRATION''::text)'`,
     );
     assert.deepEqual(indexes.rows, [
       {
         indisunique: true,
+        indisvalid: true,
+        indisready: true,
+        indnkeyatts: 2,
+        indexprs_is_null: true,
         columns: ['session_id', 'source_registration_revision'],
         predicate: "(source_kind = 'REGISTRATION'::text)",
       },
@@ -1195,8 +1287,7 @@ if (!isTestDatabaseConfigured()) {
       assert.equal(await rosterRevisionCount(fixture.sessionId), 1);
       assert.equal(await sessionRevision(fixture.sessionId), beforeSessionRevision + 1);
     } finally {
-      await a.query('rollback').catch(() => undefined);
-      await b.query('rollback').catch(() => undefined);
+      await Promise.allSettled([a.query('rollback'), b.query('rollback')]);
       a.release();
       b.release();
     }

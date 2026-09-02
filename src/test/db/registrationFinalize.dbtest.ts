@@ -1131,7 +1131,12 @@ if (!isTestDatabaseConfigured()) {
       `select role_name,
               pg_catalog.has_table_privilege(
                 role_name, 'public.registration_entries',
-                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+                pg_catalog.concat_ws(
+                  ',', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER',
+                  case when pg_catalog.current_setting('server_version_num')::integer >= 170000
+                    then 'MAINTAIN'
+                  end
+                )
               ) as any_table_privilege,
               pg_catalog.has_any_column_privilege(
                 role_name, 'public.registration_entries',
@@ -1159,7 +1164,9 @@ if (!isTestDatabaseConfigured()) {
         where table_schema = 'public'
           and table_name in ('session_participants', 'roster_revisions', 'roster_revision_entries')
           and grantee in ('PUBLIC', 'anon', 'authenticated')
-          and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+          and privilege_type in (
+            'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'
+          )
         order by table_name, grantee, privilege_type`,
     );
     assert.deepEqual(mutableTableGrants.rows, []);
@@ -1188,7 +1195,12 @@ if (!isTestDatabaseConfigured()) {
          cross join (values ('public'), ('anon'), ('authenticated')) browser_roles(role_name)
         where pg_catalog.has_table_privilege(
                 role_name, 'public.' || table_name,
-                'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+                pg_catalog.concat_ws(
+                  ',', 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER',
+                  case when pg_catalog.current_setting('server_version_num')::integer >= 170000
+                    then 'MAINTAIN'
+                  end
+                )
               )
            or pg_catalog.has_any_column_privilege(
                 role_name, 'public.' || table_name, 'INSERT,UPDATE,REFERENCES'

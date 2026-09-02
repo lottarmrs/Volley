@@ -468,8 +468,11 @@ if (!isTestDatabaseConfigured()) {
       );
       await addCommunityPlayer(communityId, playerId, organizer);
     }
-    revision = (await joinRegistration(firstUser, created.windowId)).window_revision;
-    revision = (await joinRegistration(secondUser, created.windowId)).window_revision;
+    const firstJoin = await joinRegistration(firstUser, created.windowId);
+    const secondJoin = await joinRegistration(secondUser, created.windowId);
+    assert.equal(firstJoin.entry_status, 'CONFIRMED');
+    assert.equal(secondJoin.entry_status, 'CONFIRMED');
+    revision = secondJoin.window_revision;
     await client.query(
       `update public.registration_entries set joined_at = '2026-09-02T12:00:00Z'
         where registration_window_id = $1 and player_id in ($2, $3)`,
@@ -480,6 +483,7 @@ if (!isTestDatabaseConfigured()) {
         where registration_window_id = $1 and status = 'CONFIRMED' order by joined_at, id`,
       [created.windowId],
     );
+    assert.equal(expected.rowCount, 2);
     const expectedNameByPlayerId = new Map([
       [first, 'Apelido'],
       [second, 'Nome dois'],

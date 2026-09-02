@@ -1,6 +1,6 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-08-31**, ao fechar `XS-W4-03`. Este é o ponto de retomada canônico se o
+> Atualizado em **2026-09-01**, ao fechar `XS-W4-04`. Este é o ponto de retomada canônico se o
 > limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -28,7 +28,8 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W4-01 | Registration schema e invariantes     | concluída   |
 | XS-W4-02 | Open/Close/Lock Registration          | concluída   |
 | XS-W4-03 | JoinRegistration                      | concluída   |
-| XS-W4-04 | Leave / promoção / capacidade         | **próxima** |
+| XS-W4-04 | Leave / promoção / capacidade         | concluída   |
+| XS-W4-05 | FinalizeSessionRoster                 | **próxima** |
 
 ### Branches — cadeia não mergeada
 
@@ -42,7 +43,8 @@ main
             └── exec/c6-w3-07-session-cohort-cutover
                 └── exec/c6-w4-01-registration-schema
                     └── exec/c6-w4-02-registration-lifecycle
-                        └── exec/c6-w4-03-join-registration   ← HEAD atual
+                        └── exec/c6-w4-03-join-registration
+                            └── exec/c6-w4-04-leave-promotion-capacity   ← HEAD atual
 ```
 
 Ao retomar, confirme o branch antes de qualquer coisa. Não abra uma fatia nova a partir de `main`
@@ -151,6 +153,56 @@ E para a W4-05: sem nenhum grant em `registration_entries`, `FinalizeSessionRost
 a fila dentro de uma função `SECURITY DEFINER`. Essa é a forma certa e é também o ponto exato onde
 um `select` de conveniência fecharia `OPEN-REG-003` sem ninguém decidir.
 
+### O que a W4-04 entregou
+
+- `leave_registration` (o membro sai sozinho), `remove_registration_entry` (o Organizer remove
+  alguém) e `change_registration_capacity`, mais **um** promotor interno
+  `app_private.promote_waitlist_to_capacity` compartilhado pelos três gatilhos que o N2.05 §10 lista;
+- o promotor preenche **todas** as vagas livres em ordem de `queue_sequence`: depois de um Leave
+  existe exatamente uma, depois de um aumento de 12 para 15 existem três — `REG-INV-016` sai como
+  consequência do algoritmo, não como um segundo caminho de código;
+- **uma revisão por comando, nunca uma por promoção.** Um aumento de capacidade que promove três
+  pessoas ainda é um único bump. É por isso que o promotor não reusa `allocate_registration_slot`,
+  que insere linha e bumpa sozinho;
+- `OPEN-REG-002` resolvido para o caminho de promoção: o candidato inelegível vira `REMOVED` com
+  `removal_reason = 'INELIGIBLE_AT_PROMOTION'` e a fila **continua** andando. O custo está registrado
+  na spec — uma inelegibilidade transitória custa a posição em definitivo, e `RestoreRegistrationEntry`
+  é o caminho auditado de volta;
+- a revalidação é **por `source` da entry**: `SELF_JOIN` exige membership ativa + link `ACTIVE` +
+  standing vivo de roster; qualquer outra origem exige só o standing. Uma regra uniforme tornaria o
+  Player sem conta que a W4-03 existe para atender permanentemente impromovível;
+- redução de capacidade abaixo do confirmado é recusada sem escolher vítimas (`REG-INV-017`), e
+  nenhum comando desta fatia rebaixa um `CONFIRMED`.
+
+**Uma assimetria deliberada:** `leave_registration` exige link `ACTIVE` e uma entry efetiva, mas
+**não** exige membership ativa — sair é a única ação de Registration estritamente de-escalatória, e
+exigir membership deixaria encalhada a entry de quem saiu da Community até o promotor transformar um
+`WITHDRAWN` voluntário num `REMOVED` administrativo, destruindo a distinção que `REG-INV-012` existe
+para preservar. A revisão final atacou a assimetria por sete caminhos e nenhum permite afetar a entry
+de outra pessoa. A spec enumera as três exposições residuais, todas exigindo um UUID inadivinhável.
+
+**Invariante que a revisão final descobriu e que a spec agora nomeia:** depois de todo comando
+mutante, ou `confirmed = capacity`, ou não existe nenhuma entry `WAITLISTED`. O guard
+`if v_entry.status = 'CONFIRMED'` nos dois call sites do promotor depende dela — quem quebrar a
+invariante precisa saber o que mais quebra junto.
+
+**Dois avisos para a W4-05:**
+
+1. **Nada revalida uma entry já `CONFIRMED`.** O promotor revalida apenas quem está na fila, e nenhum
+   comando de W4-01..04 rebaixa ou remove um `CONFIRMED`. Um Player confirmado antes de a linha de
+   `players` sofrer soft-delete, de a relação de roster ser desativada ou de o link ser revogado
+   continua `CONFIRMED` para sempre — e um `FinalizeSessionRoster` que materialize o conjunto
+   `CONFIRMED` literalmente vai colocá-lo no roster. Decida explicitamente: revalidar no finalize
+   usando `registration_entry_still_eligible`, que já é privada e ciente de `source`, ou aceitar e
+   documentar.
+2. **Boa notícia sobre `expected_revision`:** `revision` fica provadamente congelada depois de
+   `LOCKED` — todo caminho que poderia bumpá-la ou exige `OPEN` ou levanta `23514` em `LOCKED`, e o
+   no-op de capacidade não bumpa. Um token capturado depois do LOCK não envelhece por atividade de
+   Registration, que é exatamente o que `REG-INV-021` precisa.
+
+E mantenha **Session antes de Window**: nove comandos passarão a travar as duas linhas, e uma única
+inversão dá deadlock no primeiro par concorrente.
+
 ### Decisões em aberto que a W3 preservou
 
 `OPEN-SES-002` (unpublish), `OPEN-SES-004` (roster pós-início), `OPEN-COM-005` (takeover
@@ -173,11 +225,19 @@ legadas mais ricas) e `OPEN-REG-001..006` (superfície de leitura da fila, entre
 `npm run test:db` exige PostgreSQL real (`QA-INV-003/004`) e **nunca** usa mock:
 
 ```text
-container  volley_test_pg  →  127.0.0.1:55432
-VOLLEY_TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55432/volley_test'
+container  volley_test_pg2  →  127.0.0.1:55500
+VOLLEY_TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55500/postgres'
 ```
 
-Preservar o container entre sessões; não derrubar.
+**A porta mudou em 2026-09-01.** O Windows passou a reservar o intervalo 55362-55461 depois de um
+reboot, então `volley_test_pg` não consegue mais publicar a 55432 — o PostgreSQL dentro dele está
+íntegro, só o bind falha (`netsh interface ipv4 show excludedportrange protocol=tcp` mostra o
+intervalo). Em vez de destruir o container que este arquivo mandava preservar, subimos um segundo,
+`volley_test_pg2`, numa porta livre. Nada de valor vive no volume: `rebuildFromMigrations` reconstrói
+o schema do zero a cada execução.
+
+Preservar os containers entre sessões; não derrubar. Se quiser voltar à porta antiga, libere o
+intervalo reservado antes.
 
 ### Ruído conhecido dos gates globais
 

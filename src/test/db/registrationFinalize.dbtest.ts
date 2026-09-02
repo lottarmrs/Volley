@@ -1224,7 +1224,7 @@ if (!isTestDatabaseConfigured()) {
       `select i.indisunique, i.indisvalid, i.indisready, i.indnkeyatts,
               i.indexprs is null as indexprs_is_null,
               array(
-                select a.attname
+                select a.attname::text
                   from unnest(i.indkey::smallint[]) with ordinality as key(attnum, position)
                   join pg_catalog.pg_attribute a
                     on a.attrelid = i.indrelid and a.attnum = key.attnum

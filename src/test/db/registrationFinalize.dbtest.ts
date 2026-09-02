@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Client, Pool, QueryResultRow } from 'pg';
+import type { Client, Pool, PoolClient, QueryResultRow } from 'pg';
 import {
   asIdentityCommitting,
   connect,
@@ -24,6 +24,29 @@ interface WindowFixture {
   sessionId: string;
   windowId: string;
   revision: number;
+}
+
+interface ReadinessBlocker {
+  code: string;
+}
+
+interface ReadinessRow extends QueryResultRow {
+  ready: boolean;
+  blockers: ReadinessBlocker[];
+  revisions: {
+    session_revision: number;
+    roster_revision_id: string | null;
+    roster_revision_number: number | null;
+    rules_snapshot_id: string | null;
+  };
+}
+
+interface FinalizeEffectSnapshot {
+  rosterRevisions: number;
+  rosterEntries: number;
+  participants: number;
+  sessionRevision: number;
+  finalizeReceipts: number;
 }
 
 if (!isTestDatabaseConfigured()) {
@@ -351,6 +374,107 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     return rows[0].revision;
+  }
+
+  async function rosterRevisionCount(sessionId: string): Promise<number> {
+    const { rows } = await client.query<{ count: number }>(
+      'select count(*)::integer as count from public.roster_revisions where session_id = $1',
+      [sessionId],
+    );
+    return rows[0].count;
+  }
+
+  async function finalizeReceiptCount(windowId: string): Promise<number> {
+    const { rows } = await client.query<{ count: number }>(
+      `select count(*)::integer as count from app_private.command_receipts
+        where command_type = 'finalize_session_roster' and aggregate_id = $1`,
+      [windowId],
+    );
+    return rows[0].count;
+  }
+
+  async function commandReceiptCount(commandId: string): Promise<number> {
+    const { rows } = await client.query<{ count: number }>(
+      'select count(*)::integer as count from app_private.command_receipts where command_id = $1',
+      [commandId],
+    );
+    return rows[0].count;
+  }
+
+  async function finalizeEffectSnapshot(
+    sessionId: string,
+    windowId: string,
+  ): Promise<FinalizeEffectSnapshot> {
+    const { rows } = await client.query<FinalizeEffectSnapshot>(
+      `select
+         (select count(*)::integer from public.roster_revisions where session_id = $1)
+           as "rosterRevisions",
+         (select count(*)::integer from public.roster_revision_entries where session_id = $1)
+           as "rosterEntries",
+         (select count(*)::integer from public.session_participants where session_id = $1)
+           as participants,
+         (select revision from public.sessions where id = $1) as "sessionRevision",
+         (select count(*)::integer from app_private.command_receipts
+           where command_type = 'finalize_session_roster' and aggregate_id = $2)
+           as "finalizeReceipts"`,
+      [sessionId, windowId],
+    );
+    return rows[0];
+  }
+
+  async function membershipId(communityId: string, userId: string): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      'select id from public.community_memberships where community_id = $1 and user_id = $2',
+      [communityId, userId],
+    );
+    assert.equal(rows.length, 1, 'the authorization fixture requires one Community membership');
+    return rows[0].id;
+  }
+
+  async function assignOrganizerDirectly(
+    sessionId: string,
+    organizerId: string,
+    communityMembershipId: string,
+    revoked = false,
+  ): Promise<void> {
+    await client.query(
+      `insert into public.session_organizer_assignments (
+         session_id, community_membership_id, organizer_user_id, assigned_by_user_id,
+         revoked_at, revoked_by_user_id
+       ) values (
+         $1::uuid, $2::uuid, $3::uuid, $3::uuid,
+         case when $4::boolean then now() end,
+         case when $4::boolean then $3::uuid end
+       )`,
+      [sessionId, communityMembershipId, organizerId, revoked],
+    );
+  }
+
+  async function beginAsIdentity(db: PoolClient, userId: string): Promise<void> {
+    await db.query('begin');
+    await db.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', userId]);
+    await db.query('select set_config($1, $2, true)', ['request.jwt.claim.role', 'authenticated']);
+    await db.query('select set_config($1, $2, true)', [
+      'request.jwt.claims',
+      JSON.stringify({ sub: userId, role: 'authenticated' }),
+    ]);
+    await db.query('set local role authenticated');
+  }
+
+  async function waitForBackendLock(blockedPid: number): Promise<void> {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const { rows } = await client.query<{ blocked: boolean }>(
+        `select exists (
+           select 1 from pg_catalog.pg_stat_activity
+            where pid = $1 and state = 'active' and wait_event_type = 'Lock'
+         ) as blocked`,
+        [blockedPid],
+      );
+      if (rows[0].blocked) return;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    assert.fail(`backend ${blockedPid} never became observably blocked on a database lock`);
   }
 
   async function assertNoFinalizeEffects(
@@ -740,5 +864,509 @@ if (!isTestDatabaseConfigured()) {
       (await rosterEntries(result.rows[0].roster_revision_id)).rows.map((entry) => entry.player_id),
       fixture.confirmedPlayerIds,
     );
+  });
+
+  // Detects a retry branch that replays the mutation instead of returning its durable receipt.
+  test('same command_id retry returns the identical result with one effect and one receipt', async () => {
+    const organizer = await newUser(`finalize-retry-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize retry');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    const commandId = randomUUID();
+
+    const first = await finalizeRoster(organizer, {
+      commandId,
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+    const second = await finalizeRoster(organizer, {
+      commandId,
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+
+    assert.deepEqual(second.rows, first.rows);
+    assert.equal(await rosterRevisionCount(fixture.sessionId), 1);
+    assert.equal(await finalizeReceiptCount(fixture.windowId), 1);
+    assert.equal(await commandReceiptCount(commandId), 1);
+  });
+
+  // Detects a source-finalization branch that creates a second immutable revision for the same lock.
+  test('distinct command IDs for one Registration source converge without a second Session bump', async () => {
+    const organizer = await newUser(`finalize-converge-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize convergence');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+
+    const first = await finalizeRoster(organizer, {
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+    const afterFirst = await sessionRevision(fixture.sessionId);
+    const second = await finalizeRoster(organizer, {
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+
+    assert.equal(second.rows[0].roster_revision_id, first.rows[0].roster_revision_id);
+    assert.equal(second.rows[0].roster_revision_number, first.rows[0].roster_revision_number);
+    assert.equal(second.rows[0].session_revision, afterFirst);
+    assert.equal(await sessionRevision(fixture.sessionId), afterFirst);
+    assert.equal(await rosterRevisionCount(fixture.sessionId), 1);
+    assert.equal(await finalizeReceiptCount(fixture.windowId), 2);
+  });
+
+  // Detects accepting one command_id for two Registration aggregates and mutating the second one.
+  test('a finalize command_id collision against another Window raises 23505 without a second effect', async () => {
+    const organizer = await newUser(`finalize-window-collision-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize Window collision');
+    const firstFixture = await lockedWindow(organizer, communityId, 1, 1);
+    const secondFixture = await lockedWindow(organizer, communityId, 1, 1);
+    const commandId = randomUUID();
+    await finalizeRoster(organizer, {
+      commandId,
+      windowId: firstFixture.windowId,
+      expectedRevision: firstFixture.revision,
+    });
+    const beforeSecond = await finalizeEffectSnapshot(
+      secondFixture.sessionId,
+      secondFixture.windowId,
+    );
+
+    const collision = await finalizeRoster(organizer, {
+      commandId,
+      windowId: secondFixture.windowId,
+      expectedRevision: secondFixture.revision,
+    }).catch((error: Error) => error);
+    const afterSecond = await finalizeEffectSnapshot(
+      secondFixture.sessionId,
+      secondFixture.windowId,
+    );
+
+    assert.deepEqual(
+      {
+        code: collision instanceof Error ? (collision as { code?: string }).code : null,
+        afterSecond,
+        commandReceipts: await commandReceiptCount(commandId),
+      },
+      { code: '23505', afterSecond: beforeSecond, commandReceipts: 1 },
+    );
+  });
+
+  // Detects accepting one command_id under two command types and recording a lock receipt over it.
+  test('a finalize command_id collision against lock_registration raises 23505 without a new effect', async () => {
+    const organizer = await newUser(`finalize-type-collision-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize type collision');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    const commandId = randomUUID();
+    await finalizeRoster(organizer, {
+      commandId,
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+    const beforeCollision = await finalizeEffectSnapshot(fixture.sessionId, fixture.windowId);
+
+    const collision = await call<{ window_revision: number }>(
+      organizer,
+      'select * from public.lock_registration($1, $2, $3)',
+      [commandId, fixture.windowId, fixture.revision],
+    ).catch((error: Error) => error);
+    const afterCollision = await finalizeEffectSnapshot(fixture.sessionId, fixture.windowId);
+
+    assert.deepEqual(
+      {
+        code: collision instanceof Error ? (collision as { code?: string }).code : null,
+        afterCollision,
+        commandReceipts: await commandReceiptCount(commandId),
+      },
+      { code: '23505', afterCollision: beforeCollision, commandReceipts: 1 },
+    );
+  });
+
+  // Detects an authorization check that accepts capability, a revoked assignment, or assignment elsewhere.
+  test('only the active Organizer assignment for this Session may finalize its Registration roster', async () => {
+    const organizer = await newUser(`finalize-auth-owner-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize authorization');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    const before = await sessionRevision(fixture.sessionId);
+
+    const unassigned = await newUser(`finalize-auth-unassigned-${randomUUID()}@test.local`);
+    await activeMembership(communityId, unassigned);
+    await grantOrganizer(communityId, unassigned);
+
+    const revoked = await newUser(`finalize-auth-revoked-${randomUUID()}@test.local`);
+    await activeMembership(communityId, revoked);
+    await grantOrganizer(communityId, revoked);
+    await assignOrganizerDirectly(
+      fixture.sessionId,
+      revoked,
+      await membershipId(communityId, revoked),
+      true,
+    );
+
+    const otherCommunityOrganizer = await newUser(
+      `finalize-auth-other-community-${randomUUID()}@test.local`,
+    );
+    const otherCommunityId = await targetCommunity(
+      otherCommunityOrganizer,
+      'Finalize other Community',
+    );
+    await communitySession(otherCommunityOrganizer, otherCommunityId, 'Other Community Session');
+
+    const otherSessionOrganizer = await newUser(
+      `finalize-auth-other-session-${randomUUID()}@test.local`,
+    );
+    await activeMembership(communityId, otherSessionOrganizer);
+    await grantOrganizer(communityId, otherSessionOrganizer);
+    await communitySession(otherSessionOrganizer, communityId, 'Different assigned Session');
+
+    const cases: Array<{ name: string; actorId: string | null }> = [
+      { name: 'anonymous caller', actorId: null },
+      { name: 'active but unassigned Community member', actorId: unassigned },
+      { name: 'revoked Session Organizer assignment', actorId: revoked },
+      { name: 'Organizer from another Community', actorId: otherCommunityOrganizer },
+      { name: 'assigned Organizer for a different Session', actorId: otherSessionOrganizer },
+    ];
+
+    for (const authorizationCase of cases) {
+      const rejected = await finalizeRoster(authorizationCase.actorId, {
+        windowId: fixture.windowId,
+        expectedRevision: fixture.revision,
+      }).catch((error: Error) => error);
+      assertSqlState(rejected, '42501');
+      await assertNoFinalizeEffects(fixture.sessionId, fixture.windowId, before);
+    }
+  });
+
+  // Detects loss of SECURITY DEFINER, an unsafe search_path, or an altered public signature.
+  test('finalize_session_roster keeps its exact SECURITY DEFINER metadata and empty search_path', async () => {
+    const fn = await client.query<{
+      prosecdef: boolean;
+      proconfig: string[] | null;
+    }>(
+      `select p.prosecdef, p.proconfig
+         from pg_catalog.pg_proc p
+         join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and p.proname = 'finalize_session_roster'
+          and pg_catalog.pg_get_function_identity_arguments(p.oid) =
+              'p_command_id uuid, p_window_id uuid, p_expected_registration_revision integer'`,
+    );
+    assert.deepEqual(fn.rows, [{ prosecdef: true, proconfig: ['search_path=""'] }]);
+  });
+
+  // Detects widened browser SQL privileges or removal of authenticated RPC execution.
+  test('finalize_session_roster grants only authenticated execution and exposes no browser table mutations', async () => {
+    const routineGrants = await client.query<{ grantee: string; privilege_type: string }>(
+      `select grantee, privilege_type
+         from information_schema.role_routine_grants
+        where specific_schema = 'public'
+          and routine_name = 'finalize_session_roster'
+          and grantee in ('PUBLIC', 'anon', 'authenticated')
+        order by grantee, privilege_type`,
+    );
+    assert.deepEqual(routineGrants.rows, [{ grantee: 'authenticated', privilege_type: 'EXECUTE' }]);
+
+    const execution = await client.query<{
+      public_execute: boolean;
+      anon_execute: boolean;
+      authenticated_execute: boolean;
+    }>(
+      `select has_function_privilege('public', p.oid, 'EXECUTE') as public_execute,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                as authenticated_execute
+         from pg_catalog.pg_proc p
+         join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and p.proname = 'finalize_session_roster'
+          and pg_catalog.pg_get_function_identity_arguments(p.oid) =
+              'p_command_id uuid, p_window_id uuid, p_expected_registration_revision integer'`,
+    );
+    assert.deepEqual(execution.rows, [
+      { public_execute: false, anon_execute: false, authenticated_execute: true },
+    ]);
+
+    const tableGrants = await client.query<{
+      table_name: string;
+      grantee: string;
+      privilege_type: string;
+    }>(
+      `select table_name, grantee, privilege_type
+         from information_schema.role_table_grants
+        where table_schema = 'public'
+          and table_name in (
+            'registration_entries', 'session_participants', 'roster_revisions',
+            'roster_revision_entries'
+          )
+          and grantee in ('PUBLIC', 'anon', 'authenticated')
+        order by table_name, grantee, privilege_type`,
+    );
+    assert.deepEqual(tableGrants.rows, [
+      {
+        table_name: 'roster_revision_entries',
+        grantee: 'authenticated',
+        privilege_type: 'SELECT',
+      },
+      { table_name: 'roster_revisions', grantee: 'authenticated', privilege_type: 'SELECT' },
+      {
+        table_name: 'session_participants',
+        grantee: 'authenticated',
+        privilege_type: 'SELECT',
+      },
+    ]);
+  });
+
+  // Detects removal, widening, de-duplication loss, or column-order reversal in the source key.
+  test('roster revisions have the exact unique partial Registration source index', async () => {
+    const indexes = await client.query<{
+      indisunique: boolean;
+      columns: string[];
+      predicate: string;
+    }>(
+      `select i.indisunique,
+              array(
+                select a.attname
+                  from unnest(i.indkey::smallint[]) with ordinality as key(attnum, position)
+                  join pg_catalog.pg_attribute a
+                    on a.attrelid = i.indrelid and a.attnum = key.attnum
+                 where key.attnum > 0
+                 order by key.position
+              ) as columns,
+              pg_catalog.pg_get_expr(i.indpred, i.indrelid) as predicate
+         from pg_catalog.pg_index i
+         join pg_catalog.pg_class t on t.oid = i.indrelid
+         join pg_catalog.pg_namespace n on n.oid = t.relnamespace
+        where n.nspname = 'public'
+          and t.relname = 'roster_revisions'
+          and i.indisunique
+          and pg_catalog.pg_get_expr(i.indpred, i.indrelid) =
+              '(source_kind = ''REGISTRATION''::text)'`,
+    );
+    assert.deepEqual(indexes.rows, [
+      {
+        indisunique: true,
+        columns: ['session_id', 'source_registration_revision'],
+        predicate: "(source_kind = 'REGISTRATION'::text)",
+      },
+    ]);
+  });
+
+  // Detects concurrent distinct commands materializing two revisions after one waited on the lock.
+  test('two controlled concurrent finalizes converge after one backend observably waits on a lock', async () => {
+    const organizer = await newUser(`finalize-concurrent-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize concurrency');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    const beforeSessionRevision = await sessionRevision(fixture.sessionId);
+    const a = await pool.connect();
+    const b = await pool.connect();
+    try {
+      await beginAsIdentity(a, organizer);
+      await beginAsIdentity(b, organizer);
+      const aPid = (await a.query<{ pid: number }>('select pg_backend_pid() as pid')).rows[0].pid;
+      const bPid = (await b.query<{ pid: number }>('select pg_backend_pid() as pid')).rows[0].pid;
+      const race = (db: PoolClient, side: 'a' | 'b') =>
+        db
+          .query<FinalizeRow>('select * from public.finalize_session_roster($1, $2, $3)', [
+            randomUUID(),
+            fixture.windowId,
+            fixture.revision,
+          ])
+          .then((result) => ({ side, result }));
+      const racingA = race(a, 'a');
+      const racingB = race(b, 'b');
+      const winner = await Promise.race([racingA, racingB]);
+      const loserClient = winner.side === 'a' ? b : a;
+      const loserPid = winner.side === 'a' ? bPid : aPid;
+      const loserPromise = winner.side === 'a' ? racingB : racingA;
+
+      await waitForBackendLock(loserPid);
+      await (winner.side === 'a' ? a : b).query('commit');
+      const loser = await loserPromise;
+      await loserClient.query('commit');
+
+      assert.equal(
+        loser.result.rows[0].roster_revision_id,
+        winner.result.rows[0].roster_revision_id,
+      );
+      assert.equal(
+        loser.result.rows[0].roster_revision_number,
+        winner.result.rows[0].roster_revision_number,
+      );
+      assert.equal(await finalizeReceiptCount(fixture.windowId), 2);
+      assert.equal(await rosterRevisionCount(fixture.sessionId), 1);
+      assert.equal(await sessionRevision(fixture.sessionId), beforeSessionRevision + 1);
+    } finally {
+      await a.query('rollback').catch(() => undefined);
+      await b.query('rollback').catch(() => undefined);
+      a.release();
+      b.release();
+    }
+  });
+
+  // Detects partial effects surviving when the Session revision update aborts the command.
+  test('an injected Session bump failure rolls back participants, revision, entries, bump and receipt', async () => {
+    const organizer = await newUser(`finalize-rollback-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize rollback');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    const beforeSessionRevision = await sessionRevision(fixture.sessionId);
+    const db = await pool.connect();
+    let rolledBack = false;
+    try {
+      await db.query('begin');
+      await db.query('select set_config($1, $2, true)', [
+        'volley.test_fail_finalize_session_id',
+        fixture.sessionId,
+      ]);
+      await db.query(`create or replace function pg_temp.fail_finalize_session_bump()
+        returns trigger language plpgsql as $$
+        begin
+          if old.id = pg_catalog.current_setting(
+            'volley.test_fail_finalize_session_id', true
+          )::uuid then
+            raise exception 'injected finalize failure' using errcode = 'P0001';
+          end if;
+          return new;
+        end;
+        $$`);
+      await db.query(`create trigger fail_finalize_session_bump_trigger
+        before update of revision on public.sessions
+        for each row execute function pg_temp.fail_finalize_session_bump()`);
+      await db.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', organizer]);
+      await db.query('select set_config($1, $2, true)', [
+        'request.jwt.claim.role',
+        'authenticated',
+      ]);
+      await db.query('select set_config($1, $2, true)', [
+        'request.jwt.claims',
+        JSON.stringify({ sub: organizer, role: 'authenticated' }),
+      ]);
+      await db.query('set local role authenticated');
+
+      const rejected = await db
+        .query<FinalizeRow>('select * from public.finalize_session_roster($1, $2, $3)', [
+          randomUUID(),
+          fixture.windowId,
+          fixture.revision,
+        ])
+        .catch((error: Error) => error);
+      assertSqlState(rejected, 'P0001');
+      await db.query('rollback');
+      rolledBack = true;
+
+      await assertNoFinalizeEffects(fixture.sessionId, fixture.windowId, beforeSessionRevision);
+      const trigger = await client.query(
+        `select 1 from pg_catalog.pg_trigger
+          where tgname = 'fail_finalize_session_bump_trigger' and not tgisinternal`,
+      );
+      assert.equal(trigger.rowCount, 0);
+    } finally {
+      if (!rolledBack) await db.query('rollback').catch(() => undefined);
+      db.release();
+    }
+  });
+
+  // Detects readiness continuing to report no roster after a successful finalization.
+  test('finalization clears only NO_EFFECTIVE_ROSTER from the incomplete Session readiness blockers', async () => {
+    const organizer = await newUser(`finalize-readiness-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize readiness');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    await client.query('delete from public.session_courts where session_id = $1', [
+      fixture.sessionId,
+    ]);
+
+    const before = await call<ReadinessRow>(
+      organizer,
+      'select * from public.read_target_session_readiness($1)',
+      [fixture.sessionId],
+    );
+    assert.deepEqual(before.rows[0].blockers.map(({ code }) => code).sort(), [
+      'COURT_CONFIGURATION_INVALID',
+      'NO_EFFECTIVE_ROSTER',
+      'RULES_INVALID',
+    ]);
+
+    await finalizeRoster(organizer, {
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+    const after = await call<ReadinessRow>(
+      organizer,
+      'select * from public.read_target_session_readiness($1)',
+      [fixture.sessionId],
+    );
+    assert.deepEqual(after.rows[0].blockers.map(({ code }) => code).sort(), [
+      'COURT_CONFIGURATION_INVALID',
+      'RULES_INVALID',
+    ]);
+  });
+
+  // Detects convergence that revalidates mutable identity data or rewrites the frozen snapshot.
+  test('a distinct finalize after Player identity drift returns the immutable frozen roster and no bump', async () => {
+    const organizer = await newUser(`finalize-snapshot-${randomUUID()}@test.local`);
+    const communityId = await targetCommunity(organizer, 'Finalize immutable snapshot');
+    const fixture = await lockedWindow(organizer, communityId, 1, 1);
+    const sourceEntries = await entriesForWindow(fixture.windowId);
+    assert.deepEqual(
+      sourceEntries.rows.map(({ player_id }) => player_id),
+      fixture.confirmedPlayerIds,
+    );
+
+    const first = await finalizeRoster(organizer, {
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+    const revisionId = first.rows[0].roster_revision_id;
+    const frozenEntries = (await rosterEntries(revisionId)).rows;
+    const frozenParticipants = (
+      await client.query<{
+        id: string;
+        player_id: string | null;
+        display_name: string;
+        participation_status: string;
+      }>(
+        `select id, player_id, display_name, participation_status
+           from public.session_participants
+          where session_id = $1 order by id`,
+        [fixture.sessionId],
+      )
+    ).rows;
+    const afterFirst = await sessionRevision(fixture.sessionId);
+    const playerId = fixture.confirmedPlayerIds[0];
+
+    await client.query(
+      `update public.players set nickname = 'Identidade mutada', name = 'Nome mutado'
+        where id = $1`,
+      [playerId],
+    );
+    await client.query(
+      `update public.community_players set active = false, status = 'inactive'
+        where community_id = $1 and player_id = $2`,
+      [communityId, playerId],
+    );
+    await client.query(
+      `update public.player_account_links set status = 'REVOKED', reviewed_at = now()
+        where player_id = $1`,
+      [playerId],
+    );
+
+    const replay = await finalizeRoster(organizer, {
+      windowId: fixture.windowId,
+      expectedRevision: fixture.revision,
+    });
+    assert.deepEqual(replay.rows, first.rows);
+    assert.deepEqual((await rosterEntries(revisionId)).rows, frozenEntries);
+    assert.deepEqual(
+      (
+        await client.query(
+          `select id, player_id, display_name, participation_status
+             from public.session_participants
+            where session_id = $1 order by id`,
+          [fixture.sessionId],
+        )
+      ).rows,
+      frozenParticipants,
+    );
+    assert.equal(await sessionRevision(fixture.sessionId), afterFirst);
+    assert.equal(await rosterRevisionCount(fixture.sessionId), 1);
+    assert.equal(await finalizeReceiptCount(fixture.windowId), 2);
   });
 }

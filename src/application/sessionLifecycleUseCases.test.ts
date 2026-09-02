@@ -866,13 +866,16 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
       'player-2',
     ]);
   }
-  assert.deepEqual(buildDivisionWorkerMessageResult(
+  assert.deepEqual(
+    buildDivisionWorkerMessageResult(
       { type: 'error', code: 'TECHNICAL_ERROR', message: 'boom' },
       plan,
-    ), {
-    type: 'fallback',
-    message: 'boom',
-  });
+    ),
+    {
+      type: 'fallback',
+      message: 'boom',
+    },
+  );
   assert.deepEqual(
     buildDivisionWorkerMessageResult(
       {

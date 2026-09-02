@@ -422,7 +422,11 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(rows.length, 1);
     assert.notEqual(rows[0].player_deleted_at, null, 'fixture must soft-delete the players row');
     assert.equal(rows[0].player_active, true, 'fixture must leave players.active true');
-    assert.equal(rows[0].roster_deleted_at, null, 'fixture must leave community_players.deleted_at null');
+    assert.equal(
+      rows[0].roster_deleted_at,
+      null,
+      'fixture must leave community_players.deleted_at null',
+    );
     assert.equal(rows[0].roster_active, true, 'fixture must leave community_players.active true');
   }
 
@@ -774,7 +778,7 @@ if (!isTestDatabaseConfigured()) {
     assertSqlState(result, '42501');
   });
 
-  test('BOLA: the organizer of one Community cannot add_registration_entry a Player who is live on a second Community\'s roster, against the first Community\'s own Window (QA-INV-006)', async () => {
+  test("BOLA: the organizer of one Community cannot add_registration_entry a Player who is live on a second Community's roster, against the first Community's own Window (QA-INV-006)", async () => {
     const firstOrganizer = await newUser('add-bola-first-organizer@test.local');
     const firstCommunity = await targetCommunity(firstOrganizer, 'BOLA add first');
     const firstWindowId = await openWindow(firstOrganizer, firstCommunity, 12);

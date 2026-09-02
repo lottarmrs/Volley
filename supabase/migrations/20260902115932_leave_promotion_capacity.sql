@@ -235,3 +235,224 @@ $$;
 
 revoke all on function public.leave_registration(uuid, uuid) from public, anon;
 grant execute on function public.leave_registration(uuid, uuid) to authenticated;
+
+-- Organizer-driven counterpart to Leave: removes ANY effective entry (CONFIRMED or WAITLISTED)
+-- for a given Player, with an audited reason, and promotes the queue when a CONFIRMED seat frees.
+create function public.remove_registration_entry(
+  p_command_id uuid,
+  p_window_id uuid,
+  p_player_id uuid,
+  p_reason text
+)
+returns table (entry_status text, window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_entry public.registration_entries;
+  v_receipt jsonb;
+  v_result jsonb;
+begin
+  if p_command_id is null or p_window_id is null or p_player_id is null then
+    raise exception 'command_id, window_id and player_id are required' using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'remove_registration_entry', p_window_id
+  );
+  if v_receipt is not null then
+    return query
+      select (v_receipt ->> 'entry_status')::text, (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  if v_session.lifecycle_status not in ('DRAFT', 'SCHEDULED') then
+    raise exception 'Session must be DRAFT or SCHEDULED to remove a Registration entry'
+      using errcode = '23514';
+  end if;
+
+  if v_window.status = 'LOCKED' then
+    raise exception 'Registration Window is LOCKED' using errcode = '23514';
+  end if;
+
+  select * into v_entry
+    from public.registration_entries
+   where registration_window_id = p_window_id
+     and player_id = p_player_id
+     and status in ('CONFIRMED', 'WAITLISTED')
+   for update;
+  if not found then
+    raise exception 'No effective Registration entry for Player %', p_player_id
+      using errcode = 'P0002';
+  end if;
+
+  update public.registration_entries
+     set status = 'REMOVED',
+         status_changed_at = pg_catalog.now(),
+         removed_at = pg_catalog.now(),
+         removal_reason = p_reason
+   where id = v_entry.id;
+
+  if v_entry.status = 'CONFIRMED' then
+    perform app_private.promote_waitlist_to_capacity(p_window_id);
+  end if;
+
+  update public.registration_windows
+     set revision = revision + 1,
+         updated_at = pg_catalog.now()
+   where id = p_window_id;
+
+  v_result := pg_catalog.jsonb_build_object(
+    'entry_status', 'REMOVED',
+    'window_revision', v_window.revision + 1
+  );
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'remove_registration_entry', p_window_id,
+    v_result, 'REGISTRATION_ENTRY'
+  );
+
+  return query
+    select (v_result ->> 'entry_status')::text, (v_result ->> 'window_revision')::integer;
+end;
+$$;
+
+revoke all on function public.remove_registration_entry(uuid, uuid, uuid, text) from public, anon;
+grant execute on function public.remove_registration_entry(uuid, uuid, uuid, text) to authenticated;
+
+-- A blank p_reason is rejected by the existing registration_entries_removal_reason_check, which
+-- already raises 23514. Deliberately not duplicated here -- one rule, one place.
+
+-- Organizer-driven Window capacity change. Shrinking is refused outright below the confirmed
+-- count (REG-INV-017) rather than picking victims; growing runs the same FIFO promoter Leave and
+-- Remove use, unconditionally, since its own exit condition already makes it a no-op when nothing
+-- is free.
+create function public.change_registration_capacity(
+  p_command_id uuid,
+  p_window_id uuid,
+  p_capacity integer
+)
+returns table (window_capacity integer, window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_confirmed bigint;
+  v_receipt jsonb;
+  v_result jsonb;
+begin
+  if p_command_id is null or p_window_id is null or p_capacity is null then
+    raise exception 'command_id, window_id and capacity are required' using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'change_registration_capacity', p_window_id
+  );
+  if v_receipt is not null then
+    return query
+      select (v_receipt ->> 'window_capacity')::integer,
+             (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  if v_session.lifecycle_status not in ('DRAFT', 'SCHEDULED') then
+    raise exception 'Session must be DRAFT or SCHEDULED to change Registration capacity'
+      using errcode = '23514';
+  end if;
+
+  if v_window.status = 'LOCKED' then
+    raise exception 'Registration Window is LOCKED' using errcode = '23514';
+  end if;
+
+  if p_capacity <= 0 then
+    raise exception 'Registration capacity must be greater than zero' using errcode = '23514';
+  end if;
+
+  if p_capacity = v_window.capacity then
+    v_result := pg_catalog.jsonb_build_object(
+      'window_capacity', v_window.capacity,
+      'window_revision', v_window.revision
+    );
+    perform app_private.record_command_receipt(
+      p_command_id, (select auth.uid()), 'change_registration_capacity', p_window_id,
+      v_result, 'REGISTRATION_ENTRY'
+    );
+    return query select v_window.capacity, v_window.revision;
+    return;
+  end if;
+
+  select pg_catalog.count(*) into v_confirmed
+    from public.registration_entries
+   where registration_window_id = p_window_id
+     and status = 'CONFIRMED';
+
+  -- REG-INV-017: refuse, and pick no victims. The documented path to a smaller Window is for the
+  -- Organizer to remove entries explicitly first.
+  if p_capacity < v_confirmed then
+    raise exception 'Registration capacity cannot be reduced below the % confirmed entries',
+      v_confirmed using errcode = '23514';
+  end if;
+
+  update public.registration_windows
+     set capacity = p_capacity,
+         revision = revision + 1,
+         updated_at = pg_catalog.now()
+   where id = p_window_id;
+
+  -- Called unconditionally: the promoter's first exit condition makes it a no-op whenever no slot
+  -- is free, so guarding on "increase" would add a branch that can never change the outcome. It
+  -- must run AFTER the capacity update, because it reads capacity from the row.
+  perform app_private.promote_waitlist_to_capacity(p_window_id);
+
+  v_result := pg_catalog.jsonb_build_object(
+    'window_capacity', p_capacity,
+    'window_revision', v_window.revision + 1
+  );
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'change_registration_capacity', p_window_id,
+    v_result, 'REGISTRATION_ENTRY'
+  );
+
+  return query select p_capacity, v_window.revision + 1;
+end;
+$$;
+
+revoke all on function public.change_registration_capacity(uuid, uuid, integer) from public, anon;
+grant execute on function public.change_registration_capacity(uuid, uuid, integer) to authenticated;

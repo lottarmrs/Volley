@@ -1131,7 +1131,14 @@ if (!isTestDatabaseConfigured()) {
     }
   });
 
-  test('change_registration_capacity: a retry with the same command_id returns the recorded result and does not promote again', async () => {
+  // FIX ROUND 1: the retry deliberately sends capacity 5, NOT the first call's capacity 2.
+  // Resending the same value would let a broken implementation with no command-receipt
+  // handling at all fall into the ordinary no-op branch (p_capacity = v_window.capacity) and
+  // still return an identical row -- a coincidence, not idempotency. A different value on the
+  // retry is the only thing that can tell a real receipt short-circuit (returns the recorded
+  // result, capacity stays 2) apart from that no-op coincidence (capacity would become 5). Do
+  // not "simplify" this back to 2.
+  test('change_registration_capacity: a retry with the same command_id returns the recorded result, ignores the different capacity it was resent with, and does not promote again', async () => {
     const organizer = await newUser(`capacity-retry-${randomUUID()}@test.local`);
     const community = await targetCommunity(organizer, 'Capacity retry');
     const windowId = await openWindow(organizer, community, 1);
@@ -1140,13 +1147,18 @@ if (!isTestDatabaseConfigured()) {
 
     const first = await changeCapacity(organizer, { commandId, windowId, capacity: 2 });
     const afterFirst = await windowRow(windowId);
-    const second = await changeCapacity(organizer, { commandId, windowId, capacity: 2 });
+    const second = await changeCapacity(organizer, { commandId, windowId, capacity: 5 });
     const afterSecond = await windowRow(windowId);
 
     assert.deepEqual(second.rows[0], first.rows[0]);
+    assert.equal(afterSecond.capacity, 2, 'the resent capacity 5 must never be applied');
     assert.equal(afterSecond.revision, afterFirst.revision);
     const entries = await entriesOf(windowId);
-    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 2);
+    assert.equal(
+      entries.filter((row) => row.status === 'CONFIRMED').length,
+      2,
+      'no second promotion occurred',
+    );
   });
 
   test('change_registration_capacity: raises 23514 while the Window is LOCKED, and succeeds while it is DRAFT', async () => {

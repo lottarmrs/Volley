@@ -337,6 +337,14 @@ if (!isTestDatabaseConfigured()) {
     );
   }
 
+  async function entriesForWindow(windowId: string) {
+    return client.query<{ id: string; player_id: string }>(
+      `select id, player_id from public.registration_entries
+        where registration_window_id = $1 and status = 'CONFIRMED' order by joined_at, id`,
+      [windowId],
+    );
+  }
+
   async function sessionRevision(sessionId: string): Promise<number> {
     const { rows } = await client.query<{ revision: number }>(
       'select revision from public.sessions where id = $1',
@@ -478,11 +486,7 @@ if (!isTestDatabaseConfigured()) {
         where registration_window_id = $1 and player_id in ($2, $3)`,
       [created.windowId, first, second],
     );
-    const expected = await client.query<{ id: string; player_id: string }>(
-      `select id, player_id from public.registration_entries
-        where registration_window_id = $1 and status = 'CONFIRMED' order by joined_at, id`,
-      [created.windowId],
-    );
+    const expected = await entriesForWindow(created.windowId);
     assert.equal(expected.rowCount, 2);
     const expectedNameByPlayerId = new Map([
       [first, 'Apelido'],

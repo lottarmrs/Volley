@@ -788,8 +788,18 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(entries.find((row) => row.player_id === goodWaiter.playerId)?.status, 'CONFIRMED');
   });
 
-  test('promotion: a waiter whose players row is soft-deleted, and one whose roster relation went inactive, are both skipped', async () => {
-    for (const kind of ['player_soft_deleted', 'relation_inactive'] as const) {
+  // registration_entry_still_eligible requires FOUR things of roster standing:
+  // community_players.deleted_at is null, community_players.active, players.deleted_at is
+  // null, players.active. Each of the four kinds below breaks exactly one of them, leaving
+  // the other three intact, so each clause of the predicate is discriminated by its own
+  // fixture rather than by a fixture that happens to break several at once.
+  test('promotion: a waiter whose players row is soft-deleted, one whose roster relation went inactive, one whose roster relation is soft-deleted, and one whose players row went inactive, are all skipped', async () => {
+    for (const kind of [
+      'player_soft_deleted',
+      'relation_inactive',
+      'relation_soft_deleted',
+      'player_inactive',
+    ] as const) {
       const organizer = await newUser(`promote-${kind}-${randomUUID()}@test.local`);
       const community = await targetCommunity(organizer, `Promote ${kind}`);
       const windowId = await openWindow(organizer, community, 1);
@@ -800,12 +810,49 @@ if (!isTestDatabaseConfigured()) {
         await client.query('update public.players set deleted_at = now() where id = $1', [
           brokenWaiter.playerId,
         ]);
-      } else {
+        const { rows } = await client.query<{ deleted_at: string | null; active: boolean }>(
+          'select deleted_at, active from public.players where id = $1',
+          [brokenWaiter.playerId],
+        );
+        assert.ok(rows[0].deleted_at, 'players.deleted_at must be set');
+        assert.equal(rows[0].active, true, 'players.active must be untouched');
+      } else if (kind === 'relation_inactive') {
         await client.query(
           `update public.community_players set status = 'inactive', active = false
             where community_id = $1 and player_id = $2`,
           [community, brokenWaiter.playerId],
         );
+        const { rows } = await client.query<{ active: boolean; deleted_at: string | null }>(
+          'select active, deleted_at from public.community_players where community_id = $1 and player_id = $2',
+          [community, brokenWaiter.playerId],
+        );
+        assert.equal(rows[0].active, false, 'community_players.active must be false');
+        assert.equal(rows[0].deleted_at, null, 'community_players.deleted_at must be untouched');
+      } else if (kind === 'relation_soft_deleted') {
+        // sync_community_player_active_status only re-derives `active` when `status` is
+        // provided and changing; this update touches only deleted_at, so `active` must
+        // survive untouched. Verified below rather than assumed.
+        await client.query(
+          `update public.community_players set deleted_at = now()
+            where community_id = $1 and player_id = $2`,
+          [community, brokenWaiter.playerId],
+        );
+        const { rows } = await client.query<{ active: boolean; deleted_at: string | null }>(
+          'select active, deleted_at from public.community_players where community_id = $1 and player_id = $2',
+          [community, brokenWaiter.playerId],
+        );
+        assert.ok(rows[0].deleted_at, 'community_players.deleted_at must be set');
+        assert.equal(rows[0].active, true, 'community_players.active must be untouched');
+      } else {
+        await client.query('update public.players set active = false where id = $1', [
+          brokenWaiter.playerId,
+        ]);
+        const { rows } = await client.query<{ active: boolean; deleted_at: string | null }>(
+          'select active, deleted_at from public.players where id = $1',
+          [brokenWaiter.playerId],
+        );
+        assert.equal(rows[0].active, false, 'players.active must be false');
+        assert.equal(rows[0].deleted_at, null, 'players.deleted_at must be untouched');
       }
 
       await leaveRegistration(holder.userId, { windowId });
@@ -1035,6 +1082,67 @@ if (!isTestDatabaseConfigured()) {
       (error: Error) => error,
     );
     assertSqlState(again, 'P0002');
+  });
+
+  test('remove_registration_entry: raises 23514 while the Window is LOCKED', async () => {
+    const organizer = await newUser(`remove-locked-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove locked');
+    const sessionId = await communitySession(organizer, community);
+    const created = await createWindow(organizer, { sessionId, capacity: 4 });
+    const windowId = created.rows[0].window_id;
+    let revision = created.rows[0].window_revision;
+    await transition(organizer, 'open_registration', { windowId, expectedRevision: revision });
+
+    const victim = await eligibleMember(
+      community,
+      organizer,
+      `remove-locked-victim-${randomUUID()}@test.local`,
+    );
+    await joinRegistration(victim.userId, { windowId });
+    revision = (await windowRow(windowId)).revision;
+
+    await transition(organizer, 'close_registration', { windowId, expectedRevision: revision });
+    revision = (await windowRow(windowId)).revision;
+    await transition(organizer, 'lock_registration', { windowId, expectedRevision: revision });
+
+    const result = await removeEntry(organizer, {
+      windowId,
+      playerId: victim.playerId,
+    }).catch((error: Error) => error);
+    assertSqlState(result, '23514');
+  });
+
+  test('remove_registration_entry: a retry with the same command_id returns the recorded result and mutates nothing further', async () => {
+    const organizer = await newUser(`remove-retry-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove retry');
+    const windowId = await openWindow(organizer, community, 2);
+    const members = await fillWindow(windowId, community, organizer, 2, 2);
+    const commandId = randomUUID();
+
+    const first = await removeEntry(organizer, {
+      commandId,
+      windowId,
+      playerId: members[0].playerId,
+    });
+    const afterFirst = await windowRow(windowId);
+    const second = await removeEntry(organizer, {
+      commandId,
+      windowId,
+      playerId: members[0].playerId,
+    });
+    const afterSecond = await windowRow(windowId);
+
+    assert.deepEqual(second.rows[0], first.rows[0]);
+    assert.equal(afterSecond.revision, afterFirst.revision, 'a retry must not bump the revision');
+
+    const entries = await entriesOf(windowId);
+    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 2);
+    assert.equal(entries.filter((row) => row.status === 'REMOVED').length, 1);
+    assert.equal(
+      entries.find((row) => row.player_id === members[3].playerId)?.status,
+      'WAITLISTED',
+      'the retry must not promote a second waiter',
+    );
   });
 
   // ── Step 10: Capacity RED tests ─────────────────────────────────────────────────────────

@@ -121,10 +121,24 @@ their own entry, stranding it until an organizer notices — and the promoter wo
 `REMOVE` it at promotion time anyway, converting a voluntary `WITHDRAWN` into an administrative
 `REMOVED` and losing the distinction `REG-INV-012` exists to preserve.
 
-The residual exposure is that a caller holding an ACTIVE link can distinguish "this Window id does
-not exist" from "this Window exists but I have no entry in it". Both raise `P0002`. Learning that a
-UUID one already possesses names a real Window discloses nothing about its Community, its Session,
-or anyone else's entry, and every path that would reveal more is still gated.
+The residual exposure has three parts, all a consequence of the prescribed step order (authorization
+→ receipt → Session lifecycle → Window state → entry resolution), not defects:
+
+- a caller holding an ACTIVE link can distinguish "this Window id does not exist" from "this Window
+  exists but I have no entry in it" — both raise `P0002`, but only the first raises it immediately;
+- the same caller, holding a Window UUID for a Community they have no relationship to, also learns
+  **whether the Session is outside `DRAFT`/`SCHEDULED`** and **whether the Window is `LOCKED`**,
+  because those raise `23514` with distinct messages before the entry is resolved;
+- `leave_registration`'s receipt lookup is gated only on holding an ACTIVE link —
+  `app_private.find_command_receipt` does not compare `actor_id` — making it the weakest receipt
+  gate in the program, where every other command gates on membership or an organizer assignment.
+
+All three require possession of an unguessable Window UUID, and the receipt leak additionally
+requires a second unguessable `command_id`. Learning any of this about a UUID one already possesses
+discloses nothing about the Community's or Session's identity, or anyone else's entry, and every
+path that would reveal more is still gated. The ordering itself is deliberate, not an oversight:
+moving the Window-state gate after entry resolution would give a legitimate member the wrong error
+code when leaving a `LOCKED` Window.
 
 **This asymmetry is the thing to attack in review.** If it is wrong, the fix is one added
 membership check and one test.
@@ -166,6 +180,15 @@ After a Leave or a Remove of a `CONFIRMED` entry there is exactly one free slot,
 most one. After a capacity increase from 12 to 15 with eight waiting, there are three free slots, so
 it promotes the first three eligible in FIFO order. That is `REG-INV-016` as a consequence of the
 algorithm rather than as a second code path.
+
+**Invariant: after every mutating command, either `confirmed = capacity`, or no `WAITLISTED` entry
+exists.** It holds because a seat can only be free when the queue is empty: every command that frees
+or adds a seat runs this promoter before returning, which does not stop until every seat is filled or
+the queue is exhausted. It is also why "an increase promotes; a decrease never demotes" (below) is a
+consequence, not a guard: a decrease is only reachable at `confirmed <= new capacity`, and reaching
+that with waiters present would need `confirmed < capacity` with a non-empty queue — forbidden here.
+The `CONFIRMED`-only guard in `leave_registration` and `remove_registration_entry` depends on it; a
+later break of the invariant breaks those guards.
 
 The loop terminates: every iteration either raises the confirmed count by one (bounded by capacity)
 or removes a candidate from the `WAITLISTED` set (bounded by the queue's length).

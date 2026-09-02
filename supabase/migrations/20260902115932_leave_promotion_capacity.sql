@@ -62,6 +62,12 @@ revoke all on function app_private.registration_entry_still_eligible(uuid)
 --
 -- It also does not reuse app_private.allocate_registration_slot, which INSERTS a row and bumps the
 -- revision itself. Promotion UPDATES an existing row; the two only happen to end in CONFIRMED.
+--
+-- The loop terminates because every iteration either raises `v_confirmed` by one -- bounded by
+-- `capacity` -- or takes a row out of the `WAITLISTED` set, bounded by the queue's length.
+--
+-- The returned `promoted`/`skipped` counts exist for the callers' own reasoning and for
+-- debugging. They must NOT reach any command's return shape.
 create function app_private.promote_waitlist_to_capacity(p_window_id uuid)
 returns jsonb
 language plpgsql
@@ -123,12 +129,6 @@ $$;
 
 revoke all on function app_private.promote_waitlist_to_capacity(uuid)
   from public, anon, authenticated;
-
--- The loop terminates because every iteration either raises `v_confirmed` by one -- bounded by
--- `capacity` -- or takes a row out of the `WAITLISTED` set, bounded by the queue's length.
---
--- The returned `promoted`/`skipped` counts exist for the callers' own reasoning and for
--- debugging. They must NOT reach any command's return shape.
 
 create function public.leave_registration(
   p_command_id uuid,
@@ -426,8 +426,8 @@ begin
   -- REG-INV-017: refuse, and pick no victims. The documented path to a smaller Window is for the
   -- Organizer to remove entries explicitly first.
   if p_capacity < v_confirmed then
-    raise exception 'Registration capacity cannot be reduced below the % confirmed entries',
-      v_confirmed using errcode = '23514';
+    raise exception 'Registration capacity cannot be reduced below the confirmed entry count'
+      using errcode = '23514';
   end if;
 
   update public.registration_windows

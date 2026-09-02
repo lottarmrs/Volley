@@ -228,10 +228,8 @@ if (!isTestDatabaseConfigured()) {
   }
 
   // Drives a Window to a chosen state via the real lifecycle commands (copied structure from
-  // registrationLifecycle.dbtest.ts's windowAt, XS-W4-02 task 2). Not called by any test in
-  // this file yet -- Task 3 appends the tests that need it, per the fixture vocabulary this
-  // task hands off.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- see comment above
+  // registrationLifecycle.dbtest.ts's windowAt, XS-W4-02 task 2). Used by the capacity gate
+  // RED test Task 3 appends below.
   async function windowAt(
     actorId: string,
     sessionId: string,
@@ -881,5 +879,450 @@ if (!isTestDatabaseConfigured()) {
         assert.equal(rows[0].allowed, false, `${role} must not execute app_private.${fn}`);
       }
     }
+  });
+
+  // ── Step 8: Remove/capacity fixture helpers (XS-W4-04 task 3, brief-supplied shape) ───────
+
+  async function removeEntry(
+    actorId: string | null,
+    input: { commandId?: string; windowId: string; playerId: string; reason?: string | null },
+  ) {
+    return call<EntryCommandRow>(
+      actorId,
+      'select * from public.remove_registration_entry($1, $2, $3, $4)',
+      [
+        input.commandId ?? randomUUID(),
+        input.windowId,
+        input.playerId,
+        input.reason === undefined ? 'organizer removed' : input.reason,
+      ],
+    );
+  }
+
+  interface CapacityCommandRow extends QueryResultRow {
+    window_capacity: number;
+    window_revision: number;
+  }
+
+  async function changeCapacity(
+    actorId: string | null,
+    input: { commandId?: string; windowId: string; capacity: number | null },
+  ) {
+    return call<CapacityCommandRow>(
+      actorId,
+      'select * from public.change_registration_capacity($1, $2, $3)',
+      [input.commandId ?? randomUUID(), input.windowId, input.capacity],
+    );
+  }
+
+  // ── Step 9: Remove RED tests ────────────────────────────────────────────────────────────
+
+  test('remove_registration_entry: removing a CONFIRMED entry records the reason and promotes the head of the queue', async () => {
+    const organizer = await newUser(`remove-confirmed-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove confirmed');
+    const windowId = await openWindow(organizer, community, 1);
+    const members = await fillWindow(windowId, community, organizer, 1, 1);
+    const before = await windowRow(windowId);
+
+    const result = await removeEntry(organizer, {
+      windowId,
+      playerId: members[0].playerId,
+      reason: 'did not pay',
+    });
+
+    assert.equal(result.rows[0].entry_status, 'REMOVED');
+    assert.equal(result.rows[0].window_revision, before.revision + 1);
+
+    const entries = await entriesOf(windowId);
+    const removed = entries.find((row) => row.player_id === members[0].playerId);
+    assert.equal(removed?.status, 'REMOVED');
+    assert.equal(removed?.removal_reason, 'did not pay');
+    assert.ok(removed?.removed_at);
+    assert.equal(entries.find((row) => row.player_id === members[1].playerId)?.status, 'CONFIRMED');
+  });
+
+  test('remove_registration_entry: removing a WAITLISTED entry promotes nobody', async () => {
+    const organizer = await newUser(`remove-waitlisted-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove waitlisted');
+    const windowId = await openWindow(organizer, community, 1);
+    const members = await fillWindow(windowId, community, organizer, 1, 2);
+
+    await removeEntry(organizer, { windowId, playerId: members[1].playerId });
+
+    const entries = await entriesOf(windowId);
+    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 1);
+    assert.equal(
+      entries.find((row) => row.player_id === members[2].playerId)?.status,
+      'WAITLISTED',
+    );
+  });
+
+  test('remove_registration_entry: a null reason is accepted and a blank reason is rejected', async () => {
+    const organizer = await newUser(`remove-reason-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove reason');
+    const windowId = await openWindow(organizer, community, 4);
+    const a = await eligibleMember(
+      community,
+      organizer,
+      `remove-reason-a-${randomUUID()}@test.local`,
+    );
+    const b = await eligibleMember(
+      community,
+      organizer,
+      `remove-reason-b-${randomUUID()}@test.local`,
+    );
+    await joinRegistration(a.userId, { windowId });
+    await joinRegistration(b.userId, { windowId });
+
+    const accepted = await removeEntry(organizer, { windowId, playerId: a.playerId, reason: null });
+    assert.equal(accepted.rows[0].entry_status, 'REMOVED');
+
+    const blank = await removeEntry(organizer, {
+      windowId,
+      playerId: b.playerId,
+      reason: '   ',
+    }).catch((error: Error) => error);
+    assertSqlState(blank, '23514');
+  });
+
+  test('remove_registration_entry: raises 42501 for a non-organizer member and for an organizer of another Community', async () => {
+    const organizer = await newUser(`remove-authz-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove authz');
+    const windowId = await openWindow(organizer, community, 4);
+    const victim = await eligibleMember(
+      community,
+      organizer,
+      `remove-victim-${randomUUID()}@test.local`,
+    );
+    await joinRegistration(victim.userId, { windowId });
+
+    const plainMember = await newUser(`remove-plain-${randomUUID()}@test.local`);
+    await activeMembership(community, plainMember);
+    const byMember = await removeEntry(plainMember, {
+      windowId,
+      playerId: victim.playerId,
+    }).catch((error: Error) => error);
+    assertSqlState(byMember, '42501');
+
+    const otherOrganizer = await newUser(`remove-other-${randomUUID()}@test.local`);
+    await targetCommunity(otherOrganizer, 'Remove other community');
+    const byOutsider = await removeEntry(otherOrganizer, {
+      windowId,
+      playerId: victim.playerId,
+    }).catch((error: Error) => error);
+    assertSqlState(byOutsider, '42501');
+  });
+
+  test('remove_registration_entry: a Player with no effective entry raises P0002, and so does removing twice', async () => {
+    const organizer = await newUser(`remove-none-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Remove nothing');
+    const windowId = await openWindow(organizer, community, 4);
+    const stranger = await rosterOnlyPlayer(community, organizer, 'Never registered');
+    const member = await eligibleMember(
+      community,
+      organizer,
+      `remove-none-m-${randomUUID()}@test.local`,
+    );
+    await joinRegistration(member.userId, { windowId });
+
+    const never = await removeEntry(organizer, { windowId, playerId: stranger }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(never, 'P0002');
+
+    await removeEntry(organizer, { windowId, playerId: member.playerId });
+    const again = await removeEntry(organizer, { windowId, playerId: member.playerId }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(again, 'P0002');
+  });
+
+  // ── Step 10: Capacity RED tests ─────────────────────────────────────────────────────────
+
+  test('change_registration_capacity: an increase promotes exactly the freed slots in FIFO order', async () => {
+    const organizer = await newUser(`capacity-increase-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity increase');
+    const windowId = await openWindow(organizer, community, 2);
+    const members = await fillWindow(windowId, community, organizer, 2, 5);
+    const before = await windowRow(windowId);
+
+    const result = await changeCapacity(organizer, { windowId, capacity: 5 });
+
+    assert.equal(result.rows[0].window_capacity, 5);
+    assert.equal(result.rows[0].window_revision, before.revision + 1);
+
+    const entries = await entriesOf(windowId);
+    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 5);
+    for (const promoted of members.slice(2, 5)) {
+      assert.equal(
+        entries.find((row) => row.player_id === promoted.playerId)?.status,
+        'CONFIRMED',
+        'the first three waiters by queue_sequence must be the promoted ones',
+      );
+    }
+    for (const waiting of members.slice(5)) {
+      assert.equal(entries.find((row) => row.player_id === waiting.playerId)?.status, 'WAITLISTED');
+    }
+  });
+
+  test('change_registration_capacity: a reduction below the confirmed count raises 23514 and changes nothing', async () => {
+    const organizer = await newUser(`capacity-reduce-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity reduce');
+    const windowId = await openWindow(organizer, community, 3);
+    await fillWindow(windowId, community, organizer, 3, 0);
+    const before = await windowRow(windowId);
+
+    const result = await changeCapacity(organizer, { windowId, capacity: 2 }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(result, '23514');
+
+    const after = await windowRow(windowId);
+    assert.equal(after.capacity, before.capacity);
+    assert.equal(after.revision, before.revision);
+    const entries = await entriesOf(windowId);
+    assert.equal(
+      entries.filter((row) => row.status === 'CONFIRMED').length,
+      3,
+      'nobody is demoted',
+    );
+  });
+
+  test('change_registration_capacity: a reduction to exactly the confirmed count succeeds', async () => {
+    const organizer = await newUser(`capacity-exact-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity exact');
+    const windowId = await openWindow(organizer, community, 5);
+    await fillWindow(windowId, community, organizer, 3, 0);
+
+    const result = await changeCapacity(organizer, { windowId, capacity: 3 });
+    assert.equal(result.rows[0].window_capacity, 3);
+  });
+
+  test('change_registration_capacity: setting the current capacity is a no-op that does not bump the revision or promote', async () => {
+    const organizer = await newUser(`capacity-noop-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity no-op');
+    const windowId = await openWindow(organizer, community, 2);
+    const members = await fillWindow(windowId, community, organizer, 2, 1);
+    const before = await windowRow(windowId);
+
+    const result = await changeCapacity(organizer, { windowId, capacity: 2 });
+
+    assert.equal(result.rows[0].window_capacity, 2);
+    assert.equal(result.rows[0].window_revision, before.revision);
+    const after = await windowRow(windowId);
+    assert.equal(after.revision, before.revision);
+    const entries = await entriesOf(windowId);
+    assert.equal(
+      entries.find((row) => row.player_id === members[2].playerId)?.status,
+      'WAITLISTED',
+    );
+  });
+
+  test('change_registration_capacity: zero, negative and null capacities raise 23514', async () => {
+    const organizer = await newUser(`capacity-invalid-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity invalid');
+    const windowId = await openWindow(organizer, community, 4);
+
+    for (const capacity of [0, -1, null]) {
+      const result = await changeCapacity(organizer, { windowId, capacity }).catch(
+        (error: Error) => error,
+      );
+      assertSqlState(result, '23514');
+    }
+  });
+
+  test('change_registration_capacity: a retry with the same command_id returns the recorded result and does not promote again', async () => {
+    const organizer = await newUser(`capacity-retry-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity retry');
+    const windowId = await openWindow(organizer, community, 1);
+    await fillWindow(windowId, community, organizer, 1, 3);
+    const commandId = randomUUID();
+
+    const first = await changeCapacity(organizer, { commandId, windowId, capacity: 2 });
+    const afterFirst = await windowRow(windowId);
+    const second = await changeCapacity(organizer, { commandId, windowId, capacity: 2 });
+    const afterSecond = await windowRow(windowId);
+
+    assert.deepEqual(second.rows[0], first.rows[0]);
+    assert.equal(afterSecond.revision, afterFirst.revision);
+    const entries = await entriesOf(windowId);
+    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 2);
+  });
+
+  test('change_registration_capacity: raises 23514 while the Window is LOCKED, and succeeds while it is DRAFT', async () => {
+    const organizer = await newUser(`capacity-locked-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Capacity locked');
+    const sessionId = await communitySession(organizer, community);
+    const windowId = await windowAt(organizer, sessionId, 'LOCKED', 4);
+
+    const result = await changeCapacity(organizer, { windowId, capacity: 6 }).catch(
+      (error: Error) => error,
+    );
+    assertSqlState(result, '23514');
+
+    const draftSession = await communitySession(organizer, community, 'Capacity draft');
+    const draftWindow = await windowAt(organizer, draftSession, 'DRAFT', 4);
+    const inDraft = await changeCapacity(organizer, { windowId: draftWindow, capacity: 6 });
+    assert.equal(inDraft.rows[0].window_capacity, 6);
+  });
+
+  // ── Step 11: return-shape RED test ──────────────────────────────────────────────────────
+
+  test('access: the three commands return exactly their documented columns', async () => {
+    const organizer = await newUser(`shape-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Return shape');
+    const windowId = await openWindow(organizer, community, 2);
+    const members = await fillWindow(windowId, community, organizer, 2, 0);
+
+    const left = await leaveRegistration(members[0].userId, { windowId });
+    assert.deepEqual(Object.keys(left.rows[0]).sort(), ['entry_status', 'window_revision']);
+
+    const removed = await removeEntry(organizer, { windowId, playerId: members[1].playerId });
+    assert.deepEqual(Object.keys(removed.rows[0]).sort(), ['entry_status', 'window_revision']);
+
+    const resized = await changeCapacity(organizer, { windowId, capacity: 6 });
+    assert.deepEqual(Object.keys(resized.rows[0]).sort(), ['window_capacity', 'window_revision']);
+  });
+
+  // ── Step 12: exit-gate race RED tests ───────────────────────────────────────────────────
+  //
+  // Copies the barrier structure from registrationJoin.dbtest.ts's last-slot race (XS-W4-03
+  // task 1). Three things there are load-bearing and must not be "simplified": the barrier
+  // connection is AWAITED before either racer is dispatched, the barrier is COMMITTED before
+  // Promise.all, and each racer COMMITS INSIDE its own promise chain -- asIdentityCommitting
+  // already does that internally (begin, run work, commit, all before it resolves), so calling
+  // it directly and awaiting both calls via Promise.all satisfies the requirement without a
+  // second manual transaction wrapper. Commits placed after Promise.all would deadlock, because
+  // the winner cannot commit while the loser holds the await open, and this suite has no
+  // timeout anywhere -- it would hang forever. This exact mistake was made once already in
+  // XS-W4-01.
+
+  test('EXIT GATE: a Leave concurrent with a Join gives the freed seat to the waiter, never to the joiner', async () => {
+    const organizer = await newUser(`gate-leave-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Exit gate leave');
+    const windowId = await openWindow(organizer, community, 1);
+    const holder = await eligibleMember(
+      community,
+      organizer,
+      `gate-holder-${randomUUID()}@test.local`,
+    );
+    const waiter = await eligibleMember(
+      community,
+      organizer,
+      `gate-waiter-${randomUUID()}@test.local`,
+    );
+    const latecomer = await eligibleMember(
+      community,
+      organizer,
+      `gate-late-${randomUUID()}@test.local`,
+    );
+    await joinRegistration(holder.userId, { windowId });
+    await joinRegistration(waiter.userId, { windowId });
+
+    const barrier = await pool.connect();
+    const leaver = await pool.connect();
+    const joiner = await pool.connect();
+    try {
+      await barrier.query('begin');
+      await barrier.query('select 1 from public.registration_windows where id = $1 for update', [
+        windowId,
+      ]);
+
+      const leaving = asIdentityCommitting(leaver, holder.userId, () =>
+        leaver.query('select * from public.leave_registration($1, $2)', [randomUUID(), windowId]),
+      );
+      const joining = asIdentityCommitting(joiner, latecomer.userId, () =>
+        joiner.query('select * from public.join_registration($1, $2, $3)', [
+          randomUUID(),
+          randomUUID(),
+          windowId,
+        ]),
+      );
+
+      await barrier.query('commit');
+      await Promise.all([leaving, joining]);
+    } finally {
+      barrier.release();
+      leaver.release();
+      joiner.release();
+    }
+
+    const entries = await entriesOf(windowId);
+    assert.equal(entries.find((row) => row.player_id === holder.playerId)?.status, 'WITHDRAWN');
+    assert.equal(
+      entries.find((row) => row.player_id === waiter.playerId)?.status,
+      'CONFIRMED',
+      'the eligible waiter must take the freed seat (REG-INV-015)',
+    );
+    assert.equal(
+      entries.find((row) => row.player_id === latecomer.playerId)?.status,
+      'WAITLISTED',
+      'a concurrent joiner must never bypass an existing eligible waiter',
+    );
+    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 1);
+  });
+
+  test('EXIT GATE: a capacity increase concurrent with a Join gives the new seat to the waiter', async () => {
+    const organizer = await newUser(`gate-capacity-${randomUUID()}@test.local`);
+    const community = await targetCommunity(organizer, 'Exit gate capacity');
+    const windowId = await openWindow(organizer, community, 1);
+    const holder = await eligibleMember(
+      community,
+      organizer,
+      `gatec-holder-${randomUUID()}@test.local`,
+    );
+    const waiter = await eligibleMember(
+      community,
+      organizer,
+      `gatec-waiter-${randomUUID()}@test.local`,
+    );
+    const latecomer = await eligibleMember(
+      community,
+      organizer,
+      `gatec-late-${randomUUID()}@test.local`,
+    );
+    await joinRegistration(holder.userId, { windowId });
+    await joinRegistration(waiter.userId, { windowId });
+
+    const barrier = await pool.connect();
+    const resizer = await pool.connect();
+    const joiner = await pool.connect();
+    try {
+      await barrier.query('begin');
+      await barrier.query('select 1 from public.registration_windows where id = $1 for update', [
+        windowId,
+      ]);
+
+      const resizing = asIdentityCommitting(resizer, organizer, () =>
+        resizer.query('select * from public.change_registration_capacity($1, $2, $3)', [
+          randomUUID(),
+          windowId,
+          2,
+        ]),
+      );
+      const joining = asIdentityCommitting(joiner, latecomer.userId, () =>
+        joiner.query('select * from public.join_registration($1, $2, $3)', [
+          randomUUID(),
+          randomUUID(),
+          windowId,
+        ]),
+      );
+
+      await barrier.query('commit');
+      await Promise.all([resizing, joining]);
+    } finally {
+      barrier.release();
+      resizer.release();
+      joiner.release();
+    }
+
+    const entries = await entriesOf(windowId);
+    assert.equal(
+      entries.find((row) => row.player_id === waiter.playerId)?.status,
+      'CONFIRMED',
+      'the waiter must take the new seat, not the concurrent joiner',
+    );
+    assert.equal(entries.find((row) => row.player_id === latecomer.playerId)?.status, 'WAITLISTED');
+    assert.equal(entries.filter((row) => row.status === 'CONFIRMED').length, 2);
   });
 }

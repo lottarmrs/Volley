@@ -91,9 +91,14 @@ supabase/migrations/20260625192530_community_discovery.sql
 supabase/migrations/20260629201136_harden_avatar_storage_update_policy.sql
 supabase/migrations/20260629212554_linked_player_self_read.sql
 supabase/migrations/20260707143343_community_member_role_remove_rpc.sql
+supabase/migrations/20260902115932_leave_promotion_capacity.sql
+supabase/migrations/20260902141626_finalize_session_roster.sql
 ```
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
+
+`20260902141626_finalize_session_roster.sql` adiciona o comando que materializa uma Registration
+travada no roster da Session; ele não disponibiliza uma interface de navegador.
 
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.

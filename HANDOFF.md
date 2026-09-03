@@ -1,6 +1,6 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-09-01**, ao fechar `XS-W4-04`. Este é o ponto de retomada canônico se o
+> Atualizado em **2026-09-03**, ao fechar `XS-W4-05`. Este é o ponto de retomada canônico se o
 > limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -16,39 +16,36 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
 ### Estado das fatias
 
-| Fatia    | Assunto                               | Estado      |
-| -------- | ------------------------------------- | ----------- |
-| XS-W3-01 | Session target root                   | concluída   |
-| XS-W3-02 | Session organizer assignment          | concluída   |
-| XS-W3-03 | Session courts                        | concluída   |
-| XS-W3-04 | Session rules snapshot                | concluída   |
-| XS-W3-05 | SessionParticipant + RosterRevision   | concluída   |
-| XS-W3-06 | Lifecycle/readiness semantic commands | concluída   |
-| XS-W3-07 | Session cohort cutover                | concluída   |
-| XS-W4-01 | Registration schema e invariantes     | concluída   |
-| XS-W4-02 | Open/Close/Lock Registration          | concluída   |
-| XS-W4-03 | JoinRegistration                      | concluída   |
-| XS-W4-04 | Leave / promoção / capacidade         | concluída   |
-| XS-W4-05 | FinalizeSessionRoster                 | **próxima** |
+| Fatia    | Assunto                                  | Estado    |
+| -------- | ---------------------------------------- | --------- |
+| XS-W3-01 | Session target root                      | concluída |
+| XS-W3-02 | Session organizer assignment             | concluída |
+| XS-W3-03 | Session courts                           | concluída |
+| XS-W3-04 | Session rules snapshot                   | concluída |
+| XS-W3-05 | SessionParticipant + RosterRevision      | concluída |
+| XS-W3-06 | Lifecycle/readiness semantic commands    | concluída |
+| XS-W3-07 | Session cohort cutover                   | concluída |
+| XS-W4-01 | Registration schema e invariantes        | concluída |
+| XS-W4-02 | Open/Close/Lock Registration             | concluída |
+| XS-W4-03 | JoinRegistration                         | concluída |
+| XS-W4-04 | Leave / promoção / capacidade            | concluída |
+| XS-W4-05 | FinalizeSessionRoster                    | concluída |
+| XS-W4-06 | Legacy Session Registration introduction | próxima   |
 
-### Branches — cadeia não mergeada
+### Branches — cadeia consolidada localmente
 
-Cada fatia vive em seu próprio branch `exec/c6-...`, encadeado sobre o anterior. **Nada foi
-mergeado em `main`**, por decisão explícita do usuário a cada fatia:
+As fatias anteriores foram consolidadas localmente antes de `XS-W4-05`. O trabalho corrente segue
+no branch `exec/c6-w4-05-finalize-session-roster`; não trate a cadeia histórica como uma série de
+branches ainda pendentes de integração em `main`.
 
 ```text
 main
-└── … → exec/c6-w3-05-session-participant-roster-revision
-        └── exec/c6-w3-06-session-lifecycle-readiness
-            └── exec/c6-w3-07-session-cohort-cutover
-                └── exec/c6-w4-01-registration-schema
-                    └── exec/c6-w4-02-registration-lifecycle
-                        └── exec/c6-w4-03-join-registration
-                            └── exec/c6-w4-04-leave-promotion-capacity   ← HEAD atual
+└── … → consolidação local das fatias C6 anteriores
+        └── exec/c6-w4-05-finalize-session-roster   ← HEAD atual
 ```
 
-Ao retomar, confirme o branch antes de qualquer coisa. Não abra uma fatia nova a partir de `main`
-sem decidir explicitamente o que fazer com a cadeia.
+Ao retomar, confirme o branch antes de qualquer coisa e inicie `XS-W4-06` a partir deste ponto
+canônico.
 
 ### O que a wave W3 entregou
 
@@ -202,6 +199,40 @@ invariante precisa saber o que mais quebra junto.
 
 E mantenha **Session antes de Window**: nove comandos passarão a travar as duas linhas, e uma única
 inversão dá deadlock no primeiro par concorrente.
+
+### O que a W4-05 entregou
+
+- `finalize_session_roster` só materializa o roster quando a Registration Window já está `LOCKED`;
+  ele rejeita a finalização vazia e, na primeira materialização, revalida cada entry `CONFIRMED` —
+  uma única entry inelegível rejeita o comando inteiro;
+- a revisão de roster guarda a proveniência exata da revisão de Registration e a ordem determinística
+  inclui somente os confirmados;
+- o mesmo `command_id` retorna o receipt persistido, enquanto comandos distintos convergem para a
+  mesma revisão imutável sem materializar outro roster;
+- a função preserva a ordem global de locks: Session antes de Window;
+- `registration_entries` continua sem grant de browser; a leitura necessária para a materialização
+  permanece dentro do comando `SECURITY DEFINER`.
+
+A próxima fronteira é `XS-W4-06 — Legacy Session Registration introduction`. O reopen de uma
+Registration continua deliberadamente adiado em `OPEN-REG-006`; esta fatia não entrega UI,
+Realtime nem implantação em produção.
+
+### Evidência de verificação da W4-05
+
+- `npm run typecheck` passou; o ESLint focado em
+  `src/test/db/registrationFinalize.dbtest.ts` passou com zero erro e zero aviso depois da remoção
+  de duas atribuições inúteis, sem alterar suas transições aguardadas;
+- `npm test` passou: 920 testes unitários e 245 testes de UI, sem falhas. `npm run test:db` passou
+  contra `volley_test_pg2` em `127.0.0.1:55500`: 547 testes, zero falhas. O primeiro disparo foi
+  interrompido porque o Docker Desktop estava indisponível (`ECONNREFUSED`); o rerun completo é a
+  evidência válida;
+- `npm run build` passou. `git diff --check` não encontrou erro de espaço em branco;
+- os gates globais continuam com dívida fora desta fatia: `npm run lint:eslint` reporta 10 erros e
+  315 avisos preexistentes. `npm run format:check` ainda reporta arquivos preexistentes. A checagem
+  focada de Prettier passou para README, HANDOFF, spec, plano, teste e migration SQL.
+
+Duas melhorias menores de teste continuam diferidas no ledger: a asserção de `rowCount` no drift e
+o diagnóstico da matriz. Elas não fazem parte desta fatia.
 
 ### Decisões em aberto que a W3 preservou
 

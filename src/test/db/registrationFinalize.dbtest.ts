@@ -577,12 +577,7 @@ if (!isTestDatabaseConfigured()) {
       `Finalize ordering ${randomUUID()}`,
     );
     const created = await createWindow(organizer, sessionId, 2);
-    await transitionWindow(
-      organizer,
-      'open_registration',
-      created.windowId,
-      created.revision,
-    );
+    await transitionWindow(organizer, 'open_registration', created.windowId, created.revision);
     const firstUser = await newUser(`finalize-order-first-${randomUUID()}@test.local`);
     const secondUser = await newUser(`finalize-order-second-${randomUUID()}@test.local`);
     await activeMembership(communityId, firstUser);
@@ -696,12 +691,7 @@ if (!isTestDatabaseConfigured()) {
       const created = await createWindow(organizer, sessionId, 1);
       let revision = created.revision;
       if (status !== 'DRAFT') {
-        await transitionWindow(
-          organizer,
-          'open_registration',
-          created.windowId,
-          revision,
-        );
+        await transitionWindow(organizer, 'open_registration', created.windowId, revision);
         const member = await eligibleMember(
           communityId,
           organizer,

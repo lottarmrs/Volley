@@ -577,7 +577,7 @@ if (!isTestDatabaseConfigured()) {
       `Finalize ordering ${randomUUID()}`,
     );
     const created = await createWindow(organizer, sessionId, 2);
-    let revision = await transitionWindow(
+    await transitionWindow(
       organizer,
       'open_registration',
       created.windowId,
@@ -604,7 +604,7 @@ if (!isTestDatabaseConfigured()) {
     const secondJoin = await joinRegistration(secondUser, created.windowId);
     assert.equal(firstJoin.entry_status, 'CONFIRMED');
     assert.equal(secondJoin.entry_status, 'CONFIRMED');
-    revision = secondJoin.window_revision;
+    let revision = secondJoin.window_revision;
     await client.query(
       `update public.registration_entries set joined_at = '2026-09-02T12:00:00Z'
         where registration_window_id = $1 and player_id in ($2, $3)`,
@@ -696,7 +696,7 @@ if (!isTestDatabaseConfigured()) {
       const created = await createWindow(organizer, sessionId, 1);
       let revision = created.revision;
       if (status !== 'DRAFT') {
-        revision = await transitionWindow(
+        await transitionWindow(
           organizer,
           'open_registration',
           created.windowId,

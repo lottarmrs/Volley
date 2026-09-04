@@ -33,21 +33,19 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W4-06 | Legacy Session Registration introduction | concluída |
 | XS-W5-01 | Versioned PlayerEvaluation source model  | próxima   |
 
-### Branches — cadeia consolidada localmente
+### Branches — cadeia integrada em `main`
 
-As fatias anteriores foram consolidadas localmente antes de `XS-W4-05`. O trabalho corrente segue
-no branch `exec/c6-w4-06-legacy-registration-introduction`, encadeado a partir de
-`exec/c6-w4-05-finalize-session-roster`; não trate a cadeia histórica como uma série de branches
-ainda pendentes de integração em `main`.
+A cadeia C6 até `XS-W4-06` **está em `main`**, integrada em 2026-09-04 por fast-forward, junto com
+a correção de cascade de `session_organizer_assignments`. Não existe mais trabalho C6 pendente de
+integração: `exec/c6-w4-05-finalize-session-roster` e
+`exec/c6-w4-06-legacy-registration-introduction` viraram ponteiros redundantes para pontos dessa
+mesma história.
 
 ```text
-main
-└── … → consolidação local das fatias C6 anteriores
-        └── exec/c6-w4-05-finalize-session-roster
-                └── exec/c6-w4-06-legacy-registration-introduction   ← HEAD atual
+main   ← contém W3-01..W4-06 e a correção de cascade
 ```
 
-Ao retomar, confirme o branch antes de qualquer coisa e inicie `XS-W5-01` a partir deste ponto
+Ao retomar, confirme que está em `main` e inicie `XS-W5-01` a partir deste ponto
 canônico.
 
 ### O que a wave W3 entregou

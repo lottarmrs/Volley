@@ -1,6 +1,6 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-09-03**, ao fechar `XS-W4-05`. Este é o ponto de retomada canônico se o
+> Atualizado em **2026-09-04**, ao fechar `XS-W4-06`. Este é o ponto de retomada canônico se o
 > limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -30,21 +30,24 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W4-03 | JoinRegistration                         | concluída |
 | XS-W4-04 | Leave / promoção / capacidade            | concluída |
 | XS-W4-05 | FinalizeSessionRoster                    | concluída |
-| XS-W4-06 | Legacy Session Registration introduction | próxima   |
+| XS-W4-06 | Legacy Session Registration introduction | concluída |
+| XS-W5-01 | Versioned PlayerEvaluation source model  | próxima   |
 
 ### Branches — cadeia consolidada localmente
 
 As fatias anteriores foram consolidadas localmente antes de `XS-W4-05`. O trabalho corrente segue
-no branch `exec/c6-w4-05-finalize-session-roster`; não trate a cadeia histórica como uma série de
-branches ainda pendentes de integração em `main`.
+no branch `exec/c6-w4-06-legacy-registration-introduction`, encadeado a partir de
+`exec/c6-w4-05-finalize-session-roster`; não trate a cadeia histórica como uma série de branches
+ainda pendentes de integração em `main`.
 
 ```text
 main
 └── … → consolidação local das fatias C6 anteriores
-        └── exec/c6-w4-05-finalize-session-roster   ← HEAD atual
+        └── exec/c6-w4-05-finalize-session-roster
+                └── exec/c6-w4-06-legacy-registration-introduction   ← HEAD atual
 ```
 
-Ao retomar, confirme o branch antes de qualquer coisa e inicie `XS-W4-06` a partir deste ponto
+Ao retomar, confirme o branch antes de qualquer coisa e inicie `XS-W5-01` a partir deste ponto
 canônico.
 
 ### O que a wave W3 entregou
@@ -234,6 +237,63 @@ Realtime nem implantação em produção.
 Duas melhorias menores de teste continuam diferidas no ledger: a asserção de `rowCount` no drift e
 o diagnóstico da matriz. Elas não fazem parte desta fatia.
 
+### O que a W4-06 entregou
+
+- `introduce_registration_from_legacy_roster` materializa uma Registration target inteira a partir
+  da revisão de roster do cutover — **a revisão de roster é a única fonte**; nenhum artefato de
+  Registration nasce de outro lugar;
+- a Window nasce `DRAFT`, com `revision = 1`; toda entry migrada entra `CONFIRMED` sem posição de
+  fila (`queue_sequence` nulo), então o primeiro join genuíno depois da introdução recebe a
+  sequência 1 — a fila do legado nunca é fabricada retroativamente;
+- a capacidade é explícita no comando e recusa encolher a Registration abaixo do roster já
+  migrado: pedir capacidade menor que o confirmado é `23514`, não uma escolha silenciosa de
+  vítimas;
+- um único membro inelegível recusa a introdução inteira e não escreve nada — nem Window, nem
+  entries, nem ledger;
+- `app_private.registration_introductions` é o ledger de proveniência da introdução, imutável por
+  trigger, com a única exceção nomeada (`introduced_by_user_id ... on delete set null`) que
+  sobrevive à cascata de `auth.users`;
+- o predicado "standing vivo" de roster foi fatorado para
+  `app_private.registration_player_standing_alive(community_id, player_id)`, privado e
+  compartilhado; `app_private.registration_entry_still_eligible` passa a **delegar** a ele em vez
+  de duplicar a regra;
+- o comando **não** recebe um token de fingerprint do chamador. A garantia de que a fonte não mudou
+  entre a inspeção e a transição vem de dentro do banco: uma revisão de roster superada
+  (`LEGACY_ROSTER_SUPERSEDED`) bloqueia tanto `inspect_registration_introduction` quanto
+  `introduce_registration_from_legacy_roster` com `23514`, então não existe janela para inspecionar
+  uma fonte e transicionar outra.
+
+**Dois avisos para a W5-01 e o que vier depois:**
+
+1. `registration_entry_still_eligible` agora delega inteiramente a
+   `registration_player_standing_alive`. Uma mudança nas regras de standing tem exatamente uma casa
+   — quem alterar o predicado compartilhado altera os dois caminhos de uma vez, e quem duplicar a
+   regra em outro lugar reintroduz a divergência que esta fatia fechou.
+2. `LEGACY_ROSTER_EMPTY` e `ROSTER_ENTRY_NOT_PLAYER` são blockers inalcançáveis pelo cutover de hoje
+   — existem como defesa em profundidade. No dia em que o cutover aprender a carregar Guests, esses
+   dois blockers passam a ser alcançáveis de verdade; até lá são código morto propositalmente
+   mantido.
+
+A próxima fronteira é `XS-W5-01 — Versioned PlayerEvaluation source model`.
+
+### Evidência de verificação da W4-06
+
+- `npm run typecheck` passou sem saída;
+- `npm test` passou: 920 testes unitários e 245 testes de UI (45 arquivos de teste), sem falhas;
+- `npm run test:db` passou contra `volley_test_pg2` em `127.0.0.1:55500`: 566 testes, zero falhas;
+- `npm run build` passou;
+- o ESLint focado em `src/test/db/registrationIntroduction.dbtest.ts` passou com zero erro e zero
+  aviso; a checagem focada de Prettier passou para `registrationIntroduction.dbtest.ts`, README e
+  HANDOFF;
+- `git diff main...HEAD --name-only` só lista migration, suíte nova, spec, plano, README e HANDOFF
+  (mais os artefatos já pendentes de integração da W4-05, porque `main` ainda não absorveu a cadeia
+  local). `git diff --check` não encontrou erro de espaço em branco.
+
+Antes do Passo 1 desta fatia, a suíte de regressão dobrada de uma tarefa anterior também rodou —
+`registrationSchema`, `registrationLifecycle`, `registrationJoin`, `registrationLeave`,
+`registrationFinalize` e `sessionCohortCutover`, com `--test-concurrency=1` — e passou: 227 testes,
+zero falhas, sem editar nenhuma dessas suítes.
+
 ### Decisões em aberto que a W3 preservou
 
 `OPEN-SES-002` (unpublish), `OPEN-SES-004` (roster pós-início), `OPEN-COM-005` (takeover
@@ -250,6 +310,19 @@ legadas mais ricas) e `OPEN-REG-001..006` (superfície de leitura da fila, entre
 - Filhos de Session target (teams/games) ainda passam pelo sync genérico; só a raiz está cercada.
   A autoridade deles pertence a W6/W7.
 - Uma Session target retida localmente falha o upload genérico a cada sync, indefinidamente.
+- **Defeito pré-existente encontrado pela W4-06, fora do escopo dela:**
+  `session_organizer_assignments` tem dois caminhos de foreign key independentes de volta a
+  `auth.users` — direto via `organizer_user_id` e indireto via `profiles` → `community_memberships`
+  — e os dois não conseguem resolver na mesma linha durante um único `delete from auth.users`,
+  levantando `23503` em `session_organizer_assignments_community_membership_id_fkey`. Vive em
+  `20260828034435_target_session_organizer_assignments.sql`. A W4-06 contornou isso no próprio
+  teste apagando antes a linha de assignment, e não tocou naquela migration — quem for dono desse
+  arquivo precisa decidir o que fazer com as duas FKs.
+- **As checagens de valor único do ledger de introdução são decisões, não defaults.**
+  `registration_introductions` fixa `initial_window_status = 'DRAFT'`,
+  `initial_window_revision = 1` e `queue_chronology = 'UNKNOWN'` via `check`. Uma fatia futura que
+  queira introduzir uma Window já `OPEN`, ou uma cronologia de fila realmente comprovada, precisa
+  alargar essas constraints deliberadamente — não são um artefato incidental da implementação atual.
 
 ### Ambiente obrigatório da suíte de banco
 

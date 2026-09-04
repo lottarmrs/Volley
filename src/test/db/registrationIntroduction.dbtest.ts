@@ -443,10 +443,14 @@ if (!isTestDatabaseConfigured()) {
 
     await client.query('update public.players set deleted_at = now() where id = $1', [doomed]);
 
-    await assert.rejects(introduce(organizerId, { sessionId, capacity: 12 }), (error: unknown) => {
-      assertSqlState(error, '23514');
-      return true;
-    });
+    const commandId = randomUUID();
+    await assert.rejects(
+      introduce(organizerId, { commandId, sessionId, capacity: 12 }),
+      (error: unknown) => {
+        assertSqlState(error, '23514');
+        return true;
+      },
+    );
 
     const { rows: windows } = await client.query(
       'select 1 from public.registration_windows where session_id = $1',
@@ -455,8 +459,8 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(windows.length, 0);
     assert.equal((await ledgerOf(sessionId)).length, 0);
     const { rows: receipts } = await client.query(
-      `select 1 from app_private.command_receipts
-        where command_type = 'introduce_registration_from_legacy_roster'`,
+      `select 1 from app_private.command_receipts where command_id = $1`,
+      [commandId],
     );
     assert.equal(receipts.length, 0);
   });

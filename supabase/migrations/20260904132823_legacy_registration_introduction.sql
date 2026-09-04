@@ -363,7 +363,8 @@ begin
   -- because organizer assignments exist only for target Sessions and a target Session cannot return
   -- to legacy.
   if v_session.authority_model <> 'target' then
-    raise exception 'Registration introduction blocked (SESSION_NOT_TARGET)' using errcode = '23514';
+    raise exception 'Registration introduction blocked: Session has not been cut over to the target model'
+      using errcode = '23514';
   end if;
 
   if v_session.session_context is distinct from 'COMMUNITY' then

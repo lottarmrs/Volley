@@ -101,9 +101,9 @@ supabase/migrations/20260904132823_legacy_registration_introduction.sql
 `20260902141626_finalize_session_roster.sql` adiciona o comando que materializa uma Registration
 travada no roster da Session; ele não disponibiliza uma interface de navegador.
 
-`20260904132823_legacy_registration_introduction.sql` — introduces target Registration into a Session
-cut over from the legacy model: private provenance ledger, shared standing predicate, inspection and
-the introduction command.
+`20260904132823_legacy_registration_introduction.sql` introduz a Registration alvo em uma Session já
+migrada do modelo legado: razão de proveniência privada, predicado de elegibilidade compartilhado,
+inspeção e o comando de introdução.
 
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.

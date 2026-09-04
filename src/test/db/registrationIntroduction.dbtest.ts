@@ -89,6 +89,18 @@ if (!isTestDatabaseConfigured()) {
     assert.equal((error as { code?: string }).code, expectedCode);
   }
 
+  function assertBlockedBy(
+    error: unknown,
+    expectedCode: string,
+    blocker: string,
+  ): asserts error is Error {
+    assertSqlState(error, expectedCode);
+    assert.ok(
+      error.message.includes(blocker),
+      `expected error message to include "${blocker}", got: ${error.message}`,
+    );
+  }
+
   async function newUser(email: string): Promise<string> {
     const { rows } = await client.query<{ id: string }>(
       'insert into auth.users (email) values ($1) returning id',
@@ -277,6 +289,9 @@ if (!isTestDatabaseConfigured()) {
     const second = await rosterOnlyPlayer(communityId, organizerId, 'Bia');
     const sessionId = await cutOverSession(organizerId, communityId, [first, second]);
 
+    const beforeIntroduction = await inspectIntroduction(organizerId, sessionId);
+    const inspectedFingerprint = beforeIntroduction.rows[0].source_fingerprint;
+
     const windowId = randomUUID();
     const commandId = randomUUID();
     const result = await introduce(organizerId, {
@@ -331,6 +346,13 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     assert.equal(ledger[0].source_roster_revision_id, revisions[0].id);
+
+    const { rows: computedFingerprint } = await client.query<{ fingerprint: string }>(
+      'select app_private.legacy_registration_source_fingerprint($1) as fingerprint',
+      [revisions[0].id],
+    );
+    assert.equal(ledger[0].source_fingerprint, computedFingerprint[0].fingerprint);
+    assert.equal(ledger[0].source_fingerprint, inspectedFingerprint);
   });
 
   test('five migrated members still leave one revision and an untouched queue counter', async () => {
@@ -408,10 +430,21 @@ if (!isTestDatabaseConfigured()) {
       windowId,
     ]);
 
+    const { rows: beforeLeave } = await client.query<{ revision: number }>(
+      'select revision from public.registration_windows where id = $1',
+      [windowId],
+    );
+
     await call(migrated.userId, 'select * from public.leave_registration($1, $2)', [
       randomUUID(),
       windowId,
     ]);
+
+    const { rows: afterLeave } = await client.query<{ revision: number }>(
+      'select revision from public.registration_windows where id = $1',
+      [windowId],
+    );
+    assert.equal(afterLeave[0].revision - beforeLeave[0].revision, 1);
 
     const { rows } = await client.query<{ status: string }>(
       `select status from public.registration_entries
@@ -545,6 +578,13 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(missing.rows[0].introducible, false);
     assert.deepEqual(missing.rows[0].blockers, ['LEGACY_ROSTER_MISSING']);
     assert.equal(missing.rows[0].source_fingerprint, null);
+    await assert.rejects(
+      introduce(organizerId, { sessionId: nativeSessionId, capacity: 8 }),
+      (error: unknown) => {
+        assertSqlState(error, '23514');
+        return true;
+      },
+    );
 
     const player = await rosterOnlyPlayer(communityId, organizerId, 'Ana');
     const cutOverId = await cutOverSession(organizerId, communityId, [player], 'Com janela');
@@ -571,7 +611,7 @@ if (!isTestDatabaseConfigured()) {
     await assert.rejects(
       introduce(organizerId, { sessionId: quickSessionId, capacity: 8 }),
       (error: unknown) => {
-        assertSqlState(error, '23514');
+        assertBlockedBy(error, '23514', 'SESSION_NOT_COMMUNITY');
         return true;
       },
     );
@@ -625,7 +665,7 @@ if (!isTestDatabaseConfigured()) {
     await assert.rejects(
       introduce(organizerId, { sessionId: emptySessionId, capacity: 8 }),
       (error: unknown) => {
-        assertSqlState(error, '23514');
+        assertBlockedBy(error, '23514', 'LEGACY_ROSTER_EMPTY');
         return true;
       },
     );
@@ -662,7 +702,7 @@ if (!isTestDatabaseConfigured()) {
     await assert.rejects(
       introduce(organizerId, { sessionId: guestSessionId, capacity: 8 }),
       (error: unknown) => {
-        assertSqlState(error, '23514');
+        assertBlockedBy(error, '23514', 'ROSTER_ENTRY_NOT_PLAYER');
         return true;
       },
     );
@@ -733,6 +773,13 @@ if (!isTestDatabaseConfigured()) {
 
     const fulfilled = attempts.filter((attempt) => attempt.status === 'fulfilled');
     assert.equal(fulfilled.length, 1);
+
+    const rejected = attempts.filter(
+      (attempt): attempt is PromiseRejectedResult => attempt.status === 'rejected',
+    );
+    assert.equal(rejected.length, 1);
+    assertSqlState(rejected[0].reason, '23514');
+
     assert.equal((await ledgerOf(sessionId)).length, 1);
 
     const { rows } = await client.query<{ count: string }>(
@@ -880,5 +927,17 @@ if (!isTestDatabaseConfigured()) {
           and grantee in ('anon', 'authenticated', 'public')`,
     );
     assert.deepEqual(privileges, [{ count: '0' }]);
+
+    const { rows: functionGrants } = await client.query<{ count: string }>(
+      `select count(*)::text as count
+         from information_schema.role_routine_grants
+        where routine_schema = 'public'
+          and routine_name in (
+            'inspect_registration_introduction',
+            'introduce_registration_from_legacy_roster'
+          )
+          and grantee in ('anon', 'public')`,
+    );
+    assert.deepEqual(functionGrants, [{ count: '0' }]);
   });
 }

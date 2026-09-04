@@ -369,7 +369,8 @@ if (!isTestDatabaseConfigured()) {
     ]);
 
     const joiner = await linkedMember(communityId, organizerId, 'w406-queue-joiner@example.com');
-    await call(joiner.userId, 'select * from public.join_registration($1, $2)', [
+    await call(joiner.userId, 'select * from public.join_registration($1, $2, $3)', [
+      randomUUID(),
       randomUUID(),
       windowId,
     ]);
@@ -401,7 +402,8 @@ if (!isTestDatabaseConfigured()) {
       1,
     ]);
     const joiner = await linkedMember(communityId, organizerId, 'w406-promote-joiner@example.com');
-    await call(joiner.userId, 'select * from public.join_registration($1, $2)', [
+    await call(joiner.userId, 'select * from public.join_registration($1, $2, $3)', [
+      randomUUID(),
       randomUUID(),
       windowId,
     ]);

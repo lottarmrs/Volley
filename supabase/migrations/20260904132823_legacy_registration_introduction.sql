@@ -23,6 +23,9 @@ create index registration_introductions_actor_idx
 create index registration_introductions_source_idx
   on app_private.registration_introductions (source_roster_revision_id);
 
+revoke all on table app_private.registration_introductions from public, anon, authenticated;
+alter table app_private.registration_introductions enable row level security;
+
 -- The single-value checks above are deliberate. They record what XS-W4-06 decided, not merely the
 -- value it happens to write: a later slice that wants a Window introduced already OPEN, or a queue
 -- chronology that was actually proven, has to widen the constraint on purpose.

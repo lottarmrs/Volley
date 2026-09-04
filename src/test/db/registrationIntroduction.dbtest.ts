@@ -838,16 +838,6 @@ if (!isTestDatabaseConfigured()) {
     await client.query('alter table public.players disable trigger audit_players');
     await client.query('alter table public.sessions disable trigger audit_sessions');
     try {
-      // session_organizer_assignments has two independent FK paths back to auth.users (direct via
-      // organizer_user_id, indirect via profiles -> community_memberships), and they cannot both
-      // resolve on the same row during one user delete (pre-existing defect in
-      // 20260828034435_target_session_organizer_assignments.sql, out of scope for this slice).
-      // Removing the assignment row first collapses it to the single carve-out this test exists to
-      // prove: introduced_by_user_id ... on delete set null on the ledger itself.
-      await client.query(
-        'delete from public.session_organizer_assignments where session_id = $1 and organizer_user_id = $2',
-        [sessionId, organizerId],
-      );
       await client.query('delete from auth.users where id = $1', [organizerId]);
     } finally {
       await client.query('alter table public.sessions enable trigger audit_sessions');

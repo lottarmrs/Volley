@@ -310,14 +310,19 @@ legadas mais ricas) e `OPEN-REG-001..006` (superfície de leitura da fila, entre
 - Filhos de Session target (teams/games) ainda passam pelo sync genérico; só a raiz está cercada.
   A autoridade deles pertence a W6/W7.
 - Uma Session target retida localmente falha o upload genérico a cada sync, indefinidamente.
-- **Defeito pré-existente encontrado pela W4-06, fora do escopo dela:**
-  `session_organizer_assignments` tem dois caminhos de foreign key independentes de volta a
-  `auth.users` — direto via `organizer_user_id` e indireto via `profiles` → `community_memberships`
-  — e os dois não conseguem resolver na mesma linha durante um único `delete from auth.users`,
-  levantando `23503` em `session_organizer_assignments_community_membership_id_fkey`. Vive em
-  `20260828034435_target_session_organizer_assignments.sql`. A W4-06 contornou isso no próprio
-  teste apagando antes a linha de assignment, e não tocou naquela migration — quem for dono desse
-  arquivo precisa decidir o que fazer com as duas FKs.
+- **Defeito pré-existente encontrado pela W4-06 — corrigido, mas só em parte da superfície.**
+  `session_organizer_assignments` referencia a conta que morre por dois caminhos: direto via
+  `organizer_user_id` e indireto via `profiles` → `community_memberships`. Num único
+  `delete from auth.users` as duas ações `SET NULL` atingem a mesma linha, e a segunda escreve a
+  partir de uma pré-imagem que ressuscita o id de filiação que a primeira nulou — `23503` em
+  `session_organizer_assignments_community_membership_id_fkey`. O estado final da linha sempre foi
+  correto, então `20260904204951_session_organizer_assignment_cascade.sql` torna essa FK
+  `deferrable initially deferred` e o workaround saiu do teste desta fatia.
+  **O que continua aberto:** a mesma forma existe em outras cinco tabelas, e `modification_logs`
+  está **provada** colidindo do mesmo jeito — ou seja, apagar uma conta ainda não funciona ponta a
+  ponta, e quem construir o Unlink de `N2.16`/`XS-W2-01` terá de lidar com ela. A lista medida está
+  fixada em `src/test/db/authCascadeSafety.dbtest.ts`; deleção de conta segue bloqueada antes disso
+  pela guarda do Player canônico, o que mantém tudo isso latente.
 - **As checagens de valor único do ledger de introdução são decisões, não defaults.**
   `registration_introductions` fixa `initial_window_status = 'DRAFT'`,
   `initial_window_revision = 1` e `queue_chronology = 'UNKNOWN'` via `check`. Uma fatia futura que

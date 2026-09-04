@@ -231,6 +231,127 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(rows[0].matches, false, 'a null actor matches no account');
   });
 
+  test('an account delete that touches two dying parents of one row still anonymises it', async () => {
+    // session_organizer_assignments references the dying account directly (organizer_user_id,
+    // assigned_by_user_id) AND references community_memberships, which is itself destroyed by
+    // the same delete through profiles. Two SET NULL actions then target the same row inside
+    // one statement, and the later one writes back the pre-image of the column the earlier one
+    // nulled -- resurrecting a membership id whose parent is already gone, so the referencing
+    // check raises 23503.
+    //
+    // The account-deletion policy says the fact survives and the actor is anonymised. Both
+    // columns reaching null is that policy; failing the delete is not.
+    // The audit trigger writes a modification_logs row that carries the SAME hazard on its own
+    // two account references, and the canonical Player guard blocks every account delete before
+    // the FK layer is reached at all. Both are held off so this test isolates the assignment.
+    await client.query('alter table public.sessions disable trigger audit_sessions');
+    await client.query('alter table public.players disable trigger audit_players');
+    await client.query(
+      'alter table public.players disable trigger trg_guard_player_account_identity_history',
+    );
+    await client.query('alter table public.players disable trigger trg_guard_player_user_id');
+
+    const owner = await newUser('cascade-two-parents-owner@test.local');
+    const actor = await newUser('cascade-two-parents-actor@test.local');
+
+    const { rows: communityRows } = await client.query<{ id: string }>(
+      'insert into public.communities (name, owner_id) values ($1, $2) returning id',
+      ['Two Parents', owner],
+    );
+    await client.query(
+      `insert into public.community_memberships (community_id, user_id, role, status)
+       values ($1, $2, 'owner', 'active')`,
+      [communityRows[0].id, owner],
+    );
+    const { rows: membershipRows } = await client.query<{ id: string }>(
+      `insert into public.community_memberships (community_id, user_id, role, status)
+       values ($1, $2, 'member', 'active') returning id`,
+      [communityRows[0].id, actor],
+    );
+    const { rows: sessionRows } = await client.query<{ id: string }>(
+      `insert into public.sessions (owner_id, community_id, name, date, status, type)
+       values ($1, $2, 'Two Parents Session', '2030-01-01', 'draft', 'free_play') returning id`,
+      [owner, communityRows[0].id],
+    );
+    await client.query(
+      `insert into public.session_organizer_assignments (
+         session_id, community_membership_id, organizer_user_id, assigned_by_user_id
+       ) values ($1, $2, $3, $3)`,
+      [sessionRows[0].id, membershipRows[0].id, actor],
+    );
+
+    let attempt: unknown;
+    try {
+      attempt = await client
+        .query('delete from auth.users where id = $1', [actor])
+        .catch((error: Error) => error);
+    } finally {
+      await client.query('alter table public.players enable trigger trg_guard_player_user_id');
+      await client.query(
+        'alter table public.players enable trigger trg_guard_player_account_identity_history',
+      );
+      await client.query('alter table public.players enable trigger audit_players');
+      await client.query('alter table public.sessions enable trigger audit_sessions');
+    }
+
+    assert.ok(!(attempt instanceof Error), `the delete must not fail: ${String(attempt)}`);
+
+    const after = await client.query<{
+      community_membership_id: string | null;
+      organizer_user_id: string | null;
+      assigned_by_user_id: string | null;
+    }>(
+      `select community_membership_id, organizer_user_id, assigned_by_user_id
+         from public.session_organizer_assignments where session_id = $1`,
+      [sessionRows[0].id],
+    );
+    assert.equal(after.rowCount, 1, 'the assignment survives the account delete');
+    assert.deepEqual(after.rows[0], {
+      community_membership_id: null,
+      organizer_user_id: null,
+      assigned_by_user_id: null,
+    });
+  });
+
+  test('the rows with two dying SET NULL parents are a measured list', async () => {
+    // The collision above is a shape, not a one-off: any row holding two or more SET NULL
+    // parents that die inside the same account delete can have one action write back the
+    // pre-image of another's column. Two of these are PROVEN to collide -- the assignment
+    // fixed by this branch, and modification_logs, which surfaced while building that test.
+    // The rest carry the shape and are unproven. Pinning the list keeps the next slice from
+    // rediscovering it, and makes a newly added shape fail here.
+    const { rows } = await client.query<{ child: string }>(`
+      with recursive cascaded as (
+        select 'auth.users'::text as rel
+        union
+        select (c.conrelid::regclass)::text
+          from pg_constraint c
+          join cascaded on (c.confrelid::regclass)::text = cascaded.rel
+         where c.contype = 'f' and c.confdeltype = 'c'
+      )
+      select (conrelid::regclass)::text as child
+        from pg_constraint
+       where contype = 'f'
+         and confdeltype = 'n'
+         and (confrelid::regclass)::text in (select rel from cascaded)
+       group by 1
+      having count(*) >= 2
+       order by 1
+    `);
+
+    assert.deepEqual(
+      rows.map((row) => row.child),
+      [
+        'community_members',
+        'modification_logs',
+        'players',
+        'session_organizer_assignments',
+        'sessions',
+        'teams',
+      ],
+    );
+  });
+
   test('owner_id is nullable exactly where the fix required it', async () => {
     const { rows } = await client.query<{ table_name: string; is_nullable: string }>(
       `select table_name, is_nullable from information_schema.columns

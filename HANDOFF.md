@@ -275,8 +275,7 @@ o diagnóstico da matriz. Elas não fazem parte desta fatia.
    dois blockers passam a ser alcançáveis de verdade; até lá são código morto propositalmente
    mantido.
 
-A próxima fronteira é `XS-W5-01 — Versioned PlayerEvaluation source model`, seguida por
-`XS-W5-02 — Skill rubric/dimension contract`.
+A próxima fronteira é `XS-W5-01 — Versioned PlayerEvaluation source model`.
 
 ### Evidência de verificação da W4-06
 
@@ -339,16 +338,17 @@ avaliador usando o comando novo não muda perfil nenhum nem nada visível no app
    `NULL` como valores distintos. E nada estruturalmente amarra `player_id` a `community_id` — o
    comando garante isso por procedimento, via `registration_player_standing_alive`.
 
+A próxima fronteira é `XS-W5-02 — Skill rubric/dimension contract`.
+
 ### Evidência de verificação da W5-01
 
 - `npm run typecheck` passou sem saída;
 - `npm test` passou: 920 testes unitários e 245 testes de UI (45 arquivos de teste), sem falhas;
 - `npm run test:db` passou contra `volley_test_pg2` em `127.0.0.1:55500`: 589 testes, zero falhas —
-  inclui as 13 asserções específicas de `player.evaluate` e de
-  `playerEvaluationContributions.dbtest.ts` (capacidade por pessoa nunca por rank, membership
-  `ACTIVE` obrigatória, uma contribuição efetiva por avaliador/Player/Community, anonimização em
-  vez de bloqueio, supersede-then-insert, dois submits concorrentes encadeando em vez de colidir, e
-  a superfície de avaliação legada intocada);
+  inclui as asserções de `playerEvaluationContributions.dbtest.ts` sobre `player.evaluate`
+  (capacidade por pessoa nunca por rank, membership `ACTIVE` obrigatória, uma contribuição efetiva
+  por avaliador/Player/Community, anonimização em vez de bloqueio, supersede-then-insert, dois
+  submits concorrentes encadeando em vez de colidir, e a superfície de avaliação legada intocada);
 - `npm run build` passou;
 - o ESLint focado em `src/test/db/playerEvaluationContributions.dbtest.ts` passou com zero erro e
   zero aviso; a checagem focada de Prettier passou para

@@ -193,6 +193,32 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
+  test('an EVALUATOR responsibility without an active membership does not grant player.evaluate', async () => {
+    const ownerId = await newUser('w501-cap-suspended-owner@example.com');
+    const communityId = await targetCommunity(ownerId, 'W501 Capability Suspended');
+
+    const evaluatorId = await newUser('w501-cap-suspended-evaluator@example.com');
+    await activeMembership(communityId, evaluatorId);
+    await grantResponsibility(communityId, evaluatorId, 'EVALUATOR');
+    assert.equal(
+      await hasCapability(evaluatorId, communityId, 'player.evaluate'),
+      true,
+      'sanity: an active member with the responsibility holds it',
+    );
+
+    await client.query(
+      `update public.community_memberships set status = 'suspended'
+        where community_id = $1 and user_id = $2`,
+      [communityId, evaluatorId],
+    );
+
+    assert.equal(
+      await hasCapability(evaluatorId, communityId, 'player.evaluate'),
+      false,
+      'an unrevoked EVALUATOR responsibility on a non-active membership grants nothing',
+    );
+  });
+
   test('adding player.evaluate leaves every other capability derivation alone', async () => {
     const ownerId = await newUser('w501-cap-intact-owner@example.com');
     const communityId = await targetCommunity(ownerId, 'W501 Capability Intact');
@@ -305,5 +331,40 @@ if (!isTestDatabaseConfigured()) {
           and grantee in ('anon', 'authenticated', 'public')`,
     );
     assert.deepEqual(rows, [{ count: '0' }]);
+  });
+
+  test('evaluator_user_id anonymises on account deletion instead of blocking it', async () => {
+    const { rows: columnRows } = await client.query<{ is_nullable: string }>(
+      `select is_nullable
+         from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'player_evaluation_contributions'
+          and column_name = 'evaluator_user_id'`,
+    );
+    assert.equal(
+      columnRows[0]?.is_nullable,
+      'YES',
+      'evaluator_user_id must be nullable so it can be anonymised, per the account-deletion ' +
+        'policy in 20260827200000_auth_cascade_safety.sql',
+    );
+
+    const { rows: actionRows } = await client.query<{ action: string }>(
+      `select case con.confdeltype
+                when 'a' then 'NO ACTION' when 'r' then 'RESTRICT' when 'c' then 'CASCADE'
+                when 'n' then 'SET NULL' when 'd' then 'SET DEFAULT' end as action
+         from pg_constraint con
+         join unnest(con.conkey) k on true
+         join pg_attribute att on att.attrelid = con.conrelid and att.attnum = k
+        where con.contype = 'f'
+          and con.conrelid = 'public.player_evaluation_contributions'::regclass
+          and con.confrelid = 'auth.users'::regclass
+          and att.attname = 'evaluator_user_id'
+        limit 1`,
+    );
+    assert.equal(
+      actionRows[0]?.action,
+      'SET NULL',
+      'the evaluator_user_id foreign key must anonymise, not block, account deletion',
+    );
   });
 }

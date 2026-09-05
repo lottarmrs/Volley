@@ -64,6 +64,10 @@ as $$
   -- EVALUATOR responsibility, never derived from owner or admin rank (GINV-CAP-002).
   select 'player.evaluate'
     from public.community_responsibilities r
+    join public.community_memberships m
+      on m.community_id = r.community_id
+     and m.user_id = r.user_id
+     and m.status = 'active'
    where r.community_id = target_community_id
      and r.user_id = target_user_id
      and r.responsibility = 'EVALUATOR'
@@ -79,7 +83,7 @@ create table public.player_evaluation_contributions (
   id uuid primary key,
   community_id uuid not null references public.communities(id) on delete restrict,
   player_id uuid not null references public.players(id) on delete restrict,
-  evaluator_user_id uuid not null references auth.users(id) on delete restrict,
+  evaluator_user_id uuid references auth.users(id) on delete set null,
   rubric_version text not null,
   recorded_at timestamptz not null default pg_catalog.now(),
   superseded_at timestamptz,

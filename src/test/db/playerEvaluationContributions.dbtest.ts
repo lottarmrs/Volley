@@ -69,6 +69,18 @@ if (!isTestDatabaseConfigured()) {
     assert.equal((error as { code?: string }).code, expectedCode);
   }
 
+  function assertBlockedBy(
+    error: unknown,
+    expectedCode: string,
+    blocker: string,
+  ): asserts error is Error {
+    assertSqlState(error, expectedCode);
+    assert.ok(
+      error.message.includes(blocker),
+      `expected error message to include "${blocker}", got: ${error.message}`,
+    );
+  }
+
   async function newUser(email: string): Promise<string> {
     const { rows } = await client.query<{ id: string }>(
       'insert into auth.users (email) values ($1) returning id',
@@ -589,10 +601,30 @@ if (!isTestDatabaseConfigured()) {
         where n.nspname = 'public' and p.proname = 'record_player_evaluation'`,
     );
     assert.equal(rows.length, 1);
-    assert.ok(
-      !/evaluator/i.test(rows[0].args),
-      `the signature must not accept an evaluator: ${rows[0].args}`,
+    const normalizedArgs = rows[0].args.replace(/\s+/g, ' ').trim();
+    assert.equal(
+      normalizedArgs,
+      'p_command_id uuid, p_contribution_id uuid, p_community_id uuid, p_player_id uuid, p_rubric_version text, p_dimensions jsonb',
     );
+  });
+
+  test('an evaluator-shaped key inside dimensions never overrides the caller as evaluator', async () => {
+    const ownerId = await newUser('w501-smuggle-owner@example.com');
+    const communityId = await targetCommunity(ownerId, 'W501 Smuggle');
+    const evaluatorId = await evaluatorIn(communityId, 'w501-smuggle-eval@example.com');
+    const playerId = await evaluablePlayer(communityId, ownerId, 'Alvo');
+
+    const contributionId = randomUUID();
+    await recordEvaluation(evaluatorId, {
+      contributionId,
+      communityId,
+      playerId,
+      dimensions: { saque: 7, evaluator_user_id: 3 },
+    });
+
+    const contributions = await contributionsOf(communityId, playerId);
+    assert.equal(contributions.length, 1);
+    assert.equal(contributions[0].evaluator_user_id, evaluatorId);
   });
 
   test('a Player with no living standing in the Community is refused', async () => {
@@ -606,7 +638,7 @@ if (!isTestDatabaseConfigured()) {
       playerId: strangerId,
       dimensions: { saque: 5 },
     }).catch((error: Error) => error);
-    assertSqlState(stranger, '23514');
+    assertBlockedBy(stranger, '23514', 'Player has no living roster standing in this Community');
 
     const deletedId = await evaluablePlayer(communityId, ownerId, 'Apagada');
     await client.query('update public.players set deleted_at = now() where id = $1', [deletedId]);
@@ -615,7 +647,7 @@ if (!isTestDatabaseConfigured()) {
       playerId: deletedId,
       dimensions: { saque: 5 },
     }).catch((error: Error) => error);
-    assertSqlState(deleted, '23514');
+    assertBlockedBy(deleted, '23514', 'Player has no living roster standing in this Community');
 
     const missing = await recordEvaluation(evaluatorId, {
       communityId,
@@ -656,13 +688,43 @@ if (!isTestDatabaseConfigured()) {
     const evaluatorId = await evaluatorIn(communityId, 'w501-validation-eval@example.com');
     const playerId = await evaluablePlayer(communityId, ownerId, 'Alvo');
 
-    const cases: Array<{ label: string; rubricVersion?: string; dimensions: object }> = [
-      { label: 'blank rubric version', rubricVersion: '   ', dimensions: { saque: 5 } },
-      { label: 'no dimensions', dimensions: {} },
-      { label: 'non numeric score', dimensions: { saque: 'muito bom' } },
-      { label: 'score above the scale', dimensions: { saque: 11 } },
-      { label: 'score below the scale', dimensions: { saque: -1 } },
-      { label: 'blank dimension key', dimensions: { '   ': 5 } },
+    const cases: Array<{
+      label: string;
+      rubricVersion?: string;
+      dimensions: object;
+      blocker: string;
+    }> = [
+      {
+        label: 'blank rubric version',
+        rubricVersion: '   ',
+        dimensions: { saque: 5 },
+        blocker: 'Rubric version is required',
+      },
+      {
+        label: 'no dimensions',
+        dimensions: {},
+        blocker: 'At least one dimension score is required',
+      },
+      {
+        label: 'non numeric score',
+        dimensions: { saque: 'muito bom' },
+        blocker: 'Dimension keys must be non-blank and scores must be numbers',
+      },
+      {
+        label: 'score above the scale',
+        dimensions: { saque: 11 },
+        blocker: 'Dimension scores must be between 0 and 10',
+      },
+      {
+        label: 'score below the scale',
+        dimensions: { saque: -1 },
+        blocker: 'Dimension scores must be between 0 and 10',
+      },
+      {
+        label: 'blank dimension key',
+        dimensions: { '   ': 5 },
+        blocker: 'Dimension keys must be non-blank and scores must be numbers',
+      },
     ];
 
     for (const testCase of cases) {
@@ -672,7 +734,7 @@ if (!isTestDatabaseConfigured()) {
         rubricVersion: testCase.rubricVersion,
         dimensions: testCase.dimensions as Record<string, number>,
       }).catch((error: Error) => error);
-      assertSqlState(attempt, '23514');
+      assertBlockedBy(attempt, '23514', testCase.blocker);
     }
 
     assert.equal((await contributionsOf(communityId, playerId)).length, 0);

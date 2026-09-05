@@ -124,3 +124,183 @@ alter table public.player_evaluation_contributions enable row level security;
 
 revoke all on table public.player_evaluation_dimension_scores from public, anon, authenticated;
 alter table public.player_evaluation_dimension_scores enable row level security;
+
+-- The command below supersedes the previous effective contribution by setting its
+-- superseded_by_id to the new contribution's id in one UPDATE, then inserts that new row
+-- afterwards -- the new row does not exist yet at the moment the UPDATE runs. A NOT
+-- DEFERRABLE foreign key checks the referencing UPDATE immediately and raises 23503 for
+-- exactly this ordering, so the existence check on this self-reference must move to commit
+-- time (deferred), which is unrelated to and does not weaken the ON DELETE RESTRICT action
+-- that still fires immediately if a superseded row is ever targeted for deletion.
+alter table public.player_evaluation_contributions
+  drop constraint player_evaluation_contributions_superseded_by_id_fkey,
+  add constraint player_evaluation_contributions_superseded_by_id_fkey
+    foreign key (superseded_by_id) references public.player_evaluation_contributions(id)
+    on delete restrict deferrable initially deferred;
+
+create function public.record_player_evaluation(
+  p_command_id uuid,
+  p_contribution_id uuid,
+  p_community_id uuid,
+  p_player_id uuid,
+  p_rubric_version text,
+  p_dimensions jsonb
+)
+returns table (
+  contribution_id uuid,
+  superseded_contribution_id uuid,
+  dimension_count integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_superseded uuid;
+  v_count integer;
+begin
+  if p_command_id is null
+     or p_contribution_id is null
+     or p_community_id is null
+     or p_player_id is null then
+    raise exception 'command_id, contribution_id, community_id and player_id are required'
+      using errcode = '23514';
+  end if;
+
+  -- Load-bearing despite the discarded result: find_command_receipt raises 23505 when this command
+  -- id already belongs to another aggregate or command type, and that collision must surface before
+  -- any row lock. The replay itself happens after authorization below, so a caller whose capability
+  -- was revoked cannot read back an earlier result.
+  v_receipt := app_private.find_command_receipt(
+    p_command_id,
+    'record_player_evaluation',
+    p_contribution_id
+  );
+
+  v_uid := (select auth.uid());
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  -- The Player row is the narrowest row two concurrent submissions share. Without this lock a
+  -- double click reads one effective contribution twice, both calls try to supersede it, and the
+  -- second insert collides with the partial unique index as a raw 23505 -- a code reserved here for
+  -- command id collisions. Locking the Community row instead would serialize every evaluation in
+  -- the Community for no added safety.
+  perform 1 from public.players p where p.id = p_player_id for update;
+  if not found then
+    raise exception 'Player not found' using errcode = 'P0002';
+  end if;
+
+  if not exists (select 1 from public.communities c where c.id = p_community_id) then
+    raise exception 'Community not found' using errcode = 'P0002';
+  end if;
+
+  if not public.current_user_has_community_capability(p_community_id, 'player.evaluate') then
+    raise exception 'Not authorized to evaluate Players in this Community'
+      using errcode = '42501';
+  end if;
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id,
+    'record_player_evaluation',
+    p_contribution_id
+  );
+  if v_receipt is not null then
+    return query
+      select
+        (v_receipt->>'contribution_id')::uuid,
+        (v_receipt->>'superseded_contribution_id')::uuid,
+        (v_receipt->>'dimension_count')::integer;
+    return;
+  end if;
+
+  if not app_private.registration_player_standing_alive(p_community_id, p_player_id) then
+    raise exception 'Player has no living roster standing in this Community'
+      using errcode = '23514';
+  end if;
+
+  if nullif(pg_catalog.btrim(coalesce(p_rubric_version, '')), '') is null then
+    raise exception 'Rubric version is required' using errcode = '23514';
+  end if;
+
+  if p_dimensions is null
+     or pg_catalog.jsonb_typeof(p_dimensions) <> 'object'
+     or p_dimensions = '{}'::jsonb then
+    raise exception 'At least one dimension score is required' using errcode = '23514';
+  end if;
+
+  -- Two passes on purpose: the range test casts each value to numeric, which would raise a raw
+  -- 22P02 on a non-numeric value, so every value must be proven numeric first.
+  if exists (
+    select 1
+      from pg_catalog.jsonb_each(p_dimensions) d
+     where pg_catalog.btrim(d.key) = ''
+        or pg_catalog.jsonb_typeof(d.value) <> 'number'
+  ) then
+    raise exception 'Dimension keys must be non-blank and scores must be numbers'
+      using errcode = '23514';
+  end if;
+
+  if exists (
+    select 1
+      from pg_catalog.jsonb_each(p_dimensions) d
+     where (d.value)::numeric < 0
+        or (d.value)::numeric > 10
+  ) then
+    raise exception 'Dimension scores must be between 0 and 10' using errcode = '23514';
+  end if;
+
+  -- Supersede before inserting: the partial unique index permits exactly one effective row, so the
+  -- reverse order would collide with the row being replaced.
+  update public.player_evaluation_contributions
+     set superseded_at = pg_catalog.now(),
+         superseded_by_id = p_contribution_id
+   where community_id = p_community_id
+     and player_id = p_player_id
+     and evaluator_user_id = v_uid
+     and superseded_at is null
+  returning id into v_superseded;
+
+  insert into public.player_evaluation_contributions (
+    id, community_id, player_id, evaluator_user_id, rubric_version, command_id
+  ) values (
+    p_contribution_id,
+    p_community_id,
+    p_player_id,
+    v_uid,
+    pg_catalog.btrim(p_rubric_version),
+    p_command_id
+  );
+
+  insert into public.player_evaluation_dimension_scores (contribution_id, dimension_key, value)
+  select p_contribution_id, d.key, (d.value)::numeric
+    from pg_catalog.jsonb_each(p_dimensions) d;
+
+  get diagnostics v_count = row_count;
+
+  v_result := pg_catalog.jsonb_build_object(
+    'contribution_id', p_contribution_id,
+    'superseded_contribution_id', v_superseded,
+    'dimension_count', v_count
+  );
+  perform app_private.record_command_receipt(
+    p_command_id,
+    v_uid,
+    'record_player_evaluation',
+    p_contribution_id,
+    v_result,
+    'PLAYER_EVALUATION'
+  );
+
+  return query select p_contribution_id, v_superseded, v_count;
+end;
+$$;
+
+revoke all on function public.record_player_evaluation(uuid, uuid, uuid, uuid, text, jsonb)
+  from public, anon, authenticated;
+grant execute on function public.record_player_evaluation(uuid, uuid, uuid, uuid, text, jsonb)
+  to authenticated;

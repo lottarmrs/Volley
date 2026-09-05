@@ -94,6 +94,7 @@ supabase/migrations/20260707143343_community_member_role_remove_rpc.sql
 supabase/migrations/20260902115932_leave_promotion_capacity.sql
 supabase/migrations/20260902141626_finalize_session_roster.sql
 supabase/migrations/20260904132823_legacy_registration_introduction.sql
+supabase/migrations/20260905185744_versioned_player_evaluation_source.sql
 ```
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
@@ -104,6 +105,11 @@ travada no roster da Session; ele não disponibiliza uma interface de navegador.
 `20260904132823_legacy_registration_introduction.sql` introduz a Registration alvo em uma Session já
 migrada do modelo legado: razão de proveniência privada, predicado de elegibilidade compartilhado,
 inspeção e o comando de introdução.
+
+`20260905185744_versioned_player_evaluation_source.sql` introduz o modelo de origem versionado da
+avaliação de Player: a responsabilidade EVALUATOR que concede player.evaluate, a tabela de
+contribuições append-only com uma linha efetiva por avaliador, Player e Community, os escores de
+dimensão normalizados e o comando record_player_evaluation.
 
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.

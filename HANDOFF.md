@@ -1,6 +1,6 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-09-04**, ao fechar `XS-W4-06`. Este é o ponto de retomada canônico se o
+> Atualizado em **2026-09-05**, ao fechar `XS-W5-01`. Este é o ponto de retomada canônico se o
 > limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -31,22 +31,25 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W4-04 | Leave / promoção / capacidade            | concluída |
 | XS-W4-05 | FinalizeSessionRoster                    | concluída |
 | XS-W4-06 | Legacy Session Registration introduction | concluída |
-| XS-W5-01 | Versioned PlayerEvaluation source model  | próxima   |
+| XS-W5-01 | Versioned PlayerEvaluation source model  | concluída |
+| XS-W5-02 | Skill rubric/dimension contract          | próxima   |
 
 ### Branches — cadeia integrada em `main`
 
 A cadeia C6 até `XS-W4-06` **está em `main`**, integrada em 2026-09-04 por fast-forward, junto com
-a correção de cascade de `session_organizer_assignments`. Não existe mais trabalho C6 pendente de
-integração: `exec/c6-w4-05-finalize-session-roster` e
-`exec/c6-w4-06-legacy-registration-introduction` viraram ponteiros redundantes para pontos dessa
-mesma história.
+a correção de cascade de `session_organizer_assignments`. `XS-W5-01` correu em
+`exec/c6-w5-01-versioned-player-evaluation`, aberta a partir de `main` nesse mesmo ponto — é a
+branch corrente ao fechar este documento, e ainda não foi integrada: toda fatia C6 até aqui esperou
+uma decisão explícita antes do merge.
 
 ```text
 main   ← contém W3-01..W4-06 e a correção de cascade
+  └─ exec/c6-w5-01-versioned-player-evaluation   ← XS-W5-01 (branch corrente, não integrada)
 ```
 
-Ao retomar, confirme que está em `main` e inicie `XS-W5-01` a partir deste ponto
-canônico.
+Ao retomar, confirme em qual branch está. Para revisar ou integrar `XS-W5-01`, permaneça em
+`exec/c6-w5-01-versioned-player-evaluation`. Para iniciar `XS-W5-02`, parta de `main` só depois que
+essa integração acontecer.
 
 ### O que a wave W3 entregou
 
@@ -272,7 +275,8 @@ o diagnóstico da matriz. Elas não fazem parte desta fatia.
    dois blockers passam a ser alcançáveis de verdade; até lá são código morto propositalmente
    mantido.
 
-A próxima fronteira é `XS-W5-01 — Versioned PlayerEvaluation source model`.
+A próxima fronteira é `XS-W5-01 — Versioned PlayerEvaluation source model`, seguida por
+`XS-W5-02 — Skill rubric/dimension contract`.
 
 ### Evidência de verificação da W4-06
 
@@ -291,6 +295,66 @@ Antes do Passo 1 desta fatia, a suíte de regressão dobrada de uma tarefa anter
 `registrationSchema`, `registrationLifecycle`, `registrationJoin`, `registrationLeave`,
 `registrationFinalize` e `sessionCohortCutover`, com `--test-concurrency=1` — e passou: 227 testes,
 zero falhas, sem editar nenhuma dessas suítes.
+
+### O que a W5-01 entregou
+
+- a responsabilidade `EVALUATOR` em `community_responsibilities` deriva a capacidade
+  `player.evaluate` em `community_capabilities`, sempre por concessão explícita e por pessoa —
+  `GINV-CAP-002` proíbe qualquer rank de governança conferir essa capacidade, então nem `owner` nem
+  `admin` avaliam sem a concessão explícita. A derivação também exige membership `ACTIVE`, a mesma
+  forma que o ramo de `session.manage` já usava;
+- `player_evaluation_contributions` é append-only: reavaliar não sobrescreve, supersede a linha
+  anterior. Um índice único parcial em `(community_id, player_id, evaluator_user_id)` com
+  `superseded_at is null` é quem garante uma única contribuição efetiva por avaliador, Player e
+  Community — uma constraint, não uma convenção;
+- os escores de dimensão são linhas em `player_evaluation_dimension_scores`, não um JSON: uma
+  dimensão omitida é a ausência da linha, não um zero. É a regra "missing ≠ 0" do N2.02 §7 virando
+  estrutural em vez de convencional;
+- o avaliador vem de `auth.uid()` dentro do comando; `record_player_evaluation` não tem parâmetro
+  de avaliador, e um teste fixa a lista exata de argumentos para que qualquer parâmetro novo falhe;
+- o comando supersede antes de inserir, dentro de uma única transação, sob o lock da linha de
+  `players` — a mesma linha que duas submissões concorrentes disputam. Por isso
+  `superseded_by_id` tem que ser `deferrable initially deferred`: a UPDATE que supersede nomeia a
+  linha nova antes dela existir, e nenhuma outra ordem resolve isso — um índice único parcial nunca
+  pode ser uma constraint deferrable, e um CHECK não pode ser deferred de jeito nenhum;
+- `rubric_version` é texto deliberadamente opaco, sem foreign key: `OPEN-BAL-001` continua aberta e
+  o contrato de rubric pertence à `XS-W5-02`.
+
+**Um aviso já nasce nesta fatia:** ela entrega **escritas sem consumidor**. A agregação continua
+sendo a mediana no cliente, em `src/logic/playerEvaluations.ts`, lendo as linhas legadas — um
+avaliador usando o comando novo não muda perfil nenhum nem nada visível no app.
+
+**Quatro avisos para a `XS-W5-02` e o que vier depois:**
+
+1. `public.player_evaluations` ainda carrega `unique (owner_id, player_id)`. Um avaliador ativo em
+   duas Communities continua colidindo ali; aposentar essa autoridade pertence à migração de coorte.
+2. `app_private.registration_player_standing_alive` ganhou uma segunda chamadora fora de
+   Registration, e o nome dela já não corresponde ao uso. A fatia que precisar de uma terceira
+   chamadora é quem deve renomear.
+3. `player_evaluation_contributions` referencia Community e Player com `on delete restrict`, então
+   apagar qualquer um dos dois falha enquanto existirem contribuições — deliberado; a decisão de
+   retenção pertence à fatia que definir a retenção de avaliações.
+4. Uma vez que a exclusão de conta anonimiza `evaluator_user_id` para `NULL`, aquela contribuição
+   fica efetiva para sempre e nunca bloqueia um avaliador novo, porque o índice único parcial trata
+   `NULL` como valores distintos. E nada estruturalmente amarra `player_id` a `community_id` — o
+   comando garante isso por procedimento, via `registration_player_standing_alive`.
+
+### Evidência de verificação da W5-01
+
+- `npm run typecheck` passou sem saída;
+- `npm test` passou: 920 testes unitários e 245 testes de UI (45 arquivos de teste), sem falhas;
+- `npm run test:db` passou contra `volley_test_pg2` em `127.0.0.1:55500`: 589 testes, zero falhas —
+  inclui as 13 asserções específicas de `player.evaluate` e de
+  `playerEvaluationContributions.dbtest.ts` (capacidade por pessoa nunca por rank, membership
+  `ACTIVE` obrigatória, uma contribuição efetiva por avaliador/Player/Community, anonimização em
+  vez de bloqueio, supersede-then-insert, dois submits concorrentes encadeando em vez de colidir, e
+  a superfície de avaliação legada intocada);
+- `npm run build` passou;
+- o ESLint focado em `src/test/db/playerEvaluationContributions.dbtest.ts` passou com zero erro e
+  zero aviso; a checagem focada de Prettier passou para
+  `playerEvaluationContributions.dbtest.ts`, README e HANDOFF;
+- `git diff main...HEAD --name-only` lista só a migration, a suíte nova, a spec, o plano, README e
+  HANDOFF. `git diff --check` não encontrou erro de espaço em branco.
 
 ### Decisões em aberto que a W3 preservou
 

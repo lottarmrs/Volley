@@ -36,20 +36,17 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
 ### Branches — cadeia integrada em `main`
 
-A cadeia C6 até `XS-W4-06` **está em `main`**, integrada em 2026-09-04 por fast-forward, junto com
-a correção de cascade de `session_organizer_assignments`. `XS-W5-01` correu em
-`exec/c6-w5-01-versioned-player-evaluation`, aberta a partir de `main` nesse mesmo ponto — é a
-branch corrente ao fechar este documento, e ainda não foi integrada: toda fatia C6 até aqui esperou
-uma decisão explícita antes do merge.
+A cadeia C6 até `XS-W5-01` **está em `main`**. As fatias até `XS-W4-06`, mais a correção de cascade
+de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` foi integrada em 2026-09-05,
+depois da review final de branch inteira, e sua branch
+`exec/c6-w5-01-versioned-player-evaluation` foi apagada por já estar contida em `main`. Não existe
+trabalho C6 pendente de integração.
 
 ```text
-main   ← contém W3-01..W4-06 e a correção de cascade
-  └─ exec/c6-w5-01-versioned-player-evaluation   ← XS-W5-01 (branch corrente, não integrada)
+main   ← contém W3-01..W5-01 e a correção de cascade
 ```
 
-Ao retomar, confirme em qual branch está. Para revisar ou integrar `XS-W5-01`, permaneça em
-`exec/c6-w5-01-versioned-player-evaluation`. Para iniciar `XS-W5-02`, parta de `main` só depois que
-essa integração acontecer.
+Ao retomar, confirme que está em `main` e inicie `XS-W5-02` a partir deste ponto canônico.
 
 ### O que a wave W3 entregou
 

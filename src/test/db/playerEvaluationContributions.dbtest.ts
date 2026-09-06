@@ -93,6 +93,31 @@ if (!isTestDatabaseConfigured()) {
     return rows[0].id;
   }
 
+  /**
+   * A community NOT born into the 'target' authority cohort (20260827180000_community_semantic_
+   * writes.sql). `create_community_with_owner` always creates 'target' rows, which
+   * `guard_target_community_writes` refuses to DELETE outside a semantic command -- an existing,
+   * unrelated latent break in `reset_product_data` that this slice's fix wave does not own or
+   * touch. The I1 reset test below inserts directly so it proves only what it owns: that the two
+   * new evaluation tables no longer block the reset with 23503.
+   */
+  async function legacyCommunity(ownerId: string, name: string): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `insert into public.communities (owner_id, name) values ($1, $2) returning id`,
+      [ownerId, name],
+    );
+    const communityId = rows[0].id;
+    // check_community_has_active_owner requires exactly one active owner membership at all
+    // times; create_community_with_owner does this as part of the RPC, so a direct insert must
+    // do it too.
+    await client.query(
+      `insert into public.community_memberships (community_id, user_id, role, status)
+       values ($1, $2, 'owner', 'active')`,
+      [communityId, ownerId],
+    );
+    return communityId;
+  }
+
   async function targetCommunity(ownerId: string, name: string): Promise<string> {
     const { rows } = await call<{ id: string }>(
       ownerId,
@@ -190,6 +215,76 @@ if (!isTestDatabaseConfigured()) {
         JSON.stringify(input.dimensions),
       ],
     );
+  }
+
+  /**
+   * I2 (final review, XS-W5-01): `call(null, ...)` maps to role `anon`, which holds no EXECUTE
+   * grant on `record_player_evaluation` -- that path proves the grant revocation, not the
+   * command's own `Not authenticated` guard (migration lines ~183-186). Reaching that guard
+   * needs an `authenticated` caller whose `sub` claim is empty, so `auth.uid()` resolves to null
+   * while the EXECUTE grant still lets the call through to the guard itself.
+   */
+  async function callAsAuthenticatedWithNoSub<T extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params: unknown[] = [],
+  ) {
+    const db = await pool.connect();
+    try {
+      await db.query('begin');
+      await db.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', '']);
+      await db.query('select set_config($1, $2, true)', [
+        'request.jwt.claim.role',
+        'authenticated',
+      ]);
+      await db.query('select set_config($1, $2, true)', [
+        'request.jwt.claims',
+        JSON.stringify({ sub: null, role: 'authenticated' }),
+      ]);
+      await db.query('set local role authenticated');
+      const result = await db.query<T>(sql, params);
+      await db.query('commit');
+      return result;
+    } catch (error) {
+      await db.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      db.release();
+    }
+  }
+
+  /**
+   * I1 (final review, XS-W5-01): exercises the actual privileged path -- a `master`-role
+   * profile, AAL2 satisfied via the `aal` JWT claim `public.require_aal2()` reads -- rather than
+   * asserting only on the function body, because the harness's superuser `client` connection can
+   * grant both prerequisites directly.
+   */
+  async function callAsMasterWithAal2<T extends QueryResultRow = QueryResultRow>(
+    masterId: string,
+    sql: string,
+    params: unknown[] = [],
+  ) {
+    const db = await pool.connect();
+    try {
+      await db.query('begin');
+      await db.query('select set_config($1, $2, true)', ['request.jwt.claim.sub', masterId]);
+      await db.query('select set_config($1, $2, true)', [
+        'request.jwt.claim.role',
+        'authenticated',
+      ]);
+      await db.query('select set_config($1, $2, true)', [
+        'request.jwt.claims',
+        JSON.stringify({ sub: masterId, role: 'authenticated', aal: 'aal2' }),
+      ]);
+      await db.query('set local role authenticated');
+      const result = await db.query<T>(sql, params);
+      await db.query('commit');
+      return result;
+    } catch (error) {
+      await db.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      db.release();
+    }
   }
 
   async function contributionsOf(communityId: string, playerId: string) {
@@ -546,8 +641,72 @@ if (!isTestDatabaseConfigured()) {
       dimensions: { saque: 9 },
     });
 
-    assert.equal((await contributionsOf(firstCommunity, playerId)).length, 1);
-    assert.equal((await contributionsOf(secondCommunity, playerId)).length, 1);
+    const firstContributions = await contributionsOf(firstCommunity, playerId);
+    const secondContributions = await contributionsOf(secondCommunity, playerId);
+    assert.equal(firstContributions.length, 1);
+    assert.equal(secondContributions.length, 1);
+    assert.equal(
+      firstContributions[0].superseded_at,
+      null,
+      'both are effective at once, not merely one row each: the supersede predicate must scope by ' +
+        'community_id or a dropped clause would still pass a row-count-only assertion',
+    );
+    assert.equal(secondContributions[0].superseded_at, null);
+  });
+
+  test('two different evaluators hold independent effective contributions on the same Player', async () => {
+    const ownerId = await newUser('w501-multi-evaluator-owner@example.com');
+    const communityId = await targetCommunity(ownerId, 'W501 Multi Evaluator');
+    const firstEvaluatorId = await evaluatorIn(communityId, 'w501-multi-evaluator-a@example.com');
+    const secondEvaluatorId = await evaluatorIn(communityId, 'w501-multi-evaluator-b@example.com');
+    const playerId = await evaluablePlayer(communityId, ownerId, 'Alvo');
+
+    await recordEvaluation(firstEvaluatorId, { communityId, playerId, dimensions: { saque: 4 } });
+    await recordEvaluation(secondEvaluatorId, { communityId, playerId, dimensions: { saque: 9 } });
+
+    const contributions = await contributionsOf(communityId, playerId);
+    assert.equal(contributions.length, 2);
+    const first = contributions.find((row) => row.evaluator_user_id === firstEvaluatorId);
+    const second = contributions.find((row) => row.evaluator_user_id === secondEvaluatorId);
+    assert.ok(first && second);
+    assert.equal(
+      first.superseded_at,
+      null,
+      'the supersede predicate must scope by evaluator_user_id or one evaluator writing would ' +
+        "supersede the other's contribution",
+    );
+    assert.equal(second.superseded_at, null);
+  });
+
+  test('one evaluator holds independent effective contributions on two different Players', async () => {
+    const ownerId = await newUser('w501-multi-player-owner@example.com');
+    const communityId = await targetCommunity(ownerId, 'W501 Multi Player');
+    const evaluatorId = await evaluatorIn(communityId, 'w501-multi-player-eval@example.com');
+    const firstPlayerId = await evaluablePlayer(communityId, ownerId, 'Primeira');
+    const secondPlayerId = await evaluablePlayer(communityId, ownerId, 'Segunda');
+
+    await recordEvaluation(evaluatorId, {
+      communityId,
+      playerId: firstPlayerId,
+      dimensions: { saque: 4 },
+    });
+    await recordEvaluation(evaluatorId, {
+      communityId,
+      playerId: secondPlayerId,
+      dimensions: { saque: 9 },
+    });
+
+    const firstContributions = await contributionsOf(communityId, firstPlayerId);
+    const secondContributions = await contributionsOf(communityId, secondPlayerId);
+    assert.equal(firstContributions.length, 1);
+    assert.equal(secondContributions.length, 1);
+    assert.equal(
+      firstContributions[0].superseded_at,
+      null,
+      'the supersede predicate must scope by player_id or evaluating one Player would supersede ' +
+        "the same evaluator's contribution on another Player",
+    );
+    assert.equal(secondContributions[0].superseded_at, null);
   });
 
   test('evaluating requires the capability, and rank alone never grants it', async () => {
@@ -573,6 +732,22 @@ if (!isTestDatabaseConfigured()) {
       dimensions: { saque: 5 },
     }).catch((error: Error) => error);
     assertSqlState(anonymous, '42501');
+
+    // I2: an anonymous (role `anon`) caller is refused by the missing EXECUTE grant, not by the
+    // command's own guard. Reach the guard itself with an `authenticated` caller whose `sub`
+    // claim is empty, so `auth.uid()` is null but the grant still lets the call proceed.
+    const noSub = await callAsAuthenticatedWithNoSub(
+      `select * from public.record_player_evaluation($1, $2, $3, $4, $5, $6::jsonb)`,
+      [
+        randomUUID(),
+        randomUUID(),
+        communityId,
+        playerId,
+        'v0-legacy-11',
+        JSON.stringify({ saque: 5 }),
+      ],
+    ).catch((error: Error) => error);
+    assertBlockedBy(noSub, '42501', 'Not authenticated');
 
     assert.equal((await contributionsOf(communityId, playerId)).length, 0);
   });
@@ -849,5 +1024,62 @@ if (!isTestDatabaseConfigured()) {
       [{ is_nullable: 'NO' }],
       'the proof that LEGACY_UNSCOPED_EVALUATION is empty by construction',
     );
+  });
+
+  test('reset_product_data deletes both new tables so a Player carrying a contribution resets cleanly', async () => {
+    const masterId = await newUser('w501-reset-master@example.com');
+    // guard_profile_role blocks a plain role UPDATE outside the role-management RPC unless the
+    // transaction-local app.allow_role_change flag is set (20260624141708_role_management_rpc.sql).
+    await client.query('begin');
+    await client.query(`select set_config('app.allow_role_change', 'on', true)`);
+    await client.query(`update public.profiles set role = 'master' where id = $1`, [masterId]);
+    await client.query('commit');
+
+    const ownerId = await newUser('w501-reset-owner@example.com');
+    const communityId = await legacyCommunity(ownerId, 'W501 Reset');
+    const evaluatorId = await evaluatorIn(communityId, 'w501-reset-eval@example.com');
+    const playerId = await evaluablePlayer(communityId, ownerId, 'Alvo');
+
+    const contributionId = randomUUID();
+    await recordEvaluation(evaluatorId, {
+      contributionId,
+      communityId,
+      playerId,
+      dimensions: { saque: 7 },
+    });
+
+    const beforeContribution = await client.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.player_evaluation_contributions where id = $1`,
+      [contributionId],
+    );
+    assert.equal(beforeContribution.rows[0].count, '1', 'sanity: the contribution exists');
+    const beforeScores = await client.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.player_evaluation_dimension_scores where contribution_id = $1`,
+      [contributionId],
+    );
+    assert.equal(beforeScores.rows[0].count, '1', 'sanity: its dimension score exists');
+
+    // Before I1's fix this raised 23503 (player_id/community_id are `on delete restrict`) and
+    // aborted the whole reset transaction. It must now complete without throwing.
+    await callAsMasterWithAal2(masterId, 'select public.reset_product_data($1)', [ownerId]);
+
+    const afterContribution = await client.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.player_evaluation_contributions where id = $1`,
+      [contributionId],
+    );
+    assert.equal(
+      afterContribution.rows[0].count,
+      '0',
+      'the contribution is gone, not stranded by an aborted reset',
+    );
+    const afterScores = await client.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.player_evaluation_dimension_scores where contribution_id = $1`,
+      [contributionId],
+    );
+    assert.equal(afterScores.rows[0].count, '0');
   });
 }

@@ -175,11 +175,12 @@ create table public.player_evaluation_contributions (
   id uuid primary key,
   community_id uuid not null references public.communities(id) on delete restrict,
   player_id uuid not null references public.players(id) on delete restrict,
-  evaluator_user_id uuid not null references auth.users(id) on delete restrict,
+  evaluator_user_id uuid references auth.users(id) on delete set null,
   rubric_version text not null,
   recorded_at timestamptz not null default pg_catalog.now(),
   superseded_at timestamptz,
-  superseded_by_id uuid references public.player_evaluation_contributions(id) on delete restrict,
+  superseded_by_id uuid references public.player_evaluation_contributions(id)
+    on delete restrict deferrable initially deferred,
   command_id uuid not null unique,
   constraint player_evaluation_contributions_rubric_version_check
     check (pg_catalog.btrim(rubric_version) <> ''),
@@ -216,9 +217,24 @@ migrated legacy contribution or a self-evaluation, adds the column when it has a
 in it. Keeping it out also avoids `EVALUATOR` meaning two different things in one slice, since that
 token is now the responsibility that grants `player.evaluate`.
 
-`on delete restrict` throughout: an evaluation is evidence, and neither deleting a Community nor
-deleting a Player may silently destroy it. The consequence — that those deletes now fail while
-contributions exist — is deliberate and belongs to the slice that defines evaluation retention.
+`on delete restrict` for `community_id` and `player_id`: an evaluation is evidence, and neither
+deleting a Community nor deleting a Player may silently destroy it. The consequence — that those
+deletes now fail while contributions exist — is deliberate and belongs to the slice that defines
+evaluation retention.
+
+`evaluator_user_id` is the one exception, nullable with `on delete set null` rather than
+`on delete restrict`. It names the actor, not the evidence: `20260827200000_auth_cascade_safety.sql`
+establishes that an actor reference anonymises on account deletion instead of blocking it, and this
+column follows that established rule rather than inventing a second one.
+
+`superseded_by_id` is `on delete restrict` too, but `deferrable initially deferred`: the command
+supersedes the previous row before inserting the new one, so at the moment the `UPDATE` sets
+`superseded_by_id` to the not-yet-inserted row's id, a `NOT DEFERRABLE` foreign key would check
+existence immediately and raise `23503`. Neither alternative ordering is available to avoid this —
+inserting first would collide with the partial unique index below, which can never itself be
+deferred, and a `CHECK` constraint cannot be deferred at all — so the existence check is deferred to
+commit time instead. This is unrelated to, and does not weaken, the `on delete restrict` action
+itself, which still fires immediately if a superseded row is ever targeted for deletion.
 
 Both tables enable row level security, are revoked from `public`, `anon` and `authenticated`, and
 receive no policy. Only the `SECURITY DEFINER` command writes them, and it runs as the owner.
@@ -263,8 +279,10 @@ to `authenticated`. It returns no evaluator identity and no scores.
    so the two chain instead of colliding. The Player row is the narrowest row both calls share;
    locking the Community row would serialize every evaluation in the Community for no added safety.
 5. Require `public.current_user_has_community_capability(p_community_id, 'player.evaluate')`;
-   otherwise `42501`. The capability derivation already requires the grant to name this Community,
-   so no separate membership check is added.
+   otherwise `42501`. The capability derivation requires both a grant naming this Community and an
+   active membership in it, matching the sibling `session.manage` branch — without the
+   active-membership requirement a suspended or removed member would keep `player.evaluate` that was
+   granted while they were active.
 6. Replay the receipt, after authorization, so a caller whose capability was revoked cannot read
    back an earlier result.
 7. Require `app_private.registration_player_standing_alive(p_community_id, p_player_id)`; otherwise
@@ -371,10 +389,15 @@ additive.
 
 ## Deployment and rollback
 
-The migration is purely additive: two new tables and one new function, with no change to any
-existing table, policy, grant or function. Rollback before any contribution exists is dropping the
-three objects. After contributions exist there is nothing to roll back to — the legacy table never
-stopped being authoritative, so the target rows are additional evidence rather than migrated authority.
+The migration is not purely additive: it widens `community_responsibilities`' check constraint to
+admit `EVALUATOR` and redefines `public.community_capabilities` to derive `player.evaluate` from it,
+as the Migration shape section above records, and the fix wave that closed this design's review also
+redefines `public.reset_product_data` so the reset chain deletes the two new tables before their
+parents. Beyond those three redefinitions, the change is additive: two new tables and one new
+function, with no change to any other existing table, policy or grant. Rollback before any
+contribution exists is dropping the three new objects and reverting the two redefinitions. After
+contributions exist there is nothing to roll back to — the legacy table never stopped being
+authoritative, so the target rows are additional evidence rather than migrated authority.
 
 ## Exit gate
 

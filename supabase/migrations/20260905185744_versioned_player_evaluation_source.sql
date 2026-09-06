@@ -304,3 +304,58 @@ revoke all on function public.record_player_evaluation(uuid, uuid, uuid, uuid, t
   from public, anon, authenticated;
 grant execute on function public.record_player_evaluation(uuid, uuid, uuid, uuid, text, jsonb)
   to authenticated;
+
+-- I1 (final review, XS-W5-01): public.reset_product_data enumerates the tables the reset deletes
+-- and already lists player_evaluations and self_evaluations, but predates this slice's two new
+-- tables. player_evaluation_contributions.player_id and .community_id are both `on delete
+-- restrict`, so once any contribution exists the whole reset aborts with 23503. This
+-- `create or replace` reproduces the last definition (20260801120000_reset_product_data_preserve_
+-- canonical.sql) verbatim and adds only the two new deletes, children before parents, in the same
+-- place the legacy evaluation tables are cleared.
+create or replace function public.reset_product_data(target_account_uuid text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not public.has_capability('reset_product_data') then
+    raise exception 'Not authorized: missing reset_product_data capability';
+  end if;
+  perform public.require_aal2();
+
+  -- Allow last-owner guard bypass for the duration of this transaction only.
+  -- security definer: a flag vive na transacao do caller do reset.
+  perform set_config('app.allow_reset_bypass', 'on', true);
+
+  -- Children-first referential order
+  delete from public.point_events;
+  delete from public.games;
+  delete from public.teams;
+  delete from public.sessions;
+  delete from public.championship_rounds;
+  delete from public.championship_teams;
+  delete from public.championships;
+  -- Marcos vivem em career_events com type = 'milestone'; nao ha tabela separada.
+  delete from public.career_events;
+  delete from public.player_evaluations;
+  delete from public.self_evaluations;
+  -- XS-W5-01: children before parents -- both reference players and communities `on delete
+  -- restrict`, so they must be gone before the players/communities deletes below run.
+  delete from public.player_evaluation_dimension_scores;
+  delete from public.player_evaluation_contributions;
+  delete from public.community_players;
+  delete from public.whatsapp_list_drafts;
+  delete from public.community_presence;
+  delete from public.game_reports;
+  delete from public.session_reports;
+  -- Preserva o player canonico da conta (has_account_identity_history = true).
+  -- Ver constraint players_account_identity_history_check.
+  delete from public.players
+   where owner_id = target_account_uuid::uuid
+     and not has_account_identity_history;
+  delete from public.communities where owner_id = target_account_uuid::uuid;
+end;
+$$;
+
+revoke all on function public.reset_product_data(text) from public, anon, authenticated;
+grant execute on function public.reset_product_data(text) to authenticated;

@@ -414,7 +414,7 @@ if (!isTestDatabaseConfigured()) {
     await client.query(
       `insert into public.player_evaluation_contributions (
          id, community_id, player_id, evaluator_user_id, rubric_version, command_id
-       ) values ($1, $2, $3, $4, 'v0', $5)`,
+       ) values ($1, $2, $3, $4, 'v0-legacy-11', $5)`,
       [first, communityId, playerId, evaluatorId, randomUUID()],
     );
 
@@ -422,7 +422,7 @@ if (!isTestDatabaseConfigured()) {
       .query(
         `insert into public.player_evaluation_contributions (
            id, community_id, player_id, evaluator_user_id, rubric_version, command_id
-         ) values ($1, $2, $3, $4, 'v0', $5)`,
+         ) values ($1, $2, $3, $4, 'v0-legacy-11', $5)`,
         [randomUUID(), communityId, playerId, evaluatorId, randomUUID()],
       )
       .catch((error: Error) => error);
@@ -437,7 +437,7 @@ if (!isTestDatabaseConfigured()) {
     await client.query(
       `insert into public.player_evaluation_contributions (
          id, community_id, player_id, evaluator_user_id, rubric_version, command_id
-       ) values ($1, $2, $3, $4, 'v0', $5)`,
+       ) values ($1, $2, $3, $4, 'v0-legacy-11', $5)`,
       [randomUUID(), communityId, playerId, evaluatorId, randomUUID()],
     );
   });
@@ -451,20 +451,22 @@ if (!isTestDatabaseConfigured()) {
     await client.query(
       `insert into public.player_evaluation_contributions (
          id, community_id, player_id, evaluator_user_id, rubric_version, command_id
-       ) values ($1, $2, $3, $4, 'v0', $5)`,
+       ) values ($1, $2, $3, $4, 'v0-legacy-11', $5)`,
       [contributionId, communityId, playerId, evaluatorId, randomUUID()],
     );
 
     await client.query(
-      `insert into public.player_evaluation_dimension_scores (contribution_id, dimension_key, value)
-       values ($1, 'saque', 7)`,
+      `insert into public.player_evaluation_dimension_scores (
+         contribution_id, rubric_version, dimension_key, value
+       ) values ($1, 'v0-legacy-11', 'saque', 7)`,
       [contributionId],
     );
 
     const duplicate = await client
       .query(
-        `insert into public.player_evaluation_dimension_scores (contribution_id, dimension_key, value)
-         values ($1, 'saque', 8)`,
+        `insert into public.player_evaluation_dimension_scores (
+           contribution_id, rubric_version, dimension_key, value
+         ) values ($1, 'v0-legacy-11', 'saque', 8)`,
         [contributionId],
       )
       .catch((error: Error) => error);
@@ -472,8 +474,9 @@ if (!isTestDatabaseConfigured()) {
 
     const tooHigh = await client
       .query(
-        `insert into public.player_evaluation_dimension_scores (contribution_id, dimension_key, value)
-         values ($1, 'ataque', 11)`,
+        `insert into public.player_evaluation_dimension_scores (
+           contribution_id, rubric_version, dimension_key, value
+         ) values ($1, 'v0-legacy-11', 'ataque', 11)`,
         [contributionId],
       )
       .catch((error: Error) => error);
@@ -790,16 +793,17 @@ if (!isTestDatabaseConfigured()) {
     const playerId = await evaluablePlayer(communityId, ownerId, 'Alvo');
 
     const contributionId = randomUUID();
-    await recordEvaluation(evaluatorId, {
+    const rejected = await recordEvaluation(evaluatorId, {
       contributionId,
       communityId,
       playerId,
       dimensions: { saque: 7, evaluator_user_id: 3 },
-    });
+    }).catch((error: Error) => error);
+
+    assertBlockedBy(rejected, '23514', 'Dimension is not part of this rubric version');
 
     const contributions = await contributionsOf(communityId, playerId);
-    assert.equal(contributions.length, 1);
-    assert.equal(contributions[0].evaluator_user_id, evaluatorId);
+    assert.equal(contributions.length, 0);
   });
 
   test('a Player with no living standing in the Community is refused', async () => {

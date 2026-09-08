@@ -61,7 +61,7 @@ evaluating under different versions stay comparable through that provenance.
 N2.02 §2 draws the line: Player Skill Profile owns what a `PlayerEvaluation` **means**, while
 Community owns membership, authorization and context. Letting a Community define its own dimensions
 would move the authorship of meaning into Community and make global profiles incomparable. A
-per-Community *selection* of which registered version to use is a coherent future addition; it is
+per-Community _selection_ of which registered version to use is a coherent future addition; it is
 not this slice, because there is exactly one version to select.
 
 ### `status` is pinned to `EXPERIMENTAL` by a single-value check
@@ -79,16 +79,17 @@ state.
 
 The slice record requires `Overall` to be excluded from source dimensions. `Derived Overall` is a
 versioned derived projection under N2.02 §6, and N2.02 is explicit that it must never enter
-canonical Team Formation input. Rather than blacklist key names — a list nobody can complete, since
-`geral` or `nota_geral` would walk straight through — the table declares what it holds. A derived
-kind requires widening the constraint on purpose, and a test asserts no seeded dimension is an Overall.
+canonical Team Formation input. The kind constraint restricts the declared kind; it cannot infer
+whether an arbitrary key represents a derived value. In this slice, migration-only authorship,
+the exact eleven-key seed and executable seed assertions enforce the vocabulary. A derived kind
+requires widening the constraint deliberately; future migrations must also review dimension meaning.
 
 ### Requiredness is per dimension, and the seed requires nothing
 
 `skill_rubric_dimensions.is_required` says whether an evaluation under that version must carry a
 score for that dimension, and `record_player_evaluation` enforces it.
 
-That is what makes the missing semantics *explicit* rather than merely documented: XS-W5-01 already
+That is what makes the missing semantics _explicit_ rather than merely documented: XS-W5-01 already
 made absence structural, since an omitted dimension writes no row, but nothing could demand a
 dimension. A rubric can now say that serve and attack are required while emotional control is
 optional.
@@ -103,10 +104,10 @@ One version is seeded, identified `v0-legacy-11`, holding the eleven keys in the
 with `provenance` recording that they were read from `ATTRIBUTE_KEYS` in
 `src/logic/playerEvaluations.ts` rather than chosen by any sports process.
 
-The identifier is not arbitrary: XS-W5-01's suite already writes `'v0-legacy-11'` as its default
-rubric version, so seeding that exact string is what lets the new foreign key land without editing a
-single existing test. The name is also honest about what it is — version zero, derived from the
-legacy client vocabulary, eleven dimensions.
+The identifier is not arbitrary: XS-W5-01's command helper already writes `'v0-legacy-11'` as its
+default rubric version. Some direct-insert fixtures still use `'v0'` and must adopt the seed name
+when the foreign key lands. The name describes version zero, derived from the legacy client
+vocabulary, with eleven dimensions.
 
 Seeding nothing was considered and rejected: the new foreign key would make every evaluation
 impossible until somebody created a version, which would leave XS-W5-01 shipped and unusable.
@@ -197,9 +198,11 @@ alter table public.player_evaluation_dimension_scores
 The pre-existing single-column `contribution_id` foreign key is dropped, because the composite one
 supersedes it and keeping both would double every check.
 
-Adding a `not null` column to `player_evaluation_dimension_scores` is safe: the table is new in the
-previous slice, nothing has deployed, and the seeded version covers every value the existing suite
-writes.
+The migration requires both evaluation source tables to be empty. An explicit check before any DDL
+refuses existing rows with SQLSTATE `23514` and message
+`Skill rubric contract migration requires empty evaluation source tables`. This slice has no
+historical backfill contract and never invents or remaps an existing rubric version. Test fixtures
+created after applying the migration must supply the score version explicitly.
 
 ## The command
 
@@ -215,7 +218,10 @@ columns — and is redefined to:
 4. write `rubric_version` into every dimension score row.
 
 Every other behaviour is unchanged, including the supersede-then-insert order, the Player row lock,
-the receipt handling, the capability check and every existing message.
+the receipt handling, the capability check and every existing message. Registry lookups and score
+writes use `btrim(p_rubric_version)`, matching the existing contribution normalization. Dimension
+keys remain exact. The new checks run after receipt replay and the existing payload/numeric/range
+validation, before any supersession or source insert.
 
 Because the last definition in the migration chain wins, this redefinition lives in this slice's
 migration and the XS-W5-01 file is not edited.
@@ -238,20 +244,23 @@ This is the exit gate's "request dimensions by rubric/version". Nothing in the c
 ## What this slice does not change
 
 The Team Balancer, the balancer worker and `Attributes` are untouched. The client still reads
-mutable Player fields, and the aggregation is still the client-side median in
+mutable Player fields, and the aggregation is still a client-side mean after median/MAD outlier filtering in
 `src/logic/playerEvaluations.ts` over legacy rows. The capability to read a rubric by version now
 exists; using it is W6's work.
 
-XS-W5-01's suite passes unchanged, which is the compatibility statement this slice makes: seeding
-`v0-legacy-11` and enforcing the new foreign keys must not require editing a single existing test.
+XS-W5-01's behavioral regressions remain in place. Its direct inserts adopt `v0-legacy-11` and the
+new score version column. Its evaluator-shaped dimension case now asserts refusal of that
+undeclared key and no writes, while the separate caller-derived evaluator test remains. These
+changes reflect the vocabulary restriction this slice introduces, rather than relaxing the prior
+authorization, history, concurrency or reset guarantees.
 
 ## Errors
 
-| Condition | Code |
-| --- | --- |
-| Unregistered rubric version | `23514` |
-| Dimension not declared by the version | `23514` |
-| Required dimension omitted | `23514` |
+| Condition                                                | Code      |
+| -------------------------------------------------------- | --------- |
+| Unregistered rubric version                              | `23514`   |
+| Dimension not declared by the version                    | `23514`   |
+| Required dimension omitted                               | `23514`   |
 | Every pre-existing refusal of `record_player_evaluation` | unchanged |
 
 ## Test strategy
@@ -272,25 +281,29 @@ A new suite, `src/test/db/skillRubricContract.dbtest.ts`. The slice is entirely 
   unregistered version.
 - Grants: both new tables are readable by `authenticated` and writable by no browser role; the two
   evaluation tables still carry no grant at all.
-- The XS-W5-01 suite passes unchanged, run as part of the same verification.
+- Cross-version supersession retains each historical contribution's original score version.
+- Padded rubric versions retain existing normalization; dimension keys stay exact.
+- Failed contract validation preserves the previous effective contribution and writes no receipt.
+- The migration explicitly refuses pre-existing source rows, transactionally, without data loss.
+- The XS-W5-01 suite passes with only the fixture/assertion alignment described above.
 
 ## Migration shape
 
-One migration file, `supabase/migrations/<timestamp>_skill_rubric_contract.sql`:
+One migration file, `supabase/migrations/20260906130635_skill_rubric_contract.sql`:
 
-1. `skill_rubric_versions` and `skill_rubric_dimensions`, with RLS, revokes, the read grant and the
+1. the explicit empty-source-table precondition;
+2. `skill_rubric_versions` and `skill_rubric_dimensions`, with RLS, revokes, the read grant and the
    read policy;
-2. the seed of `v0-legacy-11` and its eleven dimensions;
-3. the `alter table` statements binding the XS-W5-01 tables to the registry;
-4. `skill_rubric_dimensions_for`;
-5. `create or replace` of `record_player_evaluation` with the three new refusals;
-6. revokes and grants for both functions.
+3. the seed of `v0-legacy-11` and its eleven dimensions;
+4. the `alter table` statements binding the XS-W5-01 tables to the registry;
+5. `skill_rubric_dimensions_for`;
+6. `create or replace` of `record_player_evaluation` with the three new refusals;
+7. revokes and grants for both functions.
 
-The order matters for two reasons. The registry tables and the seed must exist before the foreign
-keys reference them. And the `not null` column on the scores table is only safe because the
-migration chain rebuilds from zero, so no row predates it — on any database that already held
-scores, that statement would need a backfill first, and this slice does not write one because no
-such database exists.
+The registry and seed must exist before foreign keys reference them. The empty-source precondition
+makes the direct `not null` addition valid without a backfill. A database containing source rows
+requires a separately designed historical migration before this slice can be applied; a successful
+rebuild from zero is not evidence that every possible deployment database is empty.
 
 ## Deployment and rollback
 

@@ -422,15 +422,31 @@ if (!isTestDatabaseConfigured()) {
   });
 
   test('EXIT GATE: a suspended member retains no capability at all', async () => {
+    // community_capabilities deixou de ser executavel pelo papel `authenticated` na
+    // remediacao de 2026-09-08 (achado A7): o parametro target_user_id e livre, entao o
+    // grant permitia sondar o grafo de papeis de qualquer usuario. A funcao segue sendo a
+    // fonte da verdade, agora alcancada so por current_user_has_community_capability e por
+    // quem administra o banco -- por isso a consulta crua abaixo roda como dona.
+    // A afirmacao em si nao muda: suspensao remove capability, nao apenas esconde a UI.
     const db = await pool.connect();
     try {
-      const { rows } = await asIdentity(db, world.suspendedA, () =>
-        db.query('select public.community_capabilities($1, $2)', [
-          world.communityA,
-          world.suspendedA,
-        ]),
-      );
+      const { rows } = await db.query('select public.community_capabilities($1, $2)', [
+        world.communityA,
+        world.suspendedA,
+      ]);
       assert.equal(rows.length, 0, 'suspension must remove capability, not just hide UI');
+
+      const viaWrapper = await asIdentity(db, world.suspendedA, () =>
+        db.query<{ ok: boolean }>(
+          'select public.current_user_has_community_capability($1, $2) as ok',
+          [world.communityA, 'community.members.manage'],
+        ),
+      );
+      assert.equal(
+        viaWrapper.rows[0].ok,
+        false,
+        'e o mesmo resultado pela superficie que o cliente realmente enxerga',
+      );
     } finally {
       db.release();
     }

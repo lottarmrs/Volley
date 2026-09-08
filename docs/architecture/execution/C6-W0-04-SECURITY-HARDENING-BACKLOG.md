@@ -24,7 +24,7 @@ actor derived server-side from auth.uid()
 no user-editable metadata used for authorization
 ```
 
-The current schema pins `search_path = public` on **44** functions.
+The current schema pins `search_path = public` on **42** functions.
 That is not the target: `public` is writable by the schema owner and resolves ahead of
 `pg_catalog`, so it narrows the attack surface without closing it.
 
@@ -92,7 +92,6 @@ unrelated function is rewritten just to clear a list.
 | `account_requires_aal2` | `search_path=public` | later |
 | `approve_player_avatar` | `search_path=public` | later |
 | `claim_session_ownership` | `search_path=public` | later |
-| `find_player_by_username` | `search_path=public` | later |
 | `generate_player_claim_code` | `search_path=public` | later |
 | `guard_active_player_reference` | `search_path=public` | later |
 | `propose_player_avatar` | `search_path=public` | later |
@@ -101,7 +100,6 @@ unrelated function is rewritten just to clear a list.
 | `regenerate_career_events_for_sessions` | `search_path=public` | later |
 | `regenerate_player_milestones` | `search_path=public` | later |
 | `reject_player_avatar` | `search_path=public` | later |
-| `reset_product_data` | `search_path=public` | later |
 | `session_control_is_expired` | `search_path=public` | later |
 | `transfer_session_ownership` | `search_path=public` | later |
 

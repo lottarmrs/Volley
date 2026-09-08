@@ -54,3 +54,7 @@ docs/operations/snapshots/
 
 # Agent session transcripts.
 session-ses_*.md
+
+# Ambiente isolado do gerador do relatorio de auditoria de seguranca
+docs/security-audit/.venv/
+__pycache__/

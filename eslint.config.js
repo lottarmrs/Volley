@@ -6,7 +6,16 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/', 'node_modules/', 'coverage/', '.agents/', '.antigravity/'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'coverage/',
+      '.agents/',
+      '.antigravity/',
+      // Ambiente isolado do gerador do relatorio de auditoria. O matplotlib empacota .js
+      // proprio, que entrava no lint repo-wide como se fosse codigo do projeto.
+      'docs/security-audit/.venv/',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

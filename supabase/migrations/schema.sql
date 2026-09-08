@@ -505,33 +505,71 @@ on conflict (role, capability) do nothing;
 create or replace function public.reset_product_data(target_account_uuid text)
 returns void
 language plpgsql
-security definer set search_path = public
+security definer
+set search_path = ''
 as $$
+declare
+  v_account uuid;
 begin
   if not public.has_capability('reset_product_data') then
     raise exception 'Not authorized: missing reset_product_data capability';
   end if;
   perform public.require_aal2();
 
-  -- Children-first referential order
-  delete from public.point_events;
-  delete from public.games;
-  delete from public.teams;
-  delete from public.sessions;
-  delete from public.championship_rounds;
-  delete from public.championship_teams;
-  delete from public.championships;
-  -- Marcos vivem em career_events com type = 'milestone'; nao ha tabela separada.
-  delete from public.career_events;
-  delete from public.player_evaluations;
-  delete from public.self_evaluations;
-  delete from public.community_players;
-  delete from public.whatsapp_list_drafts;
-  delete from public.community_presence;
-  delete from public.game_reports;
-  delete from public.session_reports;
-  delete from public.players where owner_id = target_account_uuid::uuid;
-  delete from public.communities where owner_id = target_account_uuid::uuid;
+  v_account := nullif(pg_catalog.btrim(coalesce(target_account_uuid, '')), '')::uuid;
+  if v_account is null then
+    raise exception 'Target account is required' using errcode = '23514';
+  end if;
+
+  -- Permite o bypass da guarda de ultimo dono apenas nesta transacao. security definer:
+  -- a flag vive na transacao do caller do reset. O trigger de auditoria tambem observa
+  -- esta flag e para de auditar enquanto o reset roda (20260801120000).
+  perform pg_catalog.set_config('app.allow_reset_bypass', 'on', true);
+
+  -- Filhos com `on delete restrict` primeiro, escopados pela conta alvo.
+  delete from public.player_evaluation_dimension_scores s
+   where s.contribution_id in (
+     select c.id
+       from public.player_evaluation_contributions c
+      where c.community_id in (select id from public.communities where owner_id = v_account)
+         or c.player_id in (select id from public.players where owner_id = v_account)
+   );
+  delete from public.player_evaluation_contributions c
+   where c.community_id in (select id from public.communities where owner_id = v_account)
+      or c.player_id in (select id from public.players where owner_id = v_account);
+
+  -- Dados operacionais da conta. career_events nao tem owner_id: e alcancada pelas tres
+  -- entidades que a originam, todas ja escopadas por dono.
+  delete from public.point_events where owner_id = v_account;
+  delete from public.game_reports where owner_id = v_account;
+  delete from public.games where owner_id = v_account;
+  delete from public.teams where owner_id = v_account;
+  delete from public.session_reports where owner_id = v_account;
+  delete from public.career_events e
+   where e.player_id in (select id from public.players where owner_id = v_account)
+      or e.session_id in (select id from public.sessions where owner_id = v_account)
+      or e.community_id in (select id from public.communities where owner_id = v_account);
+
+  delete from public.championship_rounds r
+   where r.championship_id in (select id from public.championships where owner_id = v_account);
+  delete from public.championship_teams t
+   where t.championship_id in (select id from public.championships where owner_id = v_account);
+  delete from public.championships where owner_id = v_account;
+
+  delete from public.sessions where owner_id = v_account;
+  delete from public.player_evaluations where owner_id = v_account;
+  delete from public.self_evaluations se
+   where se.player_id in (select id from public.players where owner_id = v_account);
+  delete from public.community_players where owner_id = v_account;
+  delete from public.whatsapp_list_drafts where owner_id = v_account;
+  delete from public.community_presence where owner_id = v_account;
+
+  -- Preserva o player canonico da conta (has_account_identity_history = true).
+  -- Ver constraint players_account_identity_history_check.
+  delete from public.players
+   where owner_id = v_account
+     and not has_account_identity_history;
+  delete from public.communities where owner_id = v_account;
 end;
 $$;
 
@@ -2178,9 +2216,6 @@ create policy "Community members can read modification logs" on public.modificat
     owner_id = (select auth.uid())
     or (community_id is not null and public.current_user_has_community_role(community_id))
   );
-create policy "Authenticated users can insert modification logs" on public.modification_logs
-  for insert to authenticated
-  with check (true);
 -- Note: modification_logs has no insert/update/delete policies since it is populated via triggers running under SECURITY DEFINER
 
 -- Support access for app staff (master | programmer): additional PERMISSIVE
@@ -2211,53 +2246,62 @@ create policy "App staff can read session_reports" on public.session_reports
 create or replace function public.log_table_changes()
 returns trigger
 language plpgsql
-security definer set search_path = public
+security definer
+set search_path = ''
 as $$
 declare
   record_owner uuid;
   record_community uuid;
 begin
+  -- Reset autorizado desativa a auditoria dentro da transacao.
+  if coalesce(pg_catalog.current_setting('app.allow_reset_bypass', true), '') = 'on' then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+
   if (tg_op = 'INSERT') then
-    record_owner := nullif(to_jsonb(new)->>'owner_id', '')::uuid;
+    record_owner := nullif(pg_catalog.to_jsonb(new)->>'owner_id', '')::uuid;
     record_community := coalesce(
-      nullif(to_jsonb(new)->>'community_id', '')::uuid,
+      nullif(pg_catalog.to_jsonb(new)->>'community_id', '')::uuid,
       case when tg_table_name = 'communities' then new.id else null end
     );
 
     insert into public.modification_logs (
       owner_id, community_id, changed_by, table_name, record_id, action_type, old_data, new_data
     ) values (
-      record_owner, record_community, auth.uid(), tg_table_name, new.id::text, tg_op, null, to_jsonb(new)
+      record_owner, record_community, (select auth.uid()), tg_table_name, new.id::text, tg_op,
+      null, pg_catalog.to_jsonb(new)
     );
     return new;
   elsif (tg_op = 'UPDATE') then
     record_owner := coalesce(
-      nullif(to_jsonb(new)->>'owner_id', '')::uuid,
-      nullif(to_jsonb(old)->>'owner_id', '')::uuid
+      nullif(pg_catalog.to_jsonb(new)->>'owner_id', '')::uuid,
+      nullif(pg_catalog.to_jsonb(old)->>'owner_id', '')::uuid
     );
     record_community := coalesce(
-      nullif(to_jsonb(new)->>'community_id', '')::uuid,
-      nullif(to_jsonb(old)->>'community_id', '')::uuid,
+      nullif(pg_catalog.to_jsonb(new)->>'community_id', '')::uuid,
+      nullif(pg_catalog.to_jsonb(old)->>'community_id', '')::uuid,
       case when tg_table_name = 'communities' then new.id else null end
     );
 
     insert into public.modification_logs (
       owner_id, community_id, changed_by, table_name, record_id, action_type, old_data, new_data
     ) values (
-      record_owner, record_community, auth.uid(), tg_table_name, new.id::text, tg_op, to_jsonb(old), to_jsonb(new)
+      record_owner, record_community, (select auth.uid()), tg_table_name, new.id::text, tg_op,
+      pg_catalog.to_jsonb(old), pg_catalog.to_jsonb(new)
     );
     return new;
   elsif (tg_op = 'DELETE') then
-    record_owner := nullif(to_jsonb(old)->>'owner_id', '')::uuid;
+    record_owner := nullif(pg_catalog.to_jsonb(old)->>'owner_id', '')::uuid;
     record_community := coalesce(
-      nullif(to_jsonb(old)->>'community_id', '')::uuid,
+      nullif(pg_catalog.to_jsonb(old)->>'community_id', '')::uuid,
       case when tg_table_name = 'communities' then old.id else null end
     );
 
     insert into public.modification_logs (
       owner_id, community_id, changed_by, table_name, record_id, action_type, old_data, new_data
     ) values (
-      record_owner, record_community, auth.uid(), tg_table_name, old.id::text, tg_op, to_jsonb(old), null
+      record_owner, record_community, (select auth.uid()), tg_table_name, old.id::text, tg_op,
+      pg_catalog.to_jsonb(old), null
     );
     return old;
   end if;

@@ -222,6 +222,13 @@ const communityModelV2Migration = readFixture(
   new URL('../../../supabase/migrations/20260624203424_community_model_v2.sql', import.meta.url),
 );
 
+const securityAuditRemediationMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260908160000_security_audit_remediation.sql',
+    import.meta.url,
+  ),
+);
+
 const globalAthleteIdentityMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260610161256_global_athlete_identity.sql',
@@ -360,9 +367,21 @@ test('backend migration enables RLS and authenticated Data API grants', () => {
     migration,
     /grant select, insert, update, delete on[\s\S]*public\.communities[\s\S]*to authenticated;/i,
   );
+  // A remediacao de 2026-09-08 (achado A5) removeu esta policy. Ela so existiu porque
+  // 20260801120000 rebaixou log_table_changes a security invoker sem querer, e o trigger
+  // passou a esbarrar no RLS; `with check (true)` destravou isso abrindo a trilha de
+  // auditoria para qualquer authenticated gravar linha arbitraria em nome de terceiros.
+  // Com o definer restaurado, o trigger grava sem policy nenhuma -- que e exatamente o que
+  // o comentario ao lado dela em schema.sql sempre afirmou.
+  assert.doesNotMatch(
+    baseSchema,
+    /create policy "Authenticated users can insert modification logs"/i,
+    'a policy permissiva de INSERT em modification_logs nao deve voltar',
+  );
   assert.match(
     baseSchema,
-    /create policy "Authenticated users can insert modification logs" on public\.modification_logs\s+for insert to authenticated\s+with check \(true\);/i,
+    /create or replace function public\.log_table_changes\(\)[\s\S]{0,120}?security definer/i,
+    'o trigger de auditoria precisa continuar SECURITY DEFINER',
   );
 });
 
@@ -2073,6 +2092,12 @@ test('consolidated schema carries every community join/discovery RPC verbatim', 
     ['propose_player_avatar', avatarApprovalMigration],
     ['approve_player_avatar', avatarApprovalMigration],
     ['reject_player_avatar', avatarApprovalMigration],
+    // Superseded pela remediacao de 2026-09-08 (achado A6), mas schema.sql fica com a
+    // versao antiga DE PROPOSITO: a definicao endurecida consulta community_memberships,
+    // tabela que so nasce em 20260827140000 e que este snapshot nem cria. Como a funcao e
+    // `language sql`, o Postgres valida o corpo na criacao e o snapshot deixaria de subir.
+    // Quem provisiona o projeto aplica schema.sql e DEPOIS as migrations (ver README), e e
+    // 20260908160000 que manda no banco resultante -- coberto por securityAuditRemediation.dbtest.ts.
     ['find_player_by_username', globalAthleteIdentityMigration],
     // Superseded by 20260726210000, which added the active-membership filters —
     // 20260610161203 no longer holds the authoritative body.
@@ -2082,7 +2107,12 @@ test('consolidated schema carries every community join/discovery RPC verbatim', 
     // it only ever wrote owner_id, so a project stood up from the file logged audit
     // rows with no community attribution, and lacked the nullif(..., '') guard that
     // keeps an empty owner_id from blowing up the uuid cast.
-    ['log_table_changes', migration],
+    //
+    // Superseded duas vezes: 20260801120000 adicionou o bypass de reset e, no mesmo
+    // `create or replace`, deixou cair o `security definer` -- que nao e herdado -- o que
+    // originou o achado A5. A remediacao de 2026-09-08 restaurou o definer, e e ela que
+    // manda agora.
+    ['log_table_changes', securityAuditRemediationMigration],
     ['guard_community_member_owner_role', rbacHardeningMigration],
     ['sync_community_player_active_status', communityPlayersOptimizationMigration],
   ];
@@ -2666,7 +2696,16 @@ test('consolidated schema reset_product_data only deletes tables that exist', ()
   const fn = extractSqlFunction(baseSchema, 'reset_product_data');
   assert.ok(fn, 'missing reset_product_data in schema.sql');
   assert.doesNotMatch(fn, /public\.player_achievements/i);
-  assert.match(fn, /delete from public\.career_events;/i);
+  assert.match(fn, /delete from public\.career_events e/i);
+
+  // Achado A4: a assinatura recebe uma conta alvo, mas dezesseis dos dezoito DELETE nao a
+  // usavam e varriam as tabelas inteiras, de todas as contas. Nenhum DELETE pode voltar a
+  // ser incondicional -- um `delete from public.<tabela>;` sem escopo e o defeito inteiro.
+  assert.doesNotMatch(
+    fn,
+    /delete from public\.[a-z_]+;\s/i,
+    'nenhum DELETE de reset_product_data pode ficar sem escopo de inquilino',
+  );
 });
 
 const sessionOwnershipMigration = readFixture(

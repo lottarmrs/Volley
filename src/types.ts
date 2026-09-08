@@ -5,6 +5,11 @@
 
 export type { CloudSyncStatus } from './shared/types/sync';
 export type {
+  BalanceInputSnapshot,
+  BalanceInputSnapshotCaptureRequest,
+  BalanceInputSnapshotParticipant,
+} from './shared/types/balanceInputSnapshot';
+export type {
   CommunitySkillProfile,
   CommunitySkillProfileRequest,
 } from './shared/types/communitySkillProfile';

@@ -1,6 +1,6 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-09-08**, após validar localmente a projeção global interna W5-04 e a
+> Atualizado em **2026-09-08**, após validar localmente a W6-01, a projeção global interna W5-04 e a
 > remediação da auditoria de segurança do mesmo dia.
 > Este é o ponto de retomada canônico se o limite da conversa acabar.
 
@@ -36,6 +36,7 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 | XS-W5-02 | Skill rubric/dimension contract                   | concluída      |
 | XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação | validada local |
 | XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda      | validada local |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador     | validada local |
 
 ### Branches — cadeia integrada em `main`
 
@@ -51,7 +52,7 @@ As alterações desta retomada estão no diretório de trabalho, ainda sem commi
 
 ```text
 main   ← contém W3-01..W5-01 e a correção de cascade
-exec/c6-w5-02-skill-rubric-contract   ← W5-02..W5-04 + complemento do editor + remediação de segurança, locais
+exec/c6-w5-02-skill-rubric-contract   ← W5-02..W5-04 + editor + remediação de segurança + W6-01, locais
 ```
 
 A mesma branch carrega também a remediação da auditoria de segurança de 2026-09-08, descrita mais
@@ -61,10 +62,9 @@ Ao retomar, confira `git status` e o plano
 `docs/superpowers/plans/2026-09-08-xs-w6-01-balance-input-snapshots.md` antes de iniciar outra
 fatia. Não confunda uma fatia validada localmente com uma fatia integrada em `main` ou implantada.
 
-**Armadilha no diretório de trabalho:** `supabase/migrations/20260908142236_balance_input_snapshots.sql`
-existe com **zero byte** — é o arquivo criado pela CLI para a W6-01, que foi planejada e ainda não
-teve uma linha implementada. Nenhum dos arquivos da Task 1/2 daquele plano existe. Não leia a
-presença desse arquivo como fatia iniciada.
+A W6-01 foi implementada nesta mesma branch, a partir do plano
+`docs/superpowers/plans/2026-09-08-xs-w6-01-balance-input-snapshots.md`. O arquivo de migration que
+antes existia com zero byte agora está preenchido.
 
 ### O que a wave W3 entregou
 
@@ -489,6 +489,65 @@ concedidos por esta função privada. OPEN-RATING-001/002 e OPEN-BAL-001 continu
   Comparação direta confirmou cálculo comunitário idêntico após renomear parâmetro local;
 - evidências em `.superpowers/sdd/2026-09-08-xs-w5-04-global-skill-profile/`. Sem commit, merge,
   migrations remotas ou deploy; a função global segue interna, sem alteração visual nesta fatia.
+
+### O que a W6-01 entregou — entradas congeladas do balanceador
+
+Primeira fatia em que a cadeia avaliação → perfil → sorteio produz um artefato que o sorteio pode
+consumir. Até aqui tudo era calculado sob demanda, o que é certo para consultar um perfil e errado
+para formar times: a formação precisa continuar explicável depois que as origens mudarem.
+
+- `public.capture_balance_input_snapshot(command_id, session_id, roster_revision_id)` congela uma
+  revisão exata do elenco de uma Session target COMMUNITY em `DRAFT` ou `SCHEDULED`;
+  `public.read_balance_input_snapshot(snapshot_id)` devolve o mesmo formato. As duas são
+  `security definer` com `search_path` vazio, concedidas só a `authenticated`, e exigem o organizador
+  designado — cargo de governança ou responsabilidade `EVALUATOR` **não** dão acesso à formação;
+- o comando aceita **apenas identificadores**. O navegador nunca envia vetor de atributo: quem
+  resolve os valores é o servidor, a partir do perfil global privado da W5-04, que continua sendo a
+  única origem de avaliação. Atributo legado, autoavaliação, Overall, forma, estatística e nota de
+  exibição não entram no vetor;
+- **política de ausência escolhida pelo usuário**, versionada como `v0-global-roster-mean-5`:
+  dimensão que o elenco avaliado nunca observou recebe a média do próprio elenco; sem nenhuma
+  observação, 5. Zero observado participa da média como zero. Estimativa não entra na média e nunca
+  sobrescreve valor observado, e cada dimensão estimada aparece em `estimated_dimensions`;
+- Guest joga mas não contribui para a média de referência, e não tem perfil nem metadado físico;
+- comunidade de origem que ainda não ativou o modelo novo **interrompe** a captura. Origem em sombra
+  não é promovida a entrada confiável nem descartada em silêncio;
+- uma única instrução SQL resolve elegibilidade, perfis, metadados e ativação. Em `READ COMMITTED`,
+  duas instruções veriam dois instantes diferentes, e o vetor de um participante poderia nascer de um
+  estado que nunca coexistiu com o do participante seguinte;
+- `input_fingerprint` é md5 de um JSON determinístico sem id, sem carimbo de hora e sem ator: a
+  mesma entrada lógica capturada duas vezes tem a mesma impressão digital, e uma revisão de origem
+  nova a muda mesmo com a nota idêntica. A proveniência privada guarda revisões e valores crus, sem
+  identidade de avaliador e sem `player_id` global;
+- `app_private.balance_input_snapshots` tem RLS, nenhuma concessão de navegador e um gatilho que
+  recusa UPDATE e DELETE com 55000. A única transição aceita é `created_by → null`, que o apagamento
+  de conta provoca — um snapshot reescrevível não provaria nada sobre a formação passada;
+- captura e recibo entram na mesma transação; comando recusado não deixa nenhum dos dois. Replay do
+  mesmo `command_id` devolve o snapshot congelado; reusar o comando para outro elenco é 23505.
+
+**Fronteiras que esta fatia não cruza:** o sorteio legado continua no caminho anterior, a publicação
+de candidatos não foi integrada e a troca ampla de origem da W5-05 **não** está feita. O snapshot
+devolvido continua amarrado ao elenco original — publicar candidatos exige revalidar elenco e
+configuração atuais por conta própria. Não há nenhuma mudança de interface nesta fatia.
+
+### Evidência de verificação da W6-01
+
+- suíte focada `src/test/db/balanceInputSnapshots.dbtest.ts`: **17/17**, no container preservado
+  `volley_test_pg2`, `127.0.0.1:55500`;
+- suíte completa PostgreSQL: **658/658**, exit 0, execução serial (641 anteriores + 17 novos);
+- `npm run typecheck`, `npm run build`: passaram. `npm test`: **935 unitários + 279 UI** em 48
+  arquivos, zero falhas. ESLint e Prettier dos arquivos novos: zero erros e zero avisos;
+- **a primeira asserção foi escrita antes do RPC existir e falhou com 42883**, como o plano exigia.
+  As demais foram escritas depois da implementação, então três guardas menos óbvias foram provadas
+  por mutação dirigida: remover a recusa de comunidade em sombra, remover a recusa de revisão antiga
+  e afrouxar o gatilho de imutabilidade. Cada mutação matou exatamente um teste, e só um;
+- um defeito real apareceu no fixture, não no código: `session_participants` tem índice único por
+  `(session_id, player_id)`, então uma revisão nova do mesmo elenco precisa **reaproveitar** o
+  participante — que é o que `finalize_session_roster` faz em produção;
+- a transição `created_by → null` é exercitada diretamente, e não por `delete from auth.users`, que
+  ainda esbarra na guarda do Player canônico (dívida anterior, fixada em
+  `authCascadeSafety.dbtest.ts`). Quando ela cair, é este `set null` que a FK vai disparar;
+- sem commit remoto, merge, aplicação de migration em Supabase remoto ou deploy.
 
 ### Auditoria de segurança de 2026-09-08 — remediação na mesma branch
 

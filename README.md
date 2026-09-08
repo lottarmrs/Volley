@@ -99,6 +99,7 @@ supabase/migrations/20260906130635_skill_rubric_contract.sql
 supabase/migrations/20260906231744_community_skill_profile.sql
 supabase/migrations/20260907010305_community_evaluation_editor.sql
 supabase/migrations/20260908031027_global_skill_profile.sql
+supabase/migrations/20260908142236_balance_input_snapshots.sql
 supabase/migrations/20260908160000_security_audit_remediation.sql
 ```
 
@@ -148,6 +149,19 @@ sob a política experimental `v0-equal-community-mean`. Reutiliza a média filtr
 preserva dados ausentes e registra as revisões de origem. A função é privada, sem acesso pelo
 navegador; o RPC de perfil da comunidade mantém suas permissões. A integração ao sorteio depende
 da etapa posterior de snapshots autorizados. Não há tabela de perfil nem job de atualização.
+
+`20260908142236_balance_input_snapshots.sql` congela as entradas do balanceador. Para uma Session
+target de comunidade em `DRAFT` ou `SCHEDULED`, o organizador designado captura uma revisão exata do
+elenco em um artefato privado e imutável, com `capture_balance_input_snapshot` e
+`read_balance_input_snapshot`. O comando aceita apenas identificadores — o navegador nunca envia
+vetor de atributo. A única origem de avaliação é o perfil global privado da W5-04; atributo legado,
+autoavaliação, Overall, forma e nota de exibição ficam de fora. Dimensão que o elenco avaliado nunca
+observou recebe a média do próprio elenco, e 5 quando não há observação nenhuma — política
+`v0-global-roster-mean-5`. Estimativa não entra na média nem sobrescreve valor observado, e cada
+dimensão estimada é listada. Comunidade que ainda não ativou o modelo novo interrompe a captura em
+vez de ser descartada em silêncio. O snapshot não muda quando as origens mudam depois, não tem
+concessão para papel de navegador e não altera o sorteio atual: consumir essas entradas é fatia
+posterior.
 
 `20260908160000_security_audit_remediation.sql` fecha os dez achados da auditoria de 2026-09-08
 (`docs/security-audit/relatorio-auditoria-seguranca.pdf`). Revoga das três RPCs de carreira o

@@ -1,7 +1,8 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-09-05**, ao fechar `XS-W5-01`. Este é o ponto de retomada canônico se o
-> limite da conversa acabar.
+> Atualizado em **2026-09-08**, após validar localmente a projeção global interna W5-04 e a
+> remediação da auditoria de segurança do mesmo dia.
+> Este é o ponto de retomada canônico se o limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -16,23 +17,25 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                  | Estado    |
-| -------- | ---------------------------------------- | --------- |
-| XS-W3-01 | Session target root                      | concluída |
-| XS-W3-02 | Session organizer assignment             | concluída |
-| XS-W3-03 | Session courts                           | concluída |
-| XS-W3-04 | Session rules snapshot                   | concluída |
-| XS-W3-05 | SessionParticipant + RosterRevision      | concluída |
-| XS-W3-06 | Lifecycle/readiness semantic commands    | concluída |
-| XS-W3-07 | Session cohort cutover                   | concluída |
-| XS-W4-01 | Registration schema e invariantes        | concluída |
-| XS-W4-02 | Open/Close/Lock Registration             | concluída |
-| XS-W4-03 | JoinRegistration                         | concluída |
-| XS-W4-04 | Leave / promoção / capacidade            | concluída |
-| XS-W4-05 | FinalizeSessionRoster                    | concluída |
-| XS-W4-06 | Legacy Session Registration introduction | concluída |
-| XS-W5-01 | Versioned PlayerEvaluation source model  | concluída |
-| XS-W5-02 | Skill rubric/dimension contract          | próxima   |
+| Fatia    | Assunto                                           | Estado         |
+| -------- | ------------------------------------------------- | -------------- |
+| XS-W3-01 | Session target root                               | concluída      |
+| XS-W3-02 | Session organizer assignment                      | concluída      |
+| XS-W3-03 | Session courts                                    | concluída      |
+| XS-W3-04 | Session rules snapshot                            | concluída      |
+| XS-W3-05 | SessionParticipant + RosterRevision               | concluída      |
+| XS-W3-06 | Lifecycle/readiness semantic commands             | concluída      |
+| XS-W3-07 | Session cohort cutover                            | concluída      |
+| XS-W4-01 | Registration schema e invariantes                 | concluída      |
+| XS-W4-02 | Open/Close/Lock Registration                      | concluída      |
+| XS-W4-03 | JoinRegistration                                  | concluída      |
+| XS-W4-04 | Leave / promoção / capacidade                     | concluída      |
+| XS-W4-05 | FinalizeSessionRoster                             | concluída      |
+| XS-W4-06 | Legacy Session Registration introduction          | concluída      |
+| XS-W5-01 | Versioned PlayerEvaluation source model           | concluída      |
+| XS-W5-02 | Skill rubric/dimension contract                   | concluída      |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação | validada local |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda      | validada local |
 
 ### Branches — cadeia integrada em `main`
 
@@ -40,13 +43,28 @@ A cadeia C6 até `XS-W5-01` **está em `main`**. As fatias até `XS-W4-06`, mais
 de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` foi integrada em 2026-09-05,
 depois da review final de branch inteira, e sua branch
 `exec/c6-w5-01-versioned-player-evaluation` foi apagada por já estar contida em `main`. Não existe
-trabalho C6 pendente de integração.
+trabalho anterior à W5-02 pendente de integração. A W5-02 foi implementada e validada localmente na
+branch `exec/c6-w5-02-skill-rubric-contract`, a partir do design registrado no commit `27b1708`.
+A W5-03, seu complemento de editor/source authority e a W5-04 continuam na mesma branch,
+preservando as alterações da W5-02.
+As alterações desta retomada estão no diretório de trabalho, ainda sem commit, merge ou deploy.
 
 ```text
 main   ← contém W3-01..W5-01 e a correção de cascade
+exec/c6-w5-02-skill-rubric-contract   ← W5-02..W5-04 + complemento do editor + remediação de segurança, locais
 ```
 
-Ao retomar, confirme que está em `main` e inicie `XS-W5-02` a partir deste ponto canônico.
+A mesma branch carrega também a remediação da auditoria de segurança de 2026-09-08, descrita mais
+abaixo. Ela **não é uma fatia C6** e não deve ser tratada como tal ao decidir a integração.
+
+Ao retomar, confira `git status` e o plano
+`docs/superpowers/plans/2026-09-08-xs-w6-01-balance-input-snapshots.md` antes de iniciar outra
+fatia. Não confunda uma fatia validada localmente com uma fatia integrada em `main` ou implantada.
+
+**Armadilha no diretório de trabalho:** `supabase/migrations/20260908142236_balance_input_snapshots.sql`
+existe com **zero byte** — é o arquivo criado pela CLI para a W6-01, que foi planejada e ainda não
+teve uma linha implementada. Nenhum dos arquivos da Task 1/2 daquele plano existe. Não leia a
+presença desse arquivo como fatia iniciada.
 
 ### O que a wave W3 entregou
 
@@ -317,7 +335,8 @@ zero falhas, sem editar nenhuma dessas suítes.
   o contrato de rubric pertence à `XS-W5-02`.
 
 **Um aviso já nasce nesta fatia:** ela entrega **escritas sem consumidor**. A agregação continua
-sendo a mediana no cliente, em `src/logic/playerEvaluations.ts`, lendo as linhas legadas — um
+sendo a média após filtragem de extremos por mediana/MAD no cliente, em
+`src/logic/playerEvaluations.ts`, lendo as linhas legadas — um
 avaliador usando o comando novo não muda perfil nenhum nem nada visível no app.
 
 **Quatro avisos para a `XS-W5-02` e o que vier depois:**
@@ -352,6 +371,280 @@ A próxima fronteira é `XS-W5-02 — Skill rubric/dimension contract`.
   `playerEvaluationContributions.dbtest.ts`, README e HANDOFF;
 - `git diff main...HEAD --name-only` lista só a migration, a suíte nova, a spec, o plano, README e
   HANDOFF. `git diff --check` não encontrou erro de espaço em branco.
+
+### O que a W5-02 entregou
+
+- `skill_rubric_versions` e `skill_rubric_dimensions` registram somente `v0-legacy-11`, experimental,
+  com as onze dimensões do cliente, todas opcionais, e proveniência explícita;
+- cada escore carrega `rubric_version`; foreign keys compostas o vinculam tanto à versão da
+  contribuição quanto à dimensão registrada, sem depender só da validação do comando;
+- `record_player_evaluation` recusa versão desconhecida, dimensão não declarada e dimensão
+  obrigatória ausente. Preserva autorização, locks, replay, normalização da versão e precedência
+  dos erros de payload existentes;
+- `skill_rubric_dimensions_for` consulta dimensões por versão como `SECURITY INVOKER`; o contrato é
+  legível por `authenticated`, mas os dados de avaliação continuam sem grants de navegador;
+- a migration `20260906130635_skill_rubric_contract.sql` recusa explicitamente avaliações existentes.
+  Essa precondição evita atribuição retroativa de significado; uma implantação com dados de origem
+  exige uma migração histórica desenhada separadamente;
+- o design corrigiu a promessa inexequível de testes anteriores intactos: fixtures de inserção
+  direta agora usam a versão registrada e a coluna nova; a dimensão que tentava nomear avaliador
+  é recusada. As garantias de autorização, histórico, concorrência e reset foram preservadas.
+
+Esta etapa continua sem consumidor no app. `OPEN-BAL-001` e `OPEN-RATING-001` permanecem abertas;
+a fronteira seguinte é W5-03, com o julgamento de escopo abaixo antes de detalhar a implementação.
+
+### O que a W5-03 entregou
+
+- RPC `get_community_player_skill_profile` calcula o perfil por Community/Player/rubric com fontes
+  vigentes; leitura exige `player.evaluate` e standing vivo, sem acesso bruto às avaliações;
+- por escolha explícita do usuário, mantém média filtrada por mediana/MAD do legado: abaixo de quatro
+  notas não filtra; limiar `max(1.75, MAD * 2.5)`; média arredondada a uma casa; ausência continua null;
+- política `v0-legacy-mad-mean` experimental, contagens por dimensão, revisão determinística das
+  fontes e instante de consulta. A leitura não altera fontes, histórico ou receipts;
+- painel no editor de atleta com identidade cloud e comunidades vinculadas: seleção e consulta
+  explícitas, erros em português, descarte de respostas atrasadas ao trocar contexto;
+- a [decisão de cálculo sob demanda](docs/architecture/adr/2026-09-06-community-skill-profile-on-demand.md)
+  substitui explicitamente o gate de perfil armazenado da W5-03. Não há tabela/cache/job adicional.
+
+**Fronteira do produto:** esta fatia integra a leitura sob demanda. O complemento seguinte conectou o
+editor online à origem versionada, mas somente após ativação e concessão explícitas por comunidade;
+o perfil ainda é experimental e o balanceador não o consome. Não interpretar o painel como cutover
+global nem avançar automaticamente para um perfil global sem revisar a utilidade dessa etapa.
+`OPEN-RATING-001` e `OPEN-BAL-001` seguem abertas.
+
+### O que o complemento do editor entregou
+
+- ativação explícita por comunidade em `app_private.community_evaluation_cutovers`, sem importação
+  retroativa das notas antigas;
+- `activate_community_evaluation_model`, `set_community_evaluator` e `get_community_evaluation_editor`
+  mantêm gestão, capacidade e leitura de notas próprias separadas;
+- `record_community_player_evaluation` valida a versão, usa o comando versionado existente e compara
+  a contribuição esperada para rejeitar edição concorrente;
+- após ativação, um trigger impede INSERT/UPDATE no `player_evaluations` legado. DELETE continua
+  disponível para limpeza/anonymização existente;
+- editor online com campos esparsos, zero válido, retry do mesmo comando, conflito com recarga e
+  controles explícitos para ativação/avaliadores. O cadastro de atleta cloud não simula consenso nem
+  enfileira avaliação legada;
+- o perfil e o sorteio ainda não foram promovidos a autoridade global. A próxima etapa deve medir
+  adoção/latência e desenhar snapshots antes do cutover do balanceador.
+- o sincronizador legado consulta os IDs de coortes target em lote antes de deduplicar conflitos;
+  respostas malformadas e falhas inesperadas interrompem a escrita, enquanto somente RPC ausente
+  mantém compatibilidade com deployments antigos. Um upsert individual de coorte target é recusado.
+
+### Evidência de verificação do complemento do editor
+
+- typecheck, testes focados do editor/perfil e sincronização, suíte completa do aplicativo (929
+  unitários e 279 de UI) e build passaram;
+- ESLint focado passou sem erros; os avisos restantes nos arquivos tocados pertencem às regras já
+  existentes. A suíte DB focada passou com 12/12 casos;
+- a suíte DB completa foi executada serialmente após a migration, com 623/623 testes aprovados no
+  PostgreSQL descartável `volley_test_pg2`;
+- agentes independentes atingiram o limite de uso antes da entrega; a revisão independente da W5-03
+  foi aplicada anteriormente. Neste complemento, root revisou a migration, o fluxo de retry e os limites de
+  autoridade manualmente. Nenhuma aplicação remota, commit, merge ou deploy foi feita.
+- o editor fecha quando a comunidade selecionada deixa de estar vinculada ao atleta; respostas
+  assíncronas antigas não reabrem o contexto. O teste cobre a remoção dinâmica do vínculo.
+
+**Fronteira do produto:** a avaliação agora pode alimentar a origem versionada somente depois de uma
+ativação e concessão explícitas. Comunidades ainda legadas continuam no fluxo antigo; não há conversão
+automática. A leitura de perfil permanece experimental e o balanceador segue usando sua autoridade
+atual.
+
+### O que a W5-04 entregou — projeção global interna
+
+- `app_private.compute_global_player_skill_profile` calcula por Player/rubric, agrupando primeiro
+  as avaliações vigentes por comunidade e depois os valores comunitários por fundamento;
+- peso igual por comunidade com valor disponível, política experimental `v0-equal-community-mean`.
+  Dez avaliadores numa comunidade não dão a ela dez vezes mais peso; ausência continua null;
+- a média filtrada escolhida pelo usuário continua dentro de cada comunidade. Seu cálculo foi
+  extraído sem alteração para um helper privado compartilhado pelo RPC existente e pelo global;
+- fontes ordenadas e revisão determinística incluem as duas políticas e as revisões comunitárias.
+  Nova avaliação com a mesma nota muda a proveniência; timestamp de consulta não muda a revisão;
+- ambas as funções internas são SECURITY INVOKER e inacessíveis aos papéis de navegador. O RPC
+  público comunitário preserva os controles de autenticação, capacidade e vínculo vivo;
+- a projeção shadow reconstrói fontes versionadas retidas. Revogação de capacidade ou perda de
+  vínculo atual não é tratada como exclusão retroativa de uma avaliação aceita;
+- reutiliza índices existentes; não adiciona tabela de projeção, fila ou job. Decisão registrada
+  em [perfil global interno sob demanda](docs/architecture/adr/2026-09-08-global-skill-profile-internal-on-demand.md).
+
+**Próxima fronteira:** W5-05 prepara a comparação shadow e a troca da fonte consumida pelo resolver;
+W6-01 materializa snapshots autorizados por revisão do elenco. O gate de W5-05 depende desse
+consumidor: não marcá-lo concluído apenas porque as consultas de perfil passaram nos testes.
+Visibilidade global, política de dados ausentes do sorteio e snapshots persistentes não são
+concedidos por esta função privada. OPEN-RATING-001/002 e OPEN-BAL-001 continuam abertos.
+
+### Evidência de verificação da W5-04
+
+- suíte completa PostgreSQL: **629/629**, execução serial no container descartável
+  `volley_test_pg2`, porta 55500. Inclui seis casos globais, seis comunitários, 12 do editor e 13
+  da rubric; a execução inicial foi recuperada após reiniciar o Docker;
+- corrigido o teste histórico da W5-02: reconstruir o estado anterior exclui a migration da rubric
+  e todas as posteriores, preservando a verificação de recusa atômica com dados antigos;
+- `npm test`: **929 unitários + 279 UI**; typecheck e build passaram. O primeiro run de aplicativo
+  falhou no ambiente sandbox antes dos testes; a reexecução autorizada passou sem alteração de código;
+- ESLint das duas suítes DB alteradas: zero erros/avisos. Prettier focado, referências arquiteturais
+  e `git diff --check` passaram. Gates globais de lint/format mantêm o baseline preexistente descrito
+  na W5-03; não foram declarados verdes por essas verificações focadas;
+- revisão independente do SQL, cobertura e correção do teste histórico: sem achados acionáveis.
+  Comparação direta confirmou cálculo comunitário idêntico após renomear parâmetro local;
+- evidências em `.superpowers/sdd/2026-09-08-xs-w5-04-global-skill-profile/`. Sem commit, merge,
+  migrations remotas ou deploy; a função global segue interna, sem alteração visual nesta fatia.
+
+### Auditoria de segurança de 2026-09-08 — remediação na mesma branch
+
+**Não é uma fatia C6.** É um trabalho transversal que entrou no meio da execução da W5 e vive no
+mesmo diretório de trabalho, ainda sem commit. O laudo está em
+`docs/security-audit/relatorio-auditoria-seguranca.pdf`, gerado por `gerar_relatorio.py` (o `.venv`
+do gerador é ignorado pelo git e pelo ESLint desde esta passagem). Dez achados, todos remediados:
+
+- **A1–A3 (alta)** — `regenerate_career_events_for_sessions`, `recalculate_player_career` e
+  `regenerate_player_milestones` eram `security definer` concedidas a `authenticated` **sem
+  verificação de autorização nenhuma**: o alvo vinha inteiro do parâmetro. Como `career_events` só
+  recebe `grant select`, essas RPCs devolviam ao cliente a escrita que o schema negava. A correção é
+  **revogar o grant, não adicionar guarda de `auth.uid()`**: `recalculate_player_career` é chamada
+  por `handle_new_user()`, onde ainda não existe sessão e `auth.uid()` é NULL — uma guarda por
+  identidade quebraria o cadastro com claim code;
+- **A4 (média)** — `reset_product_data` recebia uma conta alvo e apagava as tabelas inteiras em
+  dezesseis dos dezoito DELETE. Agora o raio é o que a assinatura promete; os filhos com
+  `on delete restrict` saem antes, escopados à mão, e o Player canônico da conta é preservado;
+- **A5 (média)** — causa raiz: `20260801120000` recriou `log_table_changes()` sem repetir
+  `security definer` (que não é herdado), o trigger virou invoker e bateu no RLS; três semanas
+  depois `20260820110000` destravou isso com `with check (true)`, abrindo a trilha de auditoria para
+  qualquer conta gravar linha arbitrária atribuída a terceiros. Restaurar o definer torna a policy
+  desnecessária, e ela foi removida junto com o `insert` a `authenticated`;
+- **A6/A7 (baixa)** — `find_player_by_username` devolvia o nome real de qualquer atleta a qualquer
+  conta; agora `name` volta NULL fora de comunidade compartilhada ou administração, e a checagem de
+  username livre segue funcionando porque depende da presença da linha. `community_capabilities`
+  deixou de ser sondável para usuário arbitrário — o único chamador é `security definer` e nunca
+  precisou do grant;
+- **A8 (baixa)** — o INSERT de `community_rules`, `whatsapp_list_templates` e `community_players`
+  exigia papel atual **e** posse; UPDATE/DELETE aceitavam qualquer um dos dois, e como `owner_id`
+  guarda quem criou, o ramo de posse ficava verdadeiro para sempre. Alinhados ao INSERT.
+  **Consequência deliberada:** ex-organizador perde a escrita sobre linhas que criou, inclusive pelo
+  caminho de sync;
+- **A9 (baixa)** — a policy de leitura do bucket de avatares não declarava `to`, valia para `anon` e
+  cobria `proposals/<player_id>/`, isto é, fotos ainda não aprovadas. Aprovado segue público;
+  proposta fica visível só a quem administra aquele atleta;
+- **A10 (baixa)** — não havia CSP nenhum e o `X-XSS-Protection` do `nginx.conf` é obsoleto. A
+  auditoria **não encontrou sink de XSS no código**: o CSP é contenção contra regressão futura e
+  dependência comprometida. Cada diretiva está comentada no arquivo com o que a exige (Turnstile,
+  Supabase/realtime, `blob:` do worker do balanceador) para ninguém afrouxá-la no escuro.
+
+Duas decisões de escopo que ficam registradas por serem contraintuitivas: o endurecimento de
+`search_path` só aconteceu nas funções que a migration já precisava tocar por outro motivo
+(`ADR-SEC-003`, harden by touched surface — C6.01 proíbe a migration única de reescrita), e por isso
+`C6-W0-04-SECURITY-HARDENING-BACKLOG.md` caiu de 44 para 42 funções pendentes; e `schema.sql`
+recebeu as definições corrigidas de `reset_product_data` e `log_table_changes` — idênticas às da
+migration — mais a remoção da policy permissiva, para que uma base nova não nasça vulnerável antes
+de aplicar o histórico.
+
+**`find_player_by_username` é a exceção deliberada:** no `schema.sql` ela continua na versão antiga,
+porque a definição endurecida consulta `community_memberships`, tabela que só nasce em
+`20260827140000` e que o snapshot nem cria. Como a função é `language sql`, o Postgres valida o
+corpo na criação e o snapshot deixaria de subir. Quem provisiona aplica `schema.sql` e **depois** as
+migrations (ver README), então quem manda no banco resultante é `20260908160000`. Isso está fixado
+em `src/infra/supabase/schema.test.ts`, com o comentário explicando por quê — não "conserte" essa
+divergência sem ler o teste.
+
+**O que continua aberto:** nada foi commitado, mesclado, aplicado em Supabase remoto ou implantado —
+o CSP do `nginx.conf` só passa a valer no próximo deploy da imagem, e as policies de `storage`
+dependem de aplicar a migration no projeto remoto.
+
+### Evidência de verificação da remediação de segurança — 2026-09-08
+
+Rodado nesta passagem, com a branch inteira no diretório de trabalho:
+
+- `src/test/db/securityAuditRemediation.dbtest.ts`: **12/12**. Cada achado tem par de casos — a via
+  de ataque passa a ser negada **e** o fluxo legítimo que dependia daquela superfície continua
+  funcionando (cadastro recalcula carreira, username disponível, wrapper de capability do usuário
+  corrente, avatar aprovado público). Um `revoke` que fecha o furo e quebra o cadastro seria troca
+  de defeito, não correção;
+- `npm run test:db` completo: **641/641**, exit 0, execução serial no container preservado
+  `volley_test_pg2`, `127.0.0.1:55500` (629 anteriores + 12 novos);
+- `npm run typecheck`: passou; `npm test`: **929 unitários + 279 UI** em 48 arquivos, zero falhas;
+  `npm run build`: passou;
+- ESLint e Prettier focados nos arquivos alterados por este trabalho: zero erros e zero avisos;
+  `git diff --check` limpo. Os gates globais mantêm o baseline preexistente descrito na W5-03 —
+  não foram declarados verdes por estas verificações focadas;
+- o teste de baseline `schemaSecurityBaseline.ts` foi atualizado junto, removendo
+  `find_player_by_username` e `reset_product_data` da lista de `search_path = public` pendente.
+
+### Evidência de verificação da W5-03
+
+- `npm run typecheck` e `npm run build`: passaram;
+- `npm test`: 925 testes unitários e 254 testes de UI em 46 arquivos, zero falhas;
+- `npm run test:db`: 611 testes, zero falhas, no PostgreSQL descartável preservado
+  `volley_test_pg2`, `127.0.0.1:55500`; inclui seis casos da nova consulta;
+- ESLint focado: zero erros e seis avisos preexistentes no PlayerEditView. Prettier dos arquivos
+  alterados cobertos pelo gate passou. Documentos novos também foram formatados;
+- gates globais continuam vermelhos: 9.336 erros/315 avisos de ESLint e 18 arquivos de formatação,
+  nas pendências preexistentes descritas abaixo. Os arquivos temporários de inspeção foram removidos;
+- inspeção do componente real com fixture interceptada no Playwright/Edge: desktop 1280px e celular
+  390px, sem transbordamento da página ou erros de execução. Não é validação E2E com Supabase;
+- revisão independente não encontrou bloqueios. Identificou consulta automática ao remover e
+  reintroduzir a comunidade selecionada; teste reproduziu o problema e passou após limpar o contexto;
+- índice parcial existente começa por Community/Player e os escores têm chave por contribuição;
+  não foi adicionado índice redundante. Latência sob carga representativa ainda não foi medida;
+- evidências locais em `.superpowers/sdd/2026-09-06-xs-w5-03-community-skill-profile/`;
+  `git diff --check` passou. Sem commit, merge, aplicação remota de migrations ou deploy.
+
+### Evidência de verificação da W5-02
+
+- typecheck passou após as alterações de código;
+- `npm test`: 920 testes unitários e 245 testes de UI em 45 arquivos, zero falhas;
+- `npm run test:db`: **605 testes**, zero falhas, no container preservado `volley_test_pg2`,
+  `127.0.0.1:55500`; inclui 13 casos novos e os 24 da W5-01;
+- `npm run build` passou;
+- ESLint focado nas duas suítes alteradas passou; Prettier dos arquivos alterados suportados passou;
+- os gates globais de ESLint e formatação ainda falham em arquivos não alterados: ESLint encontrou
+  9.336 erros e 315 avisos, incluindo ferramentas locais e sete arquivos rastreados preexistentes
+  (`e2e/fixtures/auth.ts`, `eslint.config.mjs`, `scripts/check-architecture-r10.mjs`,
+  `src/app/routes/sessionRoutes.tsx`, `src/components/account/AccountSyncView.tsx`,
+  `src/logic/syncIssueLedger.ts`, `src/ui/StarRating.tsx`); Prettier apontou 18 arquivos preexistentes.
+  Isso é dívida real dos gates globais, não uma validação global verde;
+- revisão independente aprovada. A única melhoria de teste apontada foi aplicada e revisada:
+  contar receipts por avaliador para detectar registros indevidos de comandos rejeitados;
+- `git diff --check` passou. Nenhuma migration anterior nem arquivo do cliente foi alterado.
+
+### Julgamento histórico após W5-02 — 2026-09-06
+
+Este registro explica a direção proposta antes da W5-03. A decisão de cálculo sob demanda e a
+escolha explícita da média filtrada foram posteriormente implementadas na W5-03, descrita acima.
+
+O objetivo é permitir reunir participantes, controlar vagas, formar times explicáveis, operar a
+partida com confiança e preservar o histórico coletivo, mantendo simples a pelada avulsa. O guia é
+`docs/architecture/contexts/N2.01-product-experience.md`; a sequência C6 é um meio para isso.
+
+**Manter a W5-02:** versões e dimensões registradas resolvem um problema concreto: hoje o comando
+da W5-01 aceita vocabulário arbitrário. As duas tabelas pequenas e as foreign keys impedem que um
+escore seja associado ao significado de outra versão. Trocar isso por convenções no TypeScript ou
+validação apenas na UI perderia a garantia justamente no lugar em que os dados são compartilhados.
+Não há necessidade de editor de rubrics, motor genérico de formulários ou novas abstrações aqui.
+
+**Recomendar um próximo incremento utilizável:** a busca no código confirmou que o app ainda não
+consome `record_player_evaluation` nem as novas tabelas de origem; o serviço de avaliações continua
+usando o legado. Em vez de prolongar entregas isoladas de infraestrutura, o próximo design deve
+amarrar avaliação autorizada → perfil da Community legível → entrada versionada para os times,
+com uma demonstração e testes do fluxo. A ativação precisa definir uma única autoridade de escrita
+por coorte; conectar a UI não autoriza escrever simultaneamente no legado e no modelo novo.
+
+**Questionar materialização antecipada:** W5-03 pede comparar reconstrução com projeção armazenada.
+Antes de criar atualização assíncrona, cache persistido ou controle adicional de invalidação,
+avaliar uma consulta/cálculo sob demanda com versão da política, origem e cobertura explícitas.
+Persistir o snapshot consumido pelo sorteio continua sendo uma necessidade distinta. Sem medidas
+de carga/latência, não há evidência nesta revisão de que perfis pré-calculados compensem seu custo.
+Essa é uma recomendação para revisar o design/exit gate da W5-03, não uma mudança silenciosa da
+arquitetura canônica nem uma implementação já realizada.
+
+**Não copiar o agregador legado sem revisão:** ele usa média após filtragem por mediana/MAD, e
+`clampAttribute` converte valores não finitos em 5. Isso não satisfaz automaticamente a semântica
+de dimensão ausente do modelo novo. A política de agregação continua em `OPEN-RATING-001`; uma
+política experimental deve ser nomeada e testada antes de virar comportamento oficial.
+
+O resumo `PRODUCT.md` ainda descreve avaliações oficiais por owner/admin e o modo sem conta como
+entrada/fallback. O target N2.01 e a W5-01 separam governança da capacidade operacional e tratam
+Quick Session como jornada legítima própria. Esses trechos históricos não devem dirigir novos
+atalhos de autorização ou restrições ao uso casual.
 
 ### Decisões em aberto que a W3 preservou
 

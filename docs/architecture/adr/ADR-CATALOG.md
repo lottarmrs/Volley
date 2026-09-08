@@ -14,6 +14,20 @@
 
 # 0. Purpose and non-loss rule
 
+## Scoped execution decision — XS-W5-03 (2026-09-06)
+
+The [experimental Community profile on-demand decision](2026-09-06-community-skill-profile-on-demand.md)
+records a scoped change to the C6.02 W5-03 exit gate: compute from retained effective sources and
+verify independent fixture results instead of introducing a stored projection prematurely.
+It keeps `OPEN-RATING-001` open and does not change future durable balance snapshots or global profiles.
+
+## Scoped execution decision — XS-W5-04 (2026-09-08)
+
+The [internal global profile decision](2026-09-08-global-skill-profile-internal-on-demand.md)
+extends computation on demand to the global hierarchy. Community values have equal weight per
+available dimension under the experimental `v0-equal-community-mean` policy. The computation is
+private; this decision grants no global profile visibility and does not complete the snapshot cutover.
+
 C2 deliberately preserved decisions close to the context where their reasoning lives. That produced three kinds of decision markers:
 
 ```text

@@ -95,6 +95,11 @@ supabase/migrations/20260902115932_leave_promotion_capacity.sql
 supabase/migrations/20260902141626_finalize_session_roster.sql
 supabase/migrations/20260904132823_legacy_registration_introduction.sql
 supabase/migrations/20260905185744_versioned_player_evaluation_source.sql
+supabase/migrations/20260906130635_skill_rubric_contract.sql
+supabase/migrations/20260906231744_community_skill_profile.sql
+supabase/migrations/20260907010305_community_evaluation_editor.sql
+supabase/migrations/20260908031027_global_skill_profile.sql
+supabase/migrations/20260908160000_security_audit_remediation.sql
 ```
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
@@ -110,6 +115,58 @@ inspeção e o comando de introdução.
 avaliação de Player: a responsabilidade EVALUATOR que concede player.evaluate, a tabela de
 contribuições append-only com uma linha efetiva por avaliador, Player e Community, os escores de
 dimensão normalizados e o comando record_player_evaluation.
+
+`20260906130635_skill_rubric_contract.sql` registra a rubric experimental `v0-legacy-11`, com as
+onze dimensões do cliente e proveniência explícita. Vincula cada escore à versão da contribuição,
+valida dimensões permitidas/obrigatórias e oferece `skill_rubric_dimensions_for` para consulta por
+versão. As dimensões dessa primeira versão são opcionais; ausência continua diferente de zero.
+A migration exige que `player_evaluation_contributions` e `player_evaluation_dimension_scores`
+estejam vazias e recusa dados existentes explicitamente. Aplicá-la a uma base com avaliações exige
+uma estratégia de migração histórica separada. Esta etapa não altera a interface nem o balanceador.
+
+`20260906231744_community_skill_profile.sql` adiciona `get_community_player_skill_profile`, consulta
+protegida por `player.evaluate` e vínculo vivo do atleta na comunidade. Calcula a média filtrada do
+legado por fundamento, sob demanda, com política experimental `v0-legacy-mad-mean`, versão da rubric,
+revisão da origem e contagens de cobertura. Ausência retorna null, sem inventar nota. No editor de
+atleta vinculado à nuvem, selecione uma comunidade vinculada e use **Consultar perfil**. Nesta etapa
+W5-03 o painel consultava somente a nova origem; a etapa seguinte adiciona o editor versionado, mas
+o sorteio ainda não consome esse perfil. Não há migração automática de avaliações nem perfil
+materializado nesta etapa.
+
+`20260907010305_community_evaluation_editor.sql` adiciona a ativação explícita do modelo por
+comunidade, a concessão separada da responsabilidade `EVALUATOR` e o editor online versionado.
+Depois da ativação, gravações legadas são recusadas pelo banco; avaliações antigas permanecem apenas
+como histórico. O editor não funciona offline nem concede permissão por cargo administrativo. O
+cadastro cloud salva apenas o perfil do atleta; a avaliação é uma ação explícita no editor da
+comunidade e usa a origem versionada. O fluxo local-only continua compatível com o formulário legado.
+O sincronizador em nuvem filtra coortes target por consulta RPC em lote antes de enviar avaliações
+legadas; falhas inesperadas interrompem a escrita para evitar misturas de autoridade.
+
+`20260908031027_global_skill_profile.sql` acrescenta o cálculo interno do perfil global por
+Player/rubric. Cada comunidade contribui uma vez por fundamento disponível, com média de peso igual
+sob a política experimental `v0-equal-community-mean`. Reutiliza a média filtrada das comunidades,
+preserva dados ausentes e registra as revisões de origem. A função é privada, sem acesso pelo
+navegador; o RPC de perfil da comunidade mantém suas permissões. A integração ao sorteio depende
+da etapa posterior de snapshots autorizados. Não há tabela de perfil nem job de atualização.
+
+`20260908160000_security_audit_remediation.sql` fecha os dez achados da auditoria de 2026-09-08
+(`docs/security-audit/relatorio-auditoria-seguranca.pdf`). Revoga das três RPCs de carreira o
+`execute` a `authenticated` — eram `security definer` sem verificação alguma; o cadastro continua
+recalculando a carreira porque o trigger de signup resolve a chamada com os privilégios da dona.
+Escopa `reset_product_data` na conta alvo, que a assinatura já prometia mas os DELETE ignoravam.
+Restaura `log_table_changes` a `security definer` e remove a policy `with check (true)` que abria a
+trilha de auditoria para qualquer conta forjar linha. `find_player_by_username` deixa de revelar o
+nome real a quem não compartilha comunidade com o atleta, sem quebrar a checagem de username livre;
+`community_capabilities` deixa de ser sondável para usuário arbitrário. As policies de UPDATE/DELETE
+de `community_rules`, `whatsapp_list_templates` e `community_players` passam a exigir papel atual
+**e** posse, alinhando-se ao INSERT — quem foi rebaixado perde a escrita sobre linhas que criou,
+inclusive pelo caminho de sync. No bucket de avatares, o prefixo `proposals/` sai da leitura
+anônima e fica visível apenas a quem administra aquele atleta; avatar aprovado segue público.
+O décimo achado é atendido fora do banco, pelo Content-Security-Policy adicionado ao `nginx.conf`.
+O `schema.sql` recebeu as versões corrigidas de `reset_product_data` e `log_table_changes`, mas
+**mantém de propósito** a `find_player_by_username` antiga: a endurecida consulta uma tabela que o
+snapshot não cria, e como a função é `language sql` o arquivo deixaria de subir. Aplique
+`schema.sql` e depois as migrations, na ordem desta lista — é a migration que manda no resultado.
 
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.

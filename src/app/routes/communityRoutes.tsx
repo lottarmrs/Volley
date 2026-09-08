@@ -161,7 +161,8 @@ export function PlayerEditRoute() {
         onBack: goBack,
         onSave: () => {
           try {
-            if (play.handleSavePlayer(permissions, community.id)) goBack();
+            if (play.handleSavePlayer(permissions, community.id, !play.editingPlayer.cloudId))
+              goBack();
           } catch (err) {
             shell.handlePlayerEditActionError(err);
           }

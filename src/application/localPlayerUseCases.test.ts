@@ -102,6 +102,33 @@ test('applyLocalPlayerSave appends new players and preserves the resolved userna
   assert.equal(result.savedPlayer.syncStatus, 'pending');
 });
 
+test('applyLocalPlayerSave clears the legacy evaluation queue for profile-only cloud saves', () => {
+  const existing = {
+    ...player('player-1', 'Ana'),
+    cloudId: 'cloud-player-1',
+    evaluationCommunityId: 'community-legacy',
+    personalAttributes: { ...player('attrs', 'Attrs').atributos, saque: 4 },
+  };
+  const draft = {
+    ...existing,
+    apelido: 'Aninha',
+    atributos: { ...existing.atributos, saque: 9 },
+  };
+
+  const result = applyLocalPlayerSave({
+    players: [existing],
+    editingPlayer: draft,
+    communityId: 'community-target',
+    now,
+    saveEvaluation: false,
+  });
+
+  assert.equal(result.savedPlayer.apelido, 'Aninha');
+  assert.equal(result.savedPlayer.atributos.saque, existing.atributos.saque);
+  assert.equal(result.savedPlayer.personalAttributes?.saque, 4);
+  assert.equal(result.savedPlayer.evaluationCommunityId, undefined);
+});
+
 test('applyLocalPlayerSave stamps the community on new players so they are reachable', () => {
   const draft = player('player-new', 'Bruna', []);
 

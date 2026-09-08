@@ -3,6 +3,42 @@ import { Player, PlayerEvaluation } from '../../types';
 
 type DbRecord = Record<string, any>;
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeUuid(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return UUID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function isMissingTargetLookup(error: { code?: string } | null): boolean {
+  return error?.code === 'PGRST202' || error?.code === '42883';
+}
+
+async function resolveTargetCommunityIds(communityIds: string[]): Promise<Set<string>> {
+  const distinctIds = Array.from(
+    new Set(communityIds.map(normalizeUuid).filter((id): id is string => id !== null)),
+  );
+  if (distinctIds.length === 0) return new Set();
+
+  const { data, error } = await supabase.rpc('community_evaluation_target_ids', {
+    p_community_ids: distinctIds,
+  });
+  if (error) {
+    if (isMissingTargetLookup(error)) return new Set();
+    throw error;
+  }
+  if (!Array.isArray(data)) {
+    throw new Error('Resposta inválida ao consultar Comunidades com avaliação versionada.');
+  }
+
+  const targets = data.map(normalizeUuid);
+  if (targets.some((id) => id === null)) {
+    throw new Error('Resposta inválida ao consultar Comunidades com avaliação versionada.');
+  }
+  return new Set(targets as string[]);
+}
+
 function timestampMs(value: unknown): number {
   const time = typeof value === 'string' ? new Date(value).getTime() : 0;
   return Number.isFinite(time) ? time : 0;
@@ -84,6 +120,14 @@ export const playerEvaluationCloudService = {
     ownerId: string,
     playerCloudId: string,
   ): Promise<PlayerEvaluation> {
+    const communityId = normalizeUuid(player.evaluationCommunityId);
+    if (communityId) {
+      const targetIds = await resolveTargetCommunityIds([communityId]);
+      if (targetIds.has(communityId)) {
+        throw new Error('Avaliações legadas estão desativadas para esta Comunidade.');
+      }
+    }
+
     const { data, error } = await supabase
       .from('player_evaluations')
       .upsert(mapPlayerEvaluationToDb(player, ownerId, playerCloudId), {
@@ -97,7 +141,16 @@ export const playerEvaluationCloudService = {
   },
 
   async bulkUpsertForPlayers(players: Player[], ownerId: string): Promise<void> {
-    const records = players
+    const targetIds = await resolveTargetCommunityIds(
+      players.flatMap((player) =>
+        player.evaluationCommunityId ? [player.evaluationCommunityId] : [],
+      ),
+    );
+    const legacyPlayers = players.filter((player) => {
+      const communityId = normalizeUuid(player.evaluationCommunityId);
+      return communityId === null || !targetIds.has(communityId);
+    });
+    const records = legacyPlayers
       .map((player) => {
         const playerCloudId = player.cloudId || player.id;
         return playerCloudId ? mapPlayerEvaluationToDb(player, ownerId, playerCloudId) : null;

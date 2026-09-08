@@ -86,4 +86,41 @@ describe('usePlayers handleSavePlayer communityId', () => {
     const saved = result.current.players.find((p) => p.id === 'player-new');
     expect(saved?.evaluationCommunityId).toBe('');
   });
+
+  it('can save a cloud profile without changing the technical evaluation source', () => {
+    const seed = makePlayer('seed');
+    const original = makePlayer('player-cloud', {
+      nome: 'Ana',
+      cloudId: 'cloud-player',
+      atributos: { ...seed.atributos, saque: 4 },
+      personalAttributes: { ...seed.atributos, saque: 4 },
+      evaluationCommunityId: 'community-a',
+      evaluationAggregate: {
+        attributes: seed.atributos,
+        evaluatorCount: 2,
+        includedValueCount: 22,
+        outlierValueCount: 0,
+      },
+    });
+    localStorage.setItem(STORAGE_KEYS.players, JSON.stringify([original]));
+    const { result } = renderHook(() => usePlayers([], [], []));
+    act(() =>
+      result.current.setEditingPlayer({
+        ...result.current.players[0],
+        nome: 'Ana atualizada',
+        atributos: { ...result.current.players[0].atributos, saque: 9 },
+      }),
+    );
+    act(() =>
+      result.current.handleSavePlayer(
+        { canEditPlayerProfile: true, canEvaluatePlayer: false },
+        'community-a',
+        false,
+      ),
+    );
+    const saved = result.current.players[0];
+    expect(saved.nome).toBe('Ana atualizada');
+    expect(saved.atributos.saque).toBe(4);
+    expect(saved.evaluationCommunityId).toBeUndefined();
+  });
 });

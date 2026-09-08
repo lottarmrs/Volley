@@ -9,6 +9,12 @@ export type {
   CommunitySkillProfileRequest,
 } from './shared/types/communitySkillProfile';
 export type {
+  CommunityEvaluationCommand,
+  CommunityEvaluationEditorContext,
+  CommunityEvaluationMember,
+} from './shared/types/communityEvaluation';
+export { COMMUNITY_EVALUATION_RUBRIC } from './shared/types/communityEvaluation';
+export type {
   AuthRole,
   Community,
   CommunityMember,

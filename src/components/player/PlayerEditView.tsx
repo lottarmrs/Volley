@@ -42,12 +42,14 @@ import { autoFormFromHistory } from '../../logic/rating';
 import { calculateSessionRecognition, calculatePlayerScoringRanking } from '../../logic/match';
 import { FutCardModal } from './FutCardModal';
 import { submitSelfEvaluation } from '../../application/selfEvaluationUseCases';
+import { CommunitySkillProfilePanel } from './CommunitySkillProfilePanel';
+import { CommunityEvaluationEditor } from './CommunityEvaluationEditor';
 
 interface PlayerEditViewProps {
   contract: ScreenContract<PlayerEditViewModel, PlayerEditViewIntent>;
 }
 
-export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
+const PlayerEditViewContent: React.FC<PlayerEditViewProps> = ({ contract }) => {
   const { model, dispatch } = contract;
   const {
     editingPlayer,
@@ -67,6 +69,28 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
   } = model;
   const [searchQuery, setSearchQuery] = useState('');
   const [showVutCard, setShowVutCard] = useState(false);
+  const [profileRefresh, setProfileRefresh] = useState(0);
+  const [evaluationCommunityId, setEvaluationCommunityId] = useState<string | null>(null);
+
+  const availableEvaluationCommunityIds = useMemo(
+    () =>
+      new Set(
+        communities
+          .filter(
+            (community) =>
+              !!community.cloudId && editingPlayer.communityIds?.includes(community.id),
+          )
+          .map((community) => community.cloudId!),
+      ),
+    [communities, editingPlayer.communityIds],
+  );
+  const selectedEvaluationCommunityId =
+    evaluationCommunityId && availableEvaluationCommunityIds.has(evaluationCommunityId)
+      ? evaluationCommunityId
+      : null;
+  if (evaluationCommunityId && !selectedEvaluationCommunityId) {
+    setEvaluationCommunityId(null);
+  }
 
   const editingPlayerCommunity = useMemo(() => {
     if (!editingPlayer || !editingPlayer.communityIds || editingPlayer.communityIds.length === 0)
@@ -89,7 +113,8 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
   // Evaluation (attribute) editing requires a real community context — Task 1
   // made player_evaluations.community_id NOT NULL, so a player with no
   // community has nowhere valid to receive an official evaluation.
-  const canEvaluate = permissions.canEvaluatePlayer && !!editingPlayerCommunity;
+  const canEvaluate =
+    !editingPlayer.cloudId && permissions.canEvaluatePlayer && !!editingPlayerCommunity;
 
   // ── Self-evaluation: a genuinely separate surface from the official
   // attribute editor above — a player rating themselves, never mixed into
@@ -288,6 +313,37 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
           ⭐ Ver Carta VUT
         </button>
       </div>
+
+      {editingPlayer.cloudId && (
+        <p className="text-sm text-base-content/75">
+          Os atributos técnicos antigos são somente leitura. Use Avaliar atleta no perfil
+          experimental da comunidade para registrar novas avaliações. O sorteio ainda usa os valores
+          antigos.
+        </p>
+      )}
+      <CommunitySkillProfilePanel
+        refreshVersion={profileRefresh}
+        onCommunityChange={() => setEvaluationCommunityId(null)}
+        currentUserId={currentUserId}
+        playerCloudId={editingPlayer.cloudId}
+        communities={communities
+          .filter(
+            (community) => community.cloudId && editingPlayer.communityIds?.includes(community.id),
+          )
+          .map((community) => ({ id: community.cloudId!, name: community.name }))}
+        onOpenEvaluation={setEvaluationCommunityId}
+      />
+      {selectedEvaluationCommunityId && editingPlayer.cloudId && currentUserId && (
+        <CommunityEvaluationEditor
+          currentUserId={currentUserId}
+          communityId={selectedEvaluationCommunityId}
+          playerId={editingPlayer.cloudId}
+          onSaved={() => {
+            setEvaluationCommunityId(null);
+            setProfileRefresh((value) => value + 1);
+          }}
+        />
+      )}
 
       {/* Main Three-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -1432,3 +1488,10 @@ export const PlayerEditView = ({ contract }: PlayerEditViewProps) => {
     </div>
   );
 };
+
+export const PlayerEditView = (props: PlayerEditViewProps) => (
+  <PlayerEditViewContent
+    key={`${props.contract.model.currentUserId ?? ''}:${props.contract.model.editingPlayer.id}:${props.contract.model.editingPlayer.cloudId ?? ''}`}
+    {...props}
+  />
+);

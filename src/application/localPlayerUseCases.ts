@@ -122,6 +122,7 @@ export function applyLocalPlayerSave(input: {
   editingPlayer: Player;
   communityId: string;
   now: string;
+  saveEvaluation?: boolean;
 }): { players: Player[]; savedPlayer: Player } {
   const username = resolveUsername(
     input.editingPlayer,
@@ -131,16 +132,25 @@ export function applyLocalPlayerSave(input: {
   );
   const originalPlayer =
     input.players.find((player) => player.id === input.editingPlayer.id) || input.editingPlayer;
-  const simulated = simulateLocalConsensus(originalPlayer, input.editingPlayer.atributos);
+  const saveEvaluation = input.saveEvaluation ?? true;
+  const simulated = saveEvaluation
+    ? simulateLocalConsensus(originalPlayer, input.editingPlayer.atributos)
+    : null;
 
   const savedPlayerTemp: Player = {
     ...input.editingPlayer,
     username,
-    personalAttributes: input.editingPlayer.atributos,
-    atributos: simulated.atributos,
-    evaluationAggregate: simulated.evaluationAggregate,
-    hasOwnEvaluation: simulated.hasOwnEvaluation,
-    evaluationCommunityId: input.communityId,
+    personalAttributes: saveEvaluation
+      ? input.editingPlayer.atributos
+      : originalPlayer.personalAttributes,
+    atributos: saveEvaluation ? simulated!.atributos : originalPlayer.atributos,
+    evaluationAggregate: saveEvaluation
+      ? simulated!.evaluationAggregate
+      : originalPlayer.evaluationAggregate,
+    hasOwnEvaluation: saveEvaluation
+      ? simulated!.hasOwnEvaluation
+      : originalPlayer.hasOwnEvaluation,
+    evaluationCommunityId: saveEvaluation ? input.communityId : undefined,
     communityIds: Array.from(
       new Set([...(input.editingPlayer.communityIds ?? []), input.communityId]),
     ),

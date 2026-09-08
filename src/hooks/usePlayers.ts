@@ -107,6 +107,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     (
       permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean },
       communityId?: string,
+      saveEvaluation = true,
     ) => {
       if (!editingPlayer) return false;
 
@@ -121,7 +122,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
       }
 
       if (permissions) {
-        if (!permissions.canEvaluatePlayer) {
+        if (!permissions.canEvaluatePlayer && saveEvaluation) {
           throw new Error('PERMISSION_DENIED');
         }
 
@@ -166,6 +167,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         editingPlayer,
         communityId: communityId ?? '',
         now: new Date().toISOString(),
+        saveEvaluation,
       });
 
       setPlayers(updated);

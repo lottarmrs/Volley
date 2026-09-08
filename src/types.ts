@@ -5,6 +5,10 @@
 
 export type { CloudSyncStatus } from './shared/types/sync';
 export type {
+  CommunitySkillProfile,
+  CommunitySkillProfileRequest,
+} from './shared/types/communitySkillProfile';
+export type {
   AuthRole,
   Community,
   CommunityMember,

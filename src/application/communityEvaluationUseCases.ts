@@ -47,7 +47,17 @@ export function parseScores(
     : productError('invalid_input', 'Informe pelo menos uma nota.');
 }
 
-function classify(error: unknown): AppResult<never> {
+// A frase final depende da operacao: uma falha de rede ao CARREGAR o editor dizia
+// "nao foi possivel salvar a avaliacao", num role="alert", para quem nao tinha salvo nada.
+type EvaluationAction = 'load' | 'save' | 'manage';
+
+const FALLBACK: Record<EvaluationAction, string> = {
+  load: 'Não foi possível carregar a avaliação. Verifique a conexão.',
+  save: 'Não foi possível salvar a avaliação. Verifique a conexão.',
+  manage: 'Não foi possível concluir a alteração. Verifique a conexão.',
+};
+
+function classify(error: unknown, action: EvaluationAction = 'save'): AppResult<never> {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
   if (code === '42501')
     return productError(
@@ -63,7 +73,7 @@ function classify(error: unknown): AppResult<never> {
       'cloud_unavailable',
       'A avaliação comunitária ainda não está disponível neste servidor.',
     );
-  return technicalError('Não foi possível salvar a avaliação. Verifique a conexão.', error);
+  return technicalError(FALLBACK[action], error);
 }
 
 export async function loadCommunityEvaluationEditor(
@@ -76,7 +86,7 @@ export async function loadCommunityEvaluationEditor(
   try {
     return appOk(await gateway.loadEditor(communityId.trim(), playerId.trim()));
   } catch (error) {
-    return classify(error);
+    return classify(error, 'load');
   }
 }
 
@@ -107,7 +117,7 @@ export async function activateCommunityEvaluation(
     await gateway.activate(communityId.trim());
     return appOk(undefined);
   } catch (error) {
-    return classify(error);
+    return classify(error, 'manage');
   }
 }
 
@@ -121,7 +131,7 @@ export async function setCommunityEvaluator(
     await gateway.setEvaluator(communityId.trim(), userId.trim(), enabled);
     return appOk(undefined);
   } catch (error) {
-    return classify(error);
+    return classify(error, 'manage');
   }
 }
 

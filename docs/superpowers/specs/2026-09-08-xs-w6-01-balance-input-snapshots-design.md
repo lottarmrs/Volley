@@ -36,7 +36,7 @@ existing target COMMUNITY Session (P0002), then valid Organizer (42501). Inspect
 only after authorization. A replay returns the original frozen snapshot, even after evaluations,
 lifecycle or current roster changed; reusing its command with a different roster is 23505.
 Receipt type `capture_balance_input_snapshot`, aggregate_id Session, existing ledger retention
-`BALANCE_INPUT_SNAPSHOT`. Existing receipt API rechecks actor. Snapshot ID equals command ID.
+`BALANCE_INPUT_SNAPSHOT`. Authorization runs before the receipt lookup, and the receipt match is confined to this Session by aggregate_id; the existing receipt API does NOT itself recheck actor. Snapshot ID equals command ID.
 
 For new capture require DRAFT/SCHEDULED, active Session evaluation cohort, a nonempty latest roster
 revision belonging to the Session, rejecting old/cross-session revision with 40001/23514 respectively.

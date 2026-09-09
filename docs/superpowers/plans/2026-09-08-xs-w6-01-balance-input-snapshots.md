@@ -15,7 +15,7 @@ Fixed rubric and policy versions from spec; source target cohorts only. No legac
 
 ## Task 1 — PostgreSQL snapshot capture and regression coverage
 
-Files: `supabase/migrations/20260908142236_balance_input_snapshots.sql` (CLI-created),
+Files: `supabase/migrations/20260908170000_balance_input_snapshots.sql` (renomeada na review: o carimbo da CLI ordenava antes da migration de seguranca ja commitada),
 `src/test/db/balanceInputSnapshots.dbtest.ts`.
 
 - [ ] Build fixtures with existing target Session/Registration/roster and versioned evaluation helpers.

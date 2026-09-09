@@ -22,12 +22,17 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
-function classify(error: unknown): AppResult<never> {
+// Captura e leitura compartilham a classificação, mas não a voz: uma leitura negada não
+// pode dizer que você não pode "capturar". 40001 só existe no caminho de captura.
+function classify(error: unknown, action: 'capture' | 'read'): AppResult<never> {
+  const capturing = action === 'capture';
   switch (errorCode(error)) {
     case '42501':
       return productError(
         'permission_denied',
-        'É preciso ser o organizador designado desta partida para capturar as entradas.',
+        capturing
+          ? 'É preciso ser o organizador designado desta partida para capturar as entradas.'
+          : 'É preciso ser o organizador designado desta partida para ver as entradas.',
       );
     case '40001':
       return conflictError(
@@ -42,7 +47,9 @@ function classify(error: unknown): AppResult<never> {
     case '23514':
       return productError(
         'invalid_input',
-        'A partida ou o elenco não estão prontos para formar times.',
+        capturing
+          ? 'A partida ou o elenco não estão prontos para formar times.'
+          : 'A captura pedida não é válida.',
       );
     case 'P0002':
       return productError('not_found', 'A partida ou a captura não foi encontrada.');
@@ -55,7 +62,9 @@ function classify(error: unknown): AppResult<never> {
       return technicalError('A formação de times ainda não está disponível neste servidor.', error);
     default:
       return technicalError(
-        'Não foi possível capturar as entradas. Verifique a conexão e tente novamente.',
+        capturing
+          ? 'Não foi possível capturar as entradas. Verifique a conexão e tente novamente.'
+          : 'Não foi possível consultar as entradas. Verifique a conexão e tente novamente.',
         error,
       );
   }
@@ -81,7 +90,7 @@ export async function captureBalanceInputSnapshot(
   try {
     return appOk(await gateway.capture(input));
   } catch (error) {
-    return classify(error);
+    return classify(error, 'capture');
   }
 }
 
@@ -96,6 +105,6 @@ export async function readBalanceInputSnapshot(
   try {
     return appOk(await gateway.read(snapshotId));
   } catch (error) {
-    return classify(error);
+    return classify(error, 'read');
   }
 }

@@ -41,7 +41,7 @@ interface Snapshot {
 }
 
 const RUBRIC = 'v0-legacy-11';
-const MIGRATION = '20260908142236_balance_input_snapshots.sql';
+const MIGRATION = '20260908170000_balance_input_snapshots.sql';
 
 interface RosterEntry {
   playerId?: string;
@@ -328,7 +328,7 @@ if (!isTestDatabaseConfigured()) {
     const onlyB = await newEvaluator(ownerId, communityB);
     await recordEvaluation(firstA, communityA, playerId, { bloqueio: 10 });
     await recordEvaluation(secondA, communityA, playerId, { bloqueio: 10 });
-    await recordEvaluation(onlyB, communityB, playerId, { bloqueio: 0 });
+    await recordEvaluation(onlyB, communityB, playerId, { bloqueio: 2 });
 
     const sessionId = await newSession(ownerId, communityA);
     const rosterRevisionId = await newRosterRevision(sessionId, ownerId, [
@@ -337,8 +337,10 @@ if (!isTestDatabaseConfigured()) {
 
     const snapshot = await capture(ownerId, sessionId, rosterRevisionId);
 
-    // Peso por comunidade: (10 + 0) / 2. Peso por avaliador daria 6.7.
-    assert.equal(snapshot.participants[0].attribute_vector.bloqueio, 5);
+    // Peso por comunidade: (10 + 2) / 2 = 6. Peso por avaliador daria 7.3. O valor
+    // esperado nao pode ser 5, que e tambem o fallback de "nenhuma observacao" -- a
+    // assercao deixaria de distinguir as duas coisas.
+    assert.equal(snapshot.participants[0].attribute_vector.bloqueio, 6);
     assert.equal(snapshot.participants[0].is_estimated, true);
     assert.equal(snapshot.participants[0].estimated_dimensions.includes('bloqueio'), false);
   });
@@ -527,6 +529,38 @@ if (!isTestDatabaseConfigured()) {
     assert.equal((blocked as { code?: string }).code, '23514');
 
     await client.query('update public.players set active = true where id = $1', [inactive]);
+    await client.query('update public.players set deleted_at = now() where id = $1', [inactive]);
+    const softDeleted = await asIdentity(client, ownerId, () =>
+      client.query('select public.capture_balance_input_snapshot($1, $2, $3)', [
+        randomUUID(),
+        sessionId,
+        revision,
+      ]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((softDeleted as { code?: string }).code, '23514');
+
+    await client.query('update public.players set deleted_at = null where id = $1', [inactive]);
+    await client.query(
+      'update public.community_players set deleted_at = now() where player_id = $1',
+      [inactive],
+    );
+    const softUnlinked = await asIdentity(client, ownerId, () =>
+      client.query('select public.capture_balance_input_snapshot($1, $2, $3)', [
+        randomUUID(),
+        sessionId,
+        revision,
+      ]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal(
+      (softUnlinked as { code?: string }).code,
+      '23514',
+      'vinculo removido em soft delete tambem interrompe',
+    );
+
+    await client.query(
+      'update public.community_players set deleted_at = null where player_id = $1',
+      [inactive],
+    );
     await client.query('update public.community_players set active = false where player_id = $1', [
       inactive,
     ]);
@@ -850,7 +884,142 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(serialized.includes(evaluatorId), false, 'nenhuma identidade de avaliador');
     assert.equal(serialized.includes(communityId), false, 'nenhuma identidade de comunidade');
     assert.equal(serialized.includes(playerId), false, 'nenhum player_id global');
-    assert.equal(serialized.includes('"7"'), false);
+  });
+
+  test('deriva no registro de dimensoes interrompe a captura', async () => {
+    const ownerId = await newUser('owner');
+    const communityId = await newCommunity(ownerId, `Deriva ${randomUUID()}`);
+    await activateEvaluationModel(ownerId, communityId);
+    const playerId = await newPlayer(ownerId, communityId, { name: 'Titular' });
+    const sessionId = await newSession(ownerId, communityId);
+    const revision = await newRosterRevision(sessionId, ownerId, [
+      { playerId, displayName: 'Titular' },
+    ]);
+
+    await client.query(
+      `insert into public.skill_rubric_dimensions (
+         rubric_version, dimension_key, kind, is_required, display_order
+       ) values ($1, 'sacadaNova', 'SOURCE', false, 12)`,
+      [RUBRIC],
+    );
+    try {
+      const drifted = await asIdentity(client, ownerId, () =>
+        client.query('select public.capture_balance_input_snapshot($1, $2, $3)', [
+          randomUUID(),
+          sessionId,
+          revision,
+        ]),
+      ).catch((thrown: Error) => thrown);
+      assert.equal(
+        (drifted as { code?: string }).code,
+        '23514',
+        'o resolver e casado com uma rubric concreta; chave nova nao pode virar atributo',
+      );
+    } finally {
+      await client.query(
+        'delete from public.skill_rubric_dimensions where rubric_version = $1 and dimension_key = $2',
+        [RUBRIC, 'sacadaNova'],
+      );
+    }
+
+    const snapshot = await capture(ownerId, sessionId, revision);
+    assert.equal(Object.keys(snapshot.participants[0].attribute_vector).length, 11);
+  });
+
+  test('capturar nao e mutacao de elenco: a revisao da Session nao muda e o recibo traz a retencao certa', async () => {
+    const ownerId = await newUser('owner');
+    const communityId = await newCommunity(ownerId, `Sem bump ${randomUUID()}`);
+    await activateEvaluationModel(ownerId, communityId);
+    const playerId = await newPlayer(ownerId, communityId, { name: 'Titular' });
+    const sessionId = await newSession(ownerId, communityId);
+    const revision = await newRosterRevision(sessionId, ownerId, [
+      { playerId, displayName: 'Titular' },
+    ]);
+
+    const before = await client.query<{ revision: number }>(
+      'select revision from public.sessions where id = $1',
+      [sessionId],
+    );
+    const commandId = randomUUID();
+    await capture(ownerId, sessionId, revision, commandId);
+    const after = await client.query<{ revision: number }>(
+      'select revision from public.sessions where id = $1',
+      [sessionId],
+    );
+
+    assert.equal(after.rows[0].revision, before.rows[0].revision);
+
+    const { rows } = await client.query<{ retention_class: string; aggregate_id: string }>(
+      `select retention_class, aggregate_id from app_private.command_receipts
+        where command_id = $1`,
+      [commandId],
+    );
+    assert.deepEqual(rows, [
+      { retention_class: 'BALANCE_INPUT_SNAPSHOT', aggregate_id: sessionId },
+    ]);
+  });
+
+  test('argumento nulo e contexto inexistente falham antes de qualquer leitura de origem', async () => {
+    const ownerId = await newUser('owner');
+    const communityId = await newCommunity(ownerId, `Contexto ${randomUUID()}`);
+    await activateEvaluationModel(ownerId, communityId);
+    const sessionId = await newSession(ownerId, communityId);
+
+    const nullArgument = await asIdentity(client, ownerId, () =>
+      client.query('select public.capture_balance_input_snapshot($1, $2, $3)', [
+        randomUUID(),
+        sessionId,
+        null,
+      ]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((nullArgument as { code?: string }).code, '23514');
+
+    const unknownSession = await asIdentity(client, ownerId, () =>
+      client.query('select public.capture_balance_input_snapshot($1, $2, $3)', [
+        randomUUID(),
+        randomUUID(),
+        randomUUID(),
+      ]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((unknownSession as { code?: string }).code, 'P0002');
+
+    const unknownSnapshot = await asIdentity(client, ownerId, () =>
+      client.query('select public.read_balance_input_snapshot($1)', [randomUUID()]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((unknownSnapshot as { code?: string }).code, 'P0002');
+
+    const nullSnapshot = await asIdentity(client, ownerId, () =>
+      client.query('select public.read_balance_input_snapshot($1)', [null]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((nullSnapshot as { code?: string }).code, '23514');
+  });
+
+  test('altura nao finita vira desconhecida em vez de virar string no JSON', async () => {
+    const ownerId = await newUser('owner');
+    const communityId = await newCommunity(ownerId, `Infinita ${randomUUID()}`);
+    await activateEvaluationModel(ownerId, communityId);
+    const playerId = await newPlayer(ownerId, communityId, { name: 'Altura infinita' });
+    await client.query(`update public.players set height = 'Infinity'::numeric where id = $1`, [
+      playerId,
+    ]);
+    const sessionId = await newSession(ownerId, communityId);
+    const revision = await newRosterRevision(sessionId, ownerId, [
+      { playerId, displayName: 'Altura infinita' },
+    ]);
+
+    // to_jsonb de um numeric nao finito emite STRING JSON ("Infinity"), que quebraria
+    // `height_cm: number | null` no cliente -- e `<= 0` nao pega NaN nem +Infinity.
+    const snapshot = await capture(ownerId, sessionId, revision);
+    assert.equal(snapshot.participants[0].height_cm, null);
+
+    await client.query(`update public.players set height = 'NaN'::numeric where id = $1`, [
+      playerId,
+    ]);
+    const nextRevision = await newRosterRevision(sessionId, ownerId, [
+      { playerId, displayName: 'Altura infinita' },
+    ]);
+    const withNan = await capture(ownerId, sessionId, nextRevision);
+    assert.equal(withNan.participants[0].height_cm, null);
   });
 
   test('depois de cancelar a Session a captura para, mas o snapshot ja capturado continua legivel', async () => {

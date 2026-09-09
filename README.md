@@ -99,8 +99,8 @@ supabase/migrations/20260906130635_skill_rubric_contract.sql
 supabase/migrations/20260906231744_community_skill_profile.sql
 supabase/migrations/20260907010305_community_evaluation_editor.sql
 supabase/migrations/20260908031027_global_skill_profile.sql
-supabase/migrations/20260908142236_balance_input_snapshots.sql
 supabase/migrations/20260908160000_security_audit_remediation.sql
+supabase/migrations/20260908170000_balance_input_snapshots.sql
 ```
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
@@ -150,7 +150,7 @@ preserva dados ausentes e registra as revisões de origem. A função é privada
 navegador; o RPC de perfil da comunidade mantém suas permissões. A integração ao sorteio depende
 da etapa posterior de snapshots autorizados. Não há tabela de perfil nem job de atualização.
 
-`20260908142236_balance_input_snapshots.sql` congela as entradas do balanceador. Para uma Session
+`20260908170000_balance_input_snapshots.sql` congela as entradas do balanceador. Para uma Session
 target de comunidade em `DRAFT` ou `SCHEDULED`, o organizador designado captura uma revisão exata do
 elenco em um artefato privado e imutável, com `capture_balance_input_snapshot` e
 `read_balance_input_snapshot`. O comando aceita apenas identificadores — o navegador nunca envia

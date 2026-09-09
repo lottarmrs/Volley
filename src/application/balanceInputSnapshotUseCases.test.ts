@@ -133,6 +133,20 @@ test('o conflito de comando reutilizado se distingue do conflito de elenco venci
   }
 });
 
+test('a leitura fala na própria voz: negar leitura não pode falar em capturar', async () => {
+  const denied = await readBalanceInputSnapshot(COMMAND_ID, gatewayThatFails('42501'));
+  const offline = await readBalanceInputSnapshot(COMMAND_ID, gatewayThatFails('ECONNRESET'));
+
+  assert.equal(denied.ok, false);
+  assert.equal(offline.ok, false);
+  if (!denied.ok) assert.equal(denied.error.message.includes('capturar'), false);
+  if (!offline.ok) assert.equal(offline.error.message.includes('capturar'), false);
+
+  const capturing = await captureBalanceInputSnapshot(request, gatewayThatFails('42501'));
+  assert.equal(capturing.ok, false);
+  if (!capturing.ok) assert.ok(capturing.error.message.includes('capturar'));
+});
+
 test('a leitura devolve o snapshot e recusa identificador em branco antes da rede', async () => {
   let called = false;
   const gateway: BalanceInputSnapshotGateway = {

@@ -549,6 +549,43 @@ configuração atuais por conta própria. Não há nenhuma mudança de interface
   `authCascadeSafety.dbtest.ts`). Quando ela cair, é este `set null` que a FK vai disparar;
 - sem commit remoto, merge, aplicação de migration em Supabase remoto ou deploy.
 
+### Backlog da review independente de branch — 2026-09-08
+
+Três revisores independentes percorreram a branch inteira antes da integração: a W6-01, a
+remediação de segurança e a cadeia W5 como integração. O que foi corrigido está nos commits
+`efab989`, `eecf192` e `5899651`. O que **não** foi corrigido está aqui, para não se perder.
+
+**Da cadeia W5 — costuras entre fatias:**
+
+- **`PGRST202` confunde "servidor antigo" com "cache de schema do PostgREST desatualizado".**
+  `playerEvaluationCloudService` trata os dois como "nenhuma coorte migrada" e sobe avaliação
+  legada; numa comunidade já ativada o gatilho recusa, e o lote inteiro morre com um `23514` opaco,
+  levando junto toda linha legítima. Falha fechada, mas a mensagem não ajuda ninguém.
+- **`record_player_evaluation` continua chamável direto para coorte ativada.** A checagem de
+  concorrência otimista (`p_expected_contribution_id` → `40001`) só existe em
+  `record_community_player_evaluation`. Um avaliador só consegue superseder a própria contribuição,
+  então o alcance é limitado — mas a proteção contra escrita perdida que o editor anuncia é
+  conselho, não garantia. Nenhum dbtest cobre.
+- **A ativação não conta as próprias consequências.** É um cutover irreversível, de comunidade
+  inteira, atrás de uma caixa de seleção alcançável só por atleta → comunidade → "Avaliar atleta".
+  Não diz que é irreversível, que as avaliações legadas ficam imutáveis, que avaliações não
+  sincronizadas de outros clientes serão descartadas, nem que quem ativou ainda precisa se conceder
+  `EVALUATOR` antes de avaliar. Pertence às configurações da comunidade, não à tela de um atleta.
+- **Vocabulário de dimensão duplicado em quatro lugares** — banco, use case, editor e painel — e
+  `skill_rubric_dimensions_for`, criada exatamente para isso, não tem nenhum consumidor no cliente.
+- **Duas camadas de comando coexistem.** `src/application/command/*` existe para comando semântico
+  com recibo; a fatia do editor reimplementou envelope, retry e classificação à mão. A próxima
+  fatia vai derivar tudo pela terceira vez.
+- **Dois modelos de filiação decidem o mesmo dado.** `get_community_evaluation_editor` expõe
+  `profiles.email` atrás de `community_memberships`, enquanto a RLS de `profiles` usa
+  `community_members`. Se divergirem, o RPC revela e-mail que a RLS negaria.
+
+**Da W6-01:** um organizador designado sem `player.evaluate` em lugar nenhum passa a obter, pela
+média do elenco, valores derivados de avaliações de comunidades onde não tem vínculo. O payload não
+nomeia comunidade, então é divulgação de valor derivado — e parece ser escolha deliberada do
+desenho, não defeito. Vale decidir explicitamente antes que a publicação de candidatos torne esses
+vetores visíveis na interface.
+
 ### Auditoria de segurança de 2026-09-08 — remediação na mesma branch
 
 **Não é uma fatia C6.** É um trabalho transversal que entrou no meio da execução da W5 e vive no

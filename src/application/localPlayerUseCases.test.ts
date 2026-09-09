@@ -102,7 +102,7 @@ test('applyLocalPlayerSave appends new players and preserves the resolved userna
   assert.equal(result.savedPlayer.syncStatus, 'pending');
 });
 
-test('applyLocalPlayerSave clears the legacy evaluation queue for profile-only cloud saves', () => {
+test('applyLocalPlayerSave preserva o contexto de avaliação num save só de perfil', () => {
   const existing = {
     ...player('player-1', 'Ana'),
     cloudId: 'cloud-player-1',
@@ -126,7 +126,10 @@ test('applyLocalPlayerSave clears the legacy evaluation queue for profile-only c
   assert.equal(result.savedPlayer.apelido, 'Aninha');
   assert.equal(result.savedPlayer.atributos.saque, existing.atributos.saque);
   assert.equal(result.savedPlayer.personalAttributes?.saque, 4);
-  assert.equal(result.savedPlayer.evaluationCommunityId, undefined);
+  // Zerar aqui removia o atleta do upload de avaliação legada para sempre — o sync pula
+  // quem não tem evaluationCommunityId — inclusive em comunidades que nunca vão migrar.
+  // Quem decide omitir uma coorte migrada é resolveTargetCommunityIds, no envio.
+  assert.equal(result.savedPlayer.evaluationCommunityId, 'community-legacy');
 });
 
 test('applyLocalPlayerSave stamps the community on new players so they are reachable', () => {

@@ -25,6 +25,8 @@ export const supabase = {
       p_dimension_scores: command.dimensions,
       p_expected_contribution_id: command.expectedContributionId,
     }),
+  activatedCommunityIds: (communityIds: string[]) =>
+    call<string[]>('community_evaluation_target_ids', { p_community_ids: communityIds }),
   activate: (communityId: string) =>
     call<void>('activate_community_evaluation_model', { p_community_id: communityId }),
   setEvaluator: (communityId: string, userId: string, enabled: boolean) =>

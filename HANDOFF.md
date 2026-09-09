@@ -576,14 +576,24 @@ do gerador é ignorado pelo git e pelo ESLint desde esta passagem). Dez achados,
   username livre segue funcionando porque depende da presença da linha. `community_capabilities`
   deixou de ser sondável para usuário arbitrário — o único chamador é `security definer` e nunca
   precisou do grant;
-- **A8 (baixa)** — o INSERT de `community_rules`, `whatsapp_list_templates` e `community_players`
+- **A8 (baixa)** — o INSERT de `community_rules`, `whatsapp_list_templates`, `community_players`,
+  `community_presence` e `whatsapp_list_drafts`
   exigia papel atual **e** posse; UPDATE/DELETE aceitavam qualquer um dos dois, e como `owner_id`
   guarda quem criou, o ramo de posse ficava verdadeiro para sempre. Alinhados ao INSERT.
   **Consequência deliberada:** ex-organizador perde a escrita sobre linhas que criou, inclusive pelo
-  caminho de sync;
-- **A9 (baixa)** — a policy de leitura do bucket de avatares não declarava `to`, valia para `anon` e
-  cobria `proposals/<player_id>/`, isto é, fotos ainda não aprovadas. Aprovado segue público;
-  proposta fica visível só a quem administra aquele atleta;
+  caminho de sync. As duas últimas entraram depois da review independente: têm a mesma forma e
+  `community_id not null`, então o ramo de posse não sustentava nenhuma linha pessoal. `games`,
+  `teams`, `point_events`, `game_reports` e `session_reports` repetem a forma com `community_id`
+  **nulável** e ficam de fora de propósito — ali o ramo de posse sustenta a linha pessoal;
+- **A9 (baixa)** — **NÃO fechado, apesar da correção.** A policy de leitura não declarava `to` e
+  valia para `anon` sobre o bucket inteiro, e as novas policies corrigem isso — mas o bucket
+  `avatars` é criado com `public = true`, e bucket público é servido por
+  `/storage/v1/object/public/...` **sem avaliar policy de `storage.objects`**. O app grava em
+  `proposals/<player_id>/` e publica com `getPublicUrl`; aprovar só copia a mesma URL para
+  `players.avatar_url`, sem mover arquivo. Quem souber o caminho continua lendo proposta não
+  aprovada. O que as policies fecham é a API autenticada e a listagem. Fechar de verdade exige
+  bucket privado com URL assinada, ou cópia para um prefixo realmente público na aprovação —
+  ver `docs/architecture/contexts/N2.11-media.md`, que já descrevia a lacuna;
 - **A10 (baixa)** — não havia CSP nenhum e o `X-XSS-Protection` do `nginx.conf` é obsoleto. A
   auditoria **não encontrou sink de XSS no código**: o CSP é contenção contra regressão futura e
   dependência comprometida. Cada diretiva está comentada no arquivo com o que a exige (Turnstile,
@@ -605,9 +615,35 @@ migrations (ver README), então quem manda no banco resultante é `2026090816000
 em `src/infra/supabase/schema.test.ts`, com o comentário explicando por quê — não "conserte" essa
 divergência sem ler o teste.
 
-**O que continua aberto:** nada foi commitado, mesclado, aplicado em Supabase remoto ou implantado —
-o CSP do `nginx.conf` só passa a valer no próximo deploy da imagem, e as policies de `storage`
-dependem de aplicar a migration no projeto remoto.
+**O que continua aberto** — levantado pela review independente desta remediação, em 2026-09-08:
+
+1. **A9 não está fechado** (acima). É o único achado cuja correção não alcança o caminho que o app
+   realmente usa. O laudo em PDF foi regerado depois da review e já diz isso — nove de dez
+   corrigidos, com A9 aberto e o motivo.
+2. **A6 é contornável.** `create_community_with_owner` é concedida a `authenticated` e insere quem
+   chama como `owner` — então qualquer conta cria uma comunidade descartável e volta a ler o nome
+   real de qualquer atleta por username exato. Pior: o ramo de administração lê
+   `community_memberships`, enquanto o resto da pilha (`current_user_has_community_role`,
+   `current_user_can_access_player`) lê `community_members`, e os RPCs de adicionar membro ainda
+   escrevem só na tabela antiga. Admin adicionado pelo caminho normal recebe `name: null` na busca
+   de vínculo. `playerCloudService` ainda tipa `name: string`, o que passou a ser mentira.
+3. **`reset_product_data` continua sem funcionar ponta a ponta.** O escopo da conta está correto,
+   mas `sessions` tem seis filhos com `on delete restrict` que o reset não apaga, `players` tem
+   mais três, e `guard_target_community_writes` recusa apagar qualquer comunidade `target` — isto
+   é, toda comunidade criada pelo produto atual. A migration corrige o raio de alcance, não a
+   completude, e o comentário dela agora diz isso.
+4. **O teste negativo de A5 não é sustentador neste harness.** A concessão de INSERT em
+   `modification_logs` a `authenticated` vem das default privileges da plataforma Supabase, que o
+   harness não emula — a asserção já passaria antes da correção. O teste positivo (o gatilho voltou
+   a gravar como definer) é o que realmente sustenta.
+5. **`connect-src` do Turnstile não foi verificado** contra um projeto real. Uma regressão de CSP
+   aí mata o login em silêncio: faça um teste manual do container antes de implantar.
+6. **`index.html` embute um script de ferramenta local** (`localhost:8400/live.js`) que entra no
+   build. O CSP novo passa a bloqueá-lo, mas ele não deveria estar num build de produção.
+
+E, como antes: nada foi mesclado, aplicado em Supabase remoto ou implantado — o CSP do `nginx.conf`
+só passa a valer no próximo deploy da imagem, e as policies de `storage` dependem de aplicar a
+migration no projeto remoto.
 
 ### Evidência de verificação da remediação de segurança — 2026-09-08
 

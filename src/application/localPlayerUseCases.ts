@@ -150,7 +150,13 @@ export function applyLocalPlayerSave(input: {
     hasOwnEvaluation: saveEvaluation
       ? simulated!.hasOwnEvaluation
       : originalPlayer.hasOwnEvaluation,
-    evaluationCommunityId: saveEvaluation ? input.communityId : undefined,
+    // Preserva o contexto de avaliação quando o save é só de perfil. Zerar aqui removia o
+    // atleta do upload de avaliação legada para sempre (syncService pula quem não tem
+    // evaluationCommunityId) — inclusive em comunidades que nunca vão ativar o modelo novo.
+    // A omissão de coorte migrada é decidida por resolveTargetCommunityIds, não por isto.
+    evaluationCommunityId: saveEvaluation
+      ? input.communityId
+      : originalPlayer.evaluationCommunityId,
     communityIds: Array.from(
       new Set([...(input.editingPlayer.communityIds ?? []), input.communityId]),
     ),

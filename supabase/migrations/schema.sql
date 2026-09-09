@@ -526,17 +526,13 @@ begin
   -- esta flag e para de auditar enquanto o reset roda (20260801120000).
   perform pg_catalog.set_config('app.allow_reset_bypass', 'on', true);
 
-  -- Filhos com `on delete restrict` primeiro, escopados pela conta alvo.
-  delete from public.player_evaluation_dimension_scores s
-   where s.contribution_id in (
-     select c.id
-       from public.player_evaluation_contributions c
-      where c.community_id in (select id from public.communities where owner_id = v_account)
-         or c.player_id in (select id from public.players where owner_id = v_account)
-   );
-  delete from public.player_evaluation_contributions c
-   where c.community_id in (select id from public.communities where owner_id = v_account)
-      or c.player_id in (select id from public.players where owner_id = v_account);
+  -- As tabelas de avaliacao versionada (player_evaluation_contributions e
+  -- player_evaluation_dimension_scores) NAO existem neste snapshot: nascem em
+  -- 20260905185744. Como esta funcao e plpgsql, o corpo so e resolvido na chamada, entao
+  -- cita-las aqui nao impediria o arquivo de subir -- daria `relation does not exist` na
+  -- primeira execucao, exatamente o defeito que 20260730110000 existiu para corrigir.
+  -- Quem provisiona aplica este arquivo e DEPOIS as migrations, e 20260908160000 troca
+  -- esta funcao pela versao completa, que apaga as duas.
 
   -- Dados operacionais da conta. career_events nao tem owner_id: e alcancada pelas tres
   -- entidades que a originam, todas ja escopadas por dono.

@@ -1335,7 +1335,9 @@ test('uploadLocalDataToCloud repairs legacy unlink intent without rpc or clearin
     playerCloudService.upsert = async () => {
       assert.fail('shared unlink should not upsert player');
     };
-    playerEvaluationCloudService.bulkUpsertForPlayers = async () => undefined;
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
@@ -1376,7 +1378,9 @@ test('syncNow restores cloud user id while repairing a newer legacy unlink inten
           }),
         ],
       });
-    playerEvaluationCloudService.bulkUpsertForPlayers = async () => undefined;
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
 
     const result = await syncService.syncNow(
       emptyPayload({
@@ -1652,6 +1656,7 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
     });
     playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => {
       receivedPlayers = players;
+      return { omittedForTargetCohort: [] };
     };
 
     await syncService.uploadLocalDataToCloud(
@@ -1685,6 +1690,48 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
   }
 });
 
+test('uploadLocalDataToCloud avisa quando a comunidade migrou e a avaliacao pendente nao subiu', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    playerCloudService.upsert = async (local) => ({
+      ...local,
+      cloudId: local.cloudId || 'cloud-new',
+    });
+    // A comunidade ativou o modelo versionado enquanto esta avaliacao esperava sincronizar.
+    // Antes isto era um no-op silencioso e o download seguinte reescrevia o valor local.
+    playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => ({
+      omittedForTargetCohort: players,
+    });
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        players: [
+          makeSyncPlayer({
+            id: 'evaluated',
+            nome: 'Beatriz Lima',
+            cloudId: 'cloud-evaluated',
+            evaluationCommunityId: 'community-1',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].context, 'avaliações de atletas');
+    assert.match(String((issues[0].error as Error).message), /Beatriz Lima/);
+    assert.match(String((issues[0].error as Error).message), /editor da comunidade/);
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
 test('uploadLocalDataToCloud resolves evaluationCommunityId to the community cloud id before uploading', async () => {
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
@@ -1697,6 +1744,7 @@ test('uploadLocalDataToCloud resolves evaluationCommunityId to the community clo
     });
     playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => {
       receivedPlayers = players;
+      return { omittedForTargetCohort: [] };
     };
 
     await syncService.uploadLocalDataToCloud(
@@ -1736,6 +1784,7 @@ test('uploadLocalDataToCloud excludes players whose evaluation community has not
     });
     playerEvaluationCloudService.bulkUpsertForPlayers = async (players) => {
       receivedPlayers = players;
+      return { omittedForTargetCohort: [] };
     };
 
     await syncService.uploadLocalDataToCloud(

@@ -5,7 +5,7 @@
  * target contract is `SET search_path = ''` with every referenced object fully qualified,
  * so a caller-controlled schema cannot be resolved ahead of the intended one.
  *
- * The current schema pins `search_path = public` on 44 functions. That is NOT the target:
+ * The current schema pins `search_path = public` on 42 functions. That is NOT the target:
  * `public` is writable by the schema owner and resolvable ahead of `pg_catalog`, so it
  * narrows the attack rather than closing it.
  *

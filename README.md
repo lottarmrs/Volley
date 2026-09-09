@@ -163,7 +163,7 @@ vez de ser descartada em silêncio. O snapshot não muda quando as origens mudam
 concessão para papel de navegador e não altera o sorteio atual: consumir essas entradas é fatia
 posterior.
 
-`20260908160000_security_audit_remediation.sql` fecha os dez achados da auditoria de 2026-09-08
+`20260908160000_security_audit_remediation.sql` atende os dez achados da auditoria de 2026-09-08
 (`docs/security-audit/relatorio-auditoria-seguranca.pdf`). Revoga das três RPCs de carreira o
 `execute` a `authenticated` — eram `security definer` sem verificação alguma; o cadastro continua
 recalculando a carreira porque o trigger de signup resolve a chamada com os privilégios da dona.
@@ -175,12 +175,18 @@ nome real a quem não compartilha comunidade com o atleta, sem quebrar a checage
 de `community_rules`, `whatsapp_list_templates` e `community_players` passam a exigir papel atual
 **e** posse, alinhando-se ao INSERT — quem foi rebaixado perde a escrita sobre linhas que criou,
 inclusive pelo caminho de sync. No bucket de avatares, o prefixo `proposals/` sai da leitura
-anônima e fica visível apenas a quem administra aquele atleta; avatar aprovado segue público.
+anônima na API autenticada e fica visível apenas a quem administra aquele atleta.
 O décimo achado é atendido fora do banco, pelo Content-Security-Policy adicionado ao `nginx.conf`.
-O `schema.sql` recebeu as versões corrigidas de `reset_product_data` e `log_table_changes`, mas
-**mantém de propósito** a `find_player_by_username` antiga: a endurecida consulta uma tabela que o
-snapshot não cria, e como a função é `language sql` o arquivo deixaria de subir. Aplique
-`schema.sql` e depois as migrations, na ordem desta lista — é a migration que manda no resultado.
+
+> ⚠️ **A9 não está fechado.** A review independente mostrou que o bucket `avatars` é criado
+> com `public = true`, e bucket público é servido sem avaliar policy de `storage.objects` —
+> então quem souber o caminho continua lendo uma proposta não aprovada. As policies acima
+> fecham a API autenticada, não esse caminho. Fechar exige bucket privado com URL assinada
+> ou cópia para um prefixo realmente público na aprovação; está registrado no HANDOFF.
+> O `schema.sql` recebeu as versões corrigidas de `reset_product_data` e `log_table_changes`, mas
+> **mantém de propósito** a `find_player_by_username` antiga: a endurecida consulta uma tabela que o
+> snapshot não cria, e como a função é `language sql` o arquivo deixaria de subir. Aplique
+> `schema.sql` e depois as migrations, na ordem desta lista — é a migration que manda no resultado.
 
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ChevronLeft,
   Trash2,
@@ -28,6 +28,7 @@ import type { ScreenContract } from '@app/screens/screenContract';
 import type { PlayerEditViewModel } from '@app/screens/playerEditView/playerEditViewModel';
 import type { PlayerEditViewIntent } from '@app/screens/playerEditView/playerEditViewIntents';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
+import { isCommunityEvaluationActivated } from '@app/communityEvaluationUseCases';
 import {
   calculatePositionOverall,
   getAutoSpecialty,
@@ -113,8 +114,39 @@ const PlayerEditViewContent: React.FC<PlayerEditViewProps> = ({ contract }) => {
   // Evaluation (attribute) editing requires a real community context — Task 1
   // made player_evaluations.community_id NOT NULL, so a player with no
   // community has nowhere valid to receive an official evaluation.
+  //
+  // O formulário legado sai de cena quando a COMUNIDADE migra para o modelo versionado —
+  // não quando o atleta ganha um id de nuvem. Gatear por `cloudId` deixava toda comunidade
+  // em nuvem ainda não migrada sem superfície alguma: os sliders desabilitados aqui e o
+  // editor novo recusando com `can_evaluate: false`. A única saída seria o cutover, que é
+  // irreversível — ou seja, o upgrade do cliente tornaria obrigatória uma migração que o
+  // design define como explícita e opcional.
+  // Enquanto a resposta não chega, o formulário legado fica fora. Assumir "não migrada" e
+  // corrigir depois faria o editor aparecer e sumir — e alguém digitaria numa nota que o
+  // banco recusaria. Comunidade sem id de nuvem nunca migrou: resolve na hora, sem consulta.
+  const [migration, setMigration] = useState<'unknown' | 'legacy' | 'migrated'>('unknown');
+  const evaluationCommunityCloudId = editingPlayerCommunity?.cloudId ?? null;
+  useEffect(() => {
+    if (!editingPlayerCommunity) {
+      setMigration('unknown');
+      return;
+    }
+    if (!evaluationCommunityCloudId) {
+      setMigration('legacy');
+      return;
+    }
+    let active = true;
+    setMigration('unknown');
+    isCommunityEvaluationActivated(evaluationCommunityCloudId).then((migrated) => {
+      if (active) setMigration(migrated ? 'migrated' : 'legacy');
+    });
+    return () => {
+      active = false;
+    };
+  }, [evaluationCommunityCloudId, editingPlayerCommunity]);
+
   const canEvaluate =
-    !editingPlayer.cloudId && permissions.canEvaluatePlayer && !!editingPlayerCommunity;
+    migration === 'legacy' && permissions.canEvaluatePlayer && !!editingPlayerCommunity;
 
   // ── Self-evaluation: a genuinely separate surface from the official
   // attribute editor above — a player rating themselves, never mixed into

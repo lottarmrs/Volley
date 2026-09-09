@@ -1,6 +1,7 @@
 import { loadCommunitySkillProfile } from '@app/communitySkillProfileUseCases';
 import {
   loadCommunityEvaluationEditor,
+  isCommunityEvaluationActivated,
   submitCommunityEvaluation,
 } from '@app/communityEvaluationUseCases';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -21,6 +22,7 @@ vi.mock('@app/communityEvaluationUseCases', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@app/communityEvaluationUseCases')>()),
   loadCommunityEvaluationEditor: vi.fn(),
   submitCommunityEvaluation: vi.fn(),
+  isCommunityEvaluationActivated: vi.fn(),
 }));
 
 const NOW = '2026-01-01T12:00:00.000Z';
@@ -63,6 +65,13 @@ function renderPlayerEditView(
 }
 
 describe('PlayerEditView evaluation community gate', () => {
+  beforeEach(() => {
+    // Padrao: comunidade ja migrada. Os testes deste bloco exercitam o editor novo; os
+    // dois que tratam do gate em si declaram o valor que precisam.
+    vi.mocked(isCommunityEvaluationActivated).mockReset();
+    vi.mocked(isCommunityEvaluationActivated).mockResolvedValue(true);
+  });
+
   it('offers the experimental profile only for cloud communities linked to this Player', () => {
     const community = makeCommunity({ cloudId: 'cloud-community' });
     const unrelated = makeCommunity({
@@ -134,6 +143,36 @@ describe('PlayerEditView evaluation community gate', () => {
       'cloud-community',
     );
     expect(screen.queryByRole('spinbutton', { name: 'Saque' })).toBeNull();
+  });
+
+  it('mantem o formulario legado numa comunidade em nuvem que ainda nao migrou', async () => {
+    // O gate e a migracao da COMUNIDADE, nao o atleta ter id de nuvem. Gatear por cloudId
+    // deixava a comunidade legada sem superficie alguma: sliders desabilitados aqui e
+    // `can_evaluate: false` no editor novo -- com o cutover irreversivel como unica saida.
+    vi.mocked(isCommunityEvaluationActivated).mockResolvedValue(false);
+    const community = makeCommunity({ cloudId: 'cloud-community' });
+    const player = makePlayer('p1', { cloudId: 'cloud-player', communityIds: [community.id] });
+    renderPlayerEditView({ currentUserId: 'user', communities: [community] }, player);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('slider').filter((slider) => !(slider as HTMLInputElement).disabled)
+          .length,
+      ).toBeGreaterThan(1);
+    });
+  });
+
+  it('retira o formulario legado quando a comunidade migrou', async () => {
+    vi.mocked(isCommunityEvaluationActivated).mockResolvedValue(true);
+    const community = makeCommunity({ cloudId: 'cloud-community' });
+    const player = makePlayer('p1', { cloudId: 'cloud-player', communityIds: [community.id] });
+    renderPlayerEditView({ currentUserId: 'user', communities: [community] }, player);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('slider').filter((slider) => !(slider as HTMLInputElement).disabled),
+      ).toHaveLength(1);
+    });
   });
 
   it('closes the editor when the selected community is no longer linked to the player', async () => {

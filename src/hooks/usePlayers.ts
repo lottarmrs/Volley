@@ -126,6 +126,14 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
           throw new Error('PERMISSION_DENIED');
         }
 
+        // Sem avaliação, o save é de perfil e precisa da permissão de perfil. Sem esta
+        // linha, quem não tem nenhuma das duas permissões passava pela porta aberta por
+        // `saveEvaluation = false` e caía na lista de campos abaixo, que não cobre
+        // username, avatarUrl nem o objeto `perfil` — todos copiados de editingPlayer.
+        if (!saveEvaluation && !permissions.canEditPlayerProfile) {
+          throw new Error('PERMISSION_DENIED');
+        }
+
         if (!permissions.canEditPlayerProfile && original) {
           const profileFieldsChanged =
             original.nome !== editingPlayer.nome ||

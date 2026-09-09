@@ -17,11 +17,17 @@
 -- e estas funcoes a devolviam.
 --
 -- A correcao e revogar o grant, NAO adicionar guarda de auth.uid() no corpo.
--- recalculate_player_career e chamada por handle_new_user() (schema.sql:2606), o trigger
--- de signup: ali nao existe sessao ainda e auth.uid() e NULL, entao uma guarda baseada em
--- identidade quebraria o cadastro com claim code. handle_new_user e security definer de
--- postgres, e a chamada interna resolve com os privilegios da dona -- independe destes
--- grants, que existiam apenas para o cliente que nunca os usou.
+--
+-- O motivo e mais forte do que "o cliente nao usa": estas RPCs nao tem chamador nenhum no
+-- cliente, e no banco so sao alcancadas por funcoes que ja sao security definer --
+-- regenerate_career_events() (20260727150000) e o recalculo disparado no fluxo de claim.
+-- Chamada interna resolve com os privilegios da dona, entao o grant nunca foi necessario.
+--
+-- Uma guarda por identidade, alem de desnecessaria, seria perigosa: o recalculo participa
+-- de caminhos de cadastro/claim onde auth.uid() pode ser NULL.
+-- (A versao anterior deste comentario citava handle_new_user() em schema.sql:2606; a
+-- ultima definicao de handle_new_user e a de 20260723230000_player_claim_codes.sql, que
+-- nao chama recalculate_player_career -- last definition wins.)
 revoke execute on function public.regenerate_career_events_for_sessions(uuid[]) from authenticated;
 revoke execute on function public.regenerate_player_milestones(uuid) from authenticated;
 revoke execute on function public.recalculate_player_career(uuid) from authenticated;
@@ -33,11 +39,23 @@ revoke execute on function public.recalculate_player_career(uuid) from authentic
 -- anteriores varriam as tabelas inteiras. Master + AAL2 continuam exigidos (nao havia furo
 -- de privilegio), mas o raio de alcance passa a ser o que a assinatura promete.
 --
--- A maior parte do escopo vem de graca das FKs: sessions, communities e players cascateiam
--- para games/teams/point_events/reports/career_events. As excecoes sao
--- player_evaluation_contributions e player_evaluation_dimension_scores, que referenciam
--- players/communities com `on delete restrict` e por isso precisam sair antes, escopadas
--- na mao -- mesma razao registrada em XS-W5-01.
+-- Boa parte do escopo vem das FKs: sessions, communities e players cascateiam para
+-- games/teams/point_events/reports/career_events. player_evaluation_contributions e
+-- player_evaluation_dimension_scores referenciam players/communities com
+-- `on delete restrict` e por isso saem antes, escopadas na mao -- mesma razao de XS-W5-01.
+--
+-- ATENCAO -- esta funcao continua NAO funcionando ponta a ponta em base real, e o escopo
+-- desta migration e so o raio de alcance (o achado A4), nao a completude do reset:
+--   * `sessions` e referenciada com `on delete restrict` por seis tabelas que o reset nao
+--     apaga (rules snapshot, as duas de roster revision, cohort cutover, registration
+--     windows, legacy registration e os snapshots de entrada do balanceador). Qualquer
+--     conta que tenha uma delas leva 23503 no delete de sessions;
+--   * `players` e referenciada assim por registration_entries e pelas duas tabelas de
+--     identity claim/alias;
+--   * `guard_target_community_writes` recusa com 42501 o delete de qualquer community com
+--     `authority_model = 'target'` -- isto e, toda comunidade criada pelo produto atual.
+-- A suite prova o escopo com uma comunidade legada montada a mao justamente por isso.
+-- Fechar o reset de verdade e trabalho proprio, nao um efeito colateral desta correcao.
 create or replace function public.reset_product_data(target_account_uuid text)
 returns void
 language plpgsql
@@ -307,6 +325,37 @@ create policy "Community organizers can delete community players" on public.comm
     and public.current_user_has_community_role(community_id, array['owner', 'admin', 'organizer'])
   );
 
+drop policy if exists "Community organizers can update presence" on public.community_presence;
+create policy "Community organizers can update presence" on public.community_presence
+  for update to authenticated
+  using (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id))
+  with check (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+
+drop policy if exists "Community organizers can delete presence" on public.community_presence;
+create policy "Community organizers can delete presence" on public.community_presence
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+
+drop policy if exists "Community organizers can update whatsapp drafts" on public.whatsapp_list_drafts;
+create policy "Community organizers can update whatsapp drafts" on public.whatsapp_list_drafts
+  for update to authenticated
+  using (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id))
+  with check (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+
+drop policy if exists "Community organizers can delete whatsapp drafts" on public.whatsapp_list_drafts;
+create policy "Community organizers can delete whatsapp drafts" on public.whatsapp_list_drafts
+  for delete to authenticated
+  using (owner_id = (select auth.uid()) and public.current_user_has_community_role(community_id));
+
+-- As duas tabelas acima entraram na review independente desta remediacao: tem a MESMA
+-- forma do achado (INSERT com `and`, UPDATE/DELETE com `or`) e `community_id not null`,
+-- entao o ramo de posse nao esta la para linha pessoal nenhuma -- e so o furo.
+--
+-- Nao alinhadas de proposito: games, teams, point_events, game_reports e session_reports
+-- repetem a forma, mas com `community_id` NULAVEL. Nelas o ramo `owner_id` sustenta a
+-- linha pessoal, fora de qualquer comunidade, e trocar por `and` tiraria do dono a escrita
+-- sobre o proprio dado. Ficam como decisao registrada, nao como esquecimento.
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- A9 — bucket de avatares tinha leitura anonima, inclusive das propostas
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -314,7 +363,20 @@ create policy "Community organizers can delete community players" on public.comm
 -- inclusive anon -- sobre o bucket inteiro. As tres policies de escrita logo abaixo dela
 -- ja eram restritas a `to authenticated` + current_user_is_player_admin, mas a leitura
 -- cobria tambem o prefixo proposals/<player_id>/, isto e, as fotos que ainda NAO passaram
--- pela aprovacao. Avatar aprovado continua publico por design; a proposta deixa de ser.
+-- pela aprovacao.
+--
+-- ATENCAO -- ISTO NAO FECHA O ACHADO A9, e a review independente desta remediacao mostrou
+-- por que: o bucket `avatars` e criado com `public = true` (20260624133117:24-26). Bucket
+-- publico e servido por /storage/v1/object/public/... SEM avaliar policy de
+-- storage.objects, e o app grava em proposals/<player_id>/ e publica a URL com
+-- getPublicUrl (avatarStorageService.ts:105-114) -- a aprovacao apenas copia essa mesma
+-- URL para players.avatar_url, sem mover o arquivo. Ou seja: quem souber o caminho
+-- continua lendo proposta nao aprovada, exatamente como antes.
+--
+-- O que estas policies fecham de fato e a API autenticada/listagem. Fechar A9 de verdade
+-- exige tornar o bucket privado com URL assinada, ou copiar o arquivo aprovado para um
+-- prefixo realmente publico na aprovacao -- trabalho proprio, ainda nao feito, registrado
+-- no HANDOFF. A lacuna ja estava descrita em docs/architecture/contexts/N2.11-media.md.
 drop policy if exists "Avatars are publicly readable" on storage.objects;
 -- O harness de teste nao recria o schema `storage` entre builds, entao a policy nova
 -- precisa ser idempotente como as demais deste arquivo.

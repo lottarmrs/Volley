@@ -140,16 +140,27 @@ export const playerEvaluationCloudService = {
     return mapDbToPlayerEvaluation(data);
   },
 
-  async bulkUpsertForPlayers(players: Player[], ownerId: string): Promise<void> {
+  /**
+   * Devolve os atletas que ficaram de fora por a Comunidade ter migrado para o modelo
+   * versionado. Antes isto era um no-op silencioso: a avaliacao feita offline sumia no
+   * upload e o download seguinte reescrevia os valores locais com o agregado da nuvem,
+   * sem nenhuma mensagem. Quem chama precisa poder contar isso ao usuario.
+   */
+  async bulkUpsertForPlayers(
+    players: Player[],
+    ownerId: string,
+  ): Promise<{ omittedForTargetCohort: Player[] }> {
     const targetIds = await resolveTargetCommunityIds(
       players.flatMap((player) =>
         player.evaluationCommunityId ? [player.evaluationCommunityId] : [],
       ),
     );
-    const legacyPlayers = players.filter((player) => {
+    const isTargetCohort = (player: Player): boolean => {
       const communityId = normalizeUuid(player.evaluationCommunityId);
-      return communityId === null || !targetIds.has(communityId);
-    });
+      return communityId !== null && targetIds.has(communityId);
+    };
+    const omittedForTargetCohort = players.filter(isTargetCohort);
+    const legacyPlayers = players.filter((player) => !isTargetCohort(player));
     const records = legacyPlayers
       .map((player) => {
         const playerCloudId = player.cloudId || player.id;
@@ -157,16 +168,16 @@ export const playerEvaluationCloudService = {
       })
       .filter(Boolean) as DbRecord[];
 
-    if (records.length === 0) return;
+    if (records.length === 0) return { omittedForTargetCohort };
 
     const deduplicated = deduplicatePlayerEvaluationRecords(records);
-    if (deduplicated.length === 0) return;
+    if (deduplicated.length === 0) return { omittedForTargetCohort };
 
     const { error } = await supabase
       .from('player_evaluations')
       .upsert(deduplicated, { onConflict: 'owner_id,player_id' });
 
-    if (!error) return;
+    if (!error) return { omittedForTargetCohort };
 
     if (error.code !== '21000') throw error;
 
@@ -179,5 +190,7 @@ export const playerEvaluationCloudService = {
         .upsert(record, { onConflict: 'owner_id,player_id' });
       if (individualError) throw individualError;
     }
+
+    return { omittedForTargetCohort };
   },
 };

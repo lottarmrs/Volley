@@ -10,6 +10,7 @@ import { appOk, productError, technicalError, type AppResult } from './appResult
 export interface CommunityEvaluationGateway {
   loadEditor(communityId: string, playerId: string): Promise<CommunityEvaluationEditorContext>;
   record(command: CommunityEvaluationCommand): Promise<void>;
+  activatedCommunityIds(communityIds: string[]): Promise<string[]>;
   activate(communityId: string): Promise<void>;
   setEvaluator(communityId: string, userId: string, enabled: boolean): Promise<void>;
 }
@@ -121,5 +122,27 @@ export async function setCommunityEvaluator(
     return appOk(undefined);
   } catch (error) {
     return classify(error);
+  }
+}
+
+/**
+ * A comunidade ja migrou para o modelo versionado?
+ *
+ * Falha em `false`, de proposito. Quem decide de verdade e o banco: se a comunidade migrou
+ * e o cliente nao souber, a escrita legada e recusada pelo gatilho. O erro oposto seria
+ * grave -- tratar uma comunidade legada como migrada tira dela a unica superficie de
+ * avaliacao que tem, e a unica saida seria um cutover irreversivel.
+ */
+export async function isCommunityEvaluationActivated(
+  communityCloudId: string,
+  gateway: CommunityEvaluationGateway = supabase,
+): Promise<boolean> {
+  const id = communityCloudId?.trim();
+  if (!id) return false;
+  try {
+    const activated = await gateway.activatedCommunityIds([id]);
+    return Array.isArray(activated) && activated.some((value) => value?.trim() === id);
+  } catch {
+    return false;
   }
 }

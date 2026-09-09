@@ -1079,10 +1079,26 @@ export const syncService = {
           evaluationCommunityId: evaluationCommunityCloudId,
         });
       }
-      await playerEvaluationCloudService.bulkUpsertForPlayers(
+      const { omittedForTargetCohort } = await playerEvaluationCloudService.bulkUpsertForPlayers(
         playersWithResolvedEvaluationCommunity,
         ownerId,
       );
+      if (omittedForTargetCohort.length > 0) {
+        // A comunidade migrou para o modelo versionado enquanto esta avaliação esperava
+        // sincronizar. Ela não sobe, e o download a seguir reescreve os valores locais —
+        // então o usuário precisa saber que este trabalho não foi salvo, e onde refazê-lo.
+        const names = omittedForTargetCohort
+          .map((player) => player.nome)
+          .filter(Boolean)
+          .join(', ');
+        onIssue(
+          'avaliações de atletas',
+          new Error(
+            `A comunidade passou a usar o modelo de avaliação versionado, então estas avaliações ` +
+              `não foram enviadas e precisam ser refeitas no editor da comunidade: ${names}.`,
+          ),
+        );
+      }
     } catch (error) {
       onIssue('avaliações de atletas', error);
     }

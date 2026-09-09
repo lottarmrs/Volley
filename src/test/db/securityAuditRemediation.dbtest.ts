@@ -167,7 +167,11 @@ if (!isTestDatabaseConfigured()) {
     }
   });
 
-  test('A1-A3: o claim de jogador no cadastro continua recalculando a carreira', async () => {
+  // O nome diz mais do que o teste prova: a ultima definicao de handle_new_user
+  // (20260723230000) nao chama recalculate_player_career, entao o que este caso exercita e
+  // o fluxo de claim continuar intacto apos o revoke. A conclusao do achado nao depende
+  // disso -- as tres RPCs nao tem chamador algum fora de funcoes ja security definer.
+  test('A1-A3: o claim de jogador no cadastro segue funcionando apos o revoke', async () => {
     // A guarda que o laudo sugeriu no corpo de recalculate_player_career quebraria ISTO:
     // handle_new_user() roda no trigger de signup, onde ainda nao ha sessao e auth.uid() e
     // NULL. Por isso a correcao foi revogar o grant, e este teste e o que prova que a
@@ -289,6 +293,10 @@ if (!isTestDatabaseConfigured()) {
   });
 
   // ── A5 — modification_logs ───────────────────────────────────────────────
+  // ATENCAO: esta e uma guarda de documentacao, nao de regressao. A concessao de INSERT em
+  // modification_logs a `authenticated` vem das default privileges da plataforma Supabase,
+  // que o harness nao emula -- entao a assercao ja passaria numa arvore sem a correcao. O
+  // teste positivo logo abaixo (o gatilho voltou a ser definer) e o que sustenta A5.
   test('A5: um authenticated nao forja mais linha de auditoria', async () => {
     const attackerId = await newUser('sec-a5-attacker@example.com');
     const victimId = await newUser('sec-a5-victim@example.com');
@@ -486,6 +494,54 @@ if (!isTestDatabaseConfigured()) {
   });
 
   // ── A9 — leitura do bucket de avatares ───────────────────────────────────
+  test('A8: presenca e rascunhos de WhatsApp fecham pela mesma razao', async () => {
+    // Levantadas pela review independente: mesma forma do achado (INSERT com `and`,
+    // UPDATE/DELETE com `or`) e `community_id not null`, entao o ramo de posse nao
+    // sustenta nenhuma linha pessoal -- e so o furo.
+    const ownerId = await newUser('sec-a8b-owner@example.com');
+    const communityId = await legacyCommunity(ownerId, 'A8 Presenca');
+    await legacyMember(communityId, ownerId, 'owner');
+
+    const adminId = await newUser('sec-a8b-admin@example.com');
+    await legacyMember(communityId, adminId, 'admin');
+
+    await client.query(
+      `insert into public.community_presence (owner_id, community_id, date)
+       values ($1, $2, current_date)`,
+      [adminId, communityId],
+    );
+    await client.query(
+      `insert into public.whatsapp_list_drafts (
+         owner_id, community_id, title, date, setters_section_title, reserve_section_title
+       ) values ($1, $2, 'Rascunho', current_date, 'Levantadores', 'Reservas')`,
+      [adminId, communityId],
+    );
+
+    await legacyMember(communityId, adminId, 'member');
+    await asIdentity(client, adminId, async () => {
+      const presence = await client.query(
+        'update public.community_presence set updated_at = now() where owner_id = $1',
+        [adminId],
+      );
+      assert.equal(presence.rowCount, 0, 'rebaixado, o ramo owner_id nao concede mais UPDATE');
+
+      const draft = await client.query(
+        'delete from public.whatsapp_list_drafts where owner_id = $1',
+        [adminId],
+      );
+      assert.equal(draft.rowCount, 0, 'nem DELETE do rascunho que ele mesmo criou');
+    });
+
+    await legacyMember(communityId, adminId, 'admin');
+    await asIdentity(client, adminId, async () => {
+      const presence = await client.query(
+        'update public.community_presence set updated_at = now() where owner_id = $1',
+        [adminId],
+      );
+      assert.equal(presence.rowCount, 1, 'repromovido, a escrita legitima volta');
+    });
+  });
+
   test('A9: proposta de avatar deixa de ser legivel por anonimo; aprovado segue publico', async () => {
     // O stand-in de storage do harness nao liga RLS (ele existe para as migrations rodarem),
     // entao a suite liga aqui dentro de uma transacao revertida -- sem isso as policies

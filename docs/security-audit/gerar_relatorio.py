@@ -1736,12 +1736,17 @@ def construir():
     hist.append(Paragraph(texto_resumo, E["corpo"]))
 
     status = (
-        f"<b><font color='{HEX['forte']}'>Situação atual: os {len(ACHADOS)} achados foram corrigidos.</font></b> "
+        f"<b><font color='{HEX['forte']}'>Situação atual: {len(ACHADOS) - 1} dos {len(ACHADOS)} "
+        "achados foram corrigidos; A9 continua aberto.</font></b> "
+        "<b>A9:</b> as policies novas fecham a API autenticada, mas o bucket <font face='Courier'>avatars</font> "
+        "é criado com <font face='Courier'>public = true</font>, e bucket público é servido sem avaliar policy de "
+        "<font face='Courier'>storage.objects</font> — quem souber o caminho continua lendo uma proposta não "
+        "aprovada. Fechar exige bucket privado com URL assinada ou cópia na aprovação. "
         f"A remediação está em <font face='Courier'>{MIGRACAO}</font> e em "
         "<font face='Courier'>nginx.conf</font>, e cada achado tem prova comportamental contra um PostgreSQL real em "
-        f"<font face='Courier'>{SUITE}</font> — doze testes que verificam as duas metades de cada correção: o caminho "
+        f"<font face='Courier'>{SUITE}</font> — treze testes que verificam as duas metades de cada correção: o caminho "
         "de ataque passa a ser negado <b>e</b> o fluxo legítimo que dependia daquela superfície continua funcionando. "
-        "A suíte de banco foi de 629 para 641 testes, todos verdes, somados a 929 unitários, 279 de UI, typecheck e "
+        "A suíte de banco foi de 629 para 642 testes, todos verdes, somados aos gates de unidade, UI, typecheck e "
         "build. O CSP foi verificado servindo o bundle real pelo nginx real e exercitando o app no navegador, "
         "inclusive o Web Worker do balanceador, sem nenhuma violação originada pela aplicação. "
         "Duas conclusões deste laudo mudaram durante a remediação e estão marcadas no texto: a correção sugerida em "

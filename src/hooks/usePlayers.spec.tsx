@@ -121,6 +121,30 @@ describe('usePlayers handleSavePlayer communityId', () => {
     const saved = result.current.players[0];
     expect(saved.nome).toBe('Ana atualizada');
     expect(saved.atributos.saque).toBe(4);
-    expect(saved.evaluationCommunityId).toBeUndefined();
+    // Preservado: zerar aqui tirava o atleta do upload de avaliacao legada para sempre.
+    expect(saved.evaluationCommunityId).toBe('community-a');
+  });
+
+  it('recusa um save de perfil de quem nao pode editar perfil', () => {
+    const seed = makePlayer('player-1', { nome: 'Ana' });
+    localStorage.setItem(STORAGE_KEYS.players, JSON.stringify([seed]));
+    const { result } = renderHook(() => usePlayers([], [], []));
+    act(() =>
+      result.current.setEditingPlayer({ ...result.current.players[0], nome: 'Ana renomeada' }),
+    );
+
+    // Sem `saveEvaluation`, a guarda de avaliacao ja barrava. Com ela desligada, quem nao
+    // tem nenhuma das duas permissoes passava a alcancar o save -- e a lista de campos
+    // conferidos adiante nao cobre username, avatarUrl nem `perfil`.
+    expect(() =>
+      act(() =>
+        result.current.handleSavePlayer(
+          { canEditPlayerProfile: false, canEvaluatePlayer: false },
+          'community-a',
+          false,
+        ),
+      ),
+    ).toThrow('PERMISSION_DENIED');
+    expect(result.current.players[0].nome).toBe('Ana');
   });
 });

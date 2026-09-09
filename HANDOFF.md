@@ -1,8 +1,8 @@
 # HANDOFF — Panelinha
 
-> Atualizado em **2026-09-08**, após validar localmente a W6-01, a projeção global interna W5-04 e a
-> remediação da auditoria de segurança do mesmo dia.
-> Este é o ponto de retomada canônico se o limite da conversa acabar.
+> Atualizado em **2026-09-08**, ao integrar em `main` a W5-02..W5-04, o editor de avaliação, a
+> remediação da auditoria de segurança do mesmo dia e a W6-01, depois da review independente de
+> branch inteira. Este é o ponto de retomada canônico se o limite da conversa acabar.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -17,54 +17,51 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                           | Estado         |
-| -------- | ------------------------------------------------- | -------------- |
-| XS-W3-01 | Session target root                               | concluída      |
-| XS-W3-02 | Session organizer assignment                      | concluída      |
-| XS-W3-03 | Session courts                                    | concluída      |
-| XS-W3-04 | Session rules snapshot                            | concluída      |
-| XS-W3-05 | SessionParticipant + RosterRevision               | concluída      |
-| XS-W3-06 | Lifecycle/readiness semantic commands             | concluída      |
-| XS-W3-07 | Session cohort cutover                            | concluída      |
-| XS-W4-01 | Registration schema e invariantes                 | concluída      |
-| XS-W4-02 | Open/Close/Lock Registration                      | concluída      |
-| XS-W4-03 | JoinRegistration                                  | concluída      |
-| XS-W4-04 | Leave / promoção / capacidade                     | concluída      |
-| XS-W4-05 | FinalizeSessionRoster                             | concluída      |
-| XS-W4-06 | Legacy Session Registration introduction          | concluída      |
-| XS-W5-01 | Versioned PlayerEvaluation source model           | concluída      |
-| XS-W5-02 | Skill rubric/dimension contract                   | concluída      |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação | validada local |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda      | validada local |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador     | validada local |
+| Fatia    | Assunto                                           | Estado    |
+| -------- | ------------------------------------------------- | --------- |
+| XS-W3-01 | Session target root                               | concluída |
+| XS-W3-02 | Session organizer assignment                      | concluída |
+| XS-W3-03 | Session courts                                    | concluída |
+| XS-W3-04 | Session rules snapshot                            | concluída |
+| XS-W3-05 | SessionParticipant + RosterRevision               | concluída |
+| XS-W3-06 | Lifecycle/readiness semantic commands             | concluída |
+| XS-W3-07 | Session cohort cutover                            | concluída |
+| XS-W4-01 | Registration schema e invariantes                 | concluída |
+| XS-W4-02 | Open/Close/Lock Registration                      | concluída |
+| XS-W4-03 | JoinRegistration                                  | concluída |
+| XS-W4-04 | Leave / promoção / capacidade                     | concluída |
+| XS-W4-05 | FinalizeSessionRoster                             | concluída |
+| XS-W4-06 | Legacy Session Registration introduction          | concluída |
+| XS-W5-01 | Versioned PlayerEvaluation source model           | concluída |
+| XS-W5-02 | Skill rubric/dimension contract                   | concluída |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação | concluída |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda      | concluída |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador     | concluída |
 
 ### Branches — cadeia integrada em `main`
 
-A cadeia C6 até `XS-W5-01` **está em `main`**. As fatias até `XS-W4-06`, mais a correção de cascade
-de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` foi integrada em 2026-09-05,
-depois da review final de branch inteira, e sua branch
-`exec/c6-w5-01-versioned-player-evaluation` foi apagada por já estar contida em `main`. Não existe
-trabalho anterior à W5-02 pendente de integração. A W5-02 foi implementada e validada localmente na
-branch `exec/c6-w5-02-skill-rubric-contract`, a partir do design registrado no commit `27b1708`.
-A W5-03, seu complemento de editor/source authority e a W5-04 continuam na mesma branch,
-preservando as alterações da W5-02.
-As alterações desta retomada estão no diretório de trabalho, ainda sem commit, merge ou deploy.
+**Toda a cadeia C6 até `XS-W6-01` está em `main`.** As fatias até `XS-W4-06`, mais a correção de
+cascade de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` em 2026-09-05. Em
+2026-09-08, depois da review independente de branch inteira, entraram de uma vez a `XS-W5-02`, a
+`XS-W5-03` com seu complemento de editor/source authority, a `XS-W5-04`, a remediação da auditoria
+de segurança e a `XS-W6-01`. O merge foi fast-forward — `main` não tinha andado — e a branch
+`exec/c6-w5-02-skill-rubric-contract` foi apagada por já estar contida em `main`.
 
 ```text
-main   ← contém W3-01..W5-01 e a correção de cascade
-exec/c6-w5-02-skill-rubric-contract   ← W5-02..W5-04 + editor + remediação de segurança + W6-01, locais
+main   ← contém W3-01..W6-01, a correção de cascade e a remediação de segurança
 ```
 
-A mesma branch carrega também a remediação da auditoria de segurança de 2026-09-08, descrita mais
-abaixo. Ela **não é uma fatia C6** e não deve ser tratada como tal ao decidir a integração.
+Não existe trabalho C6 pendente de integração.
 
-Ao retomar, confira `git status` e o plano
-`docs/superpowers/plans/2026-09-08-xs-w6-01-balance-input-snapshots.md` antes de iniciar outra
-fatia. Não confunda uma fatia validada localmente com uma fatia integrada em `main` ou implantada.
+**Integrado não é implantado.** Nada foi enviado para remoto, nenhuma migration foi aplicada em
+Supabase remoto e nenhuma imagem foi implantada. O CSP do `nginx.conf` só passa a valer no próximo
+deploy, e as policies de `storage` dependem de aplicar a migration no projeto remoto. As migrations
+novas são seis e aplicam-se na ordem da lista do README.
 
-A W6-01 foi implementada nesta mesma branch, a partir do plano
-`docs/superpowers/plans/2026-09-08-xs-w6-01-balance-input-snapshots.md`. O arquivo de migration que
-antes existia com zero byte agora está preenchido.
+Ao retomar, confira `git status` e escolha a próxima fatia em
+`docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` — a seguinte é a
+`XS-W6-02` (porta do solver determinístico). Antes dela, leia o backlog da review independente
+logo abaixo: há um achado de segurança **aberto** (A9) e uma decisão de produto pendente (A6).
 
 ### O que a wave W3 entregou
 
@@ -678,9 +675,9 @@ divergência sem ler o teste.
 6. **`index.html` embute um script de ferramenta local** (`localhost:8400/live.js`) que entra no
    build. O CSP novo passa a bloqueá-lo, mas ele não deveria estar num build de produção.
 
-E, como antes: nada foi mesclado, aplicado em Supabase remoto ou implantado — o CSP do `nginx.conf`
-só passa a valer no próximo deploy da imagem, e as policies de `storage` dependem de aplicar a
-migration no projeto remoto.
+A remediação está em `main` desde 2026-09-08, mas **não** foi aplicada em Supabase remoto nem
+implantada — o CSP do `nginx.conf` só passa a valer no próximo deploy da imagem, e as policies de
+`storage` dependem de aplicar a migration no projeto remoto.
 
 ### Evidência de verificação da remediação de segurança — 2026-09-08
 

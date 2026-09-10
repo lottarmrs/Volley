@@ -291,16 +291,14 @@ export const FROZEN_SOLVER_IMPORTS: Readonly<Record<string, readonly string[]>> 
     './partnershipHistory:PartnershipMatrix',
   ],
   'src/logic/balancer.worker.ts': [
+    '../application/teamFormationPort:solveTeamFormationDirect',
     './balancerMessages:BalanceRequest',
     './balancerMessages:BalanceResponse',
     './balancerMessages:buildBalanceErrorResponse',
-    './balancing:balanceSnapshots',
   ],
   'src/logic/balancerMessages.ts': [
     '../types:BalanceCandidate',
-    '../types:FreePlayConfig',
-    '../types:PlayerBalanceSnapshot',
-    '../types:TournamentConfig',
+    '../types:TeamFormationRequest',
     './balancing:InfeasibleConstraintsError',
     './partnershipHistory:PartnershipMatrix',
   ],

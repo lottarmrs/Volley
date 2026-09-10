@@ -1,21 +1,24 @@
-import { balanceSnapshots } from './balancing';
+import { solveTeamFormationDirect } from '../application/teamFormationPort';
 import { buildBalanceErrorResponse } from './balancerMessages';
 import type { BalanceRequest, BalanceResponse } from './balancerMessages';
 
 self.onmessage = (event: MessageEvent<BalanceRequest>) => {
-  const { snapshots, numTeams, config, partnershipMatrix } = event.data;
+  const { request, partnershipMatrix } = event.data;
   const post = (message: BalanceResponse) => self.postMessage(message);
   try {
-    const candidates = balanceSnapshots(
-      snapshots,
-      numTeams,
-      config,
-      (percent, bestScore) => post({ type: 'progress', percent, bestScore }),
-      partnershipMatrix,
+    const outcome = solveTeamFormationDirect(request, partnershipMatrix, (percent, bestScore) =>
+      post({ type: 'progress', percent, bestScore }),
     );
-    post({ type: 'done', candidates });
+    if (!outcome.ok) {
+      const code =
+        outcome.refusal.code === 'ALGORITHM_VERSION_MISMATCH'
+          ? 'TECHNICAL_ERROR'
+          : 'INFEASIBLE_CONSTRAINTS';
+      post({ type: 'error', code, message: outcome.refusal.message });
+      return;
+    }
+    post({ type: 'done', candidates: outcome.candidates, fingerprint: outcome.fingerprint });
   } catch (error) {
-    // Classified once, at the boundary, so every consumer receives the same stable code.
     post(buildBalanceErrorResponse(error));
   }
 };

@@ -1,17 +1,10 @@
-import type {
-  BalanceCandidate,
-  FreePlayConfig,
-  PlayerBalanceSnapshot,
-  TournamentConfig,
-} from '../types';
+import type { BalanceCandidate, TeamFormationRequest } from '../types';
 import type { PartnershipMatrix } from './partnershipHistory';
 import { InfeasibleConstraintsError } from './balancing';
 
 export interface BalanceRequest {
   type: 'balance';
-  snapshots: PlayerBalanceSnapshot[];
-  numTeams: number;
-  config?: TournamentConfig | FreePlayConfig;
+  request: TeamFormationRequest;
   partnershipMatrix?: PartnershipMatrix;
 }
 
@@ -39,7 +32,7 @@ export interface BalanceErrorResponse {
 
 export type BalanceResponse =
   | { type: 'progress'; percent: number; bestScore: number }
-  | { type: 'done'; candidates: BalanceCandidate[] }
+  | { type: 'done'; candidates: BalanceCandidate[]; fingerprint: string }
   | BalanceErrorResponse;
 
 /**

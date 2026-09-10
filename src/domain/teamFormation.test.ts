@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { BalanceCandidate, TeamFormationRequest } from '@shared/types';
-import { canonicalizeCandidates, fingerprintFormation, precheckFormation } from './teamFormation';
+import {
+  canonicalizeCandidates,
+  fingerprintFormation,
+  precheckFormation,
+  summarizePartnershipMatrix,
+} from './teamFormation';
 
 function participant(id: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -92,6 +97,48 @@ test('a proveniencia entra na impressao digital', () => {
     null,
   );
   assert.notEqual(local, authorized);
+});
+
+test('o orcamento entra na impressao digital', () => {
+  const fewSeeds = fingerprintFormation(
+    request({ budget: { seeds: 3, maxIterations: 2000 } }),
+    [candidate()],
+    null,
+  );
+  const manySeeds = fingerprintFormation(
+    request({ budget: { seeds: 9, maxIterations: 2000 } }),
+    [candidate()],
+    null,
+  );
+  assert.notEqual(fewSeeds, manySeeds);
+
+  const fewIterations = fingerprintFormation(
+    request({ budget: { seeds: 3, maxIterations: 2000 } }),
+    [candidate()],
+    null,
+  );
+  const manyIterations = fingerprintFormation(
+    request({ budget: { seeds: 3, maxIterations: 5000 } }),
+    [candidate()],
+    null,
+  );
+  assert.notEqual(fewIterations, manyIterations);
+});
+
+test('summarizePartnershipMatrix resume uma matriz valida com hash estavel', () => {
+  const matrix = { a: { b: 2 }, c: { d: 1 } };
+  const first = summarizePartnershipMatrix(matrix);
+  const second = summarizePartnershipMatrix(matrix);
+  assert.equal(first?.count, 2);
+  assert.equal(typeof first?.hash, 'string');
+  assert.equal(first?.hash, second?.hash);
+});
+
+test('summarizePartnershipMatrix recusa entradas que nao sao uma matriz de chaves', () => {
+  assert.equal(summarizePartnershipMatrix(null), null);
+  assert.equal(summarizePartnershipMatrix(undefined), null);
+  assert.equal(summarizePartnershipMatrix('not-a-matrix'), null);
+  assert.equal(summarizePartnershipMatrix(['a', 'b']), null);
 });
 
 test('o precheck recusa contradicao mecanica, nao dificuldade', () => {

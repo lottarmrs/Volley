@@ -58,7 +58,7 @@ export function canonicalizeCandidates(candidates: readonly BalanceCandidate[]):
 }
 
 export function summarizePartnershipMatrix(matrix: unknown): PartnershipSummary | null {
-  if (!matrix || typeof matrix !== 'object') return null;
+  if (!matrix || typeof matrix !== 'object' || Array.isArray(matrix)) return null;
   const serialized = JSON.stringify(matrix);
   return { count: Object.keys(matrix as Record<string, unknown>).length, hash: fnv1a(serialized) };
 }

@@ -205,7 +205,15 @@ export function useSessionWizard({
     const runFallback = () => {
       try {
         const result = buildDivisionFallbackBalanceResult(plan);
-        if (result) finish(result.divisions);
+        if (!result) return;
+        if (result.type === 'infeasible') {
+          // A domain refusal on the synchronous path: same presentation as the worker path,
+          // so the wizard never sits spinning with no message.
+          applyGenerationStatusState(result.generationStatus);
+          setValidationErrors((current) => ({ ...current, generation: result.message }));
+          return;
+        }
+        finish(result.divisions);
       } catch (error) {
         // Same classifier the worker uses, so the synchronous fallback path and the worker
         // path cannot disagree about whether a failure is a domain refusal or a crash.

@@ -297,6 +297,7 @@ export const FROZEN_SOLVER_IMPORTS: Readonly<Record<string, readonly string[]>> 
     './balancerMessages:buildBalanceErrorResponse',
   ],
   'src/logic/balancerMessages.ts': [
+    '../domain/teamFormation:FormationRefusalCode',
     '../types:BalanceCandidate',
     '../types:TeamFormationRequest',
     './balancing:InfeasibleConstraintsError',

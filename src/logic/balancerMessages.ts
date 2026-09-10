@@ -1,4 +1,5 @@
 import type { BalanceCandidate, TeamFormationRequest } from '../types';
+import type { FormationRefusalCode } from '../domain/teamFormation';
 import type { PartnershipMatrix } from './partnershipHistory';
 import { InfeasibleConstraintsError } from './balancing';
 
@@ -15,14 +16,17 @@ export interface BalanceRequest {
  * contract callers branch on. Before this, the UI had to decide whether a failure was a
  * domain refusal or a broken worker by inspecting a translated string.
  *
- * The split mirrors the XS-W0-05 outcome vocabulary: INFEASIBLE_CONSTRAINTS is a
- * DOMAIN_REJECTION that retrying cannot fix, TECHNICAL_ERROR is a TECHNICAL_FAILURE that
- * a retry might.
+ * The split mirrors the XS-W0-05 outcome vocabulary: a FormationRefusalCode or
+ * INFEASIBLE_CONSTRAINTS is a DOMAIN_REJECTION that retrying cannot fix, TECHNICAL_ERROR is
+ * a TECHNICAL_FAILURE that a retry might.
  */
 export const INFEASIBLE_CONSTRAINTS = 'INFEASIBLE_CONSTRAINTS';
 export const TECHNICAL_ERROR = 'TECHNICAL_ERROR';
 
-export type BalanceErrorCode = typeof INFEASIBLE_CONSTRAINTS | typeof TECHNICAL_ERROR;
+export type BalanceErrorCode =
+  | FormationRefusalCode
+  | typeof INFEASIBLE_CONSTRAINTS
+  | typeof TECHNICAL_ERROR;
 
 export interface BalanceErrorResponse {
   type: 'error';

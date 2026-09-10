@@ -212,3 +212,38 @@ describe('useSessionWizard division generation failures', () => {
     expect(result.current.bestDivisions.length).toBeGreaterThan(0);
   });
 });
+
+describe('useSessionWizard synchronous fallback (no Worker global)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(Math, 'random').mockReturnValue(0.123);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fallbackControl.error = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('encerra a geracao sincrona com mensagem quando o precheck recusa, em vez de girar para sempre', () => {
+    const players = ['a', 'b'].map((id) => makePlayer(id));
+    const activeSession = makeSession('session-1', {
+      selectedPlayerIds: players.map((player) => player.id),
+      config: {
+        ...makeSession('config-source').config!,
+        teamCount: 2,
+        balanceConstraints: { lockedPlayerIdxs: { a: 5 } },
+      },
+    });
+    const { result } = renderWizard(activeSession, players);
+
+    expect(() => {
+      act(() => result.current.generateDivisions());
+    }).not.toThrow();
+
+    expect(result.current.isGenerating).toBe(false);
+    expect(result.current.validationErrors.generation).toBeDefined();
+    expect(result.current.bestDivisions).toEqual([]);
+  });
+});

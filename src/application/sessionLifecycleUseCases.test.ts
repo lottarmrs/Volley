@@ -833,6 +833,8 @@ test('buildDivisionFallbackBalanceResult runs sync balancing from the generation
   const result = buildDivisionFallbackBalanceResult(plan);
 
   assert.ok(result);
+  assert.equal(result.type, 'done');
+  if (result.type !== 'done') return;
   assert.ok(result.divisions.length > 0);
   assert.deepEqual(result.divisions[0].teams.flatMap((team) => team.playerIds).sort(), [
     'player-1',
@@ -841,6 +843,32 @@ test('buildDivisionFallbackBalanceResult runs sync balancing from the generation
     'player-4',
   ]);
   assert.equal(buildDivisionFallbackBalanceResult(null), null);
+});
+
+test('buildDivisionFallbackBalanceResult surfaces a precheck refusal instead of silence', () => {
+  const activeSession = makeSession('session-1', {
+    selectedPlayerIds: ['player-1', 'player-2'],
+    config: {
+      ...makeSession('config-source').config!,
+      teamCount: 2,
+      balanceConstraints: { lockedPlayerIdxs: { 'player-1': 5 } },
+    },
+  });
+  const players = [makePlayer('player-1'), makePlayer('player-2')];
+  const plan = buildDivisionGenerationPlan({
+    activeSession,
+    players,
+    seed: 777,
+  });
+
+  const result = buildDivisionFallbackBalanceResult(plan);
+
+  assert.ok(result);
+  assert.equal(result.type, 'infeasible');
+  if (result.type !== 'infeasible') return;
+  assert.equal(result.generationStatus.nextIsGenerating, false);
+  assert.equal(typeof result.message, 'string');
+  assert.ok(result.message.length > 0);
 });
 
 test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions', () => {

@@ -13,9 +13,8 @@ import type {
   Team,
   TournamentConfig,
 } from '../types';
-import { INFEASIBLE_CONSTRAINTS } from '../logic/balancerMessages';
+import { TECHNICAL_ERROR } from '../logic/balancerMessages';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
-import { BALANCE_ALGORITHM_VERSION } from '../logic/balancing';
 import {
   adaptBalanceCandidatesToDivisions,
   findRosterDivergence,
@@ -528,18 +527,36 @@ export function buildDivisionFallbackBalanceInput(
   return plan?.request ?? null;
 }
 
-export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan | null): {
-  divisions: Division[];
-} | null {
+export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan | null):
+  | { type: 'done'; divisions: Division[] }
+  | {
+      type: 'infeasible';
+      message: string;
+      generationStatus: ReturnType<typeof buildDivisionGenerationStatusApplicationResult>;
+    }
+  | null {
   const input = buildDivisionFallbackBalanceInput(plan);
   if (!input) return null;
 
   const outcome = solveTeamFormationDirect(input.request, input.partnershipMatrix);
-  if (!outcome.ok) return null;
-  const candidates = outcome.candidates;
+  if (!outcome.ok) {
+    // Reuses the worker path's own presentation so a refusal on the synchronous fallback
+    // cannot disagree with a refusal that arrives through the worker.
+    const action = buildDivisionWorkerMessageResult(
+      { type: 'error', code: outcome.refusal.code, message: outcome.refusal.message },
+      plan,
+    );
+    if (action.type === 'infeasible') return action;
+    return {
+      type: 'infeasible',
+      message: outcome.refusal.message,
+      generationStatus: buildDivisionGenerationStatusApplicationResult('cancel'),
+    };
+  }
   return {
+    type: 'done',
     divisions: adaptBalanceCandidatesToDivisions({
-      candidates,
+      candidates: outcome.candidates,
       players: plan!.sessionPlayers,
       sessionId: plan!.sessionId,
       config: plan!.updatedConfig,
@@ -681,7 +698,10 @@ export function buildDivisionWorkerMessageResult(
   // Branch on the stable CODE, never on the pt-BR text. Matching the translated sentence
   // meant that rewording it silently reclassified a domain refusal as a technical fallback,
   // and the user would have been offered a retry for a division that cannot exist.
-  if (message.code === INFEASIBLE_CONSTRAINTS) {
+  // Every code other than TECHNICAL_ERROR is a domain refusal — either a precheck code
+  // (EMPTY_ROSTER, CONTRADICTORY_PAIR, ...) or the engine's own INFEASIBLE_CONSTRAINTS —
+  // and all of them get the same "no such division exists" presentation.
+  if (message.code !== TECHNICAL_ERROR) {
     return {
       type: 'infeasible',
       message: message.message,

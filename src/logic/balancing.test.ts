@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { players } from '../data/players';
 import {
+  balanceSnapshots,
+  deriveFormationBudget,
   getQualityLabel,
   resolveComposition,
   solutionDistance,
@@ -837,4 +839,32 @@ test('balanceTeams nao descarta atleta com genero e posicao nulos (jogador recem
   for (const d of divisions) {
     assert.equal(findRosterDivergence(d, ids), null, JSON.stringify(findRosterDivergence(d, ids)));
   }
+});
+
+test('deriveFormationBudget reproduz exatamente a formula de hoje', () => {
+  assert.deepEqual(deriveFormationBudget('fast', 12), { seeds: 3, maxIterations: 4800 });
+  assert.deepEqual(deriveFormationBudget('fast', 2), { seeds: 3, maxIterations: 2000 });
+  assert.deepEqual(deriveFormationBudget('fast', 100), { seeds: 3, maxIterations: 10000 });
+  assert.deepEqual(deriveFormationBudget('normal', 12), { seeds: 6, maxIterations: 12000 });
+  assert.deepEqual(deriveFormationBudget('normal', 2), { seeds: 6, maxIterations: 8000 });
+  assert.deepEqual(deriveFormationBudget('advanced', 12), { seeds: 10, maxIterations: 48000 });
+  assert.deepEqual(deriveFormationBudget('advanced', 2), { seeds: 10, maxIterations: 20000 });
+});
+
+test('um orcamento explicito substitui o derivado do balanceSpeed', () => {
+  const snapshots = Array.from({ length: 4 }, (_, i) => makePlayer('budget' + i)).map((p) =>
+    mapPlayerToBalanceSnapshot(p),
+  );
+  const derived = balanceSnapshots(snapshots, 2, { balanceSpeed: 'advanced' } as never);
+  const budgeted = balanceSnapshots(
+    snapshots,
+    2,
+    { balanceSpeed: 'advanced' } as never,
+    undefined,
+    undefined,
+    { seeds: 2, maxIterations: 500 },
+  );
+  assert.equal(derived.length, 3);
+  assert.equal(budgeted.length, 2);
+  assert.ok(budgeted[0].iterations <= 500);
 });

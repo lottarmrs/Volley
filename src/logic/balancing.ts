@@ -1250,12 +1250,28 @@ export function evaluateTeamSolution(
   };
 }
 
+export function deriveFormationBudget(
+  balanceSpeed: 'fast' | 'normal' | 'advanced' | undefined,
+  rosterSize: number,
+): { seeds: number; maxIterations: number } {
+  const clamp = (value: number, minimum: number, maximum: number) =>
+    Math.max(minimum, Math.min(maximum, value));
+  if (balanceSpeed === 'fast') {
+    return { seeds: 3, maxIterations: clamp(rosterSize * 400, 2000, 10000) };
+  }
+  if (balanceSpeed === 'normal') {
+    return { seeds: 6, maxIterations: clamp(rosterSize * 1000, 8000, 30000) };
+  }
+  return { seeds: 10, maxIterations: clamp(rosterSize * 4000, 20000, 120000) };
+}
+
 export function balanceSnapshots(
   snapshots: PlayerBalanceSnapshot[],
   numTeams: number,
   config?: TournamentConfig | FreePlayConfig,
   onProgress?: (percent: number, bestScore: number) => void,
   partnershipMatrix?: PartnershipMatrix,
+  budget?: { seeds: number; maxIterations: number },
 ): BalanceCandidate[] {
   const balanceSpeed = config?.balanceSpeed || 'advanced';
   const constraints = config?.balanceConstraints || {};
@@ -1277,20 +1293,9 @@ export function balanceSnapshots(
     partnershipMatrix,
   );
   const balancer = new SimulatedAnnealingBalancer(new InitialTeamBuilder(numTeams), scorer);
-  const clamp = (value: number, minimum: number, maximum: number) =>
-    Math.max(minimum, Math.min(maximum, value));
-
-  let maxIterations = 40000;
-  let numSeeds = 10;
-  if (balanceSpeed === 'fast') {
-    maxIterations = clamp(snapshots.length * 400, 2000, 10000);
-    numSeeds = 3;
-  } else if (balanceSpeed === 'normal') {
-    maxIterations = clamp(snapshots.length * 1000, 8000, 30000);
-    numSeeds = 6;
-  } else {
-    maxIterations = clamp(snapshots.length * 4000, 20000, 120000);
-  }
+  const resolvedBudget = budget ?? deriveFormationBudget(balanceSpeed, snapshots.length);
+  const maxIterations = resolvedBudget.maxIterations;
+  const numSeeds = resolvedBudget.seeds;
 
   const baseSeed = config?.balanceSeed ?? 42;
   const seeds = Array.from({ length: numSeeds }, (_, index) => baseSeed + index * 101);

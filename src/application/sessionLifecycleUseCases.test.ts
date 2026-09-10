@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BALANCE_ALGORITHM_VERSION, balanceSnapshots } from '../logic/balancing';
+import { balanceSnapshots } from '../logic/balancing';
 import { fromLocalSnapshots } from './teamFormationAdapters';
 import {
   buildActiveSessionClearResult,
@@ -660,7 +660,6 @@ test('buildDivisionGenerationPlan prepares selected players and seeded balance r
       snapshots: result.snapshots,
       teamCount: 2,
       config: result.updatedConfig,
-      algorithmVersion: BALANCE_ALGORITHM_VERSION,
     }),
     partnershipMatrix: { 'player-1|player-3': 2 },
   });

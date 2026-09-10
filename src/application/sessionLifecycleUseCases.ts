@@ -514,7 +514,6 @@ export function buildDivisionGenerationPlan(input: {
         snapshots,
         teamCount: updatedConfig.teamCount,
         config: updatedConfig,
-        algorithmVersion: BALANCE_ALGORITHM_VERSION,
       }),
       partnershipMatrix: input.partnershipMatrix,
     },

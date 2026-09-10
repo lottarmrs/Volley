@@ -5,14 +5,12 @@ import {
   summarizePartnershipMatrix,
   type FormationRefusal,
 } from '@domain/teamFormation';
-import { BALANCE_ALGORITHM_VERSION, balanceSnapshots } from '../logic/balancing';
+import { balanceSnapshots } from '../logic/balancing';
 import type { PartnershipMatrix } from '../logic/partnershipHistory';
 
 export type FormationOutcome =
   | { ok: true; candidates: BalanceCandidate[]; fingerprint: string }
   | { ok: false; refusal: FormationRefusal };
-
-const ENGINE_ALGORITHM_VERSION = BALANCE_ALGORITHM_VERSION;
 
 export function solveTeamFormationDirect(
   request: TeamFormationRequest,
@@ -21,16 +19,6 @@ export function solveTeamFormationDirect(
 ): FormationOutcome {
   const refusal = precheckFormation(request);
   if (refusal) return { ok: false, refusal };
-
-  if (request.algorithmVersion !== ENGINE_ALGORITHM_VERSION) {
-    return {
-      ok: false,
-      refusal: {
-        code: 'ALGORITHM_VERSION_MISMATCH',
-        message: `O motor executa ${ENGINE_ALGORITHM_VERSION}, e o pedido declara ${request.algorithmVersion}.`,
-      },
-    };
-  }
 
   const candidates = balanceSnapshots(
     request.participants as never,

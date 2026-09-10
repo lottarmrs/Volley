@@ -15,6 +15,17 @@ modelo legado continua existindo e a autoridade migra por contexto.
 `docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` (fatias W3–W6).
 As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
+### Alcançabilidade — leia antes de planejar qualquer fatia C6
+
+Em 2026-09-10, depois de três dead ends seguidos, levantei o que do C6 é realmente alcançável por um
+usuário: [mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md).
+
+Resumo: das ~45 funções públicas da era C6 destinadas ao cliente, **6 são alcançáveis** — todas do
+editor de avaliação e do perfil de comunidade (W5-03 e seu complemento). As ondas W3 e W4 inteiras,
+mais W5-01, W5-02, W6-01 e W6-02, não têm caminho até uma tela. A tabela abaixo diz que essas fatias
+estão concluídas, e elas estão: o código existe, é testado e faz o que promete. **Concluída não quer
+dizer alcançável.**
+
 ### Estado das fatias
 
 | Fatia    | Assunto                                            | Estado    |

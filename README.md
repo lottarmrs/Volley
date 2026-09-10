@@ -66,43 +66,17 @@ VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 1. Create a project at [supabase.com](https://supabase.com).
 2. Apply the complete migration chain from `supabase/migrations`, in chronological filename order. Prefer the Supabase CLI (`supabase db push`) for a linked project. If using the SQL Editor, run every file in order, starting with `schema.sql` and continuing through the latest dated migration.
 
-```text
-supabase/migrations/schema.sql
-supabase/migrations/20260610161203_backend_operational_sync.sql
-supabase/migrations/20260610161236_upsert_conflict_targets.sql
-supabase/migrations/20260610161256_global_athlete_identity.sql
-supabase/migrations/20260610195250_harden_function_security.sql
-supabase/migrations/20260615200155_point_event_taxonomy.sql
-supabase/migrations/20260617180615_community_players_optimization.sql
-supabase/migrations/20260618154732_point_event_kind_and_assist.sql
-supabase/migrations/20260623133702_game_multiset_sets_and_targets.sql
-supabase/migrations/20260623133849_drop_redundant_game_multiset_columns.sql
-supabase/migrations/20260624133117_player_avatars_approval.sql
-supabase/migrations/20260624133200_player_evaluations.sql
-supabase/migrations/20260624133252_link_user_to_player_with_approval.sql
-supabase/migrations/20260624133328_unlink_player_rpc.sql
-supabase/migrations/20260624133529_rbac_global_roles_and_hardening.sql
-supabase/migrations/20260624134502_harden_trigger_functions.sql
-supabase/migrations/20260624141708_role_management_rpc.sql
-supabase/migrations/20260624203424_community_model_v2.sql
-supabase/migrations/20260624204113_community_join_system.sql
-supabase/migrations/20260625182618_fix_profile_signup_role.sql
-supabase/migrations/20260625192530_community_discovery.sql
-supabase/migrations/20260629201136_harden_avatar_storage_update_policy.sql
-supabase/migrations/20260629212554_linked_player_self_read.sql
-supabase/migrations/20260707143343_community_member_role_remove_rpc.sql
-supabase/migrations/20260902115932_leave_promotion_capacity.sql
-supabase/migrations/20260902141626_finalize_session_roster.sql
-supabase/migrations/20260904132823_legacy_registration_introduction.sql
-supabase/migrations/20260905185744_versioned_player_evaluation_source.sql
-supabase/migrations/20260906130635_skill_rubric_contract.sql
-supabase/migrations/20260906231744_community_skill_profile.sql
-supabase/migrations/20260907010305_community_evaluation_editor.sql
-supabase/migrations/20260908031027_global_skill_profile.sql
-supabase/migrations/20260908160000_security_audit_remediation.sql
-supabase/migrations/20260908170000_balance_input_snapshots.sql
-supabase/migrations/20260909090000_target_session_current_roster_revision.sql
+```bash
+# A ordem correta NÃO é a ordem alfabética do diretório: `schema.sql` precisa vir primeiro,
+# e ele ordena por último entre os nomes (dígito ordena antes de letra). Este comando lista
+# na ordem em que devem ser aplicadas, e é a mesma ordem que o harness de teste usa.
+ls supabase/migrations/*.sql | grep -v '/schema\.sql$' | sort | sed '1i supabase/migrations/schema.sql'
 ```
+
+Hoje isso são **93 arquivos**: `schema.sql` e mais 92 migrations datadas. Não mantenha uma lista
+fixa aqui — a anterior derivou para 35 de 93 sem ninguém notar, e quem a seguisse ao pé da letra
+provisionaria um banco sem MFA obrigatório, sem eventos de carreira, sem posse de sessão e sem toda
+a cadeia de identidade, comunidade e Session das ondas W2 a W4.
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
 

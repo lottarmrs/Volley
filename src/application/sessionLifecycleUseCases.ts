@@ -15,12 +15,14 @@ import type {
 } from '../types';
 import { INFEASIBLE_CONSTRAINTS } from '../logic/balancerMessages';
 import type { BalanceRequest, BalanceResponse } from '../logic/balancerMessages';
-import { balanceSnapshots } from '../logic/balancing';
+import { BALANCE_ALGORITHM_VERSION } from '../logic/balancing';
 import {
   adaptBalanceCandidatesToDivisions,
   findRosterDivergence,
   mapPlayersToBalanceSnapshots,
 } from '../logic/balancingCompatibility';
+import { fromLocalSnapshots } from './teamFormationAdapters';
+import { solveTeamFormationDirect } from './teamFormationPort';
 import type { SessionValidationErrors } from '../domain/sessionSetup';
 import {
   addPlayerPairConstraint,
@@ -509,9 +511,12 @@ export function buildDivisionGenerationPlan(input: {
     sessionPatch: { config: updatedConfig },
     request: {
       type: 'balance',
-      snapshots,
-      numTeams: updatedConfig.teamCount,
-      config: updatedConfig,
+      request: fromLocalSnapshots({
+        snapshots,
+        teamCount: updatedConfig.teamCount,
+        config: updatedConfig,
+        algorithmVersion: BALANCE_ALGORITHM_VERSION,
+      }),
       partnershipMatrix: input.partnershipMatrix,
     },
   };
@@ -529,13 +534,9 @@ export function buildDivisionFallbackBalanceResult(plan: DivisionGenerationPlan 
   const input = buildDivisionFallbackBalanceInput(plan);
   if (!input) return null;
 
-  const candidates = balanceSnapshots(
-    input.snapshots,
-    input.numTeams,
-    input.config,
-    undefined,
-    input.partnershipMatrix,
-  );
+  const outcome = solveTeamFormationDirect(input.request, input.partnershipMatrix);
+  if (!outcome.ok) return null;
+  const candidates = outcome.candidates;
   return {
     divisions: adaptBalanceCandidatesToDivisions({
       candidates,

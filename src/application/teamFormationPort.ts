@@ -5,14 +5,14 @@ import {
   summarizePartnershipMatrix,
   type FormationRefusal,
 } from '@domain/teamFormation';
-import { balanceSnapshots } from '../logic/balancing';
+import { BALANCE_ALGORITHM_VERSION, balanceSnapshots } from '../logic/balancing';
 import type { PartnershipMatrix } from '../logic/partnershipHistory';
 
 export type FormationOutcome =
   | { ok: true; candidates: BalanceCandidate[]; fingerprint: string }
   | { ok: false; refusal: FormationRefusal };
 
-const ENGINE_ALGORITHM_VERSION = 'simulated-annealing-v1';
+const ENGINE_ALGORITHM_VERSION = BALANCE_ALGORITHM_VERSION;
 
 export function solveTeamFormationDirect(
   request: TeamFormationRequest,

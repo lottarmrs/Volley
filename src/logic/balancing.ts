@@ -34,6 +34,8 @@ export class InfeasibleConstraintsError extends Error {
   }
 }
 
+export const BALANCE_ALGORITHM_VERSION = 'simulated-annealing-v1';
+
 // ─── Weight Profiles ─────────────────────────────────────────────────────────
 
 // `gender` respeita um piso de GENDER_WEIGHT_FLOOR em todos os perfis (Fase B).

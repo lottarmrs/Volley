@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { balanceSnapshots } from '../logic/balancing';
+import { BALANCE_ALGORITHM_VERSION, balanceSnapshots } from '../logic/balancing';
+import { fromLocalSnapshots } from './teamFormationAdapters';
 import {
   buildActiveSessionClearResult,
   buildDivisionConfirmationApplicationResult,
@@ -655,13 +656,16 @@ test('buildDivisionGenerationPlan prepares selected players and seeded balance r
   assert.deepEqual(result?.sessionPatch, { config: result?.updatedConfig });
   assert.deepEqual(result?.request, {
     type: 'balance',
-    snapshots: result.snapshots,
-    numTeams: 2,
-    config: result.updatedConfig,
+    request: fromLocalSnapshots({
+      snapshots: result.snapshots,
+      teamCount: 2,
+      config: result.updatedConfig,
+      algorithmVersion: BALANCE_ALGORITHM_VERSION,
+    }),
     partnershipMatrix: { 'player-1|player-3': 2 },
   });
   assert.deepEqual(
-    result?.request.snapshots.map((snapshot) => snapshot.participantId),
+    result?.request.request.participants.map((participant) => participant.participantId),
     ['player-1', 'player-3'],
   );
   assert.equal('players' in result!.request, false);
@@ -805,7 +809,7 @@ test('buildDivisionFallbackBalanceInput reuses the generation request for sync b
 
   const input = buildDivisionFallbackBalanceInput(plan);
 
-  assert.equal(input?.snapshots, plan?.request.snapshots);
+  assert.equal(input?.request, plan?.request.request);
   assert.deepEqual(input, plan?.request);
 });
 
@@ -858,7 +862,10 @@ test('buildDivisionWorkerMessageResult maps balancer messages to wizard actions'
       percent: 45,
     },
   );
-  const action = buildDivisionWorkerMessageResult({ type: 'done', candidates }, plan);
+  const action = buildDivisionWorkerMessageResult(
+    { type: 'done', candidates, fingerprint: 'test-fingerprint' },
+    plan,
+  );
   assert.equal(action.type, 'done');
   if (action.type === 'done') {
     assert.deepEqual(action.divisions[0].teams.flatMap((team) => team.playerIds).sort(), [

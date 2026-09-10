@@ -40,7 +40,8 @@ Settled before design, and load-bearing for everything below:
 ```text
 TeamFormationRequest
   contractVersion    'v1'
-  algorithmVersion   the string BalanceCandidate.algorithm already reports
+  algorithmVersion   provenance only — each adapter stamps BALANCE_ALGORITHM_VERSION itself;
+                     nothing compares it at runtime (see below)
   participants       ordered FormationParticipant[]
   teamCount          integer >= 1
   objective          { policyVersion 'v0-legacy-weights', mode, rotationType,
@@ -56,17 +57,22 @@ TeamFormationRequest
 names, plus `heightCm`, `gender`, `position`, `secondaryPositions`, `isInjured`, `isEstimated` and
 `participantId`.
 
-`algorithmVersion` is not decorative, but it does not compare against `BalanceCandidate.algorithm`
-as first assumed here: that field holds `'Simulated Annealing (Smart Balance Engine)'`, a display
-string meant for humans, not a machine-comparable version. Comparing the request's version against
-it would either always mismatch or require parsing a prose string, so it was unimplementable as
-written. The port instead compares `algorithmVersion` against the exported
-`BALANCE_ALGORITHM_VERSION` constant (`src/logic/balancing.ts`) and refuses the result when they
-disagree. That still catches a caller declaring the wrong version, but it does **not** catch an
-engine swap that changes the search without bumping the constant — the display string and the
-constant are two independent pieces of source, and nothing forces them to move together. Closing
-that gap needs `BalanceCandidate` to carry a machine-readable version beside its display string,
-which is out of scope here.
+`algorithmVersion` never compared against `BalanceCandidate.algorithm` as first assumed here: that
+field holds `'Simulated Annealing (Smart Balance Engine)'`, a display string meant for humans, not a
+machine-comparable version. Comparing the request's version against it would either always mismatch
+or require parsing a prose string, so it was unimplementable as written.
+
+This spec originally had the port compare `algorithmVersion` against the exported
+`BALANCE_ALGORITHM_VERSION` constant and refuse the result when they disagreed. **That guard was
+removed**, in the branch-wide review's fix wave (`6247b9d`), because it could never fail: both
+adapters (`src/application/teamFormationAdapters.ts`) populate `algorithmVersion` by stamping
+`BALANCE_ALGORITHM_VERSION` themselves, and the port is the only production caller of either adapter
+— so the runtime comparison was a constant checked against itself. There is no `ALGORITHM_VERSION_MISMATCH`
+refusal code any more. `algorithmVersion` remains a field on `TeamFormationRequest` and still enters
+the fingerprint as provenance, but nothing validates it at runtime today. A future caller that
+supplies its own `algorithmVersion` independently of the adapters — or a `BalanceCandidate` that
+carries a machine-readable version beside its display string — would need to reintroduce a real
+check; neither exists yet.
 
 **Participant order is part of the contract.** `InitialTeamBuilder` starts from the order it
 receives, so two logically identical requests in different orders produce different formations.
@@ -123,12 +129,30 @@ merely hard:
 
 - empty roster, `teamCount < 1`, fewer participants than teams;
 - the same pair present in both `pairsTogether` and `pairsSeparated`;
-- a `lockedPlayerIdxs` entry pointing outside `0..teamCount-1`;
-- any participant id in `hardConstraints` that is absent from `participants`.
+- a `pairsTogether` pair naming a participant id absent from `participants`;
+- a `lockedPlayerIdxs` entry for a participant id that **is** present, pointing outside
+  `0..teamCount-1`.
 
-These are contradiction detection, not constraint invention: each one is a statement the caller made
-that cannot be satisfied by any assignment, decidable without search. Deciding whether a *satisfiable
-but demanding* combination should be refused is product policy, still open, and out of scope.
+An id in `pairsSeparated` or `lockedPlayerIdxs` that is absent from `participants` is **not**
+refused; it passes through to the engine, which tolerates it (see below).
+
+**This list, and the claim that used to follow it, were wrong once already.** The first version of
+this precheck refused any `hardConstraints` id absent from `participants` — all three constraint
+kinds, not just `pairsTogether` — on the premise that each such refusal is "a statement the caller
+made that cannot be satisfied by any assignment, decidable without search." That premise was never
+checked against what the engine actually does, and it does not hold for two of the three kinds:
+`buildInitialSolution` guards placement with `if (athlete)`, the lock penalty and `isFeasible` skip a
+lock whose id resolves to `currentIdx === -1`, and a `pairsSeparated` pair with an absent member is
+vacuously satisfied — there is no one to place together, so the constraint cannot be violated. Only
+`pairsTogether` has no such escape: it names two people who must land on the same team, and if one
+of them isn't playing, no assignment satisfies it.
+
+The over-broad version was a real regression, not a theoretical one: the wizard reaches an orphaned
+`lockedPlayerIdxs` entry whenever someone locks a player, goes back a step, and deselects them, and
+the precheck refused that request outright — with no generation possible until the lock was cleared
+by hand. The branch-wide review caught it before integration; the fix (`471e81b`) narrowed the
+precheck to the four bullets above. Deciding whether a *satisfiable but demanding* combination should
+be refused is separate from this and remains product policy, still open, and out of scope.
 
 ## Placement and routing
 

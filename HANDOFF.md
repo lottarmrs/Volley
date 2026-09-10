@@ -567,10 +567,13 @@ e a decisão de escopo em
   `src/domain/teamFormation.ts`, sem nenhuma dependência de infraestrutura — por isso o Worker
   consegue importar essas funções sem carregar nada além delas;
 - o precheck recusa **só contradição mecânica** no próprio pedido: elenco vazio, `teamCount < 1`,
-  menos participantes que times, a mesma dupla marcada para jogar junta e separada, um índice fixo
-  fora do intervalo de times, ou uma restrição apontando para um participante que não está na lista.
-  Ele nunca recusa por dificuldade — decidir se uma combinação satisfatível mas exigente deveria ser
-  recusada é política de produto, ainda em aberto;
+  menos participantes que times, a mesma dupla marcada para jogar junta e separada, uma dupla de
+  `pairsTogether` apontando para um participante fora da lista, ou um índice fixo — de um
+  participante que **está** na lista — fora do intervalo de times. Um id órfão em `pairsSeparated`
+  ou em `lockedPlayerIdxs` passa direto para o motor, que já trata esse caso corretamente (ver a
+  review abaixo — a primeira versão recusava esses dois também, e isso era um bug). Ele nunca recusa
+  por dificuldade — decidir se uma combinação satisfatível mas exigente deveria ser recusada é
+  política de produto, ainda em aberto;
 - o motor ganhou um sexto parâmetro (`budget`) em `balanceSnapshots`, e `deriveFormationBudget`
   calcula `seeds`/`maxIterations` com a fórmula que já existia a partir de `balanceSpeed` e do
   tamanho do elenco — a única mudança é que o orçamento agora está explícito no pedido, em vez de
@@ -589,25 +592,15 @@ votação, nenhuma mudança de interface, nenhuma restrição obrigatória nova.
 - o motor **já era determinístico antes desta fatia** — `createSeededRandom` com semente de
   `config.balanceSeed`, orçamento por contagem de iterações, `Date.now()` só preenchendo o
   `runtimeMillis` relatado. Esta fatia deu um contrato ao motor; não o tornou determinístico;
-- a guarda de versão de algoritmo do plano original **é mais fraca do que o plano afirmava**: o
-  texto dizia que a porta compararia a versão do pedido contra a string `algorithm` que o motor
-  relata, mas esse campo guarda `'Simulated Annealing (Smart Balance Engine)'`, uma string de
-  exibição — a comparação como descrita era inimplementável. A porta compara, em vez disso, contra a
-  constante exportada `BALANCE_ALGORITHM_VERSION`. Isso pega um chamador que declara a versão
-  errada, mas **não** pega uma troca de motor que esqueça de atualizar a constante — fechar essa
-  lacuna exige que `BalanceCandidate` carregue uma versão legível por máquina ao lado da string de
-  exibição, o que fica para outra fatia. O texto do plano foi corrigido para descrever o que foi
-  construído, não a comparação original;
+- o plano original previa uma guarda de versão de algoritmo comparando `algorithmVersion` contra a string `algorithm` que o motor relata — esse campo guarda `'Simulated Annealing (Smart Balance Engine)'`, uma string de exibição, então a comparação como descrita era inimplementável. A primeira versão implementada comparou, em vez disso, contra a constante exportada `BALANCE_ALGORITHM_VERSION` e recusava quando divergiam. **Essa guarda não existe mais** — foi removida na review independente descrita abaixo, por comparar a constante contra ela mesma e não conseguir falhar sem um chamador escrito à mão. Não confundir com a W6-01: lá a guarda nunca existiu no plano; aqui ela existiu, foi implementada e depois removida;
 - o gate de paridade prova o **caminho de código** do Worker — contrato, serialização, roteamento —
   invocando o handler do próprio módulo do Worker com um `self` simulado. jsdom não tem `Worker`
-  real, então isso não prova paridade com um Worker de navegador de verdade;
-- uma recusa do precheck no caminho síncrono de fallback hoje vira um no-op silencioso no
-  assistente de sessão: sem mensagem, sem reset de status. Uma recusa lançada como exceção ainda
-  aparece para o usuário. É um caso estreito, mas real —
-  `buildDivisionFallbackBalanceResult` devolve `null` nesse caso, e `runFallback` só chama
-  `finish()` quando o resultado não é nulo.
+  real, então isso não prova paridade com um Worker de navegador de verdade.
 
 ### Evidência de verificação da W6-02
+
+Números da primeira implementação, antes da review de branch inteira e da onda de correção
+descritas logo abaixo. Os números finais, depois da correção, estão no fim daquela seção.
 
 - `npm run typecheck`: passou, sem saída;
 - `npm test`: **952 unitários + 282 UI**, zero falhas, em 48 arquivos de UI;
@@ -632,6 +625,50 @@ votação, nenhuma mudança de interface, nenhuma restrição obrigatória nova.
     `teamFormationPort.test.ts`: matou exatamente um teste, `o driver direto e o codigo do worker
 concordam na impressao digital` (`'' !== '01c903bf'`);
 - sem commit remoto, merge em `main`, aplicação de migration ou deploy — esta fatia não toca SQL.
+
+### Review independente da W6-02 e onda de correção — 2026-09-10
+
+Uma review independente percorreu a branch `exec/c6-w6-02-team-formation-port` inteira antes da
+integração e encontrou uma regressão real de comportamento, além de limpezas. Corrigido nos commits
+`471e81b`, `396fc47`, `6247b9d`, `636bdec`, `984572e` e `6d23152` — nenhum deles tocou documentação,
+por isso o texto acima e o spec da fatia precisaram de correção separada.
+
+- **Regressão real: o precheck recusava um pedido que o motor já satisfazia.** A primeira versão
+  recusava qualquer id de `hardConstraints` ausente de `participants` — as três variantes da
+  restrição, não só `pairsTogether`. O motor tolera deliberadamente um id órfão nas outras duas:
+  `buildInitialSolution` protege a colocação com `if (athlete)`, a penalidade de trava e
+  `isFeasible` pulam uma trava cujo id não resolve (`currentIdx === -1`), e uma dupla
+  `pairsSeparated` com um membro ausente está vacuamente satisfeita — não há ninguém para colocar
+  junto, então a restrição não pode ser violada. Só `pairsTogether` não tem essa saída: nomeia duas
+  pessoas que precisam ficar no mesmo time, e se uma delas não está jogando, nenhuma atribuição
+  satisfaz. O assistente de sessão alcança esse estado exatamente quando alguém trava um atleta,
+  volta um passo no assistente e o desmarca — a trava fica órfã, e a primeira versão do precheck
+  recusava a geração de times até a trava ser removida manualmente, mesmo que o motor conseguisse
+  formar times perfeitamente bem ignorando-a. A review pegou isso antes da integração. Corrigido em
+  `471e81b`, restringindo a recusa por restrição órfã ao caso `pairsTogether`;
+- **A guarda de versão de algoritmo foi removida, não afrouxada.** Ela comparava
+  `algorithmVersion` contra a constante `BALANCE_ALGORITHM_VERSION` — mas as duas adaptações já
+  escrevem essa mesma constante no pedido antes de ele existir, e a porta é a única chamadora de
+  produção de ambas, então a comparação verificava a constante contra ela mesma: não havia como
+  fazê-la falhar sem escrever um chamador só para provar isso. Removida em `6247b9d`; não existe
+  mais o código de recusa `ALGORITHM_VERSION_MISMATCH`. `algorithmVersion` continua sendo um campo do
+  pedido e continua entrando na impressão digital como proveniência, mas nada o valida em tempo de
+  execução hoje;
+- **Uma recusa do precheck agora chega ao usuário no caminho síncrono.** Antes, uma recusa nesse
+  caminho devolvia `null` e deixava o assistente "gerando" para sempre, sem nenhuma mensagem.
+  Corrigido em `396fc47`: o caminho síncrono reseta o estado de geração e mostra a mesma mensagem
+  pt-BR que o caminho do Worker já mostrava; o Worker por sua vez passou a repassar o código da
+  própria recusa em vez de agrupar toda recusa em `INFEASIBLE_CONSTRAINTS`;
+- duas limpezas adicionais, sem mudança de comportamento visível: a adaptação do snapshot autorizado
+  agora lança um erro explícito em vez de produzir `NaN` quando falta uma dimensão de rubrica, e
+  rejeita um `gender` que não seja `'M'`, `'F'` ou nulo em vez de aceitá-lo sem checar (`984572e`); e
+  `canonicalizeRequest` passou a ordenar as chaves do objeto recursivamente, então o mesmo pedido com
+  `lockedPlayerIdxs` montado em ordem diferente — o que acontece na prática, porque essa estrutura é
+  montada por spreads sucessivos na ordem de clique do usuário — gera a mesma impressão digital
+  (`6d23152`).
+
+**Números finais dos gates, depois da onda de correção:** `npm run typecheck` limpo, sem saída;
+`npm test`: **957 unitários + 283 UI**, zero falhas, em 48 arquivos de UI; `npm run build` limpo.
 
 ### Backlog da review independente de branch — 2026-09-08
 

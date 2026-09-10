@@ -32,8 +32,23 @@ function fnv1a(text: string): string {
   return hash.toString(16).padStart(8, '0');
 }
 
+// lockedPlayerIdxs is assembled by repeated spreads elsewhere in the app, so its key
+// order reflects click order, not content. Sorting keys deeply keeps the fingerprint
+// of an identical request stable regardless of that incidental insertion order.
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, sortKeysDeep(entry)]),
+    );
+  }
+  return value;
+}
+
 export function canonicalizeRequest(request: TeamFormationRequest): unknown {
-  return {
+  return sortKeysDeep({
     contractVersion: request.contractVersion,
     algorithmVersion: request.algorithmVersion,
     teamCount: request.teamCount,
@@ -43,7 +58,7 @@ export function canonicalizeRequest(request: TeamFormationRequest): unknown {
     hardConstraints: request.hardConstraints,
     provenance: request.provenance,
     participants: request.participants.map((participant) => ({ ...participant })),
-  };
+  });
 }
 
 export function canonicalizeCandidates(candidates: readonly BalanceCandidate[]): unknown {

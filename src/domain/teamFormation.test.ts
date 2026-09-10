@@ -87,6 +87,19 @@ test('a ordem dos participantes muda a impressao digital', () => {
   );
 });
 
+test('travar os mesmos jogadores em ordem diferente produz a mesma impressao digital', () => {
+  const insertedAB = request({
+    hardConstraints: { lockedPlayerIdxs: { a: 0, b: 1 } },
+  });
+  const insertedBA = request({
+    hardConstraints: { lockedPlayerIdxs: { b: 1, a: 0 } },
+  });
+  assert.equal(
+    fingerprintFormation(insertedAB, [candidate()], null),
+    fingerprintFormation(insertedBA, [candidate()], null),
+  );
+});
+
 test('a proveniencia entra na impressao digital', () => {
   const local = fingerprintFormation(request(), [candidate()], null);
   const authorized = fingerprintFormation(

@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import type { BalanceConstraints, BalanceWeights } from './session';
 import type { Gender, RotationType } from './player';
 
@@ -40,6 +35,9 @@ export interface FormationObjective {
   readonly mode: string;
   readonly rotationType: RotationType;
   readonly repetitionWeight: number;
+  // Derived provenance recorded in the fingerprint, not an input the engine honors: the
+  // engine recomputes weights itself from mode + repetitionWeight, so a caller-supplied
+  // value here is captured for the record but never fed into the solver.
   readonly weights: BalanceWeights;
 }
 

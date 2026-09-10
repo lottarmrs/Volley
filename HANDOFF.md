@@ -41,18 +41,25 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
 ### Branches — cadeia integrada em `main`
 
-**Toda a cadeia C6 até `XS-W6-01` está em `main`.** As fatias até `XS-W4-06`, mais a correção de
+**Toda a cadeia C6 até `XS-W6-02` está em `main`.** As fatias até `XS-W4-06`, mais a correção de
 cascade de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` em 2026-09-05. Em
 2026-09-08, depois da review independente de branch inteira, entraram de uma vez a `XS-W5-02`, a
 `XS-W5-03` com seu complemento de editor/source authority, a `XS-W5-04`, a remediação da auditoria
-de segurança e a `XS-W6-01`. O merge foi fast-forward — `main` não tinha andado — e a branch
-`exec/c6-w5-02-skill-rubric-contract` foi apagada por já estar contida em `main`.
+de segurança e a `XS-W6-01`. Em 2026-09-10 entrou a `XS-W6-02`, também depois de review de branch
+inteira e da onda de correção que ela gerou. Os dois merges foram fast-forward — `main` não tinha
+andado — e as branches `exec/c6-w5-02-skill-rubric-contract` e `exec/c6-w6-02-team-formation-port`
+foram apagadas por já estarem contidas em `main`.
 
 ```text
-main   ← contém W3-01..W6-01, a correção de cascade e a remediação de segurança
+main   ← contém W3-01..W6-02, a correção de cascade e a remediação de segurança
 ```
 
 Não existe trabalho C6 pendente de integração.
+
+**Integrado não é implantado.** Nada foi enviado para remoto, nenhuma migration foi aplicada em
+Supabase remoto e nenhuma imagem foi implantada. Continua valendo o que a seção de segurança
+registra: o CSP do `nginx.conf` só passa a valer no próximo deploy, as policies de `storage`
+dependem de aplicar a migration no projeto remoto, e o achado **A9 continua aberto**.
 
 **Integrado não é implantado.** Nada foi enviado para remoto, nenhuma migration foi aplicada em
 Supabase remoto e nenhuma imagem foi implantada. O CSP do `nginx.conf` só passa a valer no próximo
@@ -549,7 +556,7 @@ configuração atuais por conta própria. Não há nenhuma mudança de interface
 
 ### O que a W6-02 entregou — porta de formação de times
 
-Implementada na branch `exec/c6-w6-02-team-formation-port`, ainda **não integrada em `main`**.
+Integrada em `main` em 2026-09-10 por fast-forward, depois da review de branch inteira.
 Dá ao motor de balanceamento já existente um contrato versionado, sem tocar no que qualquer
 usuário vê. Ver o plano em
 [`2026-09-09-xs-w6-02-team-formation-port-design.md`](docs/superpowers/specs/2026-09-09-xs-w6-02-team-formation-port-design.md)

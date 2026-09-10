@@ -324,7 +324,6 @@ export interface Session {
   controlDeviceId?: string | null;
   /** Nome de exibição de quem controla, resolvido no download para a tela poder nomear. */
   controlHolderName?: string | null;
-  authorityModel?: 'legacy' | 'target';
 }
 
 export type GameStatus = 'scheduled' | 'active' | 'paused' | 'finished' | 'cancelled' | 'walkover';

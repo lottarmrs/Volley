@@ -22,6 +22,7 @@ import { communityPlayerCloudService } from './communityPlayerCloudService';
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { championshipCloudService } from './championshipCloudService';
+import { sessionCohortCloudService } from './sessionCohortCloudService';
 import { aggregatePlayerEvaluations } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
@@ -1868,4 +1869,93 @@ test('aggregatePlayerEvaluations output is unaffected by communityId on input ev
   );
 
   assert.deepEqual(withCommunityId, withoutCommunityId);
+});
+
+test('o download mescla a Session convertida lida por id', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const receivedSessionCloudIds: string[] = [];
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    syncService.uploadLocalDataToCloud = async (payload) => payload;
+    sessionCohortCloudService.readTargetSession = async (sessionCloudId: string) => {
+      receivedSessionCloudIds.push(sessionCloudId);
+      return {
+        id: sessionCloudId,
+        communityId: 'community-cloud-1',
+        name: 'Nome atualizado no servidor',
+        sessionContext: 'COMMUNITY',
+        playMode: 'STRUCTURED_MATCHES',
+        lifecycleStatus: 'DRAFT',
+        publicationState: 'UNPUBLISHED',
+        revision: 3,
+        currentRosterRevisionId: 'roster-revision-1',
+      };
+    };
+
+    const result = await syncService.syncNow(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            id: 'target-session',
+            name: 'Nome local antigo',
+            cloudId: 'target-session-cloud',
+            authorityModel: 'target',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(receivedSessionCloudIds, ['target-session-cloud']);
+    const session = result.sessions.find((item) => item.id === 'target-session');
+    assert.equal(session?.name, 'Nome atualizado no servidor');
+    assert.equal(session?.communityId, 'community-cloud-1');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+  }
+});
+
+test('o download mantem a Session convertida local quando a leitura por id falha', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const issues: { context: string; error: unknown }[] = [];
+  const readError = new Error('Falha de rede');
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    syncService.uploadLocalDataToCloud = async (payload) => payload;
+    sessionCohortCloudService.readTargetSession = async () => {
+      throw readError;
+    };
+
+    const localSession = makeSession({
+      id: 'target-session',
+      name: 'Nome local intacto',
+      cloudId: 'target-session-cloud',
+      authorityModel: 'target',
+    });
+
+    const result = await syncService.syncNow(emptyPayload({ sessions: [localSession] }), 'owner-1', {
+      onIssue: (context, error) => issues.push({ context, error }),
+    });
+
+    const session = result.sessions.find((item) => item.id === 'target-session');
+    assert.equal(session?.name, localSession.name);
+    assert.equal(session?.cloudId, localSession.cloudId);
+    assert.equal(session?.authorityModel, localSession.authorityModel);
+    assert.equal(session?.deletedAt, undefined);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão convertida/i);
+    assert.equal(issues[0].error, readError);
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+  }
 });

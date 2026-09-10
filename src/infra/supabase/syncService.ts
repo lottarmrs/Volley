@@ -10,6 +10,7 @@ import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import { isTargetCohortSession } from '../../application/sessionCohortCutover';
+import { sessionCohortCloudService } from './sessionCohortCloudService';
 import {
   CloudSyncStatus,
   Community,
@@ -972,6 +973,27 @@ async function bulkUploadSessionChildren<T extends Syncable>(
   return visible(updated);
 }
 
+async function mergeTargetCohortSessionReads(
+  sessions: Session[],
+  onIssue: SyncOptions['onIssue'],
+): Promise<Session[]> {
+  const merged: Session[] = [];
+  for (const session of sessions) {
+    if (!isTargetCohortSession(session) || !session.cloudId) {
+      merged.push(session);
+      continue;
+    }
+    try {
+      const read = await sessionCohortCloudService.readTargetSession(session.cloudId);
+      merged.push({ ...session, name: read.name, communityId: read.communityId });
+    } catch (error) {
+      reportIssue(onIssue, `sessão convertida "${session.name}"`, error);
+      merged.push(session);
+    }
+  }
+  return merged;
+}
+
 export const syncService = {
   async uploadLocalDataToCloud(
     local: LocalSyncPayload,
@@ -1658,6 +1680,10 @@ export const syncService = {
   ): Promise<LocalSyncPayload> {
     const repairedLocal = consolidateDuplicateRecords(local, { ownerId }).payload;
     const cloud = await this.downloadCloudDataToLocal(ownerId);
+    const sessionsAfterTargetCohortMerge = await mergeTargetCohortSessionReads(
+      repairedLocal.sessions,
+      options.onIssue,
+    );
     const playersForMerge = repairedLocal.players.map((player) =>
       repairLegacyPlayerUnlinkIntent(player, findCorrespondingCloudPlayer(player, cloud.players)),
     );
@@ -1678,7 +1704,7 @@ export const syncService = {
       templates: mergeEntityLists(repairedLocal.templates, cloud.templates, {
         getId: (item) => item.id,
       }),
-      sessions: mergeEntityLists(repairedLocal.sessions, cloud.sessions, {
+      sessions: mergeEntityLists(sessionsAfterTargetCohortMerge, cloud.sessions, {
         getId: (item) => item.id,
       }),
       teams: mergeEntityLists(repairedLocal.teams, cloud.teams, { getId: (item) => item.id }),

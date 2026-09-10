@@ -1690,6 +1690,41 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
   }
 });
 
+test('uploadLocalDataToCloud nao sobe a raiz de uma Session convertida', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const receivedSessionIds: string[] = [];
+
+  try {
+    operationalCloudService.upsertSession = async (item) => {
+      receivedSessionIds.push(item.id);
+      return { ...item, cloudId: item.cloudId || 'session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({ id: 'legacy-session', cloudId: 'legacy-session-cloud' }),
+          makeSession({
+            id: 'target-session',
+            cloudId: 'target-session-cloud',
+            syncStatus: 'pending',
+            authorityModel: 'target',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(receivedSessionIds, ['legacy-session']);
+
+    const targetSession = result.sessions.find((session) => session.id === 'target-session');
+    assert.equal(targetSession?.cloudId, 'target-session-cloud');
+    assert.equal(targetSession?.syncStatus, 'pending');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
 test('uploadLocalDataToCloud avisa quando a comunidade migrou e a avaliacao pendente nao subiu', async () => {
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;

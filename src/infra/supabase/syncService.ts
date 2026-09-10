@@ -9,6 +9,7 @@ import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
+import { isTargetCohortSession } from '../../application/sessionCohortCutover';
 import {
   CloudSyncStatus,
   Community,
@@ -1200,6 +1201,11 @@ export const syncService = {
             await operationalCloudService.softDelete('sessions', session.cloudId);
           }
           updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
+          continue;
+        }
+
+        if (isTargetCohortSession(session)) {
+          updatedSessions.push(session);
           continue;
         }
 

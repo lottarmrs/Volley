@@ -10,6 +10,17 @@ export type {
   BalanceInputSnapshotParticipant,
 } from './shared/types/balanceInputSnapshot';
 export type {
+  FormationBudget,
+  FormationObjective,
+  FormationParticipant,
+  FormationProvenance,
+  TeamFormationRequest,
+} from './shared/types/teamFormation';
+export {
+  TEAM_FORMATION_CONTRACT_VERSION,
+  TEAM_FORMATION_OBJECTIVE_POLICY,
+} from './shared/types/teamFormation';
+export type {
   CommunitySkillProfile,
   CommunitySkillProfileRequest,
 } from './shared/types/communitySkillProfile';

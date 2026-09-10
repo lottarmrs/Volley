@@ -101,6 +101,7 @@ supabase/migrations/20260907010305_community_evaluation_editor.sql
 supabase/migrations/20260908031027_global_skill_profile.sql
 supabase/migrations/20260908160000_security_audit_remediation.sql
 supabase/migrations/20260908170000_balance_input_snapshots.sql
+supabase/migrations/20260909090000_target_session_current_roster_revision.sql
 ```
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
@@ -162,6 +163,13 @@ dimensão estimada é listada. Comunidade que ainda não ativou o modelo novo in
 vez de ser descartada em silêncio. O snapshot não muda quando as origens mudam depois, não tem
 concessão para papel de navegador e não altera o sorteio atual: consumir essas entradas é fatia
 posterior.
+
+`20260909090000_target_session_current_roster_revision.sql` acrescenta `current_roster_revision_id`
+ao retorno de `read_target_session`: a revisao de elenco mais recente da Session, ou `null` quando
+nenhuma revisao existe ainda. E a mesma revisao que `capture_balance_input_snapshot` aceita -- sem
+essa coluna o navegador nao tinha como descobrir o identificador que o comando exige, e a captura
+ficava impossivel de chamar a partir do app. Nao altera autorizacao, o filtro de Session target nem
+o "nao encontrado"; so acrescenta a coluna.
 
 `20260908160000_security_audit_remediation.sql` atende os dez achados da auditoria de 2026-09-08
 (`docs/security-audit/relatorio-auditoria-seguranca.pdf`). Revoga das três RPCs de carreira o

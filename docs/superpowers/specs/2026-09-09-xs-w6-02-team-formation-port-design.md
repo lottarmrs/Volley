@@ -106,9 +106,22 @@ port to become async for no benefit.
 
 ## Feasibility precheck
 
-Refusals the engine already expresses as `InfeasibleConstraintsError` move ahead of the search, and
-join cheap arithmetic ones: empty roster, `teamCount < 1`, fewer participants than teams. No new
-hard constraint is introduced. A refusal is typed and returned before any expensive work.
+The engine's `InfeasibleConstraintsError` is a **post-condition**, not a precondition: it is raised
+at `src/logic/balancing.ts:1116` only after the full iteration budget has been spent and no solution
+was found. So the precheck does not "move" it — it adds a cheap layer in front of it, and the
+post-search refusal stays exactly as it is.
+
+The precheck refuses only what is mechanically contradictory in the request itself, never what is
+merely hard:
+
+- empty roster, `teamCount < 1`, fewer participants than teams;
+- the same pair present in both `pairsTogether` and `pairsSeparated`;
+- a `lockedPlayerIdxs` entry pointing outside `0..teamCount-1`;
+- any participant id in `hardConstraints` that is absent from `participants`.
+
+These are contradiction detection, not constraint invention: each one is a statement the caller made
+that cannot be satisfied by any assignment, decidable without search. Deciding whether a *satisfiable
+but demanding* combination should be refused is product policy, still open, and out of scope.
 
 ## Placement and routing
 

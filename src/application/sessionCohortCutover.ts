@@ -64,3 +64,7 @@ export async function executeSessionCohortTransition<TValue = void>(
     withAttempt(command, clientRelease),
   );
 }
+
+export function isTargetCohortSession(session: { authorityModel?: string }): boolean {
+  return session.authorityModel === 'target';
+}

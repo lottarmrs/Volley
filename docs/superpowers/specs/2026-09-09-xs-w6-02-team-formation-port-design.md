@@ -56,10 +56,17 @@ TeamFormationRequest
 names, plus `heightCm`, `gender`, `position`, `secondaryPositions`, `isInjured`, `isEstimated` and
 `participantId`.
 
-`algorithmVersion` is not decorative: the port compares it against the `algorithm` string the engine
-reports on every candidate and refuses the result when they disagree. A fingerprint that names a
-version the engine did not actually run would be worse than no version at all, and this is the cheap
-guard against an engine swap that forgets to bump the contract.
+`algorithmVersion` is not decorative, but it does not compare against `BalanceCandidate.algorithm`
+as first assumed here: that field holds `'Simulated Annealing (Smart Balance Engine)'`, a display
+string meant for humans, not a machine-comparable version. Comparing the request's version against
+it would either always mismatch or require parsing a prose string, so it was unimplementable as
+written. The port instead compares `algorithmVersion` against the exported
+`BALANCE_ALGORITHM_VERSION` constant (`src/logic/balancing.ts`) and refuses the result when they
+disagree. That still catches a caller declaring the wrong version, but it does **not** catch an
+engine swap that changes the search without bumping the constant — the display string and the
+constant are two independent pieces of source, and nothing forces them to move together. Closing
+that gap needs `BalanceCandidate` to carry a machine-readable version beside its display string,
+which is out of scope here.
 
 **Participant order is part of the contract.** `InitialTeamBuilder` starts from the order it
 receives, so two logically identical requests in different orders produce different formations.

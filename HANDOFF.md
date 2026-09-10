@@ -17,26 +17,27 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                           | Estado    |
-| -------- | ------------------------------------------------- | --------- |
-| XS-W3-01 | Session target root                               | concluída |
-| XS-W3-02 | Session organizer assignment                      | concluída |
-| XS-W3-03 | Session courts                                    | concluída |
-| XS-W3-04 | Session rules snapshot                            | concluída |
-| XS-W3-05 | SessionParticipant + RosterRevision               | concluída |
-| XS-W3-06 | Lifecycle/readiness semantic commands             | concluída |
-| XS-W3-07 | Session cohort cutover                            | concluída |
-| XS-W4-01 | Registration schema e invariantes                 | concluída |
-| XS-W4-02 | Open/Close/Lock Registration                      | concluída |
-| XS-W4-03 | JoinRegistration                                  | concluída |
-| XS-W4-04 | Leave / promoção / capacidade                     | concluída |
-| XS-W4-05 | FinalizeSessionRoster                             | concluída |
-| XS-W4-06 | Legacy Session Registration introduction          | concluída |
-| XS-W5-01 | Versioned PlayerEvaluation source model           | concluída |
-| XS-W5-02 | Skill rubric/dimension contract                   | concluída |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação | concluída |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda      | concluída |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador     | concluída |
+| Fatia    | Assunto                                            | Estado    |
+| -------- | -------------------------------------------------- | --------- |
+| XS-W3-01 | Session target root                                | concluída |
+| XS-W3-02 | Session organizer assignment                       | concluída |
+| XS-W3-03 | Session courts                                     | concluída |
+| XS-W3-04 | Session rules snapshot                             | concluída |
+| XS-W3-05 | SessionParticipant + RosterRevision                | concluída |
+| XS-W3-06 | Lifecycle/readiness semantic commands              | concluída |
+| XS-W3-07 | Session cohort cutover                             | concluída |
+| XS-W4-01 | Registration schema e invariantes                  | concluída |
+| XS-W4-02 | Open/Close/Lock Registration                       | concluída |
+| XS-W4-03 | JoinRegistration                                   | concluída |
+| XS-W4-04 | Leave / promoção / capacidade                      | concluída |
+| XS-W4-05 | FinalizeSessionRoster                              | concluída |
+| XS-W4-06 | Legacy Session Registration introduction           | concluída |
+| XS-W5-01 | Versioned PlayerEvaluation source model            | concluída |
+| XS-W5-02 | Skill rubric/dimension contract                    | concluída |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação  | concluída |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda       | concluída |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador      | concluída |
+| XS-W6-02 | Porta de formação de times / solver determinístico | concluída |
 
 ### Branches — cadeia integrada em `main`
 
@@ -545,6 +546,92 @@ configuração atuais por conta própria. Não há nenhuma mudança de interface
   ainda esbarra na guarda do Player canônico (dívida anterior, fixada em
   `authCascadeSafety.dbtest.ts`). Quando ela cair, é este `set null` que a FK vai disparar;
 - sem commit remoto, merge, aplicação de migration em Supabase remoto ou deploy.
+
+### O que a W6-02 entregou — porta de formação de times
+
+Implementada na branch `exec/c6-w6-02-team-formation-port`, ainda **não integrada em `main`**.
+Dá ao motor de balanceamento já existente um contrato versionado, sem tocar no que qualquer
+usuário vê. Ver o plano em
+[`2026-09-09-xs-w6-02-team-formation-port-design.md`](docs/superpowers/specs/2026-09-09-xs-w6-02-team-formation-port-design.md)
+e a decisão de escopo em
+[`C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md`](docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md#xs-w6-02--teamformationrequest--deterministic-solver-port).
+
+- `TeamFormationRequest` (`src/shared/types/teamFormation.ts`) é o contrato normalizado que a porta
+  aceita: versão de contrato, versão de algoritmo, participantes ordenados, número de times,
+  restrições obrigatórias, política de objetivo, orçamento explícito de busca, semente e
+  proveniência (`LOCAL` ou `AUTHORIZED_SNAPSHOT`);
+- duas adaptações (`src/application/teamFormationAdapters.ts`) traduzem para esse contrato: uma a
+  partir do snapshot local de hoje, outra a partir do snapshot autorizado da W6-01 — que usa chaves
+  de rubrica em português e precisa virar os campos em inglês que o solver já espera;
+- canonicalização pura, impressão digital FNV-1a e precheck de viabilidade vivem em
+  `src/domain/teamFormation.ts`, sem nenhuma dependência de infraestrutura — por isso o Worker
+  consegue importar essas funções sem carregar nada além delas;
+- o precheck recusa **só contradição mecânica** no próprio pedido: elenco vazio, `teamCount < 1`,
+  menos participantes que times, a mesma dupla marcada para jogar junta e separada, um índice fixo
+  fora do intervalo de times, ou uma restrição apontando para um participante que não está na lista.
+  Ele nunca recusa por dificuldade — decidir se uma combinação satisfatível mas exigente deveria ser
+  recusada é política de produto, ainda em aberto;
+- o motor ganhou um sexto parâmetro (`budget`) em `balanceSnapshots`, e `deriveFormationBudget`
+  calcula `seeds`/`maxIterations` com a fórmula que já existia a partir de `balanceSpeed` e do
+  tamanho do elenco — a única mudança é que o orçamento agora está explícito no pedido, em vez de
+  escondido dentro do motor;
+- os dois pontos de chamada existentes — o Worker de `useSessionWizard` e o caminho direto de
+  `sessionLifecycleUseCases` — passam a rotear pela porta (`src/application/teamFormationPort.ts`),
+  produzindo as mesmas opções de antes. `src/logic/balancer.worker.ts` foi reescrito para chamar a
+  porta em vez de `balanceSnapshots` direto.
+
+**Fronteiras que esta fatia não cruza:** nenhuma troca de origem (o assistente de sessão ainda não
+consome o snapshot autorizado — isso é o gate da W5-05), nenhuma publicação de candidatos, nenhuma
+votação, nenhuma mudança de interface, nenhuma restrição obrigatória nova.
+
+**Fatos que só apareceram na execução, não estavam no plano:**
+
+- o motor **já era determinístico antes desta fatia** — `createSeededRandom` com semente de
+  `config.balanceSeed`, orçamento por contagem de iterações, `Date.now()` só preenchendo o
+  `runtimeMillis` relatado. Esta fatia deu um contrato ao motor; não o tornou determinístico;
+- a guarda de versão de algoritmo do plano original **é mais fraca do que o plano afirmava**: o
+  texto dizia que a porta compararia a versão do pedido contra a string `algorithm` que o motor
+  relata, mas esse campo guarda `'Simulated Annealing (Smart Balance Engine)'`, uma string de
+  exibição — a comparação como descrita era inimplementável. A porta compara, em vez disso, contra a
+  constante exportada `BALANCE_ALGORITHM_VERSION`. Isso pega um chamador que declara a versão
+  errada, mas **não** pega uma troca de motor que esqueça de atualizar a constante — fechar essa
+  lacuna exige que `BalanceCandidate` carregue uma versão legível por máquina ao lado da string de
+  exibição, o que fica para outra fatia. O texto do plano foi corrigido para descrever o que foi
+  construído, não a comparação original;
+- o gate de paridade prova o **caminho de código** do Worker — contrato, serialização, roteamento —
+  invocando o handler do próprio módulo do Worker com um `self` simulado. jsdom não tem `Worker`
+  real, então isso não prova paridade com um Worker de navegador de verdade;
+- uma recusa do precheck no caminho síncrono de fallback hoje vira um no-op silencioso no
+  assistente de sessão: sem mensagem, sem reset de status. Uma recusa lançada como exceção ainda
+  aparece para o usuário. É um caso estreito, mas real —
+  `buildDivisionFallbackBalanceResult` devolve `null` nesse caso, e `runFallback` só chama
+  `finish()` quando o resultado não é nulo.
+
+### Evidência de verificação da W6-02
+
+- `npm run typecheck`: passou, sem saída;
+- `npm test`: **952 unitários + 282 UI**, zero falhas, em 48 arquivos de UI;
+- `npm run build`: passou, `vite build` concluído sem erro;
+- `npx eslint` nos 16 arquivos criados/modificados pela fatia: **0 erros, 2 avisos** (`any` em dois
+  pontos de `src/logic/balancing.test.ts`, do mesmo tipo que já compõe a linha de base de ~347
+  avisos do repositório);
+- `npx prettier --check` nos mesmos 16 arquivos: todos conformes;
+- `git diff --check`: limpo;
+- prova por mutação das três guardas novas, cada uma restaurada e confirmada com `git diff` limpo
+  depois:
+  - remover a exclusão de `runtimeMillis` em `canonicalizeCandidates` e rodar
+    `src/domain/teamFormation.test.ts`: **matou dois testes**, não um —
+    `a impressao digital ignora runtimeMillis` e `a projecao canonica nao carrega runtimeMillis`.
+    Achado a registrar: a exclusão de `runtimeMillis` está coberta por duas asserções
+    independentes, não por uma guarda única;
+  - fazer `solveTeamFormationDirect` ignorar a recusa do precheck e rodar
+    `src/application/teamFormationPort.test.ts`: matou exatamente um teste,
+    `o precheck recusa antes de qualquer busca`, que passou a lançar
+    `InfeasibleConstraintsError` em vez de devolver uma recusa limpa;
+  - fazer o Worker chamar `balanceSnapshots` direto de novo e rodar o teste de paridade em
+    `teamFormationPort.test.ts`: matou exatamente um teste, `o driver direto e o codigo do worker
+concordam na impressao digital` (`'' !== '01c903bf'`);
+- sem commit remoto, merge em `main`, aplicação de migration ou deploy — esta fatia não toca SQL.
 
 ### Backlog da review independente de branch — 2026-09-08
 

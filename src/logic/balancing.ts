@@ -1200,7 +1200,7 @@ export function selectPortfolio(
   return chosen;
 }
 
-function resolveBalanceWeights(
+export function resolveBalanceWeights(
   config: TournamentConfig | FreePlayConfig | undefined,
 ): BalanceWeights {
   const balanceMode = config?.balanceMode || 'balanced';
@@ -1209,12 +1209,6 @@ function resolveBalanceWeights(
   weights.repetition =
     config && typeof config.repetitionWeight === 'number' ? config.repetitionWeight : 0.8;
   return weights;
-}
-
-export function resolveBalanceWeightsForRequest(
-  config: TournamentConfig | FreePlayConfig | undefined,
-): BalanceWeights {
-  return resolveBalanceWeights(config);
 }
 
 export function evaluateTeamSolution(

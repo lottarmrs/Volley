@@ -30,8 +30,9 @@ const request = fromLocalSnapshots({
   snapshots: snapshots(8),
   teamCount: 2,
   config: { balanceSpeed: 'fast', balanceSeed: 11 } as never,
-  algorithmVersion: 'simulated-annealing-v1',
 });
+
+const partnershipMatrix = { 'p0|p1': 2, 'p2|p3': 1 };
 
 test('a mesma entrada produz a mesma impressao digital duas vezes', () => {
   const first = solveTeamFormationDirect(request);
@@ -42,7 +43,7 @@ test('a mesma entrada produz a mesma impressao digital duas vezes', () => {
 });
 
 test('o driver direto e o codigo do worker concordam na impressao digital', async () => {
-  const direct = solveTeamFormationDirect(request);
+  const direct = solveTeamFormationDirect(request, partnershipMatrix);
 
   const posted: unknown[] = [];
   const fakeSelf = {
@@ -54,7 +55,7 @@ test('o driver direto e o codigo do worker concordam na impressao digital', asyn
   globalWithSelf.self = fakeSelf;
   try {
     await import('../logic/balancer.worker');
-    fakeSelf.onmessage?.({ data: { type: 'balance', request } });
+    fakeSelf.onmessage?.({ data: { type: 'balance', request, partnershipMatrix } });
   } finally {
     globalWithSelf.self = previous;
   }
@@ -73,7 +74,6 @@ test('o precheck recusa antes de qualquer busca', () => {
     snapshots: [],
     teamCount: 2,
     config: { balanceSpeed: 'fast' } as never,
-    algorithmVersion: 'simulated-annealing-v1',
   });
   const outcome = solveTeamFormationDirect(empty);
   assert.equal(outcome.ok, false);

@@ -1,49 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { BalanceInputSnapshot } from '@shared/types';
-import { fromAuthorizedSnapshot, fromLocalSnapshots } from './teamFormationAdapters';
+import type { BalanceInputSnapshot, BalanceInputSnapshotParticipant } from '@shared/types';
+import {
+  fromAuthorizedSnapshot,
+  fromLocalSnapshots,
+  InvalidAuthorizedSnapshotError,
+} from './teamFormationAdapters';
 
-const localSnapshot = {
-  participantId: 'p1',
-  attack: 7,
-  defense: 6,
-  serve: 5,
-  reception: 4,
-  setting: 3,
-  block: 2,
-  speed: 1,
-  stamina: 0,
-  gameVision: 8,
-  consistency: 9,
-  emotionalControl: 10,
-  heightCm: 180,
-  gender: 'F' as const,
-  position: 'oposto',
-  secondaryPositions: ['ponteiro'],
-  isInjured: false,
-  isEstimated: true,
-};
-
-test('o adaptador local preserva ordem, orcamento e proveniencia', () => {
-  const request = fromLocalSnapshots({
-    snapshots: [localSnapshot, { ...localSnapshot, participantId: 'p2' }],
-    teamCount: 2,
-    config: { balanceSpeed: 'fast', balanceSeed: 7, rotationType: '5x1' } as never,
-    algorithmVersion: 'simulated-annealing-v1',
-  });
-
-  assert.deepEqual(
-    request.participants.map((participant) => participant.participantId),
-    ['p1', 'p2'],
-  );
-  assert.deepEqual(request.budget, { seeds: 3, maxIterations: 2000 });
-  assert.equal(request.seed, 7);
-  assert.deepEqual(request.provenance, { kind: 'LOCAL' });
-  assert.equal(request.contractVersion, 'v1');
-});
-
-test('o adaptador autorizado traduz a chave pt da rubric e leva a digital da origem', () => {
-  const snapshot = {
+function authorizedSnapshot(
+  participantOverrides: Partial<BalanceInputSnapshotParticipant> = {},
+): BalanceInputSnapshot {
+  return {
     snapshot_id: 'snap-1',
     session_id: 's',
     roster_revision_id: 'r',
@@ -79,15 +46,57 @@ test('o adaptador autorizado traduz a chave pt da rubric e leva a digital da ori
         primary_position: 'central',
         secondary_positions: [],
         is_injured: true,
+        ...participantOverrides,
       },
     ],
   } as unknown as BalanceInputSnapshot;
+}
+
+const localSnapshot = {
+  participantId: 'p1',
+  attack: 7,
+  defense: 6,
+  serve: 5,
+  reception: 4,
+  setting: 3,
+  block: 2,
+  speed: 1,
+  stamina: 0,
+  gameVision: 8,
+  consistency: 9,
+  emotionalControl: 10,
+  heightCm: 180,
+  gender: 'F' as const,
+  position: 'oposto',
+  secondaryPositions: ['ponteiro'],
+  isInjured: false,
+  isEstimated: true,
+};
+
+test('o adaptador local preserva ordem, orcamento e proveniencia', () => {
+  const request = fromLocalSnapshots({
+    snapshots: [localSnapshot, { ...localSnapshot, participantId: 'p2' }],
+    teamCount: 2,
+    config: { balanceSpeed: 'fast', balanceSeed: 7, rotationType: '5x1' } as never,
+  });
+
+  assert.deepEqual(
+    request.participants.map((participant) => participant.participantId),
+    ['p1', 'p2'],
+  );
+  assert.deepEqual(request.budget, { seeds: 3, maxIterations: 2000 });
+  assert.equal(request.seed, 7);
+  assert.deepEqual(request.provenance, { kind: 'LOCAL' });
+  assert.equal(request.contractVersion, 'v1');
+});
+
+test('o adaptador autorizado traduz a chave pt da rubric e leva a digital da origem', () => {
+  const snapshot = authorizedSnapshot();
 
   const request = fromAuthorizedSnapshot({
     snapshot,
     teamCount: 2,
     config: { balanceSpeed: 'normal' } as never,
-    algorithmVersion: 'simulated-annealing-v1',
   });
 
   const [participant] = request.participants;
@@ -111,4 +120,34 @@ test('o adaptador autorizado traduz a chave pt da rubric e leva a digital da ori
     snapshotId: 'snap-1',
     inputFingerprint: 'fp-1',
   });
+});
+
+test('o adaptador autorizado recusa uma dimensao de rubrica ausente em vez de virar NaN', () => {
+  const { ataque: _omitted, ...vectorWithoutAtaque } =
+    authorizedSnapshot().participants[0].attribute_vector;
+  const snapshot = authorizedSnapshot({ attribute_vector: vectorWithoutAtaque });
+
+  assert.throws(
+    () =>
+      fromAuthorizedSnapshot({
+        snapshot,
+        teamCount: 2,
+        config: { balanceSpeed: 'normal' } as never,
+      }),
+    InvalidAuthorizedSnapshotError,
+  );
+});
+
+test('o adaptador autorizado recusa um genero inesperado em vez de aceitar por cast', () => {
+  const snapshot = authorizedSnapshot({ gender: 'other' });
+
+  assert.throws(
+    () =>
+      fromAuthorizedSnapshot({
+        snapshot,
+        teamCount: 2,
+        config: { balanceSpeed: 'normal' } as never,
+      }),
+    InvalidAuthorizedSnapshotError,
+  );
 });

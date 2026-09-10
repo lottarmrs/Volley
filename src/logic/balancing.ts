@@ -1209,6 +1209,12 @@ function resolveBalanceWeights(
   return weights;
 }
 
+export function resolveBalanceWeightsForRequest(
+  config: TournamentConfig | FreePlayConfig | undefined,
+): BalanceWeights {
+  return resolveBalanceWeights(config);
+}
+
 export function evaluateTeamSolution(
   solution: TeamSolution,
   config: TournamentConfig | FreePlayConfig | undefined,

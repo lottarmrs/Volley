@@ -163,7 +163,24 @@ test('o precheck recusa contradicao mecanica, nao dificuldade', () => {
     'LOCKED_TEAM_OUT_OF_RANGE',
   );
   assert.equal(
-    precheckFormation(request({ hardConstraints: { lockedPlayerIdxs: { zz: 0 } } }))?.code,
+    precheckFormation(request({ hardConstraints: { pairsTogether: [['a', 'zz']] } }))?.code,
     'UNKNOWN_PARTICIPANT_IN_CONSTRAINTS',
   );
+});
+
+test('o precheck tolera referencias orfas que o motor ja ignora, exceto pairsTogether', () => {
+  // Deselecting a player never prunes balanceConstraints, so a lock or a separation can
+  // outlive the participant it names. The engine already tolerates that (buildInitialSolution
+  // skips an orphan lock, isFeasible treats an orphan pairsSeparated member as vacuously
+  // satisfied), so the precheck must not refuse what the engine would happily satisfy.
+  assert.equal(
+    precheckFormation(request({ hardConstraints: { lockedPlayerIdxs: { zz: 0 } } })),
+    null,
+  );
+  assert.equal(
+    precheckFormation(request({ hardConstraints: { pairsSeparated: [['a', 'zz']] } })),
+    null,
+  );
+  // pairsTogether is the one case that is genuinely unsatisfiable — covered by the
+  // 'UNKNOWN_PARTICIPANT_IN_CONSTRAINTS' assertion in the test above.
 });

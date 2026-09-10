@@ -108,7 +108,13 @@ export function precheckFormation(request: TeamFormationRequest): FormationRefus
     }
   }
 
-  for (const pair of [...together, ...separated]) {
+  // pairsTogether needs both members actually playing: you cannot put someone on the
+  // same team as a person who isn't in the roster. pairsSeparated and lockedPlayerIdxs
+  // tolerate an orphan id deliberately — the engine skips it (isFeasible treats an absent
+  // pairsSeparated member as vacuously satisfied, and buildInitialSolution/the lock penalty
+  // skip a lock whose id isn't found), so refusing here would reject requests the engine
+  // actually satisfies.
+  for (const pair of together) {
     for (const id of pair) {
       if (!known.has(id)) {
         return {
@@ -120,12 +126,7 @@ export function precheckFormation(request: TeamFormationRequest): FormationRefus
   }
 
   for (const [id, teamIndex] of Object.entries(constraints.lockedPlayerIdxs ?? {})) {
-    if (!known.has(id)) {
-      return {
-        code: 'UNKNOWN_PARTICIPANT_IN_CONSTRAINTS',
-        message: 'Uma restrição aponta para um atleta fora da lista.',
-      };
-    }
+    if (!known.has(id)) continue;
     if (teamIndex < 0 || teamIndex >= request.teamCount) {
       return {
         code: 'LOCKED_TEAM_OUT_OF_RANGE',

@@ -170,6 +170,17 @@ O décimo achado é atendido fora do banco, pelo Content-Security-Policy adicion
 > snapshot não cria, e como a função é `language sql` o arquivo deixaria de subir. Aplique
 > `schema.sql` e depois as migrations, na ordem desta lista — é a migration que manda no resultado.
 
+`20260910100000_set_community_organizer.sql` adiciona `set_community_organizer`, o comando que
+concede e revoga a responsabilidade `ORGANIZER` em `community_responsibilities`. Até aqui essas
+linhas só existiam por um backfill único da `20260827150000`, a partir do `community_members.role`
+legado; `set_community_member_role` nunca escreve essa tabela, então `create_target_session` ficava
+utilizável só por quem já era organizador quando o backfill rodou, e inacessível a qualquer promoção
+posterior. Exige `community.members.manage` de quem concede, membro ativo como alvo e `p_enabled`
+não nulo; revogar não exige que uma concessão anterior exista. Diferente de `set_community_evaluator`,
+não exige a ativação do modelo de avaliação da comunidade — organizar uma Session e avaliar atletas
+são responsabilidades independentes, e acoplá-las tornaria a virada de avaliação um pré-requisito
+para simplesmente marcar uma partida.
+
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.
 5. In the app, open **Nuvem & Conta**, create an account and use _Enviar para nuvem_ / _Baixar da nuvem_ / _Sincronizar_.

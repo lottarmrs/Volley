@@ -1,4 +1,6 @@
 import type {
+  CreateTargetSessionInput,
+  SessionCohortCreationGateway,
   SessionCohortInspectionGateway,
   SessionCohortReadGateway,
   SessionCutoverInspection,
@@ -87,9 +89,18 @@ function targetSessionFromResponse(data: unknown): TargetSessionRead {
   };
 }
 
+const TARGET_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function targetSessionIdFromResponse(data: unknown): string {
+  if (typeof data !== 'string' || !TARGET_SESSION_ID_PATTERN.test(data)) {
+    throw new Error('Invalid create target Session response');
+  }
+  return data;
+}
+
 export function createSessionCohortCloudService(
   client: RpcClient,
-): SessionCohortInspectionGateway & SessionCohortReadGateway {
+): SessionCohortInspectionGateway & SessionCohortReadGateway & SessionCohortCreationGateway {
   return {
     async inspect(sessionId) {
       const { data, error } = await client.rpc('inspect_legacy_session_cutover', {
@@ -104,6 +115,19 @@ export function createSessionCohortCloudService(
       });
       if (error) throw error;
       return targetSessionFromResponse(data);
+    },
+    async createTargetSession(input: CreateTargetSessionInput) {
+      const { data, error } = await client.rpc('create_target_session', {
+        p_session_id: input.sessionId,
+        p_community_id: input.communityId,
+        p_session_context: 'COMMUNITY',
+        p_play_mode: input.playMode,
+        p_name: input.name,
+        p_planned_start_at: null,
+        p_planned_end_at: null,
+      });
+      if (error) throw error;
+      return { id: targetSessionIdFromResponse(data) };
     },
   };
 }

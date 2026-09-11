@@ -23,6 +23,7 @@ import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { sessionCohortCloudService } from './sessionCohortCloudService';
+import { supabase as communityEvaluationCloudService } from './communityEvaluationCloudService';
 import { aggregatePlayerEvaluations } from '../../logic/playerEvaluations';
 import {
   CloudSyncStatus,
@@ -1957,5 +1958,173 @@ test('o download mantem a Session convertida local quando a leitura por id falha
     syncService.downloadCloudDataToLocal = originalDownload;
     syncService.uploadLocalDataToCloud = originalUpload;
     sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+  }
+});
+
+test('uma Session de comunidade ativada nasce no modelo target', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const receivedCreateInput: unknown[] = [];
+  let upsertSessionCalls = 0;
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['community-1-cloud'];
+    sessionCohortCloudService.createTargetSession = async (input) => {
+      receivedCreateInput.push(input);
+      return { id: 'target-session-cloud' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'new-session', name: 'Treino de Terca', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.deepEqual(receivedCreateInput, [
+      {
+        sessionId: 'new-session',
+        communityId: 'community-1-cloud',
+        name: 'Treino de Terca',
+        playMode: 'FREE_PLAY',
+      },
+    ]);
+
+    const created = result.sessions.find((session) => session.id === 'new-session');
+    assert.equal(created?.authorityModel, 'target');
+    assert.equal(created?.cloudId, 'target-session-cloud');
+    assert.equal(created?.syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('uma Session de comunidade nao ativada continua no caminho legado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  let createTargetSessionCalls = 0;
+  const receivedUpsert: Session[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => [];
+    sessionCohortCloudService.createTargetSession = async () => {
+      createTargetSessionCalls += 1;
+      return { id: 'unused' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      receivedUpsert.push(item);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'legacy-session', name: 'Treino Livre', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(createTargetSessionCalls, 0);
+    assert.equal(receivedUpsert.length, 1);
+    assert.equal(receivedUpsert[0].id, 'legacy-session');
+
+    const uploaded = result.sessions.find((session) => session.id === 'legacy-session');
+    assert.equal(uploaded?.cloudId, 'legacy-session-cloud');
+    assert.equal(uploaded?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('falha ao criar no modelo target nao cai para o legado em silencio', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const createError = new Error('permission denied for function create_target_session');
+  let upsertSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['community-1-cloud'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw createError;
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'failed-session', name: 'Treino de Quinta', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão/i);
+    assert.equal(issues[0].error, createError);
+
+    const untouched = result.sessions.find((session) => session.id === 'failed-session');
+    assert.equal(untouched?.cloudId, undefined);
+    assert.equal(untouched?.syncStatus, 'pending');
+    assert.equal(untouched?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('a marca de modelo target sobrevive a um persist orientado por estado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['community-1-cloud'];
+    sessionCohortCloudService.createTargetSession = async () => ({ id: 'target-session-cloud' });
+    operationalCloudService.upsertSession = async (item) => ({ ...item, cloudId: 'legacy-cloud' });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'new-session', name: 'Treino de Terca', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    const rehydrated = JSON.parse(JSON.stringify(result.sessions)) as Session[];
+    const rehydratedSession = rehydrated.find((session) => session.id === 'new-session');
+
+    assert.equal(rehydratedSession?.authorityModel, 'target');
+    assert.equal(rehydratedSession?.cloudId, 'target-session-cloud');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
   }
 });

@@ -9,8 +9,12 @@ import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
-import { isTargetCohortSession } from '../../application/sessionCohortCutover';
+import {
+  isTargetCohortSession,
+  type TargetSessionPlayMode,
+} from '../../application/sessionCohortCutover';
 import { sessionCohortCloudService } from './sessionCohortCloudService';
+import { supabase as communityEvaluationCloudService } from './communityEvaluationCloudService';
 import {
   CloudSyncStatus,
   Community,
@@ -566,6 +570,10 @@ export function mergeEntityLists<T extends Syncable>(
   }
 
   return merged;
+}
+
+function targetPlayModeForSession(session: Session): TargetSessionPlayMode {
+  return session.type === 'tournament' ? 'STRUCTURED_MATCHES' : 'FREE_PLAY';
 }
 
 function markSynced<T extends Syncable>(
@@ -1215,6 +1223,35 @@ export const syncService = {
       }
     }
 
+    // A ativacao do modelo versionado e por Comunidade e ja e resolvida assim para o
+    // upload de avaliacoes (playerEvaluationCloudService); aqui reaproveitamos a mesma
+    // RPC (community_evaluation_target_ids) num unico lote, so para as Sessoes que ainda
+    // vao subir pela primeira vez -- uma Sessao ja sincronizada como legada nao e
+    // convertida por esta rota (fora do escopo desta fatia).
+    const sessionCommunityIdsToCheckActivation = Array.from(
+      new Set(
+        local.sessions
+          .filter(
+            (session) => !session.deletedAt && !session.cloudId && !isTargetCohortSession(session),
+          )
+          .map((session) => resolveCloudId(session.communityId, communityCloudIds))
+          .filter((id): id is string => !!id),
+      ),
+    );
+
+    let activatedSessionCommunityIds = new Set<string>();
+    if (sessionCommunityIdsToCheckActivation.length > 0) {
+      try {
+        const activated = await communityEvaluationCloudService.activatedCommunityIds(
+          sessionCommunityIdsToCheckActivation,
+        );
+        activatedSessionCommunityIds = new Set(activated.map((id) => id.toLowerCase()));
+      } catch (error) {
+        console.error('Falha ao consultar Comunidades com o modelo versionado ativado', error);
+        onIssue('ativação de sessões no modelo versionado', error);
+      }
+    }
+
     const updatedSessions: Session[] = [];
     for (const session of local.sessions) {
       try {
@@ -1231,9 +1268,29 @@ export const syncService = {
           continue;
         }
 
+        const sessionCommunityCloudId = resolveCloudId(session.communityId, communityCloudIds);
+
+        if (
+          !session.cloudId &&
+          sessionCommunityCloudId &&
+          activatedSessionCommunityIds.has(sessionCommunityCloudId.toLowerCase())
+        ) {
+          const created = await sessionCohortCloudService.createTargetSession({
+            sessionId: session.id,
+            communityId: sessionCommunityCloudId,
+            name: session.name,
+            playMode: targetPlayModeForSession(session),
+          });
+          updatedSessions.push({
+            ...markSynced(session, created.id, syncedAt),
+            authorityModel: 'target',
+          });
+          continue;
+        }
+
         const sessionForUpload = {
           ...session,
-          communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
+          communityId: sessionCommunityCloudId || null,
         };
         const uploaded = await operationalCloudService.upsertSession(sessionForUpload, ownerId);
         updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));

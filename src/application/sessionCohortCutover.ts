@@ -32,6 +32,17 @@ export interface SessionCohortReadGateway {
   readTargetSession(sessionCloudId: string): Promise<TargetSessionRead>;
 }
 
+export interface CreateTargetSessionInput {
+  readonly sessionId: string;
+  readonly communityId: string;
+  readonly name: string;
+  readonly playMode: TargetSessionPlayMode;
+}
+
+export interface SessionCohortCreationGateway {
+  createTargetSession(input: CreateTargetSessionInput): Promise<{ id: string }>;
+}
+
 export interface TransitionLegacySessionPayload {
   readonly p_command_id: string;
   readonly p_session_id: string;

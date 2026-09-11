@@ -61,45 +61,62 @@ authorization, the `security definer` header and the empty `search_path` are pre
 is a fourth `create or replace` on a function that already has three, which is the established
 pattern in this file's history.
 
-## The client
+## Direction change, 2026-09-10: the cutover is dead, native creation replaces it
 
-The conversion action lives on the Session screen. It inspects first, renders the blocker list in
-pt-BR when the Session is not eligible, states plainly that the change cannot be undone, and then
-runs the command that already exists through the existing `CommandPort`. No new command layer.
+This spec originally wired `transition_legacy_session_to_target` to a button. That was implemented,
+reviewed, and **reverted** — it would have shipped a control that can never appear. Three walls,
+each found below the previous one:
 
-**Only COMMUNITY conversion is offered.** The command accepts `QUICK`, but converting a Quick
-Session leads nowhere: the whole chain downstream depends on a Community with an activated
-evaluation model.
+1. **No target Session exists.** `operationalCloudService` writes `authority_model: 'legacy'` and
+   filters reads to `legacy`.
+2. **No legacy Session can become one.** A Session enters `sessions` only via `confirmDivision`,
+   which sets `status: 'teams_generated'` and creates teams — blocked by both `NOT_DRAFT` and
+   `HAS_TEAM_EVIDENCE`. A wizard draft lives in `activeSession` alone, never uploads, has no
+   `cloudId`, so `inspect_legacy_session_cutover` raises `P0002`. And `buildManualSessionDraft`, the
+   only path producing a teamless draft, has no caller.
+3. **Creating one natively needs a responsibility the app cannot grant.**
+   `create_target_session` requires an `ORGANIZER` row in `community_responsibilities`. Those rows
+   exist only from a one-time backfill in `20260827150000`, seeded from legacy
+   `community_members.role = 'organizador'`. `set_community_member_role` never writes that table.
+   So it works for grandfathered organizers and silently fails for anyone promoted since.
 
-The sync gains cohort awareness in two places: it skips the root of a known-converted Session when
-uploading, and after the legacy bulk download it reads each converted Session by id and merges the
-result into the local model.
+The slice now delivers two things instead of the conversion action.
 
-Knowing which Sessions are converted requires a marker the local model does not have today: there is
-no `authorityModel` anywhere in `src/shared/types/session.ts`. This slice adds one, persisted
-locally and set when the transition succeeds. It cannot be recovered from the download, because the
-download is filtered to `legacy` — which is the whole problem.
+### Granting ORGANIZER
 
-### The cost of reading by id, stated rather than buried
+A public RPC mirroring `set_community_evaluator`, which XS-W5 created as the exact precedent: same
+`community.members.manage` guard, same shape, granting and revoking the `ORGANIZER` responsibility.
 
-That marker is the only record of a converted Session's existence on the client. **On a new device,
-or after cleared storage, a converted Session never reappears**: the bulk download excludes it, and
-without the marker nothing knows to ask for it by id.
+This is not optional. Without it, everything downstream works for the grandfathered set and decays
+silently for everyone else — a failure that is invisible and gets blamed on the user.
 
-This is the price of choosing per-id reads over a listing RPC, and it is real: cloud sync stops
-being a full backup for exactly the Sessions this programme is migrating toward. Two things bound
-the damage today — only draft Sessions with no teams or games can convert, so nothing played is at
-risk, and the Session still exists server-side, recoverable the moment a listing surface exists.
+### Creating the Session in the target model
 
-A `list_target_sessions` RPC closes it. It is a non-goal here by decision, not by oversight, and it
-should be the first thing reconsidered if anyone converts a Session they would mind losing sight of.
+The server row for a Session is created at **sync**, not at creation: `upsertSession` writes it with
+`authority_model: 'legacy'`. So the cohort decision belongs there too.
+
+When a Session belongs to a Community with the evaluation model activated and the user holds
+`ORGANIZER`, its first upload calls `create_target_session` instead of the legacy upsert, and the
+local marker is set **through React state** — never by writing `localStorage` directly. That direct
+write is exactly the defect that killed the first attempt: `useSessions` rewrites both storage keys
+wholesale from state on the next interaction, so a raw write is erased by the next click.
+
+From then on Task 3 already skips re-uploading the root and Task 4 already reads it back by id.
+
+**Why sync and not creation time:** the app is local-first. Calling an RPC when the organizer creates
+a Session would break creating one offline, which is the premise of the whole product. At sync, the
+network is already a precondition.
+
+**What the organizer sees change:** in an activated Community, new Sessions start living in the new
+model. That is what finally gives the chain a path — including the W6-01 capture that motivated all
+of this.
 
 ## Non-goals
 
-No XS-W7: match execution, teams and games stay on the legacy path for converted Sessions too. No
-listing RPC. No un-conversion, which does not exist in the database. No capture or publication
-wiring — that is XS-W6-03, and this slice only opens the road. No change to what a non-converted
-Session does, anywhere.
+No XS-W7: match execution, teams and games stay on the legacy path for target Sessions too. No
+listing RPC. No conversion of existing legacy Sessions — that path is dead and this slice does not
+revive it. No capture or publication wiring: that is XS-W6-03, and this slice only opens the road.
+No change to what a Session in a non-activated Community does, anywhere.
 
 ## Verification
 
@@ -108,8 +125,13 @@ and agrees with `capture_balance_input_snapshot`'s definition on a Session with 
 that agreement is asserted directly, not assumed. Existing authorization behavior is unchanged,
 proven by the pre-existing tests staying green without edits.
 
-Client: the sync uploads no root for a converted Session; it reads converted Sessions by id and
-merges them; an ineligible Session renders its blockers translated; the irreversibility copy is
-present before the action.
+Client: a Session in an activated Community whose user holds `ORGANIZER` is created through
+`create_target_session` on its first upload and carries the marker afterwards; the marker survives a
+subsequent state-driven persist, which is the regression that killed the first attempt and must have
+its own test; a Session in a non-activated Community still takes the legacy upsert byte-for-byte.
+
+Database: granting and revoking `ORGANIZER` respects `community.members.manage`, refuses a
+non-member, and makes `create_target_session` succeed where it previously raised 42501 — asserted
+through the authenticated RPCs, not as owner.
 
 The regression that matters most: a non-converted Session behaves byte-for-byte as it does today.

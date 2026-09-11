@@ -289,76 +289,221 @@ git commit -m "feat: sync le a Session convertida por id e mescla"
 
 ---
 
-### Task 5: The conversion action
+### Task 5: Grant and revoke the ORGANIZER responsibility
 
 **Files:**
 
-- Modify: `src/components/session/SessionSetupSummary.tsx`
-- Create: `src/components/session/SessionSetupSummary.spec.tsx`
-
-The host is decided: `SessionSetupSummary` already receives the `Session` and is rendered by
-`SessionWizard.tsx:2594` in the setup step — which is exactly when conversion is legal, since
-`NOT_DRAFT` blocks it later. Do NOT add this to `SessionWizard.tsx`: `AGENTS.md` lists that file as
-an oversized split candidate, and it is 2600+ lines already.
+- Create: `supabase/migrations/<timestamp after 20260909090000>_set_community_organizer.sql`
+- Create: `src/test/db/setCommunityOrganizer.dbtest.ts`
+- Modify: `README.md` (describe the new migration in the explanation list)
 
 **Interfaces:**
 
-- Consumes: `inspectLegacySessionCutover`, `transitionLegacySessionCommand`, `executeSessionCohortTransition` from `src/application/sessionCohortCutover.ts`, and `isTargetCohortSession` from Task 2.
+- Produces: `public.set_community_organizer(p_community_id uuid, p_user_id uuid, p_enabled boolean) returns void`.
 
-- [ ] **Step 1: Write the failing spec**
+**Why this exists:** `create_target_session` requires an `ORGANIZER` row in
+`community_responsibilities`. Those rows come only from a one-time backfill in `20260827150000`,
+seeded from legacy `community_members.role = 'organizador'`. `set_community_member_role` never
+writes that table. So target Sessions are creatable by grandfathered organizers and by nobody
+promoted since -- a capability that decays silently.
 
-Three behaviors, each its own test:
+- [ ] **Step 1: Write the failing test**
 
-```tsx
-it('mostra os bloqueios traduzidos quando a Session nao e elegivel', async () => {
-  // inspection returns eligible: false, blockers: ['NOT_DRAFT', 'HAS_TEAM_EVIDENCE']
-  // assert both appear as pt-BR sentences, not as raw codes
-});
+Create `src/test/db/setCommunityOrganizer.dbtest.ts`. Read
+`src/test/db/communityEvaluationEditor.dbtest.ts` first and reuse its fixture shapes -- it already
+builds a Community with an owner and members and exercises `set_community_evaluator`, the function
+this one mirrors.
 
-it('avisa que a conversao nao tem volta antes de executar', async () => {
-  // assert the irreversibility copy is on screen before any command runs
-});
+Cases, each its own test:
 
-it('marca a Session como target quando a transicao conclui', async () => {
-  // assert the persisted Session carries authorityModel 'target'
-});
+```text
+1. before any grant, create_target_session by that member raises 42501
+2. the owner grants it, and the same create_target_session call now succeeds
+3. revoking it (p_enabled false) makes create_target_session raise 42501 again
+4. a plain member cannot grant it: 42501
+5. granting to a non-member raises 23514
+6. a null p_enabled raises 23514
+7. anonymous raises 42501
 ```
 
-- [ ] **Step 2: Run and watch them fail**
+Case 1 must run before case 2's grant -- it is what proves the function is load-bearing rather than
+decorative. Exercise `create_target_session` through the authenticated RPC, not as owner.
 
-Run: `npx vitest run <your spec path>`
+- [ ] **Step 2: Run it and watch it fail**
 
-- [ ] **Step 3: Implement**
+Run: `VOLLEY_TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55500/postgres' node scripts/db-harness.mjs setCommunityOrganizer.dbtest.ts`
+Expected: FAIL with 42883 -- the function does not exist.
 
-Translate every blocker code the database can return. Get the list with:
+- [ ] **Step 3: Write the migration**
 
-`grep -oE "'[A-Z_]+'" supabase/migrations/20260829120000_target_session_cohort_cutover.sql | sort -u`
+```sql
+create function public.set_community_organizer(
+  p_community_id uuid,
+  p_user_id uuid,
+  p_enabled boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+  if p_enabled is null then
+    raise exception 'enabled is required' using errcode = '23514';
+  end if;
+  if p_community_id is null or p_user_id is null
+     or not public.current_user_has_community_capability(p_community_id, 'community.members.manage')
+  then
+    raise exception 'Not authorized to manage organizers in this Community' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.community_memberships
+     where community_id = p_community_id and user_id = p_user_id and status = 'active'
+  ) then
+    raise exception 'Organizer must be an active Community member' using errcode = '23514';
+  end if;
 
-An untranslated code must still render something honest rather than vanishing — fall back to the raw code with a generic sentence, never to an empty list, or an ineligible Session will look eligible.
+  if not p_enabled then
+    update public.community_responsibilities
+       set revoked_at = pg_catalog.now()
+     where community_id = p_community_id
+       and user_id = p_user_id
+       and responsibility = 'ORGANIZER'
+       and revoked_at is null;
+    return;
+  end if;
 
-Offer conversion only when the Session's community context is COMMUNITY. Pass `'COMMUNITY'` as `p_session_context`; do not expose a `QUICK` option.
+  insert into public.community_responsibilities (
+    community_id, user_id, responsibility, assigned_by
+  )
+  values (p_community_id, p_user_id, 'ORGANIZER', (select auth.uid()))
+  on conflict (community_id, user_id, responsibility) do update
+    set revoked_at = null,
+        assigned_at = pg_catalog.now(),
+        assigned_by = (select auth.uid());
+end;
+$$;
 
-On success, persist `authorityModel: 'target'` on the local Session before anything else. That marker is the only client-side record that the Session exists in the target cohort — if it is lost, the Session disappears from the app on the next device.
+revoke all on function public.set_community_organizer(uuid, uuid, boolean) from public, anon;
+grant execute on function public.set_community_organizer(uuid, uuid, boolean) to authenticated;
+```
 
-- [ ] **Step 4: Run the specs and the UI suite**
+Confirm the conflict target and the column names against the real table before running -- read the
+`community_responsibilities` definition in `20260827150000_normalize_governance_and_organizer.sql`
+and adjust if `assigned_by` or the unique constraint differ.
 
-Run: `npx vitest run <your spec path>` then `npm run test:ui`
+Note what this deliberately does NOT check, unlike `set_community_evaluator`: it does not require
+the Community to have activated the evaluation model. Organizing a Session and evaluating players
+are independent responsibilities, and coupling them would make the evaluation cutover a
+precondition for running a match.
+
+- [ ] **Step 4: Run the test, then the full DB suite**
+
+Focused file first, then the whole suite. Expected: previous total plus your cases, zero failures.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-npx prettier --write <files you touched>
+npx prettier --write src/test/db/setCommunityOrganizer.dbtest.ts README.md
 git add -A
-git commit -m "feat: acao de converter a Session para a coorte target"
+git commit -m "feat: conceder e revogar a responsabilidade ORGANIZER"
 ```
 
 ---
 
-### Task 6: Verification and handoff
+### Task 6: The sync creates eligible Sessions in the target model
 
 **Files:**
 
-- Modify: `HANDOFF.md`, `docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md`
+- Modify: `src/infra/supabase/syncService.ts`
+- Modify: `src/infra/supabase/sessionCohortCloudService.ts`
+- Modify: `src/application/sessionCohortCutover.ts`
+- Test: `src/infra/supabase/syncService.test.ts`
+
+**Interfaces:**
+
+- Consumes: `isTargetCohortSession` (Task 2), the cohort gateway (Task 4).
+- Produces: `createTargetSession(input)` on the cohort gateway.
+
+**The defect that killed the previous attempt, so you do not repeat it:** the local marker must ride
+back on the payload the sync already returns and persists -- never by writing `localStorage`
+directly. `useSessions` rewrites both storage keys wholesale from React state on the next
+interaction, so a raw write is erased by the next click. Because the bulk download is filtered to
+`legacy`, an erased marker means the Session is gone from the app for good.
+
+- [ ] **Step 1: Write the failing tests**
+
+In `syncService.test.ts`, following the stubbing pattern of the neighbouring upload tests:
+
+```ts
+test('uma Session de comunidade ativada nasce no modelo target', async () => {
+  // stub the cohort gateway's createTargetSession to record what it received
+  // stub the activated-community resolver so the community counts as activated
+  // assert createTargetSession was called, the legacy upsert was NOT,
+  // and the returned Session carries authorityModel: 'target'
+});
+
+test('uma Session de comunidade nao ativada continua no caminho legado', async () => {
+  // assert the legacy upsert received it, createTargetSession did not,
+  // and the returned Session has no authorityModel
+});
+
+test('falha ao criar no modelo target nao cai para o legado em silencio', async () => {
+  // make createTargetSession reject; assert the legacy upsert was NOT called,
+  // one issue was reported, and the Session stays pending for the next sync
+});
+```
+
+- [ ] **Step 2: Run them and watch them fail**
+
+Run: `node --import tsx --test src/infra/supabase/syncService.test.ts`
+
+- [ ] **Step 3: Add the gateway call**
+
+In `sessionCohortCloudService.ts`, add `createTargetSession` calling `create_target_session` with
+`p_session_id`, `p_community_id`, `p_session_context: 'COMMUNITY'`, `p_play_mode`, `p_name`.
+Validate the response the way that file's existing readers do -- throw loudly on a malformed shape
+rather than coercing.
+
+- [ ] **Step 4: Decide the cohort at upload**
+
+In the Session upload loop, before the legacy upsert: if the Session belongs to a Community whose
+cloud id is in the activated set, call `createTargetSession` and push the Session with
+`authorityModel: 'target'` instead of the legacy result.
+
+The sync already resolves the activated set for evaluations, through
+`community_evaluation_target_ids`. Reuse that resolution -- do not add a second round trip for the
+same question.
+
+A failure of `create_target_session` must NOT fall back to the legacy upsert. Report it through
+`onIssue` with a pt-BR context and leave the Session pending so the next sync retries. A silent
+fallback would put the Session in the wrong cohort permanently, and nothing later would notice.
+
+- [ ] **Step 5: Prove the marker survives a state-driven persist**
+
+Add a test that the marker is still present after the sync's returned payload goes through the
+normal persistence route. The previous attempt's test proved only that a write happened, and that is
+exactly why the defect shipped.
+
+- [ ] **Step 6: Run everything**
+
+`node --import tsx --test src/infra/supabase/syncService.test.ts`, then `npm run test:unit`,
+`npm run typecheck`, `npm run test:ui`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+npx prettier --write src/infra/supabase/sessionCohortCloudService.ts src/application/sessionCohortCutover.ts
+git add -A
+git commit -m "feat: sync cria Session de comunidade ativada no modelo target"
+```
+
+---
+
+### Task 7: Verification and handoff
 
 - [ ] **Step 1: Run every gate**
 
@@ -367,34 +512,37 @@ npm run typecheck
 npm test
 VOLLEY_TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55500/postgres' node scripts/db-harness.mjs
 npm run build
-npx eslint <every file you created or modified>
-npx prettier --check <every file you created or modified>
+npx playwright test
 git diff --check
 ```
 
 - [ ] **Step 2: Prove the new guards are load-bearing**
 
-For each, break the line, run the named test, confirm the failures, restore, confirm green. Report the actual failing test names.
+Break each line, run the named test, confirm the expected failures, restore, confirm green. Report
+the actual failing test names.
 
-- remove the `revision_number desc` ordering from the new subquery → the DB suite's supersession and agreement assertions
-- remove the converted-root filter from the upload → the sync test from Task 3
-- make `isTargetCohortSession` return true for an absent marker → the Task 2 tests
+- remove the `revision_number desc` ordering from Task 1's subquery -> the DB agreement assertion
+- remove the converted-root filter from the upload (Task 3) -> its sync test
+- make `isTargetCohortSession` return true for an absent marker (Task 2) -> its two tests
+- make `set_community_organizer` a no-op when enabling -> case 2 of its DB suite
+- make the sync fall back to the legacy upsert when the create fails -> the Task 6 failure test
 
-- [ ] **Step 3: Record the slice**
+- [ ] **Step 3: Re-derive the reachability map**
 
-In the C6.02 execution doc, add a section for `XS-W3-08` explaining that it was **inserted** into the sequence, and why: the pack assumed target Sessions existed, and nothing created them. Name the four slices it unblocks.
+`docs/architecture/execution/C6-REACHABILITY-MAP.md` must be re-derived, not edited by hand. Re-run
+the command it documents, redo the three-level check for the commands this slice touches, and move
+whatever actually became reachable. If `capture_balance_input_snapshot` is still unreachable, say so
+plainly -- this slice opens the road, it does not walk it.
 
-In `HANDOFF.md`, add the slice to the table, a delivery section, and evidence with the real numbers. It must state plainly:
+- [ ] **Step 4: Update HANDOFF and the execution doc**
 
-- what a converted Session can and cannot do today (roster, rules, lifecycle, formation — but match execution stays on the legacy path);
-- that the conversion is irreversible;
-- that **a converted Session is only findable through the local marker**, so a new device or cleared storage loses sight of it until a `list_target_sessions` RPC exists, and that this is a decided trade-off, not an oversight;
-- that this slice does NOT wire capture or publication — that is XS-W6-03.
+Record the slice, its evidence with real numbers, that the cutover path is dead and why, and that
+this slice does NOT wire capture or publication.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-npx prettier --write HANDOFF.md docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md
+npx prettier --write HANDOFF.md docs/architecture/execution/C6-REACHABILITY-MAP.md docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md
 git add -A
 git commit -m "docs: registrar a XS-W3-08 e sua evidencia de verificacao"
 ```

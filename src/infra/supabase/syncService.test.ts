@@ -25,6 +25,7 @@ import { championshipCloudService } from './championshipCloudService';
 import { sessionCohortCloudService } from './sessionCohortCloudService';
 import { supabase as communityEvaluationCloudService } from './communityEvaluationCloudService';
 import { aggregatePlayerEvaluations } from '../../logic/playerEvaluations';
+import { normalizeCloudSyncResultPayload } from '@app/cloudSyncPayload';
 import {
   CloudSyncStatus,
   Community,
@@ -2117,11 +2118,108 @@ test('a marca de modelo target sobrevive a um persist orientado por estado', asy
       'owner-1',
     );
 
-    const rehydrated = JSON.parse(JSON.stringify(result.sessions)) as Session[];
+    const rehydrated = normalizeCloudSyncResultPayload(result).sessions;
     const rehydratedSession = rehydrated.find((session) => session.id === 'new-session');
 
     assert.equal(rehydratedSession?.authorityModel, 'target');
     assert.equal(rehydratedSession?.cloudId, 'target-session-cloud');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('falha transitoria ao resolver ativacao mantem a Session pendente e nao cria nem faz upsert legado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const resolutionError = Object.assign(new Error('conexao interrompida'), { code: '57P01' });
+  let upsertSessionCalls = 0;
+  let createTargetSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => {
+      throw resolutionError;
+    };
+    sessionCohortCloudService.createTargetSession = async () => {
+      createTargetSessionCalls += 1;
+      return { id: 'unused' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'pending-session', name: 'Treino de Sexta', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(createTargetSessionCalls, 0);
+    assert.equal(upsertSessionCalls, 0);
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].error, resolutionError);
+
+    const untouched = result.sessions.find((session) => session.id === 'pending-session');
+    assert.equal(untouched?.cloudId, undefined);
+    assert.equal(untouched?.syncStatus, 'pending');
+    assert.equal(untouched?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('RPC de ativacao ausente (PGRST202) segue no caminho legado sem reportar problema', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const missingRpcError = Object.assign(new Error('function not found'), { code: 'PGRST202' });
+  let createTargetSessionCalls = 0;
+  const receivedUpsert: Session[] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => {
+      throw missingRpcError;
+    };
+    sessionCohortCloudService.createTargetSession = async () => {
+      createTargetSessionCalls += 1;
+      return { id: 'unused' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      receivedUpsert.push(item);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'legacy-session', name: 'Treino Livre', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(createTargetSessionCalls, 0);
+    assert.equal(receivedUpsert.length, 1);
+    assert.equal(receivedUpsert[0].id, 'legacy-session');
+    assert.equal(issues.length, 0);
+
+    const uploaded = result.sessions.find((session) => session.id === 'legacy-session');
+    assert.equal(uploaded?.cloudId, 'legacy-session-cloud');
+    assert.equal(uploaded?.authorityModel, undefined);
   } finally {
     operationalCloudService.upsertSession = originalUpsertSession;
     sessionCohortCloudService.createTargetSession = originalCreateTargetSession;

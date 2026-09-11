@@ -11,7 +11,7 @@ function normalizeUuid(value: unknown): string | null {
   return UUID_PATTERN.test(normalized) ? normalized : null;
 }
 
-function isMissingTargetLookup(error: { code?: string } | null): boolean {
+export function isMissingTargetLookup(error: { code?: string } | null): boolean {
   return error?.code === 'PGRST202' || error?.code === '42883';
 }
 

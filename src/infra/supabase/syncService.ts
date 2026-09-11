@@ -5,7 +5,10 @@ import { communityPlayerCloudService, CommunityPlayerDb } from './communityPlaye
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
-import { playerEvaluationCloudService } from './playerEvaluationCloudService';
+import {
+  playerEvaluationCloudService,
+  isMissingTargetLookup,
+} from './playerEvaluationCloudService';
 import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
@@ -1240,6 +1243,7 @@ export const syncService = {
     );
 
     let activatedSessionCommunityIds = new Set<string>();
+    let sessionActivationLookupFailed = false;
     if (sessionCommunityIdsToCheckActivation.length > 0) {
       try {
         const activated = await communityEvaluationCloudService.activatedCommunityIds(
@@ -1247,8 +1251,11 @@ export const syncService = {
         );
         activatedSessionCommunityIds = new Set(activated.map((id) => id.toLowerCase()));
       } catch (error) {
-        console.error('Falha ao consultar Comunidades com o modelo versionado ativado', error);
-        onIssue('ativação de sessões no modelo versionado', error);
+        if (!isMissingTargetLookup(error as { code?: string } | null)) {
+          sessionActivationLookupFailed = true;
+          console.error('Falha ao consultar Comunidades com o modelo versionado ativado', error);
+          onIssue('ativação de sessões no modelo versionado', error);
+        }
       }
     }
 
@@ -1264,6 +1271,11 @@ export const syncService = {
         }
 
         if (isTargetCohortSession(session)) {
+          updatedSessions.push(session);
+          continue;
+        }
+
+        if (sessionActivationLookupFailed && session.communityId && !session.cloudId) {
           updatedSessions.push(session);
           continue;
         }

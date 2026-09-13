@@ -1238,7 +1238,7 @@ export const syncService = {
             (session) => !session.deletedAt && !session.cloudId && !isTargetCohortSession(session),
           )
           .map((session) => resolveCloudId(session.communityId, communityCloudIds))
-          .filter((id): id is string => !!id),
+          .filter((id): id is string => isUuid(id)),
       ),
     );
 

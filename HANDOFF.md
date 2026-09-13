@@ -3,6 +3,9 @@
 > Atualizado em **2026-09-08**, ao integrar em `main` a W5-02..W5-04, o editor de avaliação, a
 > remediação da auditoria de segurança do mesmo dia e a W6-01, depois da review independente de
 > branch inteira. Este é o ponto de retomada canônico se o limite da conversa acabar.
+>
+> **2026-09-13:** a XS-W3-08 está concluída na branch `exec/c6-w3-08-target-cohort-reachability`,
+> não integrada — ver a seção dela logo abaixo da tabela de fatias.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -20,35 +23,139 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 Em 2026-09-10, depois de três dead ends seguidos, levantei o que do C6 é realmente alcançável por um
 usuário: [mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md).
 
-Resumo: das ~45 funções públicas da era C6 destinadas ao cliente, **6 são alcançáveis** — todas do
-editor de avaliação e do perfil de comunidade (W5-03 e seu complemento). As ondas W3 e W4 inteiras,
-mais W5-01, W5-02, W6-01 e W6-02, não têm caminho até uma tela. A tabela abaixo diz que essas fatias
-estão concluídas, e elas estão: o código existe, é testado e faz o que promete. **Concluída não quer
-dizer alcançável.**
+Resumo, re-derivado em 2026-09-13 no fim da XS-W3-08: das ~46 funções públicas da era C6 destinadas
+ao cliente, **8 são alcançáveis** — 5 por tela (editor de avaliação e perfil de comunidade, W5-03 e
+seu complemento), 1 por tela e por sync (`community_evaluation_target_ids`) e 2 **só por sync**,
+ambas da XS-W3-08: `create_target_session` e `read_target_session`. Essas duas só disparam para
+organizadores herdados do backfill, porque `set_community_organizer` existe no banco e não tem
+chamador. O restante de W3 e W4, mais W5-01, W5-02, W6-01 e W6-02 — captura de snapshot incluída —
+continua sem caminho. A tabela abaixo diz que essas fatias estão concluídas, e elas estão: o código
+existe, é testado e faz o que promete. **Concluída não quer dizer alcançável.**
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                            | Estado    |
-| -------- | -------------------------------------------------- | --------- |
-| XS-W3-01 | Session target root                                | concluída |
-| XS-W3-02 | Session organizer assignment                       | concluída |
-| XS-W3-03 | Session courts                                     | concluída |
-| XS-W3-04 | Session rules snapshot                             | concluída |
-| XS-W3-05 | SessionParticipant + RosterRevision                | concluída |
-| XS-W3-06 | Lifecycle/readiness semantic commands              | concluída |
-| XS-W3-07 | Session cohort cutover                             | concluída |
-| XS-W4-01 | Registration schema e invariantes                  | concluída |
-| XS-W4-02 | Open/Close/Lock Registration                       | concluída |
-| XS-W4-03 | JoinRegistration                                   | concluída |
-| XS-W4-04 | Leave / promoção / capacidade                      | concluída |
-| XS-W4-05 | FinalizeSessionRoster                              | concluída |
-| XS-W4-06 | Legacy Session Registration introduction           | concluída |
-| XS-W5-01 | Versioned PlayerEvaluation source model            | concluída |
-| XS-W5-02 | Skill rubric/dimension contract                    | concluída |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação  | concluída |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda       | concluída |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador      | concluída |
-| XS-W6-02 | Porta de formação de times / solver determinístico | concluída |
+| Fatia    | Assunto                                            | Estado                             |
+| -------- | -------------------------------------------------- | ---------------------------------- |
+| XS-W3-01 | Session target root                                | concluída                          |
+| XS-W3-02 | Session organizer assignment                       | concluída                          |
+| XS-W3-03 | Session courts                                     | concluída                          |
+| XS-W3-04 | Session rules snapshot                             | concluída                          |
+| XS-W3-05 | SessionParticipant + RosterRevision                | concluída                          |
+| XS-W3-06 | Lifecycle/readiness semantic commands              | concluída                          |
+| XS-W3-07 | Session cohort cutover                             | concluída                          |
+| XS-W4-01 | Registration schema e invariantes                  | concluída                          |
+| XS-W4-02 | Open/Close/Lock Registration                       | concluída                          |
+| XS-W4-03 | JoinRegistration                                   | concluída                          |
+| XS-W4-04 | Leave / promoção / capacidade                      | concluída                          |
+| XS-W4-05 | FinalizeSessionRoster                              | concluída                          |
+| XS-W4-06 | Legacy Session Registration introduction           | concluída                          |
+| XS-W5-01 | Versioned PlayerEvaluation source model            | concluída                          |
+| XS-W5-02 | Skill rubric/dimension contract                    | concluída                          |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação  | concluída                          |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda       | concluída                          |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador      | concluída                          |
+| XS-W6-02 | Porta de formação de times / solver determinístico | concluída                          |
+| XS-W3-08 | Session target alcançável pelo cliente (por sync)  | concluída na branch, não integrada |
+
+### O que a XS-W3-08 entregou — Session target alcançável por sync
+
+Branch `exec/c6-w3-08-target-cohort-reachability`, **não integrada em `main`**. Ver o
+[spec](docs/superpowers/specs/2026-09-10-xs-w3-08-target-cohort-reachability-design.md), o
+[plano](docs/superpowers/plans/2026-09-10-xs-w3-08-target-cohort-reachability.md) e o
+[mapa de alcançabilidade re-derivado](docs/architecture/execution/C6-REACHABILITY-MAP.md). Inserida
+na sequência C6 porque a cadeia W3 → W6 pressupunha Session target que nada no cliente criava.
+
+- `d4ad525`: `read_target_session` devolve `current_roster_revision_id`
+  (`20260909090000_target_session_current_roster_revision.sql`) — a maior `revision_number`, a mesma
+  definição de "corrente" que `capture_balance_input_snapshot` usa. O formato de retorno mudou, então
+  a migration faz `drop function` antes do `create or replace`; `security definer`, `search_path`
+  vazio, autorização e concessões ficaram iguais;
+- `139bd51`: `Session.authorityModel?: 'legacy' | 'target'` e `isTargetCohortSession`. Ausência quer
+  dizer legada;
+- `da7fd16`: o upload não sobe mais a raiz de Session com marcador target;
+- `8a4af23`: `syncNow` lê por id, via `read_target_session`, cada Session marcada e mescla nome e
+  comunidade. Leitura recusada mantém o objeto local;
+- `04fd199`: `set_community_organizer(community, user, enabled)`
+  (`20260910100000_set_community_organizer.sql`) concede e revoga `ORGANIZER` sob
+  `community.members.manage`, com revogação suave, espelhando `set_community_evaluator`;
+- `fd3f1e2` + `88e3475`: no primeiro upload, uma Session de comunidade com o modelo de avaliação
+  ativado chama `create_target_session` no lugar do upsert legado, e o marcador chega pelo payload
+  que o sync devolve ao estado React — nunca por escrita direta em `localStorage`. Criação recusada
+  **não** cai para o legado: a Session fica pendente e o erro vai para o ledger. Se a consulta de
+  ativação falhar, as Sessions de comunidade ainda não sincronizadas são puladas naquela rodada —
+  ir para o legado as fixaria para sempre, porque o portão `!cloudId` não reabre e o mesmo id
+  colidiria com a PK da linha legada.
+
+**O cutover está morto, e por quê.** A primeira versão desta fatia ligava
+`transition_legacy_session_to_target` a um botão. Foi implementada, revisada e revertida
+(`2fae047` → `a320106`), porque nenhuma Session legada deste app chega a ser elegível: uma Session só
+entra em `sessions` via `confirmDivision`, que grava `status: 'teams_generated'` e cria times —
+bloqueada por `NOT_DRAFT` e `HAS_TEAM_EVIDENCE`; o rascunho do wizard vive só em `activeSession`,
+nunca sobe e não tem `cloudId`, então a inspeção daria `P0002`; e `buildManualSessionDraft`, o único
+caminho que produziria um rascunho sem times, não tem chamador. A versão revertida tinha ainda um
+defeito de perda de dado verificado: gravava `localStorage` por trás de `useSessions`, que regrava as
+duas chaves a partir do estado no próximo clique.
+
+**Fronteiras que esta fatia não cruza:** **não liga captura nem publicação.** Nada chama
+`capture_balance_input_snapshot`; a leitura devolve a revisão corrente, mas o merge a descarta de
+propósito (uma revisão em cache ficaria velha e a captura a recusaria com `40001`), e uma Session
+criada pelo sync nasce sem revisão de elenco. Publicação de candidatos é a XS-W6-03. Nenhuma tela
+chama `set_community_organizer`, e `set_community_member_role` continua sem gravar responsabilidade:
+**quem for promovido a organizador pelo painel de membros não cria Session target** — só os
+organizadores semeados pelo backfill de `20260827150000`. Times e jogos de Session target continuam
+no sync genérico. Comunidade não ativada não muda em nada.
+
+**Problema conhecido — `42501` recorrente para quem não é `ORGANIZER`.** Um membro de uma comunidade
+ativada que não tem `ORGANIZER` — o que inclui qualquer organizador promovido pela interface depois
+do backfill — e cria uma Session localmente recebe `42501` de `create_target_session` a cada sync,
+sem nenhuma saída pela interface. Não há perda de dado: a Session continua local e pendente. Mas o
+erro volta toda rodada, e isso passa a acontecer no momento em que uma comunidade ativa o modelo de
+avaliação.
+
+### Evidência de verificação da XS-W3-08
+
+Rodada em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da documentação desta etapa.
+
+- `npm run typecheck`: passou, sem erro;
+- `npm test`: **968 unitários + 283 UI**, zero falhas, em 48 arquivos de UI;
+- suíte completa PostgreSQL (`node scripts/db-harness.mjs`): **671/671**, exit 0, serial, 258,7 s, no
+  container preservado `volley_test_pg2` (`127.0.0.1:55500`);
+- `npm run build`: passou. `npx playwright test`: **12/12** em chromium;
+- `git diff --check`: limpo na árvore de trabalho. `git diff --check 3da6a6f..HEAD` acusa "trailing
+  whitespace" no plano da fatia — o arquivo entrou com CRLF em `d391677`; é o `\r`, não espaço, e não
+  foi reescrito;
+- prova por mutação das cinco guardas, cada uma restaurada com `git checkout` e rodada de novo até
+  verde; depois das cinco, `git status` só mostrava documentação. As duas mutações SQL valem de fato:
+  o harness reconstrói o schema a partir dos arquivos de `supabase/migrations/` em cada arquivo de
+  teste (`src/test/db/harness.ts:89-95`, `rebuildFromMigrations` em `:123`):
+  - remover `order by r.revision_number desc` da subconsulta de `read_target_session` →
+    `targetSessionCurrentRosterRevision.dbtest.ts`: matou o único teste,
+    `read_target_session devolve a revisao corrente de elenco, e ela e a que capture aceita`, **mas na
+    asserção 3** (`:192`, a leitura devolveu a primeira revisão), antes de alcançar a concordância com
+    a captura (`:197-208`). O teste é load-bearing; a asserção de concordância, isoladamente, não foi
+    provada por esta mutação. Restaurado: 1/1;
+  - remover o filtro de raiz convertida do upload → `syncService.test.ts`: matou exatamente
+    `uploadLocalDataToCloud nao sobe a raiz de uma Session convertida`
+    (`['legacy-session', 'target-session']` contra `['legacy-session']`). Restaurado: 46/46;
+  - `isTargetCohortSession` devolvendo `true` para marcador ausente (`!== 'legacy'`) →
+    `sessionCohortCutover.test.ts`: matou **um** teste, não os dois que o plano previa —
+    `uma Session sem marcador continua sendo legada`. `so o marcador target muda a coorte` sobrevive,
+    porque só afirma `'target'` → `true` e `'legacy'` → `false`, o que a mutação preserva. Restaurado:
+    5/5;
+  - `set_community_organizer` sem efeito ao conceder → `setCommunityOrganizer.dbtest.ts`: matou
+    exatamente o caso 2, `the owner grants it, and the same create_target_session call now succeeds`
+    (`:81`); o caso 3 (revogar → `42501`) passa trivialmente sem concessão. Restaurado: 7/7;
+  - o sync caindo para o upsert legado quando `create_target_session` falha →
+    `syncService.test.ts`: matou exatamente
+    `falha ao criar no modelo target nao cai para o legado em silencio` (1 upsert legado contra 0).
+    Restaurado: 46/46;
+- ambiente: o Docker Desktop não subia. O backend morria em sockets Unix órfãos de um crash anterior
+  (`%LOCALAPPDATA%\Docker\run\sailor-ingest.sock` e
+  `%LOCALAPPDATA%\docker-secrets-engine\engine.sock`, "Não é possível o acesso ao arquivo pelo
+  sistema"), e cada nova tentativa que falhava deixava outro. Recuperado renomeando os diretórios
+  para `*.stuck-<timestamp>`, sem apagar nada; `volley_test_pg2` estava `Exited (255)` e voltou com
+  `docker start`. Nenhum mock;
+- sem push, merge, aplicação de migration em Supabase remoto ou deploy.
 
 ### Branches — cadeia integrada em `main`
 
@@ -932,7 +1039,12 @@ legadas mais ricas) e `OPEN-REG-001..006` (superfície de leitura da fila, entre
   classificação nova não cobre.
 - Filhos de Session target (teams/games) ainda passam pelo sync genérico; só a raiz está cercada.
   A autoridade deles pertence a W6/W7.
-- Uma Session target retida localmente falha o upload genérico a cada sync, indefinidamente.
+- ~~Uma Session target retida localmente falha o upload genérico a cada sync, indefinidamente.~~
+  Fechada pela XS-W3-08 (`da7fd16`) para Session com marcador local `authorityModel: 'target'`: o
+  upload pula a raiz.
+- **Problema conhecido (XS-W3-08):** membro de comunidade ativada sem `ORGANIZER` que cria Session
+  localmente recebe `42501` de `create_target_session` a cada sync, sem saída pela interface. Sem
+  perda de dado — a Session fica pendente. Ver a seção da XS-W3-08 acima.
 - **Defeito pré-existente encontrado pela W4-06 — corrigido, mas só em parte da superfície.**
   `session_organizer_assignments` referencia a conta que morre por dois caminhos: direto via
   `organizer_user_id` e indireto via `profiles` → `community_memberships`. Num único

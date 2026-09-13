@@ -73,10 +73,10 @@ VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 ls supabase/migrations/*.sql | grep -v '/schema\.sql$' | sort | sed '1i supabase/migrations/schema.sql'
 ```
 
-Hoje isso são **93 arquivos**: `schema.sql` e mais 92 migrations datadas. Não mantenha uma lista
-fixa aqui — a anterior derivou para 35 de 93 sem ninguém notar, e quem a seguisse ao pé da letra
-provisionaria um banco sem MFA obrigatório, sem eventos de carreira, sem posse de sessão e sem toda
-a cadeia de identidade, comunidade e Session das ondas W2 a W4.
+`schema.sql` mais todas as migrations datadas. Não mantenha uma lista fixa aqui — a anterior
+derivou para 35 de 93 sem ninguém notar, e quem a seguisse ao pé da letra provisionaria um banco sem
+MFA obrigatório, sem eventos de carreira, sem posse de sessão e sem toda a cadeia de identidade,
+comunidade e Session das ondas W2 a W4.
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
 

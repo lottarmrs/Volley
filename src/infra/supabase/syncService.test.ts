@@ -2163,6 +2163,65 @@ test('uma copia obsoleta de Session target ja criada adota a linha existente em 
   }
 });
 
+test('Session duplicada cuja linha existente e legada (leitura P0002) segue o upsert legado sem reportar', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const duplicateError = Object.assign(
+    new Error('duplicate key value violates unique constraint "sessions_pkey"'),
+    { code: '23505' },
+  );
+  const notTargetError = Object.assign(new Error('Target Session not found'), { code: 'P0002' });
+  const receivedUpsert: Session[] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw duplicateError;
+    };
+    sessionCohortCloudService.readTargetSession = async () => {
+      throw notTargetError;
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      receivedUpsert.push(item);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [
+          makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' }),
+        ],
+        sessions: [
+          makeSession({
+            id: 'stale-legacy-session',
+            name: 'Treino Legado',
+            communityId: 'community-1',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(receivedUpsert.length, 1);
+    assert.equal(receivedUpsert[0].id, 'stale-legacy-session');
+    assert.equal(issues.length, 0);
+
+    const legacy = result.sessions.find((session) => session.id === 'stale-legacy-session');
+    assert.equal(legacy?.cloudId, 'legacy-session-cloud');
+    assert.equal(legacy?.authorityModel, undefined);
+    assert.equal(legacy?.syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
 test('Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado', async () => {
   const originalUpsertSession = operationalCloudService.upsertSession;
   const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
@@ -2172,7 +2231,7 @@ test('Session target duplicada cuja leitura tambem falha fica pendente, reporta 
     new Error('duplicate key value violates unique constraint "sessions_pkey"'),
     { code: '23505' },
   );
-  const readError = Object.assign(new Error('Session not found'), { code: 'P0002' });
+  const readError = Object.assign(new Error('permission denied'), { code: '42501' });
   let upsertSessionCalls = 0;
   const issues: { context: string; error: unknown }[] = [];
 

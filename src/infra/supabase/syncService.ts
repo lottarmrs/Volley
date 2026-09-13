@@ -1294,7 +1294,7 @@ export const syncService = {
           sessionCommunityCloudId &&
           activatedSessionCommunityIds.has(sessionCommunityCloudId.toLowerCase())
         ) {
-          let created: { id: string };
+          let created: { id: string } | null = null;
           try {
             created = await sessionCohortCloudService.createTargetSession({
               sessionId: session.id,
@@ -1304,15 +1304,22 @@ export const syncService = {
             });
           } catch (createError) {
             // A linha ja existe (copia local obsoleta ou resposta perdida apos o commit):
-            // adota a Session target lendo-a por id em vez de recriar ou cair para o legado.
+            // adota a Session target lendo-a por id. Se a leitura responde P0002, a linha com
+            // esse id e legada (a propria Session, que perdeu o cloudId) e segue o upsert legado.
             if ((createError as { code?: string } | null)?.code !== '23505') throw createError;
-            created = { id: (await sessionCohortCloudService.readTargetSession(session.id)).id };
+            try {
+              created = { id: (await sessionCohortCloudService.readTargetSession(session.id)).id };
+            } catch (readError) {
+              if ((readError as { code?: string } | null)?.code !== 'P0002') throw readError;
+            }
           }
-          updatedSessions.push({
-            ...markSynced(session, created.id, syncedAt),
-            authorityModel: 'target',
-          });
-          continue;
+          if (created) {
+            updatedSessions.push({
+              ...markSynced(session, created.id, syncedAt),
+              authorityModel: 'target',
+            });
+            continue;
+          }
         }
 
         const sessionForUpload = {

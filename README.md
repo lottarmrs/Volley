@@ -74,7 +74,7 @@ ls supabase/migrations/*.sql | grep -v '/schema\.sql$' | sort | sed '1i supabase
 ```
 
 `schema.sql` mais todas as migrations datadas. Não mantenha uma lista fixa aqui — a anterior
-derivou para 35 de 93 sem ninguém notar, e quem a seguisse ao pé da letra provisionaria um banco sem
+ficou para trás sem ninguém notar, e quem a seguisse ao pé da letra provisionaria um banco sem
 MFA obrigatório, sem eventos de carreira, sem posse de sessão e sem toda a cadeia de identidade,
 comunidade e Session das ondas W2 a W4.
 
@@ -168,7 +168,8 @@ O décimo achado é atendido fora do banco, pelo Content-Security-Policy adicion
 > O `schema.sql` recebeu as versões corrigidas de `reset_product_data` e `log_table_changes`, mas
 > **mantém de propósito** a `find_player_by_username` antiga: a endurecida consulta uma tabela que o
 > snapshot não cria, e como a função é `language sql` o arquivo deixaria de subir. Aplique
-> `schema.sql` e depois as migrations, na ordem desta lista — é a migration que manda no resultado.
+> `schema.sql` e depois as migrations, na ordem que o comando de ordenação acima lista — é a
+> migration que manda no resultado.
 
 `20260910100000_set_community_organizer.sql` adiciona `set_community_organizer`, o comando que
 concede e revoga a responsabilidade `ORGANIZER` em `community_responsibilities`. Até aqui essas

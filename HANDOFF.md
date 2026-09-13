@@ -73,8 +73,9 @@ na sequência C6 porque a cadeia W3 → W6 pressupunha Session target que nada n
 - `139bd51`: `Session.authorityModel?: 'legacy' | 'target'` e `isTargetCohortSession`. Ausência quer
   dizer legada;
 - `da7fd16`: o upload não sobe mais a raiz de Session com marcador target;
-- `8a4af23`: `syncNow` lê por id, via `read_target_session`, cada Session marcada e mescla nome e
-  comunidade. Leitura recusada mantém o objeto local;
+- `8a4af23`: `syncNow` lê por id, via `read_target_session`, cada Session marcada e mescla o nome
+  (até `fe131b0`, também a comunidade — ver a rodada de correção abaixo). Leitura recusada mantém o
+  objeto local;
 - `04fd199`: `set_community_organizer(community, user, enabled)`
   (`20260910100000_set_community_organizer.sql`) concede e revoga `ORGANIZER` sob
   `community.members.manage`, com revogação suave, espelhando `set_community_evaluator`;
@@ -85,6 +86,23 @@ na sequência C6 porque a cadeia W3 → W6 pressupunha Session target que nada n
   ativação falhar, as Sessions de comunidade ainda não sincronizadas são puladas naquela rodada —
   ir para o legado as fixaria para sempre, porque o portão `!cloudId` não reabre e o mesmo id
   colidiria com a PK da linha legada.
+
+**Rodada de correção da review final de branch inteira** (2 críticos e 3 importantes apontados):
+
+- `fe131b0`: o merge da leitura por id preserva o `communityId` local. A leitura devolve o id de
+  nuvem da Comunidade, gerado pelo servidor e nunca igual ao id local; sobrescrevê-lo tirava a
+  Session de `getCommunitySessions`;
+- `25992d4`: a criação target se recupera quando a linha já existe. Observado contra o banco real: um
+  segundo `create_target_session` com o mesmo id, pelo mesmo organizador, falha com `23505`
+  (`duplicate key value violates unique constraint "sessions_pkey"`) e mantém uma linha — não há
+  replay idempotente. Isso acontece quando uma cópia obsoleta de `activeSession` é regravada por cima
+  de `sessions` e apaga marcador e `cloudId`, ou quando a resposta se perde depois do commit. Com
+  `23505`, o sync lê a Session por id e a adota como target; qualquer outro erro, ou a leitura
+  falhando, mantém a Session pendente e reporta, sem cair para o legado. O caso de banco virou teste
+  de regressão em `setCommunityOrganizer.dbtest.ts`;
+- `95656c2`: só ids UUID vão para `community_evaluation_target_ids`. Um id local de comunidade
+  (`community-1700000000000`) fazia a consulta `uuid[]` inteira falhar e pulava toda Session de
+  comunidade nova em todo sync; agora a Session dessa comunidade segue o legado, como antes.
 
 **O cutover está morto, e por quê.** A primeira versão desta fatia ligava
 `transition_legacy_session_to_target` a um botão. Foi implementada, revisada e revertida
@@ -112,9 +130,43 @@ sem nenhuma saída pela interface. Não há perda de dado: a Session continua lo
 erro volta toda rodada, e isso passa a acontecer no momento em que uma comunidade ativa o modelo de
 avaliação.
 
+**Problema conhecido — Session target invisível em outro aparelho.** O download em lote restringe
+`sessions` a `authority_model = 'legacy'` (`scopeOperationalFetch`, `operationalCloudService.ts:72`),
+e a leitura target só acontece por um `cloudId` que o aparelho já guarda localmente
+(`mergeTargetCohortSessionReads`, `syncService.ts:993`). Outro aparelho do mesmo usuário, ou outro
+membro da comunidade, nunca vê a Session. Já `teams` e `games` são baixados sem esse filtro
+(`operationalCloudService.ts:671-672`), então o que dessas tabelas pertencer à Session target chega
+sem a Session-pai. O filtro foi verificado no cliente; a visibilidade dessas linhas pela RLS não foi
+re-verificada nesta rodada.
+
+**Problema conhecido — excluir uma Session target não se propaga, e o app não avisa.** O upload chama
+`softDelete('sessions', cloudId)` (`syncService.ts:1267`) antes de olhar a coorte. A policy de update
+de `sessions` só casa linha legada (`20260827210000_target_session_root.sql`), e `softDelete` não usa
+`.select()` (`operationalCloudService.ts:755-762`): zero linhas mudam, sem erro. A Session é marcada
+como sincronizada e, como o upload devolve `visible(updatedSessions)` (`syncService.ts:1619`), sai do
+estado local. A linha continua viva no servidor e nenhum problema é reportado. A correção planejada
+para esta rodada — não chamar `softDelete`, reportar e manter a Session pendente — **não entrou**: com
+o filtro `visible`, a Session sairia do estado local do mesmo jeito, e mantê-la pendente exige trocar
+o filtro de retorno de Sessions para o de exclusão pendente, o que muda também o comportamento
+legado. Não mapear exclusão para `cancel_target_session` continua sendo decisão de produto.
+
+**Problema conhecido — promover a organizador pelo app ainda não concede `ORGANIZER`.**
+`set_community_organizer` não tem chamador em `src/`, e `set_community_member_role` não grava
+`community_responsibilities`. Quem é promovido pelo painel de membros cai no `42501` acima.
+
 ### Evidência de verificação da XS-W3-08
 
-Rodada em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da documentação desta etapa.
+**Rodada de correção da review final** — 2026-09-13 sobre `95656c2`, com a árvore limpa fora da
+documentação desta etapa: `npm run typecheck` passou; `npm test` **971 unitários + 283 UI**, zero
+falhas, em 48 arquivos de UI; suíte completa PostgreSQL **672/672**, exit 0, 277,6 s, no
+`volley_test_pg2`; `npm run build` passou; `npx playwright test` **12/12**; `git diff --check` limpo
+na árvore de trabalho. `git diff --check 1ec364e..HEAD` acusa "trailing whitespace" nas linhas
+novas de `syncService.test.ts`, que é CRLF; com `core.whitespace=cr-at-eol` o resultado é vazio. Cada
+teste novo foi visto falhando antes da correção, exceto
+`Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado`,
+que protege um comportamento que já existia.
+
+Rodada original em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da documentação desta etapa.
 
 - `npm run typecheck`: passou, sem erro;
 - `npm test`: **968 unitários + 283 UI**, zero falhas, em 48 arquivos de UI;

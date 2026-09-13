@@ -63,31 +63,31 @@ condicionados a estado que a própria interface não produz sozinha (ver abaixo)
 **`create_target_session` — alcançável por sync, só para organizadores herdados.**
 
 1. `src/infra/supabase/sessionCohortCloudService.ts:120`.
-2. `syncService.ts:19` importa o serviço; `syncService.ts:1292` invoca `createTargetSession` dentro de
+2. `syncService.ts:19` importa o serviço; `syncService.ts:1299` invoca `createTargetSession` dentro de
    `uploadLocalDataToCloud`.
-3. `uploadLocalDataToCloud` é chamado por `syncNow` (`syncService.ts:1817`) e por
+3. `uploadLocalDataToCloud` é chamado por `syncNow` (`syncService.ts:1824`) e por
    `cloudSyncUseCases.ts:32`, ambos pelas quatro portas de sync acima.
 
 Dispara só para uma Session local sem `cloudId`, não apagada, sem marcador target, cuja comunidade
 resolve para um id de nuvem UUID que `community_evaluation_target_ids` devolve como ativado
-(`syncService.ts:1234-1260`, `:1285-1289`); id que não é UUID nem entra na consulta e segue o legado.
+(`syncService.ts:1234-1260`, `:1292-1296`); id que não é UUID nem entra na consulta e segue o legado.
 O servidor então exige uma responsabilidade `ORGANIZER`
 ativa. **Como `set_community_organizer` não tem chamador (abaixo), essas linhas só existem para quem
 o backfill único de `20260827150000` semeou a partir de `community_members.role = 'organizador'`.**
 Para qualquer outro membro de uma comunidade ativada, o comando responde `42501` a cada sync — ver
 "Problema conhecido" no HANDOFF. Se a linha já existe, o comando responde `23505` (`sessions_pkey`,
-observado contra o banco real); o sync então lê a Session por id e a adota (`syncService.ts:1301-1302`).
+observado contra o banco real); o sync então lê a Session por id e a adota (`syncService.ts:1308-1309`).
 
 **`read_target_session` — alcançável por sync, condicionado ao anterior.**
 
 1. `sessionCohortCloudService.ts:113`.
 2. `syncService.ts:998` invoca `readTargetSession` dentro de `mergeTargetCohortSessionReads`
-   (`:987`), e `syncService.ts:1302` o invoca para adotar a Session depois de `23505`.
-3. `mergeTargetCohortSessionReads` só é chamado por `syncNow` (`syncService.ts:1760`) — o upload de
+   (`:987`), e `syncService.ts:1309` o invoca para adotar a Session depois de `23505`.
+3. `mergeTargetCohortSessionReads` só é chamado por `syncNow` (`syncService.ts:1767`) — o upload de
    conversão de convidado não passa por ele.
 
 Só lê Session com `authorityModel === 'target'` e `cloudId`. O único produtor desse marcador no
-cliente é o ramo de criação acima (`syncService.ts:1304-1307`), então `read_target_session` herda
+cliente é o ramo de criação acima (`syncService.ts:1311-1314`), então `read_target_session` herda
 exatamente a mesma restrição de `ORGANIZER`. A leitura devolve `currentRosterRevisionId`
 (`sessionCohortCloudService.ts:88`), mas o merge guarda só `name` (`syncService.ts:999`) — de
 propósito: uma revisão em cache ficaria velha, e a captura recusa uma revisão não corrente com
@@ -97,9 +97,10 @@ nunca é igual ao local.
 **Problemas conhecidos da Session target** (detalhe no HANDOFF): é invisível em outro aparelho — o
 download em lote filtra `sessions` para legado (`operationalCloudService.ts:72`) e a leitura target só
 acontece por um `cloudId` já guardado localmente —, enquanto `teams` e `games` são baixados sem esse
-filtro e chegam sem a Session-pai; a exclusão não se propaga — `softDelete` é filtrado em silêncio pela
-policy de update, a Session é marcada como sincronizada e sai do estado local, com a linha viva no
-servidor e sem aviso; e promover a organizador pelo app ainda não concede `ORGANIZER`.
+filtro e chegam sem a Session-pai; a exclusão não se propaga — o upload não chama `softDelete` para
+Session target (a policy de update o filtraria em silêncio, com sucesso falso) e reporta um problema
+naquela rodada, a Session local é removida e a linha continua viva no servidor; e promover a
+organizador pelo app ainda não concede `ORGANIZER`.
 
 **`set_community_organizer` — capacidade de banco sem caminho.**
 

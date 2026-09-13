@@ -102,7 +102,11 @@ na sequência C6 porque a cadeia W3 → W6 pressupunha Session target que nada n
   de regressão em `setCommunityOrganizer.dbtest.ts`;
 - `95656c2`: só ids UUID vão para `community_evaluation_target_ids`. Um id local de comunidade
   (`community-1700000000000`) fazia a consulta `uuid[]` inteira falhar e pulava toda Session de
-  comunidade nova em todo sync; agora a Session dessa comunidade segue o legado, como antes.
+  comunidade nova em todo sync; agora a Session dessa comunidade segue o legado, como antes;
+- `67ac1af`: excluir uma Session target não chama mais `softDelete`, que a RLS filtrava em silêncio e
+  o sync registrava como sucesso; o upload reporta um problema naquela rodada. A Session local continua
+  saindo do estado e a linha segue viva no servidor — ver o problema conhecido abaixo. Session legada
+  apagada não mudou.
 
 **O cutover está morto, e por quê.** A primeira versão desta fatia ligava
 `transition_legacy_session_to_target` a um botão. Foi implementada, revisada e revertida
@@ -139,16 +143,17 @@ membro da comunidade, nunca vê a Session. Já `teams` e `games` são baixados s
 sem a Session-pai. O filtro foi verificado no cliente; a visibilidade dessas linhas pela RLS não foi
 re-verificada nesta rodada.
 
-**Problema conhecido — excluir uma Session target não se propaga, e o app não avisa.** O upload chama
-`softDelete('sessions', cloudId)` (`syncService.ts:1267`) antes de olhar a coorte. A policy de update
-de `sessions` só casa linha legada (`20260827210000_target_session_root.sql`), e `softDelete` não usa
-`.select()` (`operationalCloudService.ts:755-762`): zero linhas mudam, sem erro. A Session é marcada
-como sincronizada e, como o upload devolve `visible(updatedSessions)` (`syncService.ts:1619`), sai do
-estado local. A linha continua viva no servidor e nenhum problema é reportado. A correção planejada
-para esta rodada — não chamar `softDelete`, reportar e manter a Session pendente — **não entrou**: com
-o filtro `visible`, a Session sairia do estado local do mesmo jeito, e mantê-la pendente exige trocar
-o filtro de retorno de Sessions para o de exclusão pendente, o que muda também o comportamento
-legado. Não mapear exclusão para `cancel_target_session` continua sendo decisão de produto.
+**Problema conhecido — excluir uma Session target não se propaga.** A policy de update de `sessions`
+só casa linha legada (`20260827210000_target_session_root.sql:103-114`), e `softDelete` não usa
+`.select()` (`operationalCloudService.ts:755-762`): para uma linha target ele mudaria zero linhas, sem
+erro, e o sync marcaria um sucesso falso. Desde esta rodada o upload não chama `softDelete` para
+Session target apagada e reporta um problema naquela rodada — contexto
+`exclusão da sessão "<nome>" no modelo versionado`, mensagem "A exclusão de sessões no modelo
+versionado ainda não é enviada para a nuvem.". A Session local é removida, porque o upload devolve
+`visible(updatedSessions)`, que descarta registro apagado; a linha continua viva no servidor, e o aviso
+aparece uma vez, não a cada sync. Manter a Session pendente exigiria trocar esse filtro, o que muda
+também o comportamento legado, e foi descartado. Mapear exclusão para `cancel_target_session`
+continua sendo decisão de produto.
 
 **Problema conhecido — promover a organizador pelo app ainda não concede `ORGANIZER`.**
 `set_community_organizer` não tem chamador em `src/`, e `set_community_member_role` não grava
@@ -164,7 +169,9 @@ na árvore de trabalho. `git diff --check 1ec364e..HEAD` acusa "trailing whitesp
 novas de `syncService.test.ts`, que é CRLF; com `core.whitespace=cr-at-eol` o resultado é vazio. Cada
 teste novo foi visto falhando antes da correção, exceto
 `Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado`,
-que protege um comportamento que já existia.
+que protege um comportamento que já existia. Depois de `67ac1af` (exclusão de Session target, sem
+SQL): `npm run typecheck` passou, `npm run test:unit` **973/973** e `npm run test:ui` **283/283**;
+suíte de banco e e2e não foram rodadas de novo, e os números acima delas valem para `95656c2`.
 
 Rodada original em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da documentação desta etapa.
 

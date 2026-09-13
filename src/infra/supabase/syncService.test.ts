@@ -2361,6 +2361,73 @@ test('id de comunidade nao-UUID nao envenena a consulta de ativacao das demais S
   }
 });
 
+test('excluir uma Session target nao chama softDelete e reporta que a exclusao nao subiu', async () => {
+  const originalSoftDelete = operationalCloudService.softDelete;
+  const softDeleteCalls: string[][] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    operationalCloudService.softDelete = async (table, cloudId) => {
+      softDeleteCalls.push([table, cloudId]);
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            id: 'target-session',
+            name: 'Treino Excluido',
+            cloudId: 'target-session',
+            authorityModel: 'target',
+            deletedAt: '2026-06-29T10:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.deepEqual(softDeleteCalls, []);
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].context, 'exclusão da sessão "Treino Excluido" no modelo versionado');
+    assert.match((issues[0].error as Error).message, /não é enviada para a nuvem/);
+  } finally {
+    operationalCloudService.softDelete = originalSoftDelete;
+  }
+});
+
+test('excluir uma Session legada continua chamando softDelete sem reportar problema', async () => {
+  const originalSoftDelete = operationalCloudService.softDelete;
+  const softDeleteCalls: string[][] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    operationalCloudService.softDelete = async (table, cloudId) => {
+      softDeleteCalls.push([table, cloudId]);
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            id: 'legacy-session',
+            name: 'Treino Legado',
+            cloudId: 'legacy-session-cloud',
+            deletedAt: '2026-06-29T10:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.deepEqual(softDeleteCalls, [['sessions', 'legacy-session-cloud']]);
+    assert.equal(issues.length, 0);
+  } finally {
+    operationalCloudService.softDelete = originalSoftDelete;
+  }
+});
+
 test('RPC de ativacao ausente (PGRST202) segue no caminho legado sem reportar problema', async () => {
   const originalUpsertSession = operationalCloudService.upsertSession;
   const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;

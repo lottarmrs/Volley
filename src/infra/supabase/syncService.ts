@@ -1263,7 +1263,14 @@ export const syncService = {
     for (const session of local.sessions) {
       try {
         if (session.deletedAt) {
-          if (session.cloudId) {
+          if (isTargetCohortSession(session)) {
+            onIssue(
+              `exclusão da sessão "${session.name}" no modelo versionado`,
+              new Error(
+                'A exclusão de sessões no modelo versionado ainda não é enviada para a nuvem.',
+              ),
+            );
+          } else if (session.cloudId) {
             await operationalCloudService.softDelete('sessions', session.cloudId);
           }
           updatedSessions.push(markSynced(session, session.cloudId, syncedAt));

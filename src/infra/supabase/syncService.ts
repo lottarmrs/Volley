@@ -1287,12 +1287,20 @@ export const syncService = {
           sessionCommunityCloudId &&
           activatedSessionCommunityIds.has(sessionCommunityCloudId.toLowerCase())
         ) {
-          const created = await sessionCohortCloudService.createTargetSession({
-            sessionId: session.id,
-            communityId: sessionCommunityCloudId,
-            name: session.name,
-            playMode: targetPlayModeForSession(session),
-          });
+          let created: { id: string };
+          try {
+            created = await sessionCohortCloudService.createTargetSession({
+              sessionId: session.id,
+              communityId: sessionCommunityCloudId,
+              name: session.name,
+              playMode: targetPlayModeForSession(session),
+            });
+          } catch (createError) {
+            // A linha ja existe (copia local obsoleta ou resposta perdida apos o commit):
+            // adota a Session target lendo-a por id em vez de recriar ou cair para o legado.
+            if ((createError as { code?: string } | null)?.code !== '23505') throw createError;
+            created = { id: (await sessionCohortCloudService.readTargetSession(session.id)).id };
+          }
           updatedSessions.push({
             ...markSynced(session, created.id, syncedAt),
             authorityModel: 'target',

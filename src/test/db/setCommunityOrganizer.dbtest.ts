@@ -87,6 +87,25 @@ if (!isTestDatabaseConfigured()) {
     await assert.rejects(createSession(shared.member, shared.community), { code: '42501' });
   });
 
+  test('a second create_target_session with the same id by the same organizer raises 23505 and keeps one row', async () => {
+    const c = await context();
+    await call(c.owner, GRANT, [c.community, c.member, true]);
+    const sessionId = randomUUID();
+    const sql =
+      "select public.create_target_session($1,$2,'COMMUNITY','FREE_PLAY',$3,null,null) as id";
+    const first = await call(c.member, sql, [sessionId, c.community, 'Sessão duplicada']);
+    assert.equal(first.rows[0].id, sessionId);
+    await assert.rejects(call(c.member, sql, [sessionId, c.community, 'Sessão duplicada']), {
+      code: '23505',
+      constraint: 'sessions_pkey',
+    });
+    const { rows } = await client.query<{ n: number }>(
+      'select count(*)::int as n from public.sessions where id = $1',
+      [sessionId],
+    );
+    assert.equal(rows[0].n, 1);
+  });
+
   test('a plain member cannot grant it: 42501', async () => {
     const c = await context();
     await assert.rejects(call(c.member, GRANT, [c.community, c.member, true]), { code: '42501' });

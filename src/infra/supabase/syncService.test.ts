@@ -2099,6 +2099,127 @@ test('falha ao criar no modelo target nao cai para o legado em silencio', async 
   }
 });
 
+test('uma copia obsoleta de Session target ja criada adota a linha existente em vez de recriar', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const duplicateError = Object.assign(
+    new Error('duplicate key value violates unique constraint "sessions_pkey"'),
+    { code: '23505' },
+  );
+  const receivedReadIds: string[] = [];
+  let upsertSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['community-1-cloud'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw duplicateError;
+    };
+    sessionCohortCloudService.readTargetSession = async (sessionCloudId: string) => {
+      receivedReadIds.push(sessionCloudId);
+      return {
+        id: sessionCloudId,
+        communityId: 'community-1-cloud',
+        name: 'Treino de Terca',
+        sessionContext: 'COMMUNITY',
+        playMode: 'FREE_PLAY',
+        lifecycleStatus: 'DRAFT',
+        publicationState: 'PRIVATE',
+        revision: 1,
+        currentRosterRevisionId: null,
+      };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [
+          makeSession({ id: 'stale-session', name: 'Treino de Terca', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.deepEqual(receivedReadIds, ['stale-session']);
+    assert.equal(issues.length, 0);
+
+    const adopted = result.sessions.find((session) => session.id === 'stale-session');
+    assert.equal(adopted?.authorityModel, 'target');
+    assert.equal(adopted?.cloudId, 'stale-session');
+    assert.equal(adopted?.syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const duplicateError = Object.assign(
+    new Error('duplicate key value violates unique constraint "sessions_pkey"'),
+    { code: '23505' },
+  );
+  const readError = Object.assign(new Error('Session not found'), { code: 'P0002' });
+  let upsertSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['community-1-cloud'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw duplicateError;
+    };
+    sessionCohortCloudService.readTargetSession = async () => {
+      throw readError;
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const localSession = makeSession({
+      id: 'stale-session',
+      name: 'Treino de Terca',
+      communityId: 'community-1',
+    });
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: 'community-1-cloud' })],
+        sessions: [localSession],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão/i);
+
+    const untouched = result.sessions.find((session) => session.id === 'stale-session');
+    assert.equal(untouched?.name, localSession.name);
+    assert.equal(untouched?.cloudId, undefined);
+    assert.equal(untouched?.syncStatus, 'pending');
+    assert.equal(untouched?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
 test('a marca de modelo target sobrevive a um persist orientado por estado', async () => {
   const originalUpsertSession = operationalCloudService.upsertSession;
   const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;

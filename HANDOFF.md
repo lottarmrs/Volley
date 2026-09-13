@@ -106,7 +106,12 @@ na sequência C6 porque a cadeia W3 → W6 pressupunha Session target que nada n
 - `67ac1af`: excluir uma Session target não chama mais `softDelete`, que a RLS filtrava em silêncio e
   o sync registrava como sucesso; o upload reporta um problema naquela rodada. A Session local continua
   saindo do estado e a linha segue viva no servidor — ver o problema conhecido abaixo. Session legada
-  apagada não mudou.
+  apagada não mudou;
+- `d02034c` (re-review, I-1): depois de `23505`, se a leitura por id responde `P0002`, a linha com
+  esse id não é target. Como `mapSessionToDb` envia `id: local.id`, é a própria Session legada, que
+  perdeu o `cloudId` por uma regravação obsoleta antes de a comunidade ativar o modelo. O sync segue
+  o upsert legado em vez de relançar o erro e deixar a Session pendente para sempre; qualquer outro
+  erro de leitura continua reportando e deixando a Session pendente.
 
 **O cutover está morto, e por quê.** A primeira versão desta fatia ligava
 `transition_legacy_session_to_target` a um botão. Foi implementada, revisada e revertida
@@ -166,12 +171,18 @@ documentação desta etapa: `npm run typecheck` passou; `npm test` **971 unitár
 falhas, em 48 arquivos de UI; suíte completa PostgreSQL **672/672**, exit 0, 277,6 s, no
 `volley_test_pg2`; `npm run build` passou; `npx playwright test` **12/12**; `git diff --check` limpo
 na árvore de trabalho. `git diff --check 1ec364e..HEAD` acusa "trailing whitespace" nas linhas
-novas de `syncService.test.ts`, que é CRLF; com `core.whitespace=cr-at-eol` o resultado é vazio. Cada
-teste novo foi visto falhando antes da correção, exceto
-`Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado`,
-que protege um comportamento que já existia. Depois de `67ac1af` (exclusão de Session target, sem
+novas de `syncService.test.ts`, que é CRLF; com `core.whitespace=cr-at-eol` o resultado é vazio. Nem todo
+teste novo falhou antes da correção. Três não falharam:
+`Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado`
+protege um comportamento que já existia; o caso de banco
+`a second create_target_session with the same id by the same organizer raises 23505 and keeps one row`
+fixa o comportamento observado; e
+`excluir uma Session legada continua chamando softDelete sem reportar problema` (`67ac1af`) protege o
+caminho legado. Os demais foram vistos falhando antes da correção. Depois de `67ac1af` (exclusão de Session target, sem
 SQL): `npm run typecheck` passou, `npm run test:unit` **973/973** e `npm run test:ui` **283/283**;
-suíte de banco e e2e não foram rodadas de novo, e os números acima delas valem para `95656c2`.
+suíte de banco e e2e não foram rodadas de novo, e os números acima delas valem para `95656c2`. Depois
+de `d02034c` (re-review, sem SQL): `npm run typecheck` passou, `npm run test:unit` **974/974**,
+`npm run test:ui` **283/283**, e `git -c core.whitespace=cr-at-eol diff --check 1ec364e..HEAD` limpo.
 
 Rodada original em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da documentação desta etapa.
 

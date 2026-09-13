@@ -996,7 +996,7 @@ async function mergeTargetCohortSessionReads(
     }
     try {
       const read = await sessionCohortCloudService.readTargetSession(session.cloudId);
-      merged.push({ ...session, name: read.name, communityId: read.communityId });
+      merged.push({ ...session, name: read.name });
     } catch (error) {
       reportIssue(onIssue, `sessão convertida "${session.name}"`, error);
       merged.push(session);

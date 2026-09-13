@@ -1903,6 +1903,7 @@ test('o download mescla a Session convertida lida por id', async () => {
           makeSession({
             id: 'target-session',
             name: 'Nome local antigo',
+            communityId: 'community-local-1',
             cloudId: 'target-session-cloud',
             authorityModel: 'target',
           }),
@@ -1914,7 +1915,7 @@ test('o download mescla a Session convertida lida por id', async () => {
     assert.deepEqual(receivedSessionCloudIds, ['target-session-cloud']);
     const session = result.sessions.find((item) => item.id === 'target-session');
     assert.equal(session?.name, 'Nome atualizado no servidor');
-    assert.equal(session?.communityId, 'community-cloud-1');
+    assert.equal(session?.communityId, 'community-local-1');
   } finally {
     syncService.downloadCloudDataToLocal = originalDownload;
     syncService.uploadLocalDataToCloud = originalUpload;

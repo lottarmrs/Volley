@@ -195,6 +195,24 @@ espelhadas. A mesma migration corrige `prevent_last_community_owner_change`, que
 silêncio o DELETE de quem não era dono: `remove_community_member` e `leave_community` nunca tinham
 removido ninguém além de donos.
 
+`20260821190000_remove_cloud_only_league_extensions.sql` desfaz quatro migrations de liga que foram
+aplicadas direto no projeto em 2026-08-21 sem nunca entrar no repositório: identidade de time,
+organizador tocando rodada, solicitações de remarcação com trava de data e aceite de capitão. Duas
+delas quebravam o sync — `current_user_can_manage_championship` recusava o tombstone de rodada e de
+time de uma liga já excluída, e a trava recusava toda remarcação feita pelo app. Remove a tabela
+`championship_requests`, a trava, a coluna `captain_player_id`, as funções e as policies de escudo, e
+restaura as policies de UPDATE de dono e admin em `championship_teams` e `championship_rounds`. As
+colunas de sigla, cores e escudo ficam, porque já guardam dado; o bucket `team-crests` fica vazio,
+já que `storage.buckets` recusa DELETE por SQL. Num banco construído só pelo repositório, a migration
+apenas declara essas colunas.
+
+`20260914130000_revoke_anon_community_capabilities.sql` revoga de `anon` o EXECUTE de
+`community_capabilities`. A remediação de 2026-09-08 tirou a função de `authenticated`, mas no
+Supabase os privilégios padrão do schema `public` concedem EXECUTE direto a `anon`, e o
+`revoke ... from public` das migrations não remove essa concessão — quem tivesse a chave anônima
+ainda sondava o papel de qualquer usuário. Num Postgres puro, como o do harness, a revogação já
+valia antes; por isso só o advisor do projeto real mostrou a lacuna.
+
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.
 5. In the app, open **Nuvem & Conta**, create an account and use _Enviar para nuvem_ / _Baixar da nuvem_ / _Sincronizar_.

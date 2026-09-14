@@ -8,8 +8,8 @@
 > identidade de sync da Session ativa (`506d52b`). Nada foi enviado para remoto — ver a seção da
 > XS-W3-08 logo abaixo da tabela de fatias.
 >
-> **2026-09-14, depois:** a XS-W3-09 (`ORGANIZER` pelo cargo Organizador) está concluída na branch
-> `exec/c6-w3-09-organizer-from-member-role`, não integrada — ver a seção dela antes de "Branches".
+> **2026-09-14, depois:** a XS-W3-09 (`ORGANIZER` pelo cargo Organizador) foi integrada em `main` por
+> merge `--no-ff` — ver a seção dela antes de "Branches".
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -31,7 +31,7 @@ Resumo, re-derivado em 2026-09-13 no fim da XS-W3-08 e ajustado em 2026-09-14 pe
 ~46 funções públicas da era C6 destinadas ao cliente, **8 são alcançáveis** — 5 por tela (editor de
 avaliação e perfil de comunidade, W5-03 e seu complemento), 1 por tela e por sync
 (`community_evaluation_target_ids`) e 2 **só por sync**, ambas da XS-W3-08: `create_target_session`
-e `read_target_session`. Com a XS-W3-09 (na branch, não integrada) elas disparam para quem tem o cargo
+e `read_target_session`. Com a XS-W3-09 elas disparam para quem tem o cargo
 Organizador numa comunidade legada ativada, porque o cargo passa a conceder `ORGANIZER`; dono e admin
 continuam sem. `set_community_organizer` segue sem chamador. O restante de W3 e W4, mais W5-01, W5-02, W6-01 e W6-02 — captura de snapshot incluída —
 continua sem caminho. A tabela abaixo diz que essas fatias estão concluídas, e elas estão: o código
@@ -39,29 +39,29 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                                 | Estado                             |
-| -------- | ------------------------------------------------------- | ---------------------------------- |
-| XS-W3-01 | Session target root                                     | concluída                          |
-| XS-W3-02 | Session organizer assignment                            | concluída                          |
-| XS-W3-03 | Session courts                                          | concluída                          |
-| XS-W3-04 | Session rules snapshot                                  | concluída                          |
-| XS-W3-05 | SessionParticipant + RosterRevision                     | concluída                          |
-| XS-W3-06 | Lifecycle/readiness semantic commands                   | concluída                          |
-| XS-W3-07 | Session cohort cutover                                  | concluída                          |
-| XS-W4-01 | Registration schema e invariantes                       | concluída                          |
-| XS-W4-02 | Open/Close/Lock Registration                            | concluída                          |
-| XS-W4-03 | JoinRegistration                                        | concluída                          |
-| XS-W4-04 | Leave / promoção / capacidade                           | concluída                          |
-| XS-W4-05 | FinalizeSessionRoster                                   | concluída                          |
-| XS-W4-06 | Legacy Session Registration introduction                | concluída                          |
-| XS-W5-01 | Versioned PlayerEvaluation source model                 | concluída                          |
-| XS-W5-02 | Skill rubric/dimension contract                         | concluída                          |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação       | concluída                          |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda            | concluída                          |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador           | concluída                          |
-| XS-W6-02 | Porta de formação de times / solver determinístico      | concluída                          |
-| XS-W3-08 | Session target alcançável pelo cliente (por sync)       | concluída                          |
-| XS-W3-09 | `ORGANIZER` pelo cargo Organizador (espelho de membros) | concluída na branch, não integrada |
+| Fatia    | Assunto                                                 | Estado    |
+| -------- | ------------------------------------------------------- | --------- |
+| XS-W3-01 | Session target root                                     | concluída |
+| XS-W3-02 | Session organizer assignment                            | concluída |
+| XS-W3-03 | Session courts                                          | concluída |
+| XS-W3-04 | Session rules snapshot                                  | concluída |
+| XS-W3-05 | SessionParticipant + RosterRevision                     | concluída |
+| XS-W3-06 | Lifecycle/readiness semantic commands                   | concluída |
+| XS-W3-07 | Session cohort cutover                                  | concluída |
+| XS-W4-01 | Registration schema e invariantes                       | concluída |
+| XS-W4-02 | Open/Close/Lock Registration                            | concluída |
+| XS-W4-03 | JoinRegistration                                        | concluída |
+| XS-W4-04 | Leave / promoção / capacidade                           | concluída |
+| XS-W4-05 | FinalizeSessionRoster                                   | concluída |
+| XS-W4-06 | Legacy Session Registration introduction                | concluída |
+| XS-W5-01 | Versioned PlayerEvaluation source model                 | concluída |
+| XS-W5-02 | Skill rubric/dimension contract                         | concluída |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação       | concluída |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda            | concluída |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador           | concluída |
+| XS-W6-02 | Porta de formação de times / solver determinístico      | concluída |
+| XS-W3-08 | Session target alcançável pelo cliente (por sync)       | concluída |
+| XS-W3-09 | `ORGANIZER` pelo cargo Organizador (espelho de membros) | concluída |
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 
@@ -141,7 +141,7 @@ no sync genérico. Comunidade não ativada não muda em nada.
 
 **Problema conhecido — `42501` recorrente para quem não é `ORGANIZER`.** Um membro de uma comunidade
 ativada que não tem `ORGANIZER` e cria uma Session localmente recebe `42501` de
-`create_target_session` a cada sync, sem nenhuma saída pela interface. Com a XS-W3-09 (na branch)
+`create_target_session` a cada sync, sem nenhuma saída pela interface. Com a XS-W3-09
 isso deixa de valer para quem tem o cargo Organizador, mas continua valendo para dono, admin,
 moderador e membro comum — inclusive no caso mais comum, o dono criando a própria Session. Não há perda de dado: a Session continua local e pendente. Mas o
 erro volta toda rodada, e isso passa a acontecer no momento em que uma comunidade ativa o modelo de
@@ -169,7 +169,7 @@ também o comportamento legado, e foi descartado. Mapear exclusão para `cancel_
 continua sendo decisão de produto.
 
 **Problema conhecido — promover a organizador pelo app ainda não concede `ORGANIZER`.**
-**Resolvido na XS-W3-09** (na branch, não integrada): o cargo Organizador concede `ORGANIZER` pelo
+**Resolvido na XS-W3-09**: o cargo Organizador concede `ORGANIZER` pelo
 espelho de `community_members`. `set_community_organizer` continua sem chamador em `src/`.
 
 ### Corrigido depois da integração — Session ativa perdia a identidade de sync
@@ -266,7 +266,8 @@ Rodada original em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da docum
 
 ### O que a XS-W3-09 entregou — `ORGANIZER` pelo cargo Organizador
 
-Branch `exec/c6-w3-09-organizer-from-member-role`, **não integrada em `main`**. Ver o
+Integrada em `main` em 2026-09-14 por merge `--no-ff`; a branch
+`exec/c6-w3-09-organizer-from-member-role` foi apagada. Ver o
 [spec](docs/superpowers/specs/2026-09-14-xs-w3-09-organizer-from-member-role-design.md) e o
 [plano](docs/superpowers/plans/2026-09-14-xs-w3-09-organizer-from-member-role.md). Inserida depois da
 XS-W3-08 para derrubar no app a terceira parede do mapa de alcançabilidade.
@@ -344,7 +345,7 @@ temporária e sai nesse cutover.
 
 ### Branches — cadeia integrada em `main`
 
-**Toda a cadeia C6 até `XS-W6-02`, mais a `XS-W3-08`, está em `main`.** As fatias até `XS-W4-06`,
+**Toda a cadeia C6 até `XS-W6-02`, mais a `XS-W3-08` e a `XS-W3-09`, está em `main`.** As fatias até `XS-W4-06`,
 mais a correção de cascade de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` em
 2026-09-05. Em 2026-09-08, depois da review independente de branch inteira, entraram de uma vez a
 `XS-W5-02`, a `XS-W5-03` com seu complemento de editor/source authority, a `XS-W5-04`, a remediação
@@ -352,15 +353,15 @@ da auditoria de segurança e a `XS-W6-01`. Em 2026-09-10 entrou a `XS-W6-02`, ta
 de branch inteira e da onda de correção que ela gerou. Os dois merges foram fast-forward — `main` não
 tinha andado — e as branches `exec/c6-w5-02-skill-rubric-contract` e
 `exec/c6-w6-02-team-formation-port` foram apagadas por já estarem contidas em `main`. Em 2026-09-14
-entraram a `XS-W3-08` (`30e9d34`) e a correção da identidade de sync da Session ativa (`506d52b`),
-ambas por merge `--no-ff`.
+entraram a `XS-W3-08` (`30e9d34`), a correção da identidade de sync da Session ativa (`506d52b`) e a
+`XS-W3-09`, todas por merge `--no-ff`.
 
 ```text
-main   ← contém W3-01..W6-02, W3-08, a correção de cascade, a remediação de segurança e a
+main   ← contém W3-01..W6-02, W3-08, W3-09, a correção de cascade, a remediação de segurança e a
          correção da identidade de sync da Session ativa
 ```
 
-Pendente de integração: a `XS-W3-09`, na branch `exec/c6-w3-09-organizer-from-member-role`.
+Não existe trabalho C6 pendente de integração.
 
 **Integrado não é implantado.** Nada foi enviado para remoto, nenhuma migration foi aplicada em
 Supabase remoto e nenhuma imagem foi implantada. O CSP do `nginx.conf` só passa a valer no próximo
@@ -381,8 +382,8 @@ separadamente, e **a escolha é de produto, ainda não feita**:
   (publicação do conjunto de candidatos), que tem
   [design](docs/superpowers/specs/2026-09-10-xs-w6-03-candidate-set-publication-design.md) e não
   tem plano. Ela pressupõe captura de snapshot e revisão de elenco que nenhum caminho do app produz
-  hoje. A parede 3 do mapa caiu no app para o cargo Organizador com a XS-W3-09, que ainda precisa ser
-  integrada; dono e admin continuam sem `ORGANIZER`.
+  hoje. A parede 3 do mapa caiu no app para o cargo Organizador com a XS-W3-09; dono e admin
+  continuam sem `ORGANIZER`.
 
 Antes de qualquer uma, leia a seção "Backlog da review independente de branch — 2026-09-08", mais
 abaixo: há um achado de segurança **aberto** (A9) e uma decisão de produto pendente (A6).

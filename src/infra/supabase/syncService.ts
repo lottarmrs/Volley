@@ -5,10 +5,19 @@ import { communityPlayerCloudService, CommunityPlayerDb } from './communityPlaye
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { operationalCloudService, OperationalSyncPayload } from './operationalCloudService';
-import { playerEvaluationCloudService } from './playerEvaluationCloudService';
+import {
+  playerEvaluationCloudService,
+  isMissingTargetLookup,
+} from './playerEvaluationCloudService';
 import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
+import {
+  isTargetCohortSession,
+  type TargetSessionPlayMode,
+} from '../../application/sessionCohortCutover';
+import { sessionCohortCloudService } from './sessionCohortCloudService';
+import { supabase as communityEvaluationCloudService } from './communityEvaluationCloudService';
 import {
   CloudSyncStatus,
   Community,
@@ -566,6 +575,10 @@ export function mergeEntityLists<T extends Syncable>(
   return merged;
 }
 
+function targetPlayModeForSession(session: Session): TargetSessionPlayMode {
+  return session.type === 'tournament' ? 'STRUCTURED_MATCHES' : 'FREE_PLAY';
+}
+
 function markSynced<T extends Syncable>(
   local: T,
   cloudId: string | undefined,
@@ -971,6 +984,27 @@ async function bulkUploadSessionChildren<T extends Syncable>(
   return visible(updated);
 }
 
+async function mergeTargetCohortSessionReads(
+  sessions: Session[],
+  onIssue: SyncOptions['onIssue'],
+): Promise<Session[]> {
+  const merged: Session[] = [];
+  for (const session of sessions) {
+    if (!isTargetCohortSession(session) || !session.cloudId) {
+      merged.push(session);
+      continue;
+    }
+    try {
+      const read = await sessionCohortCloudService.readTargetSession(session.cloudId);
+      merged.push({ ...session, name: read.name });
+    } catch (error) {
+      reportIssue(onIssue, `sessão convertida "${session.name}"`, error);
+      merged.push(session);
+    }
+  }
+  return merged;
+}
+
 export const syncService = {
   async uploadLocalDataToCloud(
     local: LocalSyncPayload,
@@ -1192,20 +1226,105 @@ export const syncService = {
       }
     }
 
+    // A ativacao do modelo versionado e por Comunidade e ja e resolvida assim para o
+    // upload de avaliacoes (playerEvaluationCloudService); aqui reaproveitamos a mesma
+    // RPC (community_evaluation_target_ids) num unico lote, so para as Sessoes que ainda
+    // vao subir pela primeira vez -- uma Sessao ja sincronizada como legada nao e
+    // convertida por esta rota (fora do escopo desta fatia).
+    const sessionCommunityIdsToCheckActivation = Array.from(
+      new Set(
+        local.sessions
+          .filter(
+            (session) => !session.deletedAt && !session.cloudId && !isTargetCohortSession(session),
+          )
+          .map((session) => resolveCloudId(session.communityId, communityCloudIds))
+          .filter((id): id is string => isUuid(id)),
+      ),
+    );
+
+    let activatedSessionCommunityIds = new Set<string>();
+    let sessionActivationLookupFailed = false;
+    if (sessionCommunityIdsToCheckActivation.length > 0) {
+      try {
+        const activated = await communityEvaluationCloudService.activatedCommunityIds(
+          sessionCommunityIdsToCheckActivation,
+        );
+        activatedSessionCommunityIds = new Set(activated.map((id) => id.toLowerCase()));
+      } catch (error) {
+        if (!isMissingTargetLookup(error as { code?: string } | null)) {
+          sessionActivationLookupFailed = true;
+          console.error('Falha ao consultar Comunidades com o modelo versionado ativado', error);
+          onIssue('ativação de sessões no modelo versionado', error);
+        }
+      }
+    }
+
     const updatedSessions: Session[] = [];
     for (const session of local.sessions) {
       try {
         if (session.deletedAt) {
-          if (session.cloudId) {
+          if (isTargetCohortSession(session)) {
+            onIssue(
+              `exclusão da sessão "${session.name}" no modelo versionado`,
+              new Error(
+                'A exclusão de sessões no modelo versionado ainda não é enviada para a nuvem.',
+              ),
+            );
+          } else if (session.cloudId) {
             await operationalCloudService.softDelete('sessions', session.cloudId);
           }
           updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
           continue;
         }
 
+        if (isTargetCohortSession(session)) {
+          updatedSessions.push(session);
+          continue;
+        }
+
+        if (sessionActivationLookupFailed && session.communityId && !session.cloudId) {
+          updatedSessions.push(session);
+          continue;
+        }
+
+        const sessionCommunityCloudId = resolveCloudId(session.communityId, communityCloudIds);
+
+        if (
+          !session.cloudId &&
+          sessionCommunityCloudId &&
+          activatedSessionCommunityIds.has(sessionCommunityCloudId.toLowerCase())
+        ) {
+          let created: { id: string } | null = null;
+          try {
+            created = await sessionCohortCloudService.createTargetSession({
+              sessionId: session.id,
+              communityId: sessionCommunityCloudId,
+              name: session.name,
+              playMode: targetPlayModeForSession(session),
+            });
+          } catch (createError) {
+            // A linha ja existe (copia local obsoleta ou resposta perdida apos o commit):
+            // adota a Session target lendo-a por id. Se a leitura responde P0002, a linha com
+            // esse id e legada (a propria Session, que perdeu o cloudId) e segue o upsert legado.
+            if ((createError as { code?: string } | null)?.code !== '23505') throw createError;
+            try {
+              created = { id: (await sessionCohortCloudService.readTargetSession(session.id)).id };
+            } catch (readError) {
+              if ((readError as { code?: string } | null)?.code !== 'P0002') throw readError;
+            }
+          }
+          if (created) {
+            updatedSessions.push({
+              ...markSynced(session, created.id, syncedAt),
+              authorityModel: 'target',
+            });
+            continue;
+          }
+        }
+
         const sessionForUpload = {
           ...session,
-          communityId: resolveCloudId(session.communityId, communityCloudIds) || null,
+          communityId: sessionCommunityCloudId || null,
         };
         const uploaded = await operationalCloudService.upsertSession(sessionForUpload, ownerId);
         updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
@@ -1652,6 +1771,10 @@ export const syncService = {
   ): Promise<LocalSyncPayload> {
     const repairedLocal = consolidateDuplicateRecords(local, { ownerId }).payload;
     const cloud = await this.downloadCloudDataToLocal(ownerId);
+    const sessionsAfterTargetCohortMerge = await mergeTargetCohortSessionReads(
+      repairedLocal.sessions,
+      options.onIssue,
+    );
     const playersForMerge = repairedLocal.players.map((player) =>
       repairLegacyPlayerUnlinkIntent(player, findCorrespondingCloudPlayer(player, cloud.players)),
     );
@@ -1672,7 +1795,7 @@ export const syncService = {
       templates: mergeEntityLists(repairedLocal.templates, cloud.templates, {
         getId: (item) => item.id,
       }),
-      sessions: mergeEntityLists(repairedLocal.sessions, cloud.sessions, {
+      sessions: mergeEntityLists(sessionsAfterTargetCohortMerge, cloud.sessions, {
         getId: (item) => item.id,
       }),
       teams: mergeEntityLists(repairedLocal.teams, cloud.teams, { getId: (item) => item.id }),

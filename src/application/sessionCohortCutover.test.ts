@@ -5,6 +5,7 @@ import type { CommandPort } from './command/commandPort';
 import {
   executeSessionCohortTransition,
   inspectLegacySessionCutover,
+  isTargetCohortSession,
   transitionLegacySessionCommand,
   type SessionCohortInspectionGateway,
 } from './sessionCohortCutover';
@@ -104,4 +105,14 @@ test('transition execution sends its semantic operation with fresh attempts for 
     ['web-1', 'web-1'],
   );
   assert.notEqual(attempts[0].requestId, attempts[1].requestId);
+});
+
+test('uma Session sem marcador continua sendo legada', () => {
+  assert.equal(isTargetCohortSession({ authorityModel: undefined } as never), false);
+  assert.equal(isTargetCohortSession({} as never), false);
+});
+
+test('so o marcador target muda a coorte', () => {
+  assert.equal(isTargetCohortSession({ authorityModel: 'target' } as never), true);
+  assert.equal(isTargetCohortSession({ authorityModel: 'legacy' } as never), false);
 });

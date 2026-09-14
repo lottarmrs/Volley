@@ -16,6 +16,33 @@ export interface SessionCohortInspectionGateway {
   inspect(sessionId: string): Promise<SessionCutoverInspection>;
 }
 
+export interface TargetSessionRead {
+  readonly id: string;
+  readonly communityId: string | null;
+  readonly name: string;
+  readonly sessionContext: string;
+  readonly playMode: string;
+  readonly lifecycleStatus: string;
+  readonly publicationState: string;
+  readonly revision: number;
+  readonly currentRosterRevisionId: string | null;
+}
+
+export interface SessionCohortReadGateway {
+  readTargetSession(sessionCloudId: string): Promise<TargetSessionRead>;
+}
+
+export interface CreateTargetSessionInput {
+  readonly sessionId: string;
+  readonly communityId: string;
+  readonly name: string;
+  readonly playMode: TargetSessionPlayMode;
+}
+
+export interface SessionCohortCreationGateway {
+  createTargetSession(input: CreateTargetSessionInput): Promise<{ id: string }>;
+}
+
 export interface TransitionLegacySessionPayload {
   readonly p_command_id: string;
   readonly p_session_id: string;
@@ -63,4 +90,8 @@ export async function executeSessionCohortTransition<TValue = void>(
     SESSION_COHORT_OPERATIONS.transition,
     withAttempt(command, clientRelease),
   );
+}
+
+export function isTargetCohortSession(session: { authorityModel?: string }): boolean {
+  return session.authorityModel === 'target';
 }

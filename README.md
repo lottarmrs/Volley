@@ -66,42 +66,17 @@ VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 1. Create a project at [supabase.com](https://supabase.com).
 2. Apply the complete migration chain from `supabase/migrations`, in chronological filename order. Prefer the Supabase CLI (`supabase db push`) for a linked project. If using the SQL Editor, run every file in order, starting with `schema.sql` and continuing through the latest dated migration.
 
-```text
-supabase/migrations/schema.sql
-supabase/migrations/20260610161203_backend_operational_sync.sql
-supabase/migrations/20260610161236_upsert_conflict_targets.sql
-supabase/migrations/20260610161256_global_athlete_identity.sql
-supabase/migrations/20260610195250_harden_function_security.sql
-supabase/migrations/20260615200155_point_event_taxonomy.sql
-supabase/migrations/20260617180615_community_players_optimization.sql
-supabase/migrations/20260618154732_point_event_kind_and_assist.sql
-supabase/migrations/20260623133702_game_multiset_sets_and_targets.sql
-supabase/migrations/20260623133849_drop_redundant_game_multiset_columns.sql
-supabase/migrations/20260624133117_player_avatars_approval.sql
-supabase/migrations/20260624133200_player_evaluations.sql
-supabase/migrations/20260624133252_link_user_to_player_with_approval.sql
-supabase/migrations/20260624133328_unlink_player_rpc.sql
-supabase/migrations/20260624133529_rbac_global_roles_and_hardening.sql
-supabase/migrations/20260624134502_harden_trigger_functions.sql
-supabase/migrations/20260624141708_role_management_rpc.sql
-supabase/migrations/20260624203424_community_model_v2.sql
-supabase/migrations/20260624204113_community_join_system.sql
-supabase/migrations/20260625182618_fix_profile_signup_role.sql
-supabase/migrations/20260625192530_community_discovery.sql
-supabase/migrations/20260629201136_harden_avatar_storage_update_policy.sql
-supabase/migrations/20260629212554_linked_player_self_read.sql
-supabase/migrations/20260707143343_community_member_role_remove_rpc.sql
-supabase/migrations/20260902115932_leave_promotion_capacity.sql
-supabase/migrations/20260902141626_finalize_session_roster.sql
-supabase/migrations/20260904132823_legacy_registration_introduction.sql
-supabase/migrations/20260905185744_versioned_player_evaluation_source.sql
-supabase/migrations/20260906130635_skill_rubric_contract.sql
-supabase/migrations/20260906231744_community_skill_profile.sql
-supabase/migrations/20260907010305_community_evaluation_editor.sql
-supabase/migrations/20260908031027_global_skill_profile.sql
-supabase/migrations/20260908160000_security_audit_remediation.sql
-supabase/migrations/20260908170000_balance_input_snapshots.sql
+```bash
+# A ordem correta NÃO é a ordem alfabética do diretório: `schema.sql` precisa vir primeiro,
+# e ele ordena por último entre os nomes (dígito ordena antes de letra). Este comando lista
+# na ordem em que devem ser aplicadas, e é a mesma ordem que o harness de teste usa.
+ls supabase/migrations/*.sql | grep -v '/schema\.sql$' | sort | sed '1i supabase/migrations/schema.sql'
 ```
+
+`schema.sql` mais todas as migrations datadas. Não mantenha uma lista fixa aqui — a anterior
+ficou para trás sem ninguém notar, e quem a seguisse ao pé da letra provisionaria um banco sem
+MFA obrigatório, sem eventos de carreira, sem posse de sessão e sem toda a cadeia de identidade,
+comunidade e Session das ondas W2 a W4.
 
 > ⚠️ Running only `schema.sql` or only the first backend migration leaves cloud sync, RBAC, avatar approval, join requests, player linking and membership RPCs incomplete.
 
@@ -163,6 +138,13 @@ vez de ser descartada em silêncio. O snapshot não muda quando as origens mudam
 concessão para papel de navegador e não altera o sorteio atual: consumir essas entradas é fatia
 posterior.
 
+`20260909090000_target_session_current_roster_revision.sql` acrescenta `current_roster_revision_id`
+ao retorno de `read_target_session`: a revisao de elenco mais recente da Session, ou `null` quando
+nenhuma revisao existe ainda. E a mesma revisao que `capture_balance_input_snapshot` aceita -- sem
+essa coluna o navegador nao tinha como descobrir o identificador que o comando exige, e a captura
+ficava impossivel de chamar a partir do app. Nao altera autorizacao, o filtro de Session target nem
+o "nao encontrado"; so acrescenta a coluna.
+
 `20260908160000_security_audit_remediation.sql` atende os dez achados da auditoria de 2026-09-08
 (`docs/security-audit/relatorio-auditoria-seguranca.pdf`). Revoga das três RPCs de carreira o
 `execute` a `authenticated` — eram `security definer` sem verificação alguma; o cadastro continua
@@ -186,7 +168,19 @@ O décimo achado é atendido fora do banco, pelo Content-Security-Policy adicion
 > O `schema.sql` recebeu as versões corrigidas de `reset_product_data` e `log_table_changes`, mas
 > **mantém de propósito** a `find_player_by_username` antiga: a endurecida consulta uma tabela que o
 > snapshot não cria, e como a função é `language sql` o arquivo deixaria de subir. Aplique
-> `schema.sql` e depois as migrations, na ordem desta lista — é a migration que manda no resultado.
+> `schema.sql` e depois as migrations, na ordem que o comando de ordenação acima lista — é a
+> migration que manda no resultado.
+
+`20260910100000_set_community_organizer.sql` adiciona `set_community_organizer`, o comando que
+concede e revoga a responsabilidade `ORGANIZER` em `community_responsibilities`. Até aqui essas
+linhas só existiam por um backfill único da `20260827150000`, a partir do `community_members.role`
+legado; `set_community_member_role` nunca escreve essa tabela, então `create_target_session` ficava
+utilizável só por quem já era organizador quando o backfill rodou, e inacessível a qualquer promoção
+posterior. Exige `community.members.manage` de quem concede, membro ativo como alvo e `p_enabled`
+não nulo; revogar não exige que uma concessão anterior exista. Diferente de `set_community_evaluator`,
+não exige a ativação do modelo de avaliação da comunidade — organizar uma Session e avaliar atletas
+são responsabilidades independentes, e acoplá-las tornaria a virada de avaliação um pré-requisito
+para simplesmente marcar uma partida.
 
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.

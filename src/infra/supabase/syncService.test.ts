@@ -22,7 +22,10 @@ import { communityPlayerCloudService } from './communityPlayerCloudService';
 import { communityRulesCloudService } from './communityRulesCloudService';
 import { whatsappTemplateCloudService } from './whatsappTemplateCloudService';
 import { championshipCloudService } from './championshipCloudService';
+import { sessionCohortCloudService } from './sessionCohortCloudService';
+import { supabase as communityEvaluationCloudService } from './communityEvaluationCloudService';
 import { aggregatePlayerEvaluations } from '../../logic/playerEvaluations';
+import { normalizeCloudSyncResultPayload } from '@app/cloudSyncPayload';
 import {
   CloudSyncStatus,
   Community,
@@ -1690,6 +1693,41 @@ test('uploadLocalDataToCloud only forwards players with a known evaluationCommun
   }
 });
 
+test('uploadLocalDataToCloud nao sobe a raiz de uma Session convertida', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const receivedSessionIds: string[] = [];
+
+  try {
+    operationalCloudService.upsertSession = async (item) => {
+      receivedSessionIds.push(item.id);
+      return { ...item, cloudId: item.cloudId || 'session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({ id: 'legacy-session', cloudId: 'legacy-session-cloud' }),
+          makeSession({
+            id: 'target-session',
+            cloudId: 'target-session-cloud',
+            syncStatus: 'pending',
+            authorityModel: 'target',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(receivedSessionIds, ['legacy-session']);
+
+    const targetSession = result.sessions.find((session) => session.id === 'target-session');
+    assert.equal(targetSession?.cloudId, 'target-session-cloud');
+    assert.equal(targetSession?.syncStatus, 'pending');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
 test('uploadLocalDataToCloud avisa quando a comunidade migrou e a avaliacao pendente nao subiu', async () => {
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
@@ -1833,4 +1871,666 @@ test('aggregatePlayerEvaluations output is unaffected by communityId on input ev
   );
 
   assert.deepEqual(withCommunityId, withoutCommunityId);
+});
+
+test('o download mescla a Session convertida lida por id', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const receivedSessionCloudIds: string[] = [];
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    syncService.uploadLocalDataToCloud = async (payload) => payload;
+    sessionCohortCloudService.readTargetSession = async (sessionCloudId: string) => {
+      receivedSessionCloudIds.push(sessionCloudId);
+      return {
+        id: sessionCloudId,
+        communityId: 'community-cloud-1',
+        name: 'Nome atualizado no servidor',
+        sessionContext: 'COMMUNITY',
+        playMode: 'STRUCTURED_MATCHES',
+        lifecycleStatus: 'DRAFT',
+        publicationState: 'UNPUBLISHED',
+        revision: 3,
+        currentRosterRevisionId: 'roster-revision-1',
+      };
+    };
+
+    const result = await syncService.syncNow(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            id: 'target-session',
+            name: 'Nome local antigo',
+            communityId: 'community-local-1',
+            cloudId: 'target-session-cloud',
+            authorityModel: 'target',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.deepEqual(receivedSessionCloudIds, ['target-session-cloud']);
+    const session = result.sessions.find((item) => item.id === 'target-session');
+    assert.equal(session?.name, 'Nome atualizado no servidor');
+    assert.equal(session?.communityId, 'community-local-1');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+  }
+});
+
+test('o download mantem a Session convertida local quando a leitura por id falha', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const issues: { context: string; error: unknown }[] = [];
+  const readError = new Error('Falha de rede');
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    syncService.uploadLocalDataToCloud = async (payload) => payload;
+    sessionCohortCloudService.readTargetSession = async () => {
+      throw readError;
+    };
+
+    const localSession = makeSession({
+      id: 'target-session',
+      name: 'Nome local intacto',
+      cloudId: 'target-session-cloud',
+      authorityModel: 'target',
+    });
+
+    const result = await syncService.syncNow(emptyPayload({ sessions: [localSession] }), 'owner-1', {
+      onIssue: (context, error) => issues.push({ context, error }),
+    });
+
+    const session = result.sessions.find((item) => item.id === 'target-session');
+    assert.equal(session?.name, localSession.name);
+    assert.equal(session?.cloudId, localSession.cloudId);
+    assert.equal(session?.authorityModel, localSession.authorityModel);
+    assert.equal(session?.deletedAt, undefined);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão convertida/i);
+    assert.equal(issues[0].error, readError);
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+  }
+});
+
+test('uma Session de comunidade ativada nasce no modelo target', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const receivedCreateInput: unknown[] = [];
+  let upsertSessionCalls = 0;
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async (input) => {
+      receivedCreateInput.push(input);
+      return { id: 'target-session-cloud' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'new-session', name: 'Treino de Terca', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.deepEqual(receivedCreateInput, [
+      {
+        sessionId: 'new-session',
+        communityId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+        name: 'Treino de Terca',
+        playMode: 'FREE_PLAY',
+      },
+    ]);
+
+    const created = result.sessions.find((session) => session.id === 'new-session');
+    assert.equal(created?.authorityModel, 'target');
+    assert.equal(created?.cloudId, 'target-session-cloud');
+    assert.equal(created?.syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('uma Session de comunidade nao ativada continua no caminho legado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  let createTargetSessionCalls = 0;
+  const receivedUpsert: Session[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => [];
+    sessionCohortCloudService.createTargetSession = async () => {
+      createTargetSessionCalls += 1;
+      return { id: 'unused' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      receivedUpsert.push(item);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'legacy-session', name: 'Treino Livre', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(createTargetSessionCalls, 0);
+    assert.equal(receivedUpsert.length, 1);
+    assert.equal(receivedUpsert[0].id, 'legacy-session');
+
+    const uploaded = result.sessions.find((session) => session.id === 'legacy-session');
+    assert.equal(uploaded?.cloudId, 'legacy-session-cloud');
+    assert.equal(uploaded?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('falha ao criar no modelo target nao cai para o legado em silencio', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const createError = new Error('permission denied for function create_target_session');
+  let upsertSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw createError;
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'failed-session', name: 'Treino de Quinta', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão/i);
+    assert.equal(issues[0].error, createError);
+
+    const untouched = result.sessions.find((session) => session.id === 'failed-session');
+    assert.equal(untouched?.cloudId, undefined);
+    assert.equal(untouched?.syncStatus, 'pending');
+    assert.equal(untouched?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('uma copia obsoleta de Session target ja criada adota a linha existente em vez de recriar', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const duplicateError = Object.assign(
+    new Error('duplicate key value violates unique constraint "sessions_pkey"'),
+    { code: '23505' },
+  );
+  const receivedReadIds: string[] = [];
+  let upsertSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw duplicateError;
+    };
+    sessionCohortCloudService.readTargetSession = async (sessionCloudId: string) => {
+      receivedReadIds.push(sessionCloudId);
+      return {
+        id: sessionCloudId,
+        communityId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+        name: 'Treino de Terca',
+        sessionContext: 'COMMUNITY',
+        playMode: 'FREE_PLAY',
+        lifecycleStatus: 'DRAFT',
+        publicationState: 'PRIVATE',
+        revision: 1,
+        currentRosterRevisionId: null,
+      };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'stale-session', name: 'Treino de Terca', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.deepEqual(receivedReadIds, ['stale-session']);
+    assert.equal(issues.length, 0);
+
+    const adopted = result.sessions.find((session) => session.id === 'stale-session');
+    assert.equal(adopted?.authorityModel, 'target');
+    assert.equal(adopted?.cloudId, 'stale-session');
+    assert.equal(adopted?.syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('Session duplicada cuja linha existente e legada (leitura P0002) segue o upsert legado sem reportar', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const duplicateError = Object.assign(
+    new Error('duplicate key value violates unique constraint "sessions_pkey"'),
+    { code: '23505' },
+  );
+  const notTargetError = Object.assign(new Error('Target Session not found'), { code: 'P0002' });
+  const receivedUpsert: Session[] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw duplicateError;
+    };
+    sessionCohortCloudService.readTargetSession = async () => {
+      throw notTargetError;
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      receivedUpsert.push(item);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [
+          makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' }),
+        ],
+        sessions: [
+          makeSession({
+            id: 'stale-legacy-session',
+            name: 'Treino Legado',
+            communityId: 'community-1',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(receivedUpsert.length, 1);
+    assert.equal(receivedUpsert[0].id, 'stale-legacy-session');
+    assert.equal(issues.length, 0);
+
+    const legacy = result.sessions.find((session) => session.id === 'stale-legacy-session');
+    assert.equal(legacy?.cloudId, 'legacy-session-cloud');
+    assert.equal(legacy?.authorityModel, undefined);
+    assert.equal(legacy?.syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('Session target duplicada cuja leitura tambem falha fica pendente, reporta e nao cai para o legado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalReadTargetSession = sessionCohortCloudService.readTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const duplicateError = Object.assign(
+    new Error('duplicate key value violates unique constraint "sessions_pkey"'),
+    { code: '23505' },
+  );
+  const readError = Object.assign(new Error('permission denied'), { code: '42501' });
+  let upsertSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async () => {
+      throw duplicateError;
+    };
+    sessionCohortCloudService.readTargetSession = async () => {
+      throw readError;
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const localSession = makeSession({
+      id: 'stale-session',
+      name: 'Treino de Terca',
+      communityId: 'community-1',
+    });
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [localSession],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(upsertSessionCalls, 0);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0].context, /sessão/i);
+
+    const untouched = result.sessions.find((session) => session.id === 'stale-session');
+    assert.equal(untouched?.name, localSession.name);
+    assert.equal(untouched?.cloudId, undefined);
+    assert.equal(untouched?.syncStatus, 'pending');
+    assert.equal(untouched?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    sessionCohortCloudService.readTargetSession = originalReadTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('a marca de modelo target sobrevive a um persist orientado por estado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    sessionCohortCloudService.createTargetSession = async () => ({ id: 'target-session-cloud' });
+    operationalCloudService.upsertSession = async (item) => ({ ...item, cloudId: 'legacy-cloud' });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'new-session', name: 'Treino de Terca', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    const rehydrated = normalizeCloudSyncResultPayload(result).sessions;
+    const rehydratedSession = rehydrated.find((session) => session.id === 'new-session');
+
+    assert.equal(rehydratedSession?.authorityModel, 'target');
+    assert.equal(rehydratedSession?.cloudId, 'target-session-cloud');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('falha transitoria ao resolver ativacao mantem a Session pendente e nao cria nem faz upsert legado', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const resolutionError = Object.assign(new Error('conexao interrompida'), { code: '57P01' });
+  let upsertSessionCalls = 0;
+  let createTargetSessionCalls = 0;
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => {
+      throw resolutionError;
+    };
+    sessionCohortCloudService.createTargetSession = async () => {
+      createTargetSessionCalls += 1;
+      return { id: 'unused' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertSessionCalls += 1;
+      return { ...item, cloudId: 'legacy-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'pending-session', name: 'Treino de Sexta', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(createTargetSessionCalls, 0);
+    assert.equal(upsertSessionCalls, 0);
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].error, resolutionError);
+
+    const untouched = result.sessions.find((session) => session.id === 'pending-session');
+    assert.equal(untouched?.cloudId, undefined);
+    assert.equal(untouched?.syncStatus, 'pending');
+    assert.equal(untouched?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('id de comunidade nao-UUID nao envenena a consulta de ativacao das demais Sessions', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const activatedUuid = '0f2b679a-680e-486a-871e-e8d2c6052bff';
+  const receivedLookups: string[][] = [];
+  const createdIds: string[] = [];
+  const upsertedIds: string[] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async (communityIds) => {
+      receivedLookups.push(communityIds);
+      if (communityIds.some((id) => !isUuid(id))) {
+        throw Object.assign(new Error('invalid input syntax for type uuid'), { code: '22P02' });
+      }
+      return [activatedUuid];
+    };
+    sessionCohortCloudService.createTargetSession = async (input) => {
+      createdIds.push(input.sessionId);
+      return { id: input.sessionId };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      upsertedIds.push(item.id);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-2', cloudId: activatedUuid })],
+        sessions: [
+          makeSession({
+            id: 'local-community-session',
+            name: 'Treino Local',
+            communityId: 'community-1700000000000',
+          }),
+          makeSession({ id: 'activated-session', name: 'Treino Ativado', communityId: 'community-2' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.deepEqual(receivedLookups, [[activatedUuid]]);
+    assert.deepEqual(createdIds, ['activated-session']);
+    assert.deepEqual(upsertedIds, ['local-community-session']);
+    assert.equal(issues.length, 0);
+
+    const target = result.sessions.find((session) => session.id === 'activated-session');
+    assert.equal(target?.authorityModel, 'target');
+    const legacy = result.sessions.find((session) => session.id === 'local-community-session');
+    assert.equal(legacy?.authorityModel, undefined);
+    assert.equal(legacy?.cloudId, 'legacy-session-cloud');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('excluir uma Session target nao chama softDelete e reporta que a exclusao nao subiu', async () => {
+  const originalSoftDelete = operationalCloudService.softDelete;
+  const softDeleteCalls: string[][] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    operationalCloudService.softDelete = async (table, cloudId) => {
+      softDeleteCalls.push([table, cloudId]);
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            id: 'target-session',
+            name: 'Treino Excluido',
+            cloudId: 'target-session',
+            authorityModel: 'target',
+            deletedAt: '2026-06-29T10:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.deepEqual(softDeleteCalls, []);
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].context, 'exclusão da sessão "Treino Excluido" no modelo versionado');
+    assert.match((issues[0].error as Error).message, /não é enviada para a nuvem/);
+  } finally {
+    operationalCloudService.softDelete = originalSoftDelete;
+  }
+});
+
+test('excluir uma Session legada continua chamando softDelete sem reportar problema', async () => {
+  const originalSoftDelete = operationalCloudService.softDelete;
+  const softDeleteCalls: string[][] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    operationalCloudService.softDelete = async (table, cloudId) => {
+      softDeleteCalls.push([table, cloudId]);
+    };
+
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            id: 'legacy-session',
+            name: 'Treino Legado',
+            cloudId: 'legacy-session-cloud',
+            deletedAt: '2026-06-29T10:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.deepEqual(softDeleteCalls, [['sessions', 'legacy-session-cloud']]);
+    assert.equal(issues.length, 0);
+  } finally {
+    operationalCloudService.softDelete = originalSoftDelete;
+  }
+});
+
+test('RPC de ativacao ausente (PGRST202) segue no caminho legado sem reportar problema', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalCreateTargetSession = sessionCohortCloudService.createTargetSession;
+  const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
+  const missingRpcError = Object.assign(new Error('function not found'), { code: 'PGRST202' });
+  let createTargetSessionCalls = 0;
+  const receivedUpsert: Session[] = [];
+  const issues: { context: string; error: unknown }[] = [];
+
+  try {
+    communityEvaluationCloudService.activatedCommunityIds = async () => {
+      throw missingRpcError;
+    };
+    sessionCohortCloudService.createTargetSession = async () => {
+      createTargetSessionCalls += 1;
+      return { id: 'unused' };
+    };
+    operationalCloudService.upsertSession = async (item) => {
+      receivedUpsert.push(item);
+      return { ...item, cloudId: 'legacy-session-cloud' };
+    };
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        sessions: [
+          makeSession({ id: 'legacy-session', name: 'Treino Livre', communityId: 'community-1' }),
+        ],
+      }),
+      'owner-1',
+      { onIssue: (context, error) => issues.push({ context, error }) },
+    );
+
+    assert.equal(createTargetSessionCalls, 0);
+    assert.equal(receivedUpsert.length, 1);
+    assert.equal(receivedUpsert[0].id, 'legacy-session');
+    assert.equal(issues.length, 0);
+
+    const uploaded = result.sessions.find((session) => session.id === 'legacy-session');
+    assert.equal(uploaded?.cloudId, 'legacy-session-cloud');
+    assert.equal(uploaded?.authorityModel, undefined);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
+    communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
 });

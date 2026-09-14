@@ -2,8 +2,11 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSyncIssueLedger, recordStoredSyncIssue } from '../logic/syncIssueLedger';
 import { syncService, type LocalSyncPayload } from '@infra/supabase/syncService';
+import { STORAGE_KEYS } from '../storage/localStorageRepository';
+import { makeSession } from '../test/fixtures';
 import type { CloudSyncDeps } from './useCloudSync';
 import { useCloudSync } from './useCloudSync';
+import { useSessions } from './useSessions';
 
 function emptyPayload(): LocalSyncPayload {
   return {
@@ -40,6 +43,7 @@ function deps(overrides: Partial<CloudSyncDeps> = {}): CloudSyncDeps {
     setDrafts: vi.fn(),
     sessions: [],
     setSessions: vi.fn(),
+    setActiveSession: vi.fn(),
     teams: [],
     setTeams: vi.fn(),
     games: [],
@@ -530,5 +534,94 @@ describe('deteccao de conflito no caminho real do sync', () => {
     expect(meuAplicado?.conflictStatus).toBe('pending_decision');
     // O evento da Ana nao e meu conflito: nao pode ser carimbado.
     expect(aplicados.find((e: any) => e.id === 'ev-ana')?.conflictStatus).toBeUndefined();
+  });
+});
+
+describe('useCloudSync com Session ao vivo', () => {
+  const originalSyncNow = syncService.syncNow;
+  const syncedAt = '2026-09-14T12:00:00.000Z';
+
+  beforeEach(() => {
+    localStorage.clear();
+    const live = makeSession('s1', { communityId: 'c1', name: 'Ao vivo' });
+    localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify([live]));
+    localStorage.setItem(STORAGE_KEYS.activeSession, JSON.stringify(live));
+  });
+
+  afterEach(() => {
+    syncService.syncNow = originalSyncNow;
+  });
+
+  function renderLiveSync() {
+    return renderHook(() => {
+      const sess = useSessions();
+      const cloud = useCloudSync(
+        deps({
+          sessions: sess.rawSessions,
+          setSessions: sess.setSessions,
+          setActiveSession: sess.setActiveSession,
+        }),
+      );
+      return { sess, cloud };
+    });
+  }
+
+  it('mantém a identidade de sync quando a Session ao vivo é atualizada depois do sync', async () => {
+    syncService.syncNow = async (payload) => ({
+      ...payload,
+      sessions: payload.sessions.map((session) => ({
+        ...session,
+        cloudId: 'cloud-s1',
+        syncStatus: 'synced' as const,
+        lastSyncedAt: syncedAt,
+        authorityModel: 'target' as const,
+      })),
+    });
+    const { result } = renderLiveSync();
+
+    await act(async () => {
+      await result.current.cloud.sync();
+    });
+    act(() => {
+      result.current.sess.updateActiveSession({
+        ...result.current.sess.activeSession!,
+        name: 'Editada ao vivo',
+      });
+    });
+
+    const identity = {
+      cloudId: 'cloud-s1',
+      syncStatus: 'synced',
+      lastSyncedAt: syncedAt,
+      authorityModel: 'target',
+    };
+    expect(result.current.sess.sessions[0]).toMatchObject({ name: 'Editada ao vivo', ...identity });
+    expect(result.current.sess.activeSession).toMatchObject({
+      name: 'Editada ao vivo',
+      ...identity,
+    });
+  });
+
+  it('não sobrescreve campos ao vivo da Session ativa com os do resultado do sync', async () => {
+    syncService.syncNow = async (payload) => ({
+      ...payload,
+      sessions: payload.sessions.map((session) => ({
+        ...session,
+        name: 'Nome da nuvem',
+        status: 'finished' as const,
+        cloudId: 'cloud-s1',
+      })),
+    });
+    const { result } = renderLiveSync();
+
+    await act(async () => {
+      await result.current.cloud.sync();
+    });
+
+    expect(result.current.sess.activeSession).toMatchObject({
+      name: 'Ao vivo',
+      status: 'active',
+      cloudId: 'cloud-s1',
+    });
   });
 });

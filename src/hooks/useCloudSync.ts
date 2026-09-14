@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   downloadCloudDataQuery,
   repairDuplicateCloudDataCommand,
@@ -75,6 +75,8 @@ export interface CloudSyncDeps {
   setDrafts: (value: WhatsAppListDraft[]) => void;
   sessions: Session[];
   setSessions: (value: Session[]) => void;
+  /** Recebe só a identidade de sync da Session correspondente; os campos ao vivo ficam. */
+  setActiveSession: Dispatch<SetStateAction<Session | null>>;
   teams: Team[];
   setTeams: (value: Team[]) => void;
   games: Game[];
@@ -124,6 +126,22 @@ function setInflight(userId: string): void {
 }
 function clearInflight(userId: string): void {
   localStorage.removeItem(inflightKey(userId));
+}
+
+// A Session ativa e estado separado de `sessions`, e quem a atualiza espalha a copia
+// ativa. Sem trazer para ela o que o sync atribuiu, a proxima interacao ao vivo grava a
+// copia obsoleta de volta em `sessions` e apaga cloudId e authorityModel.
+function mergeSyncIdentity(active: Session | null, synced: Session[]): Session | null {
+  if (!active) return active;
+  const match = synced.find((session) => session.id === active.id);
+  if (!match) return active;
+  return {
+    ...active,
+    cloudId: match.cloudId ?? active.cloudId,
+    syncStatus: match.syncStatus ?? active.syncStatus,
+    lastSyncedAt: match.lastSyncedAt ?? active.lastSyncedAt,
+    authorityModel: match.authorityModel ?? active.authorityModel,
+  };
 }
 
 /**
@@ -216,6 +234,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     deps.setRules(normalized.rules);
     deps.setTemplates(normalized.templates);
     deps.setSessions(normalized.sessions);
+    deps.setActiveSession((active) => mergeSyncIdentity(active, normalized.sessions));
     deps.setTeams(normalized.teams);
     deps.setGames(normalized.games);
     deps.setPointEvents(resolvedPointEvents);

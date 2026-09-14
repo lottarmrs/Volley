@@ -155,6 +155,7 @@ export function AppShell() {
     setDrafts: whatsAppLists.setDrafts,
     sessions: sess.rawSessions,
     setSessions: sess.setSessions,
+    setActiveSession: sess.setActiveSession,
     teams: sess.teams,
     setTeams: sess.setTeams,
     games: sess.games,

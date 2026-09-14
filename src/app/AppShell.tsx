@@ -141,44 +141,6 @@ export function AppShell() {
 
   // ── Cloud sync ────────────────────────────────────────────────────────────
 
-  const cloudSync = useCloudSync({
-    userId: auth.user?.id ?? null,
-    communities: comm.rawCommunities,
-    setCommunities: comm.setCommunities,
-    players: play.rawPlayers,
-    setPlayers: play.setPlayers,
-    rules: communityRules.rawRules,
-    setRules: communityRules.setRules,
-    templates: whatsAppLists.rawTemplates,
-    setTemplates: whatsAppLists.setTemplates,
-    drafts: whatsAppLists.drafts,
-    setDrafts: whatsAppLists.setDrafts,
-    sessions: sess.rawSessions,
-    setSessions: sess.setSessions,
-    setActiveSession: sess.setActiveSession,
-    teams: sess.teams,
-    setTeams: sess.setTeams,
-    games: sess.games,
-    setGames: sess.setGames,
-    pointEvents: sess.pointEvents,
-    setPointEvents: sess.setPointEvents,
-    gameReports: sess.gameReports,
-    setGameReports: sess.setGameReports,
-    sessionReports: sess.sessionReports,
-    setSessionReports: sess.setSessionReports,
-    presenceRecords: communityPresence.presenceRecords,
-    setPresenceRecords: communityPresence.setPresenceRecords,
-    championships: championships.rawChampionships,
-    setChampionships: championships.setChampionships,
-    championshipTeams: championships.rawChampionshipTeams,
-    setChampionshipTeams: championships.setChampionshipTeams,
-    championshipRounds: championships.rawChampionshipRounds,
-    setChampionshipRounds: championships.setChampionshipRounds,
-    onToast: toasts.push,
-  });
-
-  const autoSyncedForUser = useRef<string | null>(null);
-
   const pendingChanges = useMemo(() => {
     if (!auth.user) return 0;
     return countPendingChanges([
@@ -217,6 +179,45 @@ export function AppShell() {
     championships.rawChampionshipRounds,
   ]);
 
+  const cloudSync = useCloudSync({
+    pendingChanges,
+    userId: auth.user?.id ?? null,
+    communities: comm.rawCommunities,
+    setCommunities: comm.setCommunities,
+    players: play.rawPlayers,
+    setPlayers: play.setPlayers,
+    rules: communityRules.rawRules,
+    setRules: communityRules.setRules,
+    templates: whatsAppLists.rawTemplates,
+    setTemplates: whatsAppLists.setTemplates,
+    drafts: whatsAppLists.drafts,
+    setDrafts: whatsAppLists.setDrafts,
+    sessions: sess.rawSessions,
+    setSessions: sess.setSessions,
+    setActiveSession: sess.setActiveSession,
+    teams: sess.teams,
+    setTeams: sess.setTeams,
+    games: sess.games,
+    setGames: sess.setGames,
+    pointEvents: sess.pointEvents,
+    setPointEvents: sess.setPointEvents,
+    gameReports: sess.gameReports,
+    setGameReports: sess.setGameReports,
+    sessionReports: sess.sessionReports,
+    setSessionReports: sess.setSessionReports,
+    presenceRecords: communityPresence.presenceRecords,
+    setPresenceRecords: communityPresence.setPresenceRecords,
+    championships: championships.rawChampionships,
+    setChampionships: championships.setChampionships,
+    championshipTeams: championships.rawChampionshipTeams,
+    setChampionshipTeams: championships.setChampionshipTeams,
+    championshipRounds: championships.rawChampionshipRounds,
+    setChampionshipRounds: championships.setChampionshipRounds,
+    onToast: toasts.push,
+  });
+
+  const autoSyncedForUser = useRef<string | null>(null);
+
   const pendingDeliveryNotice = buildPendingDeliveryNotice({
     pendingChanges,
     connectivity: cloudSync.connectivity,
@@ -226,10 +227,10 @@ export function AppShell() {
   // ── Auto-sync on login (download-first) ───────────────────────────────────
   // Na entrada, ADOTAMOS o estado da nuvem (fonte da verdade) baixando-o — isso
   // hidrata cloudId/filiação e CONVERGE os ids entre dispositivos. NÃO empurramos
-  // o estado local na entrada: um device com localStorage desatualizado empurrava
+  // só o estado local na entrada: um device com localStorage desatualizado empurrava
   // comunidades duplicadas e apagava vínculos. Só baixa quando NÃO há mudanças
-  // locais pendentes (senão deixamos o usuário sincronizar manualmente, para não
-  // sobrescrever trabalho offline). Uma vez por usuário.
+  // locais pendentes; havendo, o sync automático de useCloudSync mescla nuvem e
+  // local em vez de sobrescrever o trabalho offline. Uma vez por usuário.
   useEffect(() => {
     const plan = planStartupCloudDownload({
       authState: auth.state.kind,

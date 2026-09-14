@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSyncIssueLedger, recordStoredSyncIssue } from '../logic/syncIssueLedger';
 import { syncService, type LocalSyncPayload } from '@infra/supabase/syncService';
-import { STORAGE_KEYS } from '../storage/localStorageRepository';
+import { LOCAL_CACHE_OWNER_KEY, STORAGE_KEYS } from '../storage/localStorageRepository';
 import { makeSession } from '../test/fixtures';
 import type { CloudSyncDeps } from './useCloudSync';
 import { useCloudSync } from './useCloudSync';
@@ -461,6 +461,120 @@ describe('reenvio automatico', () => {
     await act(async () => {
       window.dispatchEvent(new Event('online'));
       await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(chamadas).toBe(0);
+  });
+});
+
+describe('sincronizacao automatica', () => {
+  const originalSyncNow = syncService.syncNow;
+  let chamadas = 0;
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-14T12:00:00.000Z'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    chamadas = 0;
+    syncService.syncNow = async () => {
+      chamadas += 1;
+      return emptyPayload();
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    syncService.syncNow = originalSyncNow;
+  });
+
+  it('envia sozinha as alteracoes pendentes depois do debounce, sem toast de sucesso', async () => {
+    const onToast = vi.fn();
+    renderHook(() => useCloudSync(deps({ pendingChanges: 2, onToast })));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(chamadas).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(chamadas).toBe(1);
+    expect(onToast).not.toHaveBeenCalled();
+  });
+
+  it('agrupa alteracoes seguidas em um unico envio', async () => {
+    const { rerender } = renderHook(
+      ({ pendingChanges }) => useCloudSync(deps({ pendingChanges })),
+      { initialProps: { pendingChanges: 1 } },
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    rerender({ pendingChanges: 2 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    rerender({ pendingChanges: 3 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(chamadas).toBe(1);
+  });
+
+  it('nao envia sozinha quando nada esta pendente', async () => {
+    renderHook(() => useCloudSync(deps({ pendingChanges: 0 })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(chamadas).toBe(0);
+  });
+
+  it('busca a nuvem periodicamente mesmo sem alteracao local', async () => {
+    renderHook(() => useCloudSync(deps({ pendingChanges: 0 })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    });
+    expect(chamadas).toBe(1);
+  });
+
+  it('busca a nuvem quando a aba volta a ficar visivel', async () => {
+    renderHook(() => useCloudSync(deps({ pendingChanges: 0 })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(chamadas).toBe(1);
+  });
+
+  it('nao envia sozinha enquanto o cache local for de outra conta', async () => {
+    localStorage.setItem(LOCAL_CACHE_OWNER_KEY, 'outra-conta');
+    const onToast = vi.fn();
+    renderHook(() => useCloudSync(deps({ pendingChanges: 3, onToast })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    });
+    expect(chamadas).toBe(0);
+    expect(onToast).not.toHaveBeenCalled();
+  });
+
+  it('nao envia sozinha sem rede', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    renderHook(() => useCloudSync(deps({ pendingChanges: 3 })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    });
+    expect(chamadas).toBe(0);
+  });
+
+  it('nao envia sozinha sem usuario autenticado', async () => {
+    renderHook(() => useCloudSync(deps({ userId: null, pendingChanges: 3 })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
     });
     expect(chamadas).toBe(0);
   });

@@ -273,6 +273,125 @@ test('uploadLocalDataToCloud excludes a championship round whose session has not
   }
 });
 
+function makeDeletedChampionshipAggregate() {
+  const deletedAt = '2026-09-10T16:57:14.846Z';
+  const championship: Championship = {
+    id: 'champ-local',
+    communityId: 'community-local',
+    name: 'Liga teste',
+    format: 'round_robin',
+    classificationPoints: { win: 3, loss: 0 },
+    recurrenceRule: { daysOfWeek: [2], time: '20:00', startDate: '2026-08-01' },
+    cloudId: 'champ-cloud',
+    deletedAt,
+    createdAt: '2026-08-17T14:00:32.199Z',
+    updatedAt: deletedAt,
+    syncStatus: 'pending',
+  };
+  const teamA: ChampionshipTeam = {
+    id: 'champ-team-local-a',
+    championshipId: 'champ-local',
+    name: 'Time A',
+    playerIds: [],
+    cloudId: 'champ-team-cloud-a',
+    deletedAt,
+    syncStatus: 'pending',
+  };
+  const teamB: ChampionshipTeam = {
+    ...teamA,
+    id: 'champ-team-local-b',
+    name: 'Time B',
+    cloudId: 'champ-team-cloud-b',
+  };
+  const round: ChampionshipRound = {
+    id: 'round-local',
+    championshipId: 'champ-local',
+    round: 2,
+    teamAId: teamA.id,
+    teamBId: teamB.id,
+    scheduledDate: '2026-08-04T20:00',
+    skipped: false,
+    cloudId: 'round-cloud',
+    deletedAt,
+    syncStatus: 'pending',
+  };
+  return emptyPayload({
+    communities: [makeSharedCommunity({ id: 'community-local', cloudId: 'community-cloud' })],
+    championships: [championship],
+    championshipTeams: [teamA, teamB],
+    championshipRounds: [round],
+  });
+}
+
+test('uploadLocalDataToCloud does not write child tombstones of a championship whose tombstone was uploaded', async () => {
+  const originalUpsertChampionship = championshipCloudService.upsertChampionship;
+  const originalUpsertTeam = championshipCloudService.upsertTeam;
+  const originalUpsertRound = championshipCloudService.upsertRound;
+  const rlsError = {
+    code: '42501',
+    message:
+      'new row violates row-level security policy (USING expression) for table "championship_rounds"',
+  };
+  const writes: string[] = [];
+  const issues: string[] = [];
+
+  try {
+    championshipCloudService.upsertChampionship = async (item) => ({ ...item });
+    championshipCloudService.upsertTeam = async (item) => {
+      writes.push(`team:${item.id}`);
+      throw rlsError;
+    };
+    championshipCloudService.upsertRound = async (item) => {
+      writes.push(`round:${item.id}`);
+      throw rlsError;
+    };
+
+    await syncService.uploadLocalDataToCloud(makeDeletedChampionshipAggregate(), 'owner-1', {
+      onIssue: (context) => issues.push(context),
+    });
+
+    assert.deepEqual(writes, []);
+    assert.deepEqual(issues, []);
+  } finally {
+    championshipCloudService.upsertChampionship = originalUpsertChampionship;
+    championshipCloudService.upsertTeam = originalUpsertTeam;
+    championshipCloudService.upsertRound = originalUpsertRound;
+  }
+});
+
+test('uploadLocalDataToCloud still uploads child tombstones when the championship tombstone failed', async () => {
+  const originalUpsertChampionship = championshipCloudService.upsertChampionship;
+  const originalUpsertTeam = championshipCloudService.upsertTeam;
+  const originalUpsertRound = championshipCloudService.upsertRound;
+  const writes: string[] = [];
+
+  try {
+    championshipCloudService.upsertChampionship = async () => {
+      throw new Error('network error');
+    };
+    championshipCloudService.upsertTeam = async (item) => {
+      writes.push(`team:${item.id}`);
+      return { ...item };
+    };
+    championshipCloudService.upsertRound = async (item) => {
+      writes.push(`round:${item.id}`);
+      return { ...item };
+    };
+
+    await syncService.uploadLocalDataToCloud(makeDeletedChampionshipAggregate(), 'owner-1');
+
+    assert.deepEqual(writes, [
+      'team:champ-team-local-a',
+      'team:champ-team-local-b',
+      'round:round-local',
+    ]);
+  } finally {
+    championshipCloudService.upsertChampionship = originalUpsertChampionship;
+    championshipCloudService.upsertTeam = originalUpsertTeam;
+    championshipCloudService.upsertRound = originalUpsertRound;
+  }
+});
+
 test('uploadLocalDataToCloud defers a session team while its championship team is unresolved', async () => {
   const originalUpsertChampionship = championshipCloudService.upsertChampionship;
   const originalUpsertChampionshipTeam = championshipCloudService.upsertTeam;

@@ -234,9 +234,13 @@ export function AccountSyncView({
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-black uppercase tracking-widest text-base-content/60">
-                Sincronização Principal
+                Sincronização Automática
               </h4>
             </div>
+            <p className="text-[11px] text-base-content/60 font-medium">
+              Suas alterações vão para a nuvem sozinhas assim que você para de editar, e o app busca
+              novidades a cada 5 minutos e quando você volta para ele.
+            </p>
 
             {pendingSyncIssueRecovery ? (
               <div className="bg-warning/10 border border-warning/25 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

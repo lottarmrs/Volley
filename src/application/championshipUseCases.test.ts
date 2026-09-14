@@ -6,9 +6,12 @@ import {
   materializeRound,
   getSeasonAwards,
   detachChampionshipTeamBridges,
+  getRoundPlayStatus,
+  resolveRoundSessionOpening,
+  ensureNoOtherActiveSession,
 } from './championshipUseCases';
 import type { ChampionshipRound, ChampionshipTeam, Game, PointEvent } from '../types';
-import { makePlayer, makeGame, makeTeam } from '../test/fixtures';
+import { makePlayer, makeGame, makeTeam, makeSession } from '../test/fixtures';
 
 test('createChampionship generates one round per abstract match from generateTournamentSchedule, each with a real date', () => {
   const result = createChampionship({
@@ -215,6 +218,114 @@ test('materializeRound rejects a round whose teams are not found in the given ro
   const result = materializeRound(round, [teamB], 'community-1', '2026-08-04T00:00:00.000Z');
 
   assert.equal(result.ok, false);
+});
+
+test('materializeRound builds a Session already active with its match scheduled, ready to start live', () => {
+  const round = championshipRound();
+  const teamA = championshipTeam({ id: 'champ-team-1' });
+  const teamB = championshipTeam({ id: 'champ-team-2', name: 'Time B', playerIds: ['p3', 'p4'] });
+
+  const result = materializeRound(round, [teamA, teamB], 'community-1', '2026-08-04T00:00:00.000Z');
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.session.status, 'active');
+  assert.equal(result.value.game.status, 'scheduled');
+});
+
+// ─── round play status and session opening ────────────────────────────────
+
+test('getRoundPlayStatus is scheduled while the round has no Session', () => {
+  assert.equal(getRoundPlayStatus(championshipRound(), []), 'scheduled');
+});
+
+test('getRoundPlayStatus is in_progress while the round Session is not finished', () => {
+  const round = championshipRound({ sessionId: 'session-1' });
+  const session = makeSession('session-1', { status: 'active' });
+  assert.equal(getRoundPlayStatus(round, [session]), 'in_progress');
+});
+
+test('getRoundPlayStatus is played only once the round Session is finished', () => {
+  const round = championshipRound({ sessionId: 'session-1' });
+  const session = makeSession('session-1', { status: 'finished' });
+  assert.equal(getRoundPlayStatus(round, [session]), 'played');
+});
+
+test('getRoundPlayStatus is scheduled when the linked Session no longer exists', () => {
+  const round = championshipRound({ sessionId: 'session-gone' });
+  assert.equal(getRoundPlayStatus(round, []), 'scheduled');
+});
+
+test('resolveRoundSessionOpening sends a finished round Session to history', () => {
+  const round = championshipRound({ sessionId: 'session-1' });
+  const session = makeSession('session-1', { status: 'finished' });
+
+  const result = resolveRoundSessionOpening({ round, sessions: [session], activeSession: null });
+
+  assert.deepEqual(result, { ok: true, value: { kind: 'history', sessionId: 'session-1' } });
+});
+
+test('resolveRoundSessionOpening opens an unfinished Session live, repairing one left in teams_generated', () => {
+  const round = championshipRound({ sessionId: 'session-1' });
+  const session = makeSession('session-1', { status: 'teams_generated' });
+
+  const result = resolveRoundSessionOpening({ round, sessions: [session], activeSession: null });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.kind, 'live');
+  if (result.value.kind !== 'live') return;
+  assert.equal(result.value.session.id, 'session-1');
+  assert.equal(result.value.session.status, 'active');
+});
+
+test('resolveRoundSessionOpening reopens the round Session when it is already the active one', () => {
+  const round = championshipRound({ sessionId: 'session-1' });
+  const session = makeSession('session-1', { status: 'active' });
+
+  const result = resolveRoundSessionOpening({
+    round,
+    sessions: [session],
+    activeSession: session,
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.kind, 'live');
+});
+
+test('resolveRoundSessionOpening refuses while another Session is active', () => {
+  const round = championshipRound({ sessionId: 'session-1' });
+  const session = makeSession('session-1', { status: 'active' });
+  const other = makeSession('session-other', { status: 'active' });
+
+  const result = resolveRoundSessionOpening({ round, sessions: [session], activeSession: other });
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.error.kind === 'product' && result.error.code, 'conflict');
+});
+
+test('resolveRoundSessionOpening refuses a round without a Session', () => {
+  const result = resolveRoundSessionOpening({
+    round: championshipRound(),
+    sessions: [],
+    activeSession: null,
+  });
+
+  assert.equal(result.ok, false);
+});
+
+test('ensureNoOtherActiveSession allows materializing when no Session is active', () => {
+  assert.equal(ensureNoOtherActiveSession(null).ok, true);
+});
+
+test('ensureNoOtherActiveSession refuses when a Session is active, so it is never overwritten', () => {
+  const result = ensureNoOtherActiveSession(makeSession('session-other', { status: 'active' }));
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error.message, /já existe uma sessão em andamento/i);
 });
 
 // ─── getSeasonAwards ───────────────────────────────────────────────────────

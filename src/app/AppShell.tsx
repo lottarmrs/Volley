@@ -75,6 +75,8 @@ import { planStartupCloudDownload } from '../application/cloudSyncStartupUseCase
 import {
   detachChampionshipTeamBridges,
   materializeRound,
+  ensureNoOtherActiveSession,
+  resolveRoundSessionOpening,
 } from '../application/championshipUseCases';
 import { appOk, productError } from '@app/appResult';
 
@@ -398,6 +400,8 @@ export function AppShell() {
     const round = championships.championshipRounds.find((item) => item.id === roundId);
     if (!round) return productError('not_found', 'Rodada da liga não encontrada.');
     if (round.sessionId) return productError('conflict', 'Esta rodada já possui uma sessão.');
+    const guard = ensureNoOtherActiveSession(sess.activeSession);
+    if (guard.ok === false) return guard;
 
     const championship = championships.championships.find(
       (item) => item.id === round.championshipId,
@@ -427,8 +431,34 @@ export function AppShell() {
     sess.setTeams((current) => [...current, ...teams]);
     sess.setGames((current) => [...current, game]);
     championships.markRoundMaterialized(round.id, session.id);
+    sess.setActiveSession(session);
+    navigate(paths.sessaoAtiva(championship.communityId));
 
     return appOk({ sessionId: session.id });
+  };
+
+  const openChampionshipRoundSession = (roundId: string) => {
+    const round = championships.championshipRounds.find((item) => item.id === roundId);
+    if (!round) return productError('not_found', 'Rodada da liga não encontrada.');
+    const championship = championships.championships.find(
+      (item) => item.id === round.championshipId,
+    );
+    if (!championship) return productError('not_found', 'Liga da rodada não encontrada.');
+
+    const opening = resolveRoundSessionOpening({
+      round,
+      sessions: sess.sessions,
+      activeSession: sess.activeSession,
+    });
+    if (opening.ok === false) return opening;
+
+    if (opening.value.kind === 'history') {
+      navigate(paths.sessao(championship.communityId, opening.value.sessionId));
+      return appOk(undefined);
+    }
+    sess.updateActiveSession(opening.value.session);
+    navigate(paths.sessaoAtiva(championship.communityId));
+    return appOk(undefined);
   };
 
   const clearChampionshipTeamBridges = (championshipIds: Set<string>) => {
@@ -642,6 +672,7 @@ export function AppShell() {
     createSessionFromCommunity,
     createPlayerForCommunity,
     materializeChampionshipRound,
+    openChampionshipRoundSession,
     deleteChampionshipAggregate,
     deleteCommunityAggregate,
     handlePlayerEditActionError,

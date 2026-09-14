@@ -218,7 +218,7 @@ export function materializeRound(
     communityId,
     name: `${championshipTeamA.name} x ${championshipTeamB.name}`,
     date: round.scheduledDate,
-    status: 'teams_generated',
+    status: 'active',
     type: 'tournament',
     selectedPlayerIds: [...championshipTeamA.playerIds, ...championshipTeamB.playerIds],
     teamIds: [teamAId, teamBId],
@@ -272,6 +272,61 @@ export function materializeRound(
   };
 
   return appOk({ session, teams: materializedTeams, game });
+}
+
+export type RoundPlayStatus = 'scheduled' | 'in_progress' | 'played';
+
+export const ACTIVE_SESSION_CONFLICT_MESSAGE =
+  'Já existe uma sessão em andamento. Encerre-a antes de jogar esta rodada.';
+
+function findRoundSession(round: ChampionshipRound, sessions: Session[]): Session | undefined {
+  return round.sessionId ? sessions.find((session) => session.id === round.sessionId) : undefined;
+}
+
+function isClosedSession(session: Session): boolean {
+  return session.status === 'finished' || session.status === 'cancelled';
+}
+
+export function getRoundPlayStatus(round: ChampionshipRound, sessions: Session[]): RoundPlayStatus {
+  const session = findRoundSession(round, sessions);
+  if (!session) return 'scheduled';
+  return isClosedSession(session) ? 'played' : 'in_progress';
+}
+
+/** Recusa enquanto houver outra Session ativa: ativar a da rodada por cima a descartaria. */
+export function ensureNoOtherActiveSession(
+  activeSession: Session | null,
+  sessionId?: string,
+): AppResult<void> {
+  if (activeSession && activeSession.id !== sessionId) {
+    return productError('conflict', ACTIVE_SESSION_CONFLICT_MESSAGE);
+  }
+  return appOk(undefined);
+}
+
+export type RoundSessionOpening =
+  | { kind: 'live'; session: Session }
+  | { kind: 'history'; sessionId: string };
+
+export function resolveRoundSessionOpening(input: {
+  round: ChampionshipRound;
+  sessions: Session[];
+  activeSession: Session | null;
+}): AppResult<RoundSessionOpening> {
+  const session = findRoundSession(input.round, input.sessions);
+  if (!session) return productError('not_found', 'Esta rodada ainda não tem sessão.');
+  if (isClosedSession(session)) return appOk({ kind: 'history', sessionId: session.id });
+
+  const guard = ensureNoOtherActiveSession(input.activeSession, session.id);
+  if (guard.ok === false) return guard;
+
+  const live = input.activeSession?.id === session.id ? input.activeSession : session;
+  // Rodadas materializadas antes de a sessao nascer ativa ficaram em teams_generated, fase em
+  // que a tela ao vivo nao deixa iniciar a partida.
+  return appOk({
+    kind: 'live',
+    session: live.status === 'teams_generated' ? { ...live, status: 'active' } : live,
+  });
 }
 
 export function getSeasonAwards(

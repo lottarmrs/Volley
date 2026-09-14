@@ -11,6 +11,8 @@ const { spies } = vi.hoisted(() => ({
     createRequest: vi.fn(),
     resolveRequest: vi.fn(() => ({ ok: true, value: undefined })),
     rescheduleRound: vi.fn(() => ({ ok: true, value: undefined })),
+    materializeChampionshipRound: vi.fn(() => ({ ok: true, value: { sessionId: 's-new' } })),
+    openChampionshipRoundSession: vi.fn(() => ({ ok: true, value: undefined })),
   },
 }));
 
@@ -54,6 +56,26 @@ vi.mock('../../app/shellContext', () => ({
           scheduledDate: '2026-08-01T20:00',
           skipped: false,
         },
+        {
+          id: 'r2',
+          championshipId: 'champ-1',
+          round: 1,
+          teamAId: 't1',
+          teamBId: 't2',
+          scheduledDate: '2026-08-02T20:00',
+          skipped: false,
+          sessionId: 's-live',
+        },
+        {
+          id: 'r3',
+          championshipId: 'champ-1',
+          round: 1,
+          teamAId: 't2',
+          teamBId: 't1',
+          scheduledDate: '2026-08-03T20:00',
+          skipped: false,
+          sessionId: 's-done',
+        },
       ],
       championshipRequests: [
         {
@@ -69,12 +91,25 @@ vi.mock('../../app/shellContext', () => ({
           updatedAt: '2026-08-17T00:00:00.000Z',
         },
       ],
-      ...spies,
+      createRequest: spies.createRequest,
+      resolveRequest: spies.resolveRequest,
+      rescheduleRound: spies.rescheduleRound,
       materializeRound: vi.fn(),
       deleteChampionship: vi.fn(),
     },
-    sess: { teams: [], games: [], pointEvents: [], sessions: [] },
+    sess: {
+      teams: [],
+      games: [],
+      pointEvents: [],
+      sessions: [
+        { id: 's-live', communityId: 'comm-1', status: 'active' },
+        { id: 's-done', communityId: 'comm-1', status: 'finished' },
+      ],
+    },
     auth: { user: { id: 'u1' } },
+    materializeChampionshipRound: spies.materializeChampionshipRound,
+    openChampionshipRoundSession: spies.openChampionshipRoundSession,
+    deleteChampionshipAggregate: vi.fn(),
   }),
 }));
 
@@ -85,6 +120,9 @@ describe('ChampionshipDetailView', () => {
     spies.createRequest.mockClear();
     spies.resolveRequest.mockClear();
     spies.rescheduleRound.mockClear();
+    spies.materializeChampionshipRound.mockClear();
+    spies.openChampionshipRoundSession.mockClear();
+    window.history.pushState({}, '', '/');
   });
 
   it('renders league detail header and standings table tab', () => {
@@ -166,5 +204,74 @@ describe('ChampionshipDetailView', () => {
         requestedByTeamId: 't1',
       }),
     );
+  });
+
+  it('mostra o estado real de cada rodada: agendada, em andamento e realizada', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(
+      <BrowserRouter>
+        <ChampionshipDetailView championshipId="champ-1" />
+      </BrowserRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
+
+    expect(screen.getAllByText('Agendado')).toHaveLength(1);
+    expect(screen.getAllByText('Em andamento')).toHaveLength(1);
+    expect(screen.getAllByText('Realizado')).toHaveLength(1);
+  });
+
+  it('materializar pede a sessão ao shell e mostra a recusa sem sair da liga', async () => {
+    spies.materializeChampionshipRound.mockReturnValueOnce({
+      ok: false,
+      error: {
+        kind: 'product',
+        code: 'conflict',
+        message: 'Já existe uma sessão em andamento. Encerre-a antes de jogar esta rodada.',
+        recoverable: false,
+      },
+    } as never);
+    const user = userEvent.setup({ delay: null });
+    render(
+      <BrowserRouter>
+        <ChampionshipDetailView championshipId="champ-1" />
+      </BrowserRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
+    await user.click(screen.getByRole('button', { name: /materializar & jogar/i }));
+
+    expect(spies.materializeChampionshipRound).toHaveBeenCalledWith('r1');
+    expect(screen.getByRole('alert').textContent).toMatch(/já existe uma sessão em andamento/i);
+  });
+
+  it('materializar com sucesso não abre o histórico da sessão', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(
+      <BrowserRouter>
+        <ChampionshipDetailView championshipId="champ-1" />
+      </BrowserRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
+    await user.click(screen.getByRole('button', { name: /materializar & jogar/i }));
+
+    expect(spies.materializeChampionshipRound).toHaveBeenCalledWith('r1');
+    expect(window.location.pathname).not.toMatch(/\/sessoes\//);
+  });
+
+  it('ver sessão abre a sessão da rodada pelo shell', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(
+      <BrowserRouter>
+        <ChampionshipDetailView championshipId="champ-1" />
+      </BrowserRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
+    await user.click(screen.getAllByRole('button', { name: /ver sessão/i })[0]);
+
+    expect(spies.openChampionshipRoundSession).toHaveBeenCalledWith('r2');
+    expect(window.location.pathname).not.toMatch(/\/sessoes\//);
   });
 });

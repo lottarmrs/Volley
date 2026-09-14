@@ -80,7 +80,6 @@ export function mapChampionshipRoundToDb(
   teamBCloudId: string,
 ): DbRecord {
   return {
-    id: local.cloudId || undefined,
     championship_id: championshipCloudId,
     round: local.round,
     team_a_id: teamACloudId,

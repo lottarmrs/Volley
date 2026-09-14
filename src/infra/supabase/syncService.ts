@@ -1184,6 +1184,7 @@ export const syncService = {
     }
 
     const updatedChampionships: Championship[] = [];
+    const tombstonedChampionshipIds = new Set<string>();
     for (const championship of local.championships) {
       try {
         const communityCloudId = resolveCloudId(championship.communityId, communityCloudIds);
@@ -1196,6 +1197,7 @@ export const syncService = {
           ownerId,
         );
         updatedChampionships.push(markSynced(championship, uploaded.cloudId, syncedAt));
+        if (championship.deletedAt) tombstonedChampionshipIds.add(championship.id.toLowerCase());
       } catch (error) {
         onIssue(`campeonato "${championship.name}"`, error);
         updatedChampionships.push(championship);
@@ -1207,6 +1209,10 @@ export const syncService = {
     const updatedChampionshipTeams: ChampionshipTeam[] = [];
     for (const team of local.championshipTeams) {
       try {
+        if (team.deletedAt && tombstonedChampionshipIds.has(team.championshipId.toLowerCase())) {
+          updatedChampionshipTeams.push(markSynced(team, team.cloudId, syncedAt));
+          continue;
+        }
         const championshipCloudId = championshipCloudIds.get(team.championshipId.toLowerCase());
         const playerCloudIdsForTeam = team.playerIds.map((playerId) =>
           persistedPlayerCloudIds.get(playerId.toLowerCase()),
@@ -1349,6 +1355,10 @@ export const syncService = {
     const updatedChampionshipRounds: ChampionshipRound[] = [];
     for (const round of local.championshipRounds) {
       try {
+        if (round.deletedAt && tombstonedChampionshipIds.has(round.championshipId.toLowerCase())) {
+          updatedChampionshipRounds.push(markSynced(round, round.cloudId, syncedAt));
+          continue;
+        }
         const championshipCloudId = championshipCloudIds.get(round.championshipId.toLowerCase());
         const teamACloudId = championshipTeamCloudIds.get(round.teamAId.toLowerCase());
         const teamBCloudId = championshipTeamCloudIds.get(round.teamBId.toLowerCase());

@@ -144,6 +144,19 @@ test('mapChampionshipRoundToDb maps round, team foreign keys, and scheduling fie
   assert.equal(db.id, undefined);
 });
 
+test('mapChampionshipRoundToDb leaves the primary key to the (championship_id, local_id) conflict target', () => {
+  const db = mapChampionshipRoundToDb(
+    { ...championshipRound, cloudId: 'cloud-round-of-another-championship' },
+    'cloud-champ-1',
+    'cloud-team-a',
+    'cloud-team-b',
+  );
+
+  assert.equal('id' in db, false);
+  assert.equal(db.championship_id, 'cloud-champ-1');
+  assert.equal(db.local_id, 'local-round-1');
+});
+
 test('mapChampionshipRoundToDb carries a materialized sessionId through', () => {
   const db = mapChampionshipRoundToDb(
     { ...championshipRound, sessionId: 'session-1' },

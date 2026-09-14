@@ -115,8 +115,10 @@ Notes on the less obvious rows:
 
 ### 4. One-time reconciliation in the same migration
 
-Legacy-authority Communities only, recorded in `app_private.migration_runs` /
-`migration_entity_map` / `migration_anomalies` like the earlier backfills:
+Legacy-authority Communities only. The run is recorded in `app_private.migration_runs`, with the
+drift count before and after in `notes`, and skipped Communities in `migration_anomalies`. No
+`migration_entity_map` rows: the replay is idempotent and does not know per pair what it changed, so
+a mapping row would claim more than it knows.
 
 1. insert missing memberships for active legacy rows (owner rows included), and correct mapped roles;
 2. delete memberships that have no active legacy row, revoking their responsibilities;

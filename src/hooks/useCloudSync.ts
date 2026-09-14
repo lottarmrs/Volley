@@ -95,6 +95,8 @@ export interface CloudSyncDeps {
   setChampionshipTeams?: (value: ChampionshipTeam[]) => void;
   championshipRounds?: ChampionshipRound[];
   setChampionshipRounds?: (value: ChampionshipRound[]) => void;
+  /** Quantos registros locais ainda nao chegaram na nuvem; dispara o envio automatico. */
+  pendingChanges?: number;
   /** Optional sink for user-facing feedback (e.g. toasts). */
   onToast?: (message: string, variant: 'success' | 'error') => void;
 }
@@ -102,6 +104,11 @@ export interface CloudSyncDeps {
 export type CloudSyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 
 const LAST_SYNCED_AT_KEY = 'vpg_last_synced_at';
+
+// Espera a pessoa parar de editar antes de enviar, para uma rajada virar um envio so.
+const AUTO_SYNC_DEBOUNCE_MS = 4000;
+// Sem alteracao local, ainda e preciso trazer o que outros aparelhos gravaram.
+const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 const SYNC_TTL_MS = 5 * 60 * 1000;
 function inflightKey(userId: string): string {
@@ -265,21 +272,21 @@ export function useCloudSync(deps: CloudSyncDeps) {
       userId: string,
       onIssue: (context: string, error: unknown) => void,
     ) => Promise<LocalSyncPayload>,
-    options: { writes: boolean } = { writes: true },
+    options: { writes: boolean; silent?: boolean } = { writes: true },
   ) => {
     if (!deps.userId) throw new Error('Usuário não autenticado.');
+    // A execucao automatica nao fala com a pessoa: falhas ficam no ledger e o aviso
+    // persistente do shell ja mostra o que nao chegou na nuvem.
+    const toast = options.silent ? undefined : deps.onToast;
     // Enquanto o cache local for de outra conta, qualquer operacao que ESCREVE
     // enviaria os dados da conta anterior para esta. So o download passa — e e
     // ele que limpa o local e desfaz a divergencia.
     if (options.writes && !validateCacheOwner(deps.userId, getLocalCacheOwnerId())) {
-      deps.onToast?.(
-        'O acervo local ainda é de outra conta. Baixe da nuvem antes de enviar.',
-        'error',
-      );
+      toast?.('O acervo local ainda é de outra conta. Baixe da nuvem antes de enviar.', 'error');
       return;
     }
     if (isInflight(deps.userId)) {
-      deps.onToast?.('Uma sincronização já está em andamento.', 'error');
+      toast?.('Uma sincronização já está em andamento.', 'error');
       return;
     }
     setInflight(deps.userId);
@@ -309,7 +316,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
         // O que deu certo foi aplicado; sinalizamos as falhas parciais.
         setStatus('error');
         setError(issues.join('\n'));
-        deps.onToast?.(
+        toast?.(
           `${label} concluído com ${issues.length} falha(s). Itens não enviados serão tentados de novo.`,
           'error',
         );
@@ -320,7 +327,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
         });
         setSyncIssues(nextIssues);
         setStatus('success');
-        deps.onToast?.(`${label} concluído.`, 'success');
+        toast?.(`${label} concluído.`, 'success');
       }
     } catch (e) {
       // A requisicao real manda mais que o navigator.onLine.
@@ -337,7 +344,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
       setSyncIssues(nextIssues);
       setError(message);
       setStatus('error');
-      deps.onToast?.(`${label} falhou: ${message}`, 'error');
+      toast?.(`${label} falhou: ${message}`, 'error');
       throw e;
     } finally {
       clearInflight(deps.userId);
@@ -355,17 +362,21 @@ export function useCloudSync(deps: CloudSyncDeps) {
       writes: false,
     });
 
-  const sync = () =>
-    run('Sincronização', (payload, userId, onIssue) =>
-      syncCloudDataCommand({ payload, userId, onIssue }),
-    );
+  const syncOperation: Parameters<typeof run>[1] = (payload, userId, onIssue) =>
+    syncCloudDataCommand({ payload, userId, onIssue });
+
+  const sync = () => run('Sincronização', syncOperation);
+
+  const autoSync = () => run('Sincronização', syncOperation, { writes: true, silent: true });
 
   // O evento `online` do browser chega ANTES da rede estar utilizavel de verdade.
   // Sem esta espera, a primeira tentativa quase sempre falha de novo.
   const DEBOUNCE_RECONEXAO_MS = 2000;
   const syncRef = useRef(sync);
+  const autoSyncRef = useRef(autoSync);
   useEffect(() => {
     syncRef.current = sync;
+    autoSyncRef.current = autoSync;
   });
 
   useEffect(() => {
@@ -384,6 +395,40 @@ export function useCloudSync(deps: CloudSyncDeps) {
 
     return () => clearTimeout(timer);
   }, [connectivity.state, connectivity.onlineAt, deps.userId]);
+
+  // Alteracao local pendente sobe sozinha. A contagem so muda quando algo novo fica
+  // pendente ou quando o sync termina, entao uma falha que mantem os mesmos itens
+  // pendentes nao vira laco: ela espera o ciclo periodico ou uma nova alteracao.
+  useEffect(() => {
+    if (connectivity.state !== 'online') return;
+    if (!deps.userId) return;
+    if (!deps.pendingChanges || deps.pendingChanges <= 0) return;
+
+    const timer = setTimeout(() => {
+      void autoSyncRef.current().catch(() => {});
+    }, AUTO_SYNC_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [connectivity.state, deps.userId, deps.pendingChanges]);
+
+  useEffect(() => {
+    if (connectivity.state !== 'online') return;
+    if (!deps.userId) return;
+
+    const tick = () => {
+      void autoSyncRef.current().catch(() => {});
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+
+    const interval = setInterval(tick, AUTO_SYNC_INTERVAL_MS);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [connectivity.state, deps.userId]);
 
   const recoverableSyncActions = buildRecoverableSyncActions(syncIssues);
 

@@ -63,6 +63,53 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 | XS-W3-08 | Session target alcançável pelo cliente (por sync)       | concluída |
 | XS-W3-09 | `ORGANIZER` pelo cargo Organizador (espelho de membros) | concluída |
 
+### Compatibilização da nuvem e sync automático — 2026-09-14
+
+Branch `exec/cloud-compat-and-auto-sync`. Começou pelo histórico de falhas de sync de
+`championship_rounds` (`23505` na chave primária e `42501` na policy de UPDATE) e virou alinhar as três
+fontes, que tinham divergido:
+
+- **Front em produção:** a Vercel serve o `main` do GitHub (`c1317bb`, 2026-08-20). Este repositório
+  foi reinicializado a partir da árvore R11 e **não tem histórico comum** com o GitHub nem remoto
+  configurado até esta branch.
+- **Supabase Panelinha:** tinha a cadeia até 2026-08-03 mais seis migrations aplicadas direto no
+  projeto e nunca versionadas (quatro de liga em 2026-08-21, `search_public_communities_restore_stable`
+  e `reset_bypass_fix_before_trigger`). As duas últimas são idênticas ou superadas por definições do
+  repositório; as quatro de liga quebravam o sync.
+- **Este repositório:** 39 migrations de 2026-08-14 a 2026-09-14 nunca aplicadas no projeto.
+
+O que foi feito:
+
+- **Banco (aplicado direto em produção, sem ensaio, por decisão do usuário):** a cadeia inteira na
+  ordem dos arquivos, incluindo `20260821190000_remove_cloud_only_league_extensions` e
+  `20260914130000_revoke_anon_community_capabilities`. Conferido depois: nenhuma RPC chamada pelo
+  cliente falta, as colunas novas existem, `championship_requests` e
+  `current_user_can_manage_championship` sumiram, as policies de UPDATE de liga são de dono e admin,
+  5 roster revisions importadas com 0 anomalias, drift de membership 0. A `20260814` apagou o
+  `username` do atleta sem conta `3b6c41cb-91b3-4aff-bd53-0d55296e4f0c` (valor era `teste`).
+- **Dados:** a "Liga de Primavera" existia duas vezes na nuvem com o mesmo `local_id`. Ficou
+  `55aa92af`; a cópia `ddd05bbb` herdou para a mantida a rodada 3 materializada e os 14 times de
+  sessão, e foi apagada logicamente com `local_id` sufixado `:merged-into:55aa92af-…`.
+- **Código:** `d912cb2` — o upsert de rodada deixa de enviar `id`, e times e rodadas apagados de uma
+  liga cujo tombstone já subiu na rodada não são mais escritos. Sync automático em `useCloudSync`:
+  alteração pendente sobe 4 s depois da última edição, e o app sincroniza a cada 5 min e ao voltar
+  para a aba, sem toast; falhas seguem no ledger e no aviso persistente do shell. O botão manual
+  continua como opção.
+- **Sessão paralela:** `volley-c8` trabalhava na mesma árvore e commitou por engano `9eddc7c`
+  (materializar rodada abre a sessão ao vivo) nesta branch. O commit foi retirado daqui com
+  `reset --mixed` e vive em `fix/championship-round-live-session` (`eac1a27`), sem nada desta branch.
+
+Pendências:
+
+- **Publicar:** empurrar esta branch para o GitHub e abrir PR; como os históricos não se ligam, o
+  usuário decide como substituir o `main` de lá. Até isso, a produção da Vercel roda o código de
+  2026-08-20 contra o schema novo.
+- **AF-FREEZE-001:** o sync automático não adiciona consumidor do sync genérico, mas passa a acioná-lo
+  sozinho — o oposto da direção de W13. Foi pedido explícito do usuário; a W13 precisa levar isso em
+  conta.
+- **Advisor:** `security_definer_view` em `community_profile_summary` (ERROR, anterior a esta branch);
+  bucket `team-crests` vazio a remover pelo painel ou pela Storage API.
+
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 
 Integrada em `main` em 2026-09-14 (`30e9d34`); a branch `exec/c6-w3-08-target-cohort-reachability`

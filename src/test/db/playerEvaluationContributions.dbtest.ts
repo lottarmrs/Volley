@@ -108,11 +108,12 @@ if (!isTestDatabaseConfigured()) {
     );
     const communityId = rows[0].id;
     // check_community_has_active_owner requires exactly one active owner membership at all
-    // times; create_community_with_owner does this as part of the RPC, so a direct insert must
-    // do it too.
+    // times. For a legacy row the community_members mirror already wrote it through the owner
+    // trigger; the insert states it without depending on that.
     await client.query(
       `insert into public.community_memberships (community_id, user_id, role, status)
-       values ($1, $2, 'owner', 'active')`,
+       values ($1, $2, 'owner', 'active')
+       on conflict (community_id, user_id) do nothing`,
       [communityId, ownerId],
     );
     return communityId;

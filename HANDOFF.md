@@ -4,8 +4,9 @@
 > remediação da auditoria de segurança do mesmo dia e a W6-01, depois da review independente de
 > branch inteira. Este é o ponto de retomada canônico se o limite da conversa acabar.
 >
-> **2026-09-13:** a XS-W3-08 está concluída na branch `exec/c6-w3-08-target-cohort-reachability`,
-> não integrada — ver a seção dela logo abaixo da tabela de fatias.
+> **2026-09-14:** a XS-W3-08 foi integrada em `main` (`30e9d34`), e em seguida a correção da
+> identidade de sync da Session ativa (`506d52b`). Nada foi enviado para remoto — ver a seção da
+> XS-W3-08 logo abaixo da tabela de fatias.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -34,32 +35,33 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                            | Estado                             |
-| -------- | -------------------------------------------------- | ---------------------------------- |
-| XS-W3-01 | Session target root                                | concluída                          |
-| XS-W3-02 | Session organizer assignment                       | concluída                          |
-| XS-W3-03 | Session courts                                     | concluída                          |
-| XS-W3-04 | Session rules snapshot                             | concluída                          |
-| XS-W3-05 | SessionParticipant + RosterRevision                | concluída                          |
-| XS-W3-06 | Lifecycle/readiness semantic commands              | concluída                          |
-| XS-W3-07 | Session cohort cutover                             | concluída                          |
-| XS-W4-01 | Registration schema e invariantes                  | concluída                          |
-| XS-W4-02 | Open/Close/Lock Registration                       | concluída                          |
-| XS-W4-03 | JoinRegistration                                   | concluída                          |
-| XS-W4-04 | Leave / promoção / capacidade                      | concluída                          |
-| XS-W4-05 | FinalizeSessionRoster                              | concluída                          |
-| XS-W4-06 | Legacy Session Registration introduction           | concluída                          |
-| XS-W5-01 | Versioned PlayerEvaluation source model            | concluída                          |
-| XS-W5-02 | Skill rubric/dimension contract                    | concluída                          |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação  | concluída                          |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda       | concluída                          |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador      | concluída                          |
-| XS-W6-02 | Porta de formação de times / solver determinístico | concluída                          |
-| XS-W3-08 | Session target alcançável pelo cliente (por sync)  | concluída na branch, não integrada |
+| Fatia    | Assunto                                            | Estado    |
+| -------- | -------------------------------------------------- | --------- |
+| XS-W3-01 | Session target root                                | concluída |
+| XS-W3-02 | Session organizer assignment                       | concluída |
+| XS-W3-03 | Session courts                                     | concluída |
+| XS-W3-04 | Session rules snapshot                             | concluída |
+| XS-W3-05 | SessionParticipant + RosterRevision                | concluída |
+| XS-W3-06 | Lifecycle/readiness semantic commands              | concluída |
+| XS-W3-07 | Session cohort cutover                             | concluída |
+| XS-W4-01 | Registration schema e invariantes                  | concluída |
+| XS-W4-02 | Open/Close/Lock Registration                       | concluída |
+| XS-W4-03 | JoinRegistration                                   | concluída |
+| XS-W4-04 | Leave / promoção / capacidade                      | concluída |
+| XS-W4-05 | FinalizeSessionRoster                              | concluída |
+| XS-W4-06 | Legacy Session Registration introduction           | concluída |
+| XS-W5-01 | Versioned PlayerEvaluation source model            | concluída |
+| XS-W5-02 | Skill rubric/dimension contract                    | concluída |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação  | concluída |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda       | concluída |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador      | concluída |
+| XS-W6-02 | Porta de formação de times / solver determinístico | concluída |
+| XS-W3-08 | Session target alcançável pelo cliente (por sync)  | concluída |
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 
-Branch `exec/c6-w3-08-target-cohort-reachability`, **não integrada em `main`**. Ver o
+Integrada em `main` em 2026-09-14 (`30e9d34`); a branch `exec/c6-w3-08-target-cohort-reachability`
+não existe mais localmente. Ver o
 [spec](docs/superpowers/specs/2026-09-10-xs-w3-08-target-cohort-reachability-design.md), o
 [plano](docs/superpowers/plans/2026-09-10-xs-w3-08-target-cohort-reachability.md) e o
 [mapa de alcançabilidade re-derivado](docs/architecture/execution/C6-REACHABILITY-MAP.md). Inserida
@@ -164,6 +166,35 @@ continua sendo decisão de produto.
 `set_community_organizer` não tem chamador em `src/`, e `set_community_member_role` não grava
 `community_responsibilities`. Quem é promovido pelo painel de membros cai no `42501` acima.
 
+### Corrigido depois da integração — Session ativa perdia a identidade de sync
+
+`d15b4cf`, integrado em `506d52b`. Defeito anterior à XS-W3-08, que afetava Session legada e target:
+`applyResult` em `useCloudSync.ts` atualizava só `sessions`, e `activeSession` é estado separado em
+`useSessions`. Quem atualiza a Session ativa espalha essa cópia — `updateActiveSession`,
+`buildFinishedSessionResult`, `TournamentActiveView`, `sessionActiveViewContract` e as rotas —, então
+a primeira interação ao vivo depois de um sync regravava em `sessions` a cópia sem `cloudId`,
+`syncStatus`, `lastSyncedAt` e `authorityModel`.
+
+Agora `useCloudSync` recebe `setActiveSession` e, com updater funcional, copia para a Session ativa
+só esses quatro campos da Session de mesmo id; os campos ao vivo ficam. A correção foi feita no sync,
+e não em `updateActiveSession`, porque ele não é o único caminho que espalha a cópia obsoleta. O
+updater funcional também evita sobrescrever uma edição ao vivo feita enquanto o sync aguardava.
+
+As mitigações da XS-W3-08 continuam no lugar: a recuperação de `23505` ainda cobre a resposta perdida
+depois do commit e cópias regravadas antes desta correção. Pelo caminho da Session ao vivo, deixam de
+acontecer a criação recusada seguida de leitura a cada sync e a exclusão silenciosa, pelo ramo legado,
+de uma Session target que tinha perdido o marcador.
+
+Continua em aberto: uma edição ao vivo feita enquanto o sync aguarda ainda pode ser substituída em
+`sessions` pela cópia de quando o payload foi montado (`setSessions(normalized.sessions)`), e o
+download que troca de conta não limpa `activeSession`.
+
+Evidência: dois testes novos em `useCloudSync.spec.tsx`, rodando `useSessions` e `useCloudSync`
+juntos, com só `syncNow` substituído, falharam antes da correção pela asserção esperada e passam
+depois. `npm run typecheck` passou; `npm test` **974 unitários + 285 UI**; `npm run build` passou;
+Prettier e ESLint (erros) limpos nos arquivos tocados. Suíte de banco e e2e não foram rodadas — a
+mudança não toca SQL. Sem verificação no navegador, porque exige Supabase configurado.
+
 ### Evidência de verificação da XS-W3-08
 
 **Rodada de correção da review final** — 2026-09-13 sobre `95656c2`, com a árvore limpa fora da
@@ -229,35 +260,48 @@ Rodada original em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da docum
 
 ### Branches — cadeia integrada em `main`
 
-**Toda a cadeia C6 até `XS-W6-02` está em `main`.** As fatias até `XS-W4-06`, mais a correção de
-cascade de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` em 2026-09-05. Em
-2026-09-08, depois da review independente de branch inteira, entraram de uma vez a `XS-W5-02`, a
-`XS-W5-03` com seu complemento de editor/source authority, a `XS-W5-04`, a remediação da auditoria
-de segurança e a `XS-W6-01`. Em 2026-09-10 entrou a `XS-W6-02`, também depois de review de branch
-inteira e da onda de correção que ela gerou. Os dois merges foram fast-forward — `main` não tinha
-andado — e as branches `exec/c6-w5-02-skill-rubric-contract` e `exec/c6-w6-02-team-formation-port`
-foram apagadas por já estarem contidas em `main`.
+**Toda a cadeia C6 até `XS-W6-02`, mais a `XS-W3-08`, está em `main`.** As fatias até `XS-W4-06`,
+mais a correção de cascade de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` em
+2026-09-05. Em 2026-09-08, depois da review independente de branch inteira, entraram de uma vez a
+`XS-W5-02`, a `XS-W5-03` com seu complemento de editor/source authority, a `XS-W5-04`, a remediação
+da auditoria de segurança e a `XS-W6-01`. Em 2026-09-10 entrou a `XS-W6-02`, também depois de review
+de branch inteira e da onda de correção que ela gerou. Os dois merges foram fast-forward — `main` não
+tinha andado — e as branches `exec/c6-w5-02-skill-rubric-contract` e
+`exec/c6-w6-02-team-formation-port` foram apagadas por já estarem contidas em `main`. Em 2026-09-14
+entraram a `XS-W3-08` (`30e9d34`) e a correção da identidade de sync da Session ativa (`506d52b`),
+ambas por merge `--no-ff`.
 
 ```text
-main   ← contém W3-01..W6-02, a correção de cascade e a remediação de segurança
+main   ← contém W3-01..W6-02, W3-08, a correção de cascade, a remediação de segurança e a
+         correção da identidade de sync da Session ativa
 ```
 
 Não existe trabalho C6 pendente de integração.
 
 **Integrado não é implantado.** Nada foi enviado para remoto, nenhuma migration foi aplicada em
-Supabase remoto e nenhuma imagem foi implantada. Continua valendo o que a seção de segurança
-registra: o CSP do `nginx.conf` só passa a valer no próximo deploy, as policies de `storage`
-dependem de aplicar a migration no projeto remoto, e o achado **A9 continua aberto**.
-
-**Integrado não é implantado.** Nada foi enviado para remoto, nenhuma migration foi aplicada em
 Supabase remoto e nenhuma imagem foi implantada. O CSP do `nginx.conf` só passa a valer no próximo
-deploy, e as policies de `storage` dependem de aplicar a migration no projeto remoto. As migrations
-novas são seis e aplicam-se na ordem da lista do README.
+deploy, as policies de `storage` dependem de aplicar a migration no projeto remoto, e o achado **A9
+continua aberto**. As migrations aplicam-se na ordem do
+[runbook de lançamento](docs/operations/production-launch-runbook.md), que não é a alfabética.
 
-Ao retomar, confira `git status` e escolha a próxima fatia em
-`docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` — a seguinte é a
-`XS-W6-02` (porta do solver determinístico). Antes dela, leia o backlog da review independente
-logo abaixo: há um achado de segurança **aberto** (A9) e uma decisão de produto pendente (A6).
+Ao retomar, confira `git status` e escolha a frente. O
+[mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md) manda planejá-las
+separadamente, e **a escolha é de produto, ainda não feita**:
+
+- **Trilha A — uso real do app atual**, que não depende do C6: seguir o
+  [runbook](docs/operations/production-launch-runbook.md). Os passos 1–4 (provisionar o banco,
+  configurar, testar o cadastro real contra o CSP do Turnstile, rodar o e2e no ambiente) exigem um
+  Supabase real e ainda não foram feitos;
+- **C6**: a próxima fatia na ordem de
+  `docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` é a `XS-W6-03`
+  (publicação do conjunto de candidatos), que tem
+  [design](docs/superpowers/specs/2026-09-10-xs-w6-03-candidate-set-publication-design.md) e não
+  tem plano. Ela pressupõe captura de snapshot e revisão de elenco que nenhum caminho do app produz
+  hoje. Antes dela, uma fatia pequena que chame `set_community_organizer` pelo painel de membros
+  derrubaria a parede 3 do mapa e o `42501` recorrente.
+
+Antes de qualquer uma, leia a seção "Backlog da review independente de branch — 2026-09-08", mais
+abaixo: há um achado de segurança **aberto** (A9) e uma decisão de produto pendente (A6).
 
 ### O que a wave W3 entregou
 

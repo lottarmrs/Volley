@@ -16,7 +16,11 @@ import {
 } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
 import { paths } from '../../application/appRoutes';
-import { getSeasonStandings, getSeasonAwards } from '../../application/championshipUseCases';
+import {
+  getRoundPlayStatus,
+  getSeasonStandings,
+  getSeasonAwards,
+} from '../../application/championshipUseCases';
 import {
   acceptChampionshipRequest,
   approveChampionshipRequest,
@@ -36,6 +40,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
     auth,
     deleteChampionshipAggregate,
     materializeChampionshipRound,
+    openChampionshipRoundSession,
   } = useShell();
 
   const [activeTab, setActiveTab] = useState<
@@ -47,6 +52,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
   const [pedidoData, setPedidoData] = useState('');
   const [pedidoTimeId, setPedidoTimeId] = useState('');
   const [erroGovernanca, setErroGovernanca] = useState<string | null>(null);
+  const [erroRodada, setErroRodada] = useState<string | null>(null);
 
   const championship = championships.championships.find((c) => c.id === championshipId);
   const teams = useMemo(
@@ -177,12 +183,17 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
     handleResolverPedido(request.id, (r) => approveChampionshipRequest(r, atorId));
   };
 
+  // O shell abre a sessao ao vivo; aqui so resta mostrar a recusa, que antes era engolida.
   const handleMaterializeRound = (round: ChampionshipRound) => {
-    if (!community) return;
+    setErroRodada(null);
     const result = materializeChampionshipRound(round.id);
-    if (result.ok) {
-      navigate(paths.sessao(community.id, result.value.sessionId));
-    }
+    if (result.ok === false) setErroRodada(result.error.message);
+  };
+
+  const handleOpenRoundSession = (round: ChampionshipRound) => {
+    setErroRodada(null);
+    const result = openChampionshipRoundSession(round.id);
+    if (result.ok === false) setErroRodada(result.error.message);
   };
 
   return (
@@ -368,11 +379,19 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
             </button>
           </div>
 
+          {erroRodada && (
+            <div role="alert" className="alert alert-error alert-soft text-sm">
+              <AlertCircle className="w-4 h-4" />
+              <span>{erroRodada}</span>
+            </div>
+          )}
+
           {/* Matches List */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {currentRoundMatches.map((match) => {
               const teamA = teams.find((t) => t.id === match.teamAId);
               const teamB = teams.find((t) => t.id === match.teamBId);
+              const playStatus = getRoundPlayStatus(match, sess?.sessions || []);
               let dateStr = 'Data não definida';
               if (match.scheduledDate) {
                 try {
@@ -397,9 +416,13 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-accent" /> {dateStr}
                     </span>
-                    {match.sessionId ? (
+                    {playStatus === 'played' ? (
                       <span className="badge badge-success badge-sm font-bold uppercase">
                         Realizado
+                      </span>
+                    ) : playStatus === 'in_progress' ? (
+                      <span className="badge badge-info badge-sm font-bold uppercase">
+                        Em andamento
                       </span>
                     ) : (
                       <span className="badge badge-warning badge-sm font-bold uppercase">
@@ -423,9 +446,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
                       <button
                         type="button"
                         className="btn btn-primary min-h-[44px] px-4 text-xs font-bold uppercase tracking-wider shadow-md shadow-primary/20"
-                        onClick={() =>
-                          community && navigate(paths.sessao(community.id, match.sessionId!))
-                        }
+                        onClick={() => handleOpenRoundSession(match)}
                       >
                         Ver Sessão
                       </button>

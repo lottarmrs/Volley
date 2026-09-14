@@ -82,7 +82,7 @@ if (!isTestDatabaseConfigured()) {
     return rows[0].id;
   }
 
-  /** A row written the legacy way: no membership relation, legacy authority model. */
+  /** A row written the legacy way: legacy authority model, membership mirrored from community_members. */
   async function legacyCommunity(ownerId: string, name: string): Promise<string> {
     const { rows } = await client.query<{ id: string }>(
       'insert into public.communities (name, owner_id) values ($1, $2) returning id',

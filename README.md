@@ -182,6 +182,19 @@ não exige a ativação do modelo de avaliação da comunidade — organizar uma
 são responsabilidades independentes, e acoplá-las tornaria a virada de avaliação um pré-requisito
 para simplesmente marcar uma partida.
 
+`20260914120000_mirror_community_members_to_target.sql` espelha `community_members` em
+`community_memberships` e `community_responsibilities` por trigger, para Comunidades legadas. Todo
+RPC do painel de membros continuava escrevendo só na tabela antiga, então membro novo não tinha
+membership, membro removido mantinha a sua e promover a Organizador nunca concedia `ORGANIZER`.
+O cargo `organizador` agora concede e revoga `ORGANIZER`, e perder a membership revoga todas as
+responsabilidades. A migration reconcilia a divergência acumulada desde `20260827140000`, registra
+em `app_private.migration_anomalies` as Comunidades legadas sem exatamente um dono (que ficam de
+fora) e guarda em `migration_runs.notes` a divergência medida antes e depois;
+`app_private.community_membership_drift()` a mede a qualquer momento. Comunidades target não são
+espelhadas. A mesma migration corrige `prevent_last_community_owner_change`, que cancelava em
+silêncio o DELETE de quem não era dono: `remove_community_member` e `leave_community` nunca tinham
+removido ninguém além de donos.
+
 3. Confirm Data API access for the exposed `public` tables. New Supabase projects may not expose newly created tables to the Data API automatically; the migrations grant access to `authenticated`, but the project Data API settings still need to expose the intended schema/tables.
 4. Fill in `.env` with your project URL and publishable key.
 5. In the app, open **Nuvem & Conta**, create an account and use _Enviar para nuvem_ / _Baixar da nuvem_ / _Sincronizar_.

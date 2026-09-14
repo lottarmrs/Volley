@@ -124,30 +124,18 @@ if (!isTestDatabaseConfigured()) {
     }
   });
 
-  test('suite 2 FINDING: role "member" cannot read its own Community', async () => {
-    // Pins a real defect surfaced by this harness rather than asserting the intent.
-    //
-    // The policy is named "Community members can read communities" and reads
-    //   owner_id = auth.uid() OR current_user_has_community_role(id)
-    // but current_user_has_community_role defaults allowed_roles to
-    //   {owner, admin, moderator}
-    // while the CHECK constraint also permits 'member' and 'organizador'. So an active
-    // member is denied by the very policy named after it.
-    //
-    // Owner: Communities (N2.03). Relevant to GINV-SEC-001/002 and the W2 capability work.
-    // If this starts passing, the policy or the helper default was fixed and this test
-    // should be replaced by the positive assertion.
+  test('suite 2: an active "member" reads its own Community', async () => {
+    // Replaces a FINDING that pinned the opposite. The legacy policy still denies a member:
+    // current_user_has_community_role defaults allowed_roles to {owner, admin, moderator}.
+    // The additive XS-W2-07 policy "Active target members can read their community" grants the
+    // read through community_memberships, and since XS-W3-09 the community_members mirror gives a
+    // legacy member that membership.
     const db = await pool.connect();
     try {
       const asMember = await asIdentity(db, world.memberA, async () =>
         db.query('select id from public.communities where id = $1', [world.communityA]),
       );
-      assert.equal(
-        asMember.rowCount,
-        0,
-        'CURRENT behaviour: an active member cannot read its own Community. ' +
-          'A passing read means the policy/helper mismatch was fixed; invert this test.',
-      );
+      assert.equal(asMember.rowCount, 1, 'an active member must read its own Community');
     } finally {
       db.release();
     }

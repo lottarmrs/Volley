@@ -62,10 +62,12 @@ if (!isTestDatabaseConfigured()) {
       [ownerId, name],
     );
     const communityId = rows[0].id;
-    // check_community_has_active_owner exige exatamente um owner ativo o tempo todo.
+    // check_community_has_active_owner exige exatamente um owner ativo o tempo todo. Em linha
+    // legada o espelho de community_members ja gravou esse owner pelo trigger de dono.
     await client.query(
       `insert into public.community_memberships (community_id, user_id, role, status)
-       values ($1, $2, 'owner', 'active')`,
+       values ($1, $2, 'owner', 'active')
+       on conflict (community_id, user_id) do nothing`,
       [communityId, ownerId],
     );
     return communityId;

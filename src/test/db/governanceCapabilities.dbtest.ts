@@ -347,12 +347,17 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(quarantined.rowCount, 1, 'the moderator must be recorded for review');
     assert.match((quarantined.rows[0] as { reason: string }).reason, /OPEN-COM-003|both decisions/);
 
-    // No governance rank was invented for them either way.
-    const rank = await client.query(
-      'select 1 from public.community_memberships where community_id = $1 and user_id = $2',
+    // No governance rank above member was invented for them either way. The community_members
+    // mirror (XS-W3-09) maps a moderator to member, as the backfill did.
+    const rank = await client.query<{ role: string }>(
+      'select role from public.community_memberships where community_id = $1 and user_id = $2',
       [community, mod],
     );
-    assert.equal(rank.rowCount, 0, 'no rank may be guessed for an unresolved moderator');
+    assert.equal(
+      rank.rows.some((r) => r.role === 'admin' || r.role === 'owner'),
+      false,
+      'no rank above member may be guessed for an unresolved moderator',
+    );
   });
 
   // ── Capability check helper ──────────────────────────────────────────────

@@ -7,6 +7,9 @@
 > **2026-09-14:** a XS-W3-08 foi integrada em `main` (`30e9d34`), e em seguida a correção da
 > identidade de sync da Session ativa (`506d52b`). Nada foi enviado para remoto — ver a seção da
 > XS-W3-08 logo abaixo da tabela de fatias.
+>
+> **2026-09-14, depois:** a XS-W3-09 (`ORGANIZER` pelo cargo Organizador) foi integrada em `main` por
+> merge `--no-ff` — ver a seção dela antes de "Branches".
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -24,39 +27,41 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 Em 2026-09-10, depois de três dead ends seguidos, levantei o que do C6 é realmente alcançável por um
 usuário: [mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md).
 
-Resumo, re-derivado em 2026-09-13 no fim da XS-W3-08: das ~46 funções públicas da era C6 destinadas
-ao cliente, **8 são alcançáveis** — 5 por tela (editor de avaliação e perfil de comunidade, W5-03 e
-seu complemento), 1 por tela e por sync (`community_evaluation_target_ids`) e 2 **só por sync**,
-ambas da XS-W3-08: `create_target_session` e `read_target_session`. Essas duas só disparam para
-organizadores herdados do backfill, porque `set_community_organizer` existe no banco e não tem
-chamador. O restante de W3 e W4, mais W5-01, W5-02, W6-01 e W6-02 — captura de snapshot incluída —
+Resumo, re-derivado em 2026-09-13 no fim da XS-W3-08 e ajustado em 2026-09-14 pela XS-W3-09: das
+~46 funções públicas da era C6 destinadas ao cliente, **8 são alcançáveis** — 5 por tela (editor de
+avaliação e perfil de comunidade, W5-03 e seu complemento), 1 por tela e por sync
+(`community_evaluation_target_ids`) e 2 **só por sync**, ambas da XS-W3-08: `create_target_session`
+e `read_target_session`. Com a XS-W3-09 elas disparam para quem tem o cargo
+Organizador numa comunidade legada ativada, porque o cargo passa a conceder `ORGANIZER`; dono e admin
+continuam sem. `set_community_organizer` segue sem chamador. O restante de W3 e W4, mais W5-01, W5-02, W6-01 e W6-02 — captura de snapshot incluída —
 continua sem caminho. A tabela abaixo diz que essas fatias estão concluídas, e elas estão: o código
 existe, é testado e faz o que promete. **Concluída não quer dizer alcançável.**
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                            | Estado    |
-| -------- | -------------------------------------------------- | --------- |
-| XS-W3-01 | Session target root                                | concluída |
-| XS-W3-02 | Session organizer assignment                       | concluída |
-| XS-W3-03 | Session courts                                     | concluída |
-| XS-W3-04 | Session rules snapshot                             | concluída |
-| XS-W3-05 | SessionParticipant + RosterRevision                | concluída |
-| XS-W3-06 | Lifecycle/readiness semantic commands              | concluída |
-| XS-W3-07 | Session cohort cutover                             | concluída |
-| XS-W4-01 | Registration schema e invariantes                  | concluída |
-| XS-W4-02 | Open/Close/Lock Registration                       | concluída |
-| XS-W4-03 | JoinRegistration                                   | concluída |
-| XS-W4-04 | Leave / promoção / capacidade                      | concluída |
-| XS-W4-05 | FinalizeSessionRoster                              | concluída |
-| XS-W4-06 | Legacy Session Registration introduction           | concluída |
-| XS-W5-01 | Versioned PlayerEvaluation source model            | concluída |
-| XS-W5-02 | Skill rubric/dimension contract                    | concluída |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação  | concluída |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda       | concluída |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador      | concluída |
-| XS-W6-02 | Porta de formação de times / solver determinístico | concluída |
-| XS-W3-08 | Session target alcançável pelo cliente (por sync)  | concluída |
+| Fatia    | Assunto                                                 | Estado    |
+| -------- | ------------------------------------------------------- | --------- |
+| XS-W3-01 | Session target root                                     | concluída |
+| XS-W3-02 | Session organizer assignment                            | concluída |
+| XS-W3-03 | Session courts                                          | concluída |
+| XS-W3-04 | Session rules snapshot                                  | concluída |
+| XS-W3-05 | SessionParticipant + RosterRevision                     | concluída |
+| XS-W3-06 | Lifecycle/readiness semantic commands                   | concluída |
+| XS-W3-07 | Session cohort cutover                                  | concluída |
+| XS-W4-01 | Registration schema e invariantes                       | concluída |
+| XS-W4-02 | Open/Close/Lock Registration                            | concluída |
+| XS-W4-03 | JoinRegistration                                        | concluída |
+| XS-W4-04 | Leave / promoção / capacidade                           | concluída |
+| XS-W4-05 | FinalizeSessionRoster                                   | concluída |
+| XS-W4-06 | Legacy Session Registration introduction                | concluída |
+| XS-W5-01 | Versioned PlayerEvaluation source model                 | concluída |
+| XS-W5-02 | Skill rubric/dimension contract                         | concluída |
+| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação       | concluída |
+| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda            | concluída |
+| XS-W6-01 | Snapshots imutáveis de entrada do balanceador           | concluída |
+| XS-W6-02 | Porta de formação de times / solver determinístico      | concluída |
+| XS-W3-08 | Session target alcançável pelo cliente (por sync)       | concluída |
+| XS-W3-09 | `ORGANIZER` pelo cargo Organizador (espelho de membros) | concluída |
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 
@@ -135,9 +140,10 @@ organizadores semeados pelo backfill de `20260827150000`. Times e jogos de Sessi
 no sync genérico. Comunidade não ativada não muda em nada.
 
 **Problema conhecido — `42501` recorrente para quem não é `ORGANIZER`.** Um membro de uma comunidade
-ativada que não tem `ORGANIZER` — o que inclui qualquer organizador promovido pela interface depois
-do backfill — e cria uma Session localmente recebe `42501` de `create_target_session` a cada sync,
-sem nenhuma saída pela interface. Não há perda de dado: a Session continua local e pendente. Mas o
+ativada que não tem `ORGANIZER` e cria uma Session localmente recebe `42501` de
+`create_target_session` a cada sync, sem nenhuma saída pela interface. Com a XS-W3-09
+isso deixa de valer para quem tem o cargo Organizador, mas continua valendo para dono, admin,
+moderador e membro comum — inclusive no caso mais comum, o dono criando a própria Session. Não há perda de dado: a Session continua local e pendente. Mas o
 erro volta toda rodada, e isso passa a acontecer no momento em que uma comunidade ativa o modelo de
 avaliação.
 
@@ -163,8 +169,8 @@ também o comportamento legado, e foi descartado. Mapear exclusão para `cancel_
 continua sendo decisão de produto.
 
 **Problema conhecido — promover a organizador pelo app ainda não concede `ORGANIZER`.**
-`set_community_organizer` não tem chamador em `src/`, e `set_community_member_role` não grava
-`community_responsibilities`. Quem é promovido pelo painel de membros cai no `42501` acima.
+**Resolvido na XS-W3-09**: o cargo Organizador concede `ORGANIZER` pelo
+espelho de `community_members`. `set_community_organizer` continua sem chamador em `src/`.
 
 ### Corrigido depois da integração — Session ativa perdia a identidade de sync
 
@@ -258,9 +264,88 @@ Rodada original em 2026-09-13 sobre `88e3475`, com a árvore limpa fora da docum
   `docker start`. Nenhum mock;
 - sem push, merge, aplicação de migration em Supabase remoto ou deploy.
 
+### O que a XS-W3-09 entregou — `ORGANIZER` pelo cargo Organizador
+
+Integrada em `main` em 2026-09-14 por merge `--no-ff`; a branch
+`exec/c6-w3-09-organizer-from-member-role` foi apagada. Ver o
+[spec](docs/superpowers/specs/2026-09-14-xs-w3-09-organizer-from-member-role-design.md) e o
+[plano](docs/superpowers/plans/2026-09-14-xs-w3-09-organizer-from-member-role.md). Inserida depois da
+XS-W3-08 para derrubar no app a terceira parede do mapa de alcançabilidade.
+
+Ligar `set_community_organizer` ao painel não bastaria: desde o split de `20260827140000` as duas
+tabelas de membros divergem. Todo RPC do painel escreve só em `community_members`, e tudo o que o C6
+lê exige linha ativa em `community_memberships`. Membro adicionado ou aprovado depois do split não
+tinha membership, e dono ou admin de comunidade criada depois não tinha `community.members.manage`.
+
+- `b8e9109`: teste vermelho — promover pelo painel e criar Session target falhava com `42501`
+  ("Active Community Membership is required");
+- `5b6e0e5`: `20260914120000_mirror_community_members_to_target.sql`. Um trigger `after` em
+  `community_members` projeta cada escrita legada em `community_memberships` e
+  `community_responsibilities`, só em Comunidades legadas: `owner → owner`, `admin → admin`, o resto
+  → `member`; entrar no cargo `organizador` concede `ORGANIZER` e sair revoga; perder a membership
+  apaga a linha e revoga toda responsabilidade, `EVALUATOR` incluída; promover a owner rebaixa antes
+  o owner da membership, porque o índice de um owner ativo é imediato e a transferência legada
+  promove antes de rebaixar. Comunidade target e comunidade legada sem owner ativo ficam de fora. Um
+  `ORGANIZER` concedido por outro caminho sobrevive a mudança de cargo que não passe por Organizador.
+  `app_private.community_membership_drift()` mede a divergência. Escolha do usuário: `ORGANIZER`
+  deriva do cargo, e não de um controle por membro;
+- no mesmo commit, **defeito legado corrigido**: `prevent_last_community_owner_change` terminava com
+  `return new`. Em DELETE isso é NULL, e um trigger BEFORE que devolve NULL descarta a linha sem erro —
+  então `remove_community_member` e `leave_community` respondiam sucesso e **nunca removeram ninguém
+  que não fosse dono**, desde `20260610161203`. Reproduzido no banco (`DELETE 0`) antes de corrigir;
+  `schema.sql` recebeu a mesma correção;
+- `7d07282`: a migration reconcilia a divergência acumulada, em Comunidades legadas com exatamente um
+  owner ativo; as demais vão para `app_private.migration_anomalies`, e `migration_runs.notes` guarda a
+  divergência medida antes e depois;
+- `58dafc1`: suítes de banco. Três fixtures gravavam à mão a membership do owner de comunidade
+  inserida direto e passaram a tolerar o conflito; o teste do moderador passou de "nenhuma membership"
+  para "nenhum cargo acima de member"; e o FINDING de `postgresHarness` que fixava "membro ativo não lê
+  a própria comunidade" foi invertido, como ele mesmo pedia.
+
+**Efeitos visíveis além do organizador:**
+
+- remover membro e sair da comunidade passam a funcionar para quem não é dono;
+- membro de comunidade legada passa a ler a própria comunidade e seus `community_players`, pelas
+  policies aditivas da XS-W2-07, que leem `community_memberships`;
+- dono ou admin adicionado depois do split passa a ter `community.members.manage` nos comandos C6 —
+  entre eles `activate_community_evaluation_model` e `set_community_evaluator`, alcançáveis pelo editor
+  de avaliação;
+- o ramo de administração de `find_player_by_username` lê `community_memberships`, então o `name:
+null` do A6 para admin adicionado pelo caminho normal deve deixar de acontecer. **Não testado.**
+
+**Fronteiras:** nenhuma mudança de interface; dono e admin continuam sem `ORGANIZER` e com o `42501`;
+Comunidades target, OPEN-COM-003 e o cutover de membership da W2 não mudam; o trigger é dupla escrita
+temporária e sai nesse cutover.
+
+### Evidência de verificação da XS-W3-09
+
+2026-09-14, sobre `58dafc1`:
+
+- `npm run typecheck` passou; `npm test` **974 unitários + 285 UI**, em 48 arquivos de UI;
+  `npm run build` passou;
+- suíte completa PostgreSQL **684/684**, exit 0, 164,6 s, no `volley_test_pg2`
+  (`postgresql://postgres:postgres@127.0.0.1:55500/volley_test`). A primeira rodada completa, antes do
+  ajuste das fixtures, deu 673/684; as 11 falhas são as descritas em `58dafc1`;
+- `communityMembershipMirror.dbtest.ts` **12/12**. O teste 1 foi visto falhando com `42501` antes da
+  migration, e o de reconciliação falhando (admin sem membership) antes do bloco de reconciliação. Os
+  testes 2–10 foram escritos depois do espelho; na primeira rodada falharam 4: dois revelaram o
+  defeito de `prevent_last_community_owner_change`, dois eram de fixture (virar `master` e excluir
+  comunidade exigem as flags transacionais `app.allow_role_change` e `app.allow_reset_bypass`);
+- prova por mutação, cada uma restaurada com `git checkout` e a suíte de volta a 12/12:
+  - tirar `authority_model = 'legacy'` de `legacy_membership_mirrored` → matou exatamente
+    `a target Community is not mirrored and create_community_with_owner still works`;
+  - tirar o rebaixamento do owner anterior → matou exatamente
+    `the legacy ownership transfer leaves exactly one active owner membership`;
+  - revogar `ORGANIZER` em qualquer update que não seja organizador → matou exatamente
+    `an ORGANIZER granted by set_community_organizer survives member -> admin`;
+- `schema.test.ts` **96/96** depois da correção em `schema.sql`; Prettier limpo nos arquivos tocados;
+  ESLint sem erro nas suítes tocadas; `git -c core.whitespace=cr-at-eol diff --check` limpo
+  (`schema.sql` é CRLF);
+- e2e não rodado; sem push, merge, migration em Supabase remoto ou deploy.
+
 ### Branches — cadeia integrada em `main`
 
-**Toda a cadeia C6 até `XS-W6-02`, mais a `XS-W3-08`, está em `main`.** As fatias até `XS-W4-06`,
+**Toda a cadeia C6 até `XS-W6-02`, mais a `XS-W3-08` e a `XS-W3-09`, está em `main`.** As fatias até `XS-W4-06`,
 mais a correção de cascade de `session_organizer_assignments`, entraram em 2026-09-04; `XS-W5-01` em
 2026-09-05. Em 2026-09-08, depois da review independente de branch inteira, entraram de uma vez a
 `XS-W5-02`, a `XS-W5-03` com seu complemento de editor/source authority, a `XS-W5-04`, a remediação
@@ -268,11 +353,11 @@ da auditoria de segurança e a `XS-W6-01`. Em 2026-09-10 entrou a `XS-W6-02`, ta
 de branch inteira e da onda de correção que ela gerou. Os dois merges foram fast-forward — `main` não
 tinha andado — e as branches `exec/c6-w5-02-skill-rubric-contract` e
 `exec/c6-w6-02-team-formation-port` foram apagadas por já estarem contidas em `main`. Em 2026-09-14
-entraram a `XS-W3-08` (`30e9d34`) e a correção da identidade de sync da Session ativa (`506d52b`),
-ambas por merge `--no-ff`.
+entraram a `XS-W3-08` (`30e9d34`), a correção da identidade de sync da Session ativa (`506d52b`) e a
+`XS-W3-09`, todas por merge `--no-ff`.
 
 ```text
-main   ← contém W3-01..W6-02, W3-08, a correção de cascade, a remediação de segurança e a
+main   ← contém W3-01..W6-02, W3-08, W3-09, a correção de cascade, a remediação de segurança e a
          correção da identidade de sync da Session ativa
 ```
 
@@ -297,8 +382,8 @@ separadamente, e **a escolha é de produto, ainda não feita**:
   (publicação do conjunto de candidatos), que tem
   [design](docs/superpowers/specs/2026-09-10-xs-w6-03-candidate-set-publication-design.md) e não
   tem plano. Ela pressupõe captura de snapshot e revisão de elenco que nenhum caminho do app produz
-  hoje. Antes dela, uma fatia pequena que chame `set_community_organizer` pelo painel de membros
-  derrubaria a parede 3 do mapa e o `42501` recorrente.
+  hoje. A parede 3 do mapa caiu no app para o cargo Organizador com a XS-W3-09; dono e admin
+  continuam sem `ORGANIZER`.
 
 Antes de qualquer uma, leia a seção "Backlog da review independente de branch — 2026-09-08", mais
 abaixo: há um achado de segurança **aberto** (A9) e uma decisão de produto pendente (A6).

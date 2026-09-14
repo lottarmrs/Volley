@@ -5,6 +5,8 @@
 > (branch `exec/c6-w3-08-target-cohort-reachability`, base `88e3475`), rodando de novo o comando do
 > fim deste documento e refazendo os três níveis para cada comando que a fatia tocou. Nada aqui foi
 > editado à mão sem uma busca que o sustente; as referências `arquivo:linha` são dessa base.
+> **Ajustado em 2026-09-14** pela XS-W3-09 (branch `exec/c6-w3-09-organizer-from-member-role`):
+> `create_target_session`, `set_community_organizer` e a terceira parede.
 
 ## O que "alcançável" quer dizer aqui
 
@@ -46,7 +48,7 @@ as recriam. Elas não contam como capacidade C6.
 
 Das ~46 restantes, que são comandos semânticos destinados ao cliente, **8 são alcançáveis**: 5 por
 tela, 1 por tela e por sync, e 2 **só por sync** — os dois novos, ambos da XS-W3-08, e ambos
-condicionados a estado que a própria interface não produz sozinha (ver abaixo).
+condicionados a uma responsabilidade que, até a XS-W3-09, a interface não concedia (ver abaixo).
 
 ### Alcançável
 
@@ -60,7 +62,7 @@ condicionados a estado que a própria interface não produz sozinha (ver abaixo)
 
 ### Os comandos que a XS-W3-08 tocou, nível por nível
 
-**`create_target_session` — alcançável por sync, só para organizadores herdados.**
+**`create_target_session` — alcançável por sync, para quem tem o cargo Organizador.**
 
 1. `src/infra/supabase/sessionCohortCloudService.ts:120`.
 2. `syncService.ts:19` importa o serviço; `syncService.ts:1299` invoca `createTargetSession` dentro de
@@ -71,11 +73,13 @@ condicionados a estado que a própria interface não produz sozinha (ver abaixo)
 Dispara só para uma Session local sem `cloudId`, não apagada, sem marcador target, cuja comunidade
 resolve para um id de nuvem UUID que `community_evaluation_target_ids` devolve como ativado
 (`syncService.ts:1234-1260`, `:1292-1296`); id que não é UUID nem entra na consulta e segue o legado.
-O servidor então exige uma responsabilidade `ORGANIZER`
-ativa. **Como `set_community_organizer` não tem chamador (abaixo), essas linhas só existem para quem
-o backfill único de `20260827150000` semeou a partir de `community_members.role = 'organizador'`.**
-Para qualquer outro membro de uma comunidade ativada, o comando responde `42501` a cada sync — ver
-"Problema conhecido" no HANDOFF. Se a linha já existe, o comando responde `23505` (`sessions_pkey`,
+O servidor então exige membership ativa e uma responsabilidade `ORGANIZER` ativa. **Desde a
+XS-W3-09, o cargo Organizador concede essa responsabilidade**: `set_community_member_role`
+(`membershipCloudService.ts:139`, invocado por `communityMembershipUseCases.ts:174` a partir de
+`CommunityMembersPanel.tsx:177`) grava `community_members`, e o trigger
+`mirror_community_member_to_target` projeta a membership e o `ORGANIZER`. Dono e admin não recebem
+`ORGANIZER`; para eles, e para qualquer outro membro sem o cargo, o comando responde `42501` a cada
+sync — ver "Problema conhecido" no HANDOFF. Se a linha já existe, o comando responde `23505` (`sessions_pkey`,
 observado contra o banco real); o sync então lê a Session por id e a adota (`syncService.ts:1309-1311`).
 Se essa leitura responde `P0002`, a linha é legada — a própria Session, que perdeu o `cloudId` — e o
 sync segue o upsert legado (`:1313`).
@@ -101,19 +105,17 @@ download em lote filtra `sessions` para legado (`operationalCloudService.ts:72`)
 acontece por um `cloudId` já guardado localmente —, enquanto `teams` e `games` são baixados sem esse
 filtro e chegam sem a Session-pai; a exclusão não se propaga — o upload não chama `softDelete` para
 Session target (a policy de update o filtraria em silêncio, com sucesso falso) e reporta um problema
-naquela rodada, a Session local é removida e a linha continua viva no servidor; e promover a
-organizador pelo app ainda não concede `ORGANIZER`.
+naquela rodada, a Session local é removida e a linha continua viva no servidor.
 
-**`set_community_organizer` — capacidade de banco sem caminho.**
+**`set_community_organizer` — capacidade de banco sem caminho, e já não é a peça que falta.**
 
-1. **Falha.** Nenhuma ocorrência em `src/` fora de `src/test/db/setCommunityOrganizer.dbtest.ts`.
+1. **Falha.** Nenhuma ocorrência em `src/` fora de `src/test/db/setCommunityOrganizer.dbtest.ts` e
+   `src/test/db/communityMembershipMirror.dbtest.ts`.
 
 A migration existe, é testada contra o `create_target_session` real e faz o que promete. Nenhuma tela
-a chama, e `set_community_member_role` — a RPC que o painel de membros usa para promover
-(`CommunityMembersPanel.tsx:177` → `communityMembershipUseCases.ts:174` →
-`membershipCloudService.ts:139`) — continua sem gravar `community_responsibilities`. Consequência direta: **quem for
-promovido a organizador pela interface hoje não consegue criar Session target**. A terceira parede
-abaixo foi derrubada no banco, não no app.
+a chama. Até a XS-W3-09 isso significava que quem fosse promovido a organizador pela interface não
+criava Session target; agora o cargo concede `ORGANIZER` pelo espelho de `community_members`, e este
+comando fica como o caminho para conceder a responsabilidade sem o cargo — o que nenhuma tela pede.
 
 **`capture_balance_input_snapshot` e `read_balance_input_snapshot` — continuam inalcançáveis.**
 
@@ -155,11 +157,12 @@ Não é só fiação faltando: não existe Session legada elegível para ligar (
 
 ## As três paredes, em ordem
 
-Descobertas nesta ordem, cada uma abaixo da anterior. O estado de cada uma depois da XS-W3-08:
+Descobertas nesta ordem, cada uma abaixo da anterior. O estado de cada uma depois da XS-W3-08 e da
+XS-W3-09:
 
 1. **Nenhuma Session target existe.** `operationalCloudService` grava `authority_model: 'legacy'`
    fixo e filtra as leituras por `legacy`. — **Derrubada por sync**, para Session nova de comunidade
-   ativada criada por organizador herdado: o upload chama `create_target_session` no lugar do upsert
+   ativada criada por quem tem `ORGANIZER`: o upload chama `create_target_session` no lugar do upsert
    legado.
 2. **Nenhuma Session legada pode virar target.** Uma Session só entra em `sessions` via
    `confirmDivision`, que grava `status: 'teams_generated'` e cria times — bloqueada por `NOT_DRAFT`
@@ -169,15 +172,17 @@ Descobertas nesta ordem, cada uma abaixo da anterior. O estado de cada uma depoi
    derrubada**: a fatia desistiu do cutover.
 3. **Criar target nativamente exige `ORGANIZER`, que o app não concede.** As linhas de
    `community_responsibilities` vêm de um backfill único na migration `20260827150000`.
-   `set_community_member_role` não grava responsabilidade. — **Derrubada no banco, de pé no app**:
-   `set_community_organizer` existe e é testada, mas nada em `src/` a chama.
+   `set_community_member_role` não grava responsabilidade. — **Derrubada no app para o cargo
+   Organizador** pela XS-W3-09 (integrada em 2026-09-14): o trigger que espelha `community_members`
+   concede `ORGANIZER` a quem recebe o cargo pelo painel. Continua de pé para dono e admin, que o N2.03
+   não trata como organizadores; `set_community_organizer` segue sem chamador.
 
 ## O que isto significa para o produto
 
 O app que os usuários usam é o modelo legado, e ele funciona. O C6 é uma refundação construída
 ao lado, e hoje ela sustenta uma funcionalidade viva por tela — a avaliação por comunidade — e, desde a
-XS-W3-08, a criação por sync de Session target para um conjunto que só encolhe relativamente: os
-organizadores herdados do backfill.
+XS-W3-08, a criação por sync de Session target; com a XS-W3-09, para quem tem o cargo Organizador numa
+comunidade legada ativada.
 
 **Terminar o C6 não é pré-requisito para usar o app.** As duas coisas devem ser planejadas
 separadamente.

@@ -260,7 +260,8 @@ if (!isTestDatabaseConfigured()) {
     );
     await client.query(
       `insert into public.community_memberships (community_id, user_id, role, status)
-       values ($1, $2, 'owner', 'active')`,
+       values ($1, $2, 'owner', 'active')
+       on conflict (community_id, user_id) do nothing`,
       [communityRows[0].id, owner],
     );
     const { rows: membershipRows } = await client.query<{ id: string }>(

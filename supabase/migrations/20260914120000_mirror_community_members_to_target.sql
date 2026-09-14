@@ -267,3 +267,85 @@ revoke all on function app_private.project_legacy_community_membership(uuid, uui
   from public, anon, authenticated;
 revoke all on function app_private.mirror_community_member_to_target() from public, anon, authenticated;
 revoke all on function app_private.community_membership_drift() from public, anon, authenticated;
+
+-- ── One-time reconciliation ─────────────────────────────────────────────────
+-- Replays the projection over every (community, user) that either model mentions, for legacy
+-- Communities with exactly one active owner. A Community without exactly one is left untouched and
+-- quarantined: forcing an owner onto it would be guessing. No migration_entity_map rows: the replay
+-- is idempotent and does not know per pair what it changed; the drift count before and after is
+-- what the run records.
+do $$
+declare
+  v_run_id uuid;
+  v_before integer;
+  v_after integer;
+  v_pair record;
+begin
+  if to_regclass('app_private.migration_runs') is null then
+    return;
+  end if;
+
+  insert into app_private.migration_runs (name, source_release, status)
+  values ('mirror_community_members_to_target', 'XS-W3-09', 'RUNNING')
+  returning run_id into v_run_id;
+
+  select count(*) into v_before
+    from app_private.community_membership_drift() d
+   where d.issue <> 'OWNERLESS_COMMUNITY';
+
+  insert into app_private.migration_anomalies (run_id, source_type, source_id, reason, details)
+  select v_run_id, 'communities', c.id::text,
+         'legacy community without exactly one active owner is not mirrored',
+         jsonb_build_object('active_owners', o.n)
+    from public.communities c
+    cross join lateral (
+      select count(*) as n from public.community_members m
+       where m.community_id = c.id and m.role = 'owner' and m.status = 'active'
+    ) o
+   where c.authority_model = 'legacy' and o.n <> 1
+  on conflict do nothing;
+
+  for v_pair in
+    with eligible as (
+      select c.id
+        from public.communities c
+       where c.authority_model = 'legacy'
+         and (select count(*) from public.community_members m
+               where m.community_id = c.id and m.role = 'owner' and m.status = 'active') = 1
+    )
+    select k.community_id, k.user_id
+      from (
+        select m.community_id, m.user_id from public.community_members m
+        union
+        select t.community_id, t.user_id from public.community_memberships t
+        union
+        select r.community_id, r.user_id from public.community_responsibilities r
+         where r.revoked_at is null
+      ) k
+      join eligible e on e.id = k.community_id
+  loop
+    perform app_private.project_legacy_community_membership(v_pair.community_id, v_pair.user_id);
+  end loop;
+
+  insert into public.community_responsibilities (community_id, user_id, responsibility)
+  select m.community_id, m.user_id, 'ORGANIZER'
+    from public.community_members m
+   where m.role = 'organizador'
+     and m.status = 'active'
+     and app_private.legacy_membership_mirrored(m.community_id)
+     and (select count(*) from public.community_members o
+           where o.community_id = m.community_id and o.role = 'owner' and o.status = 'active') = 1
+  on conflict (community_id, user_id, responsibility) do update
+    set revoked_at = null, assigned_at = pg_catalog.now()
+    where public.community_responsibilities.revoked_at is not null;
+
+  select count(*) into v_after
+    from app_private.community_membership_drift() d
+   where d.issue <> 'OWNERLESS_COMMUNITY';
+
+  update app_private.migration_runs
+     set status = 'COMPLETED',
+         finished_at = pg_catalog.now(),
+         notes = pg_catalog.format('drift before: %s; after: %s', v_before, v_after)
+   where run_id = v_run_id;
+end $$;

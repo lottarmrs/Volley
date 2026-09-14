@@ -308,4 +308,61 @@ if (!isTestDatabaseConfigured()) {
       }
     }
   });
+
+  test('the migration reconciles drift accumulated before it and quarantines ownerless Communities', async () => {
+    await rebuildFromMigrations(client, { excludeMigrationNames: [MIGRATION] });
+    const owner = await user('ReconOwner');
+    const admin = await user('ReconAdmin');
+    const organizer = await user('ReconOrganizer');
+    const removed = await user('ReconRemoved');
+    const community = await legacyCommunity(owner.id);
+    await client.query(
+      "insert into public.community_memberships (community_id, user_id, role, status) values ($1, $2, 'owner', 'active'), ($1, $3, 'member', 'active')",
+      [community, owner.id, removed.id],
+    );
+    await client.query(
+      "insert into public.community_responsibilities (community_id, user_id, responsibility) values ($1, $2, 'ORGANIZER')",
+      [community, removed.id],
+    );
+    await client.query(
+      "insert into public.community_members (community_id, user_id, role, status) values ($1, $2, 'admin', 'active'), ($1, $3, 'organizador', 'active')",
+      [community, admin.id, organizer.id],
+    );
+
+    const ghostOwner = await user('GhostOwner');
+    const ownerless = await legacyCommunity(ghostOwner.id);
+    await inTransactionWith(
+      'app.allow_reset_bypass',
+      'delete from public.community_members where community_id = $1',
+      [ownerless],
+    );
+
+    const sql = readFileSync(join(process.cwd(), 'supabase', 'migrations', MIGRATION), 'utf8');
+    for (const statement of splitSqlStatements(sql)) await client.query(statement);
+
+    assert.deepEqual(await membership(community, owner.id), { role: 'owner', status: 'active' });
+    assert.deepEqual(await membership(community, admin.id), { role: 'admin', status: 'active' });
+    assert.deepEqual(await membership(community, organizer.id), {
+      role: 'member',
+      status: 'active',
+    });
+    assert.deepEqual(await activeResponsibilities(community, organizer.id), ['ORGANIZER']);
+    assert.equal(await membership(community, removed.id), null);
+    assert.deepEqual(await activeResponsibilities(community, removed.id), []);
+    assert.deepEqual(await drift(community), []);
+
+    const { rows: anomalies } = await client.query<{ source_id: string }>(
+      `select a.source_id from app_private.migration_anomalies a
+         join app_private.migration_runs r on r.run_id = a.run_id
+        where r.name = 'mirror_community_members_to_target' and a.source_id = $1`,
+      [ownerless],
+    );
+    assert.equal(anomalies.length, 1);
+    const { rows: runs } = await client.query<{ status: string; notes: string }>(
+      "select status, notes from app_private.migration_runs where name = 'mirror_community_members_to_target'",
+    );
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, 'COMPLETED');
+    assert.match(runs[0].notes, /drift before: \d+; after: 0/);
+  });
 }

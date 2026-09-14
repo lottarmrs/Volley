@@ -2872,7 +2872,7 @@ begin
     end if;
   end if;
 
-  return new;
+  return case when tg_op = 'DELETE' then old else new end;
 end;
 $$;
 

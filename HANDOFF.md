@@ -17,6 +17,12 @@
 > Prettier, `check:architecture`), e este `main` **substituiu o `main` do GitHub por force push**. O
 > `main` anterior do GitHub (`c1317bb`, 2026-08-20, sem ancestral comum com este repositório) ficou
 > em `backup/main-2026-08-20`. O push dispara o deploy de produção na Vercel.
+>
+> **2026-09-15, depois:** correções que o uso em produção expôs, todas em `main` e publicadas:
+> excluir comunidade chega à nuvem, link de confirmação do cadastro volta ao domínio do app, botões
+> de Google só aparecem com o provedor ativo, achados do advisor do Supabase fechados, e rotas diretas e
+> cabeçalhos de segurança passam a funcionar na Vercel (`vercel.json`, `0cb57f9`). Ver "Correções de
+> produção — 2026-09-15" antes da seção da XS-W3-08.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -108,9 +114,8 @@ O que foi feito:
 
 Pendências:
 
-- **Publicar:** empurrar esta branch para o GitHub e abrir PR; como os históricos não se ligam, o
-  usuário decide como substituir o `main` de lá. Até isso, a produção da Vercel roda o código de
-  2026-08-20 contra o schema novo.
+- **Publicar:** resolvido em 2026-09-15. Este `main` substituiu o do GitHub por force push (ver o
+  cabeçalho), e a Vercel passou a servir o código deste repositório.
 - **AF-FREEZE-001:** o sync automático não adiciona consumidor do sync genérico, mas passa a acioná-lo
   sozinho — o oposto da direção de W13. Foi pedido explícito do usuário; a W13 precisa levar isso em
   conta.
@@ -119,6 +124,48 @@ Pendências:
   `community_profile_summaries`, `anon` sem privilégio de tabela no `public`). Seguem no painel de
   Auth: OTP expiry acima de 1 h e leaked password protection desligada. Bucket `team-crests` vazio a
   remover pelo painel ou pela Storage API.
+
+### Correções de produção — 2026-09-15
+
+Com o force push, o `main` deste repositório passou a rodar em `volley-six.vercel.app`, e o uso real
+expôs os defeitos abaixo. Cada correção foi commitada sobre `main`, com os gates locais verdes e o
+deploy de produção `READY`:
+
+- **`285c5f8` — excluir comunidade não chegava à nuvem.** A exclusão tirava a comunidade da lista
+  local, mas o upload só envia o que enxerga com `deletedAt`, e o download seguinte a trazia de volta.
+  Agora a comunidade já sincronizada fica marcada (`deletedAt`, `syncStatus: pending`) por
+  `applyLocalCommunityDeletion`; presença, templates e rascunhos de WhatsApp seguem a mesma regra. O
+  que só existia localmente continua sendo removido, e `softDelete` falha quando nenhuma linha muda.
+- **`72c7693` — o link de confirmação do cadastro ia para `localhost:3000`.** `signUp` não mandava
+  `emailRedirectTo`, e o Supabase usava a Site URL do projeto. Agora o link volta para
+  `<origem>/auth/callback`. As URLs de redirecionamento no painel do Supabase foram ajustadas pelo
+  usuário.
+- **`ee76eb3` — botões de Google apareciam com o provedor desativado.** `isGoogleEnabled` lê
+  `external.google` em `/auth/v1/settings` e responde `false` em qualquer falha. `useGoogleAuthEnabled`
+  esconde "Continuar com Google" (login) e "Vincular Google" (conta) até o Supabase confirmar o
+  provedor, então ativar o Google no painel traz os botões de volta sem novo deploy.
+- **`b3c618a` (sessão `volley-bf`) — achados do advisor de segurança do Supabase.** Ver "Advisor" nas
+  pendências acima.
+- **`0cb57f9` — toda rota direta respondia 404 na Vercel.** A Vercel ignora o `nginx.conf`. Sem
+  `vercel.json`, só `/` abria: o link de confirmação (`/auth/callback`) caía em 404, e nenhum cabeçalho
+  de segurança chegava à produção. O `vercel.json` replica o fallback para `index.html`, a CSP,
+  `X-Frame-Options`, `X-XSS-Protection`, `nosniff` e o cache imutável de `/assets/`.
+  `src/architecture/vercelConfig.test.ts` falha se os dois arquivos divergirem: **mudou a CSP num,
+  mude no outro.** Rota inexistente agora devolve `index.html` com 200, como no nginx.
+
+Evidência do `0cb57f9`: primeiro no preview e depois em produção, `/entrar`, `/cadastro`,
+`/auth/callback`, `/painel` e `/comunidades` respondem 200 com os quatro cabeçalhos. A chamada a
+`/auth/v1/settings` do Panelinha passa pela CSP, e login e cadastro renderizam sem violação de CSP no
+console. No preview, o único script bloqueado é a barra `vercel.live`, que a produção não carrega. CI
+verde no `main` (run `34975705326`).
+
+Operação que vale saber:
+
+- `ci.yml` só roda em push para `main` e em PR. Push de branch não gera run de CI, só o preview da
+  Vercel, que é protegido por login (para testar, gere acesso com `get_access_to_vercel_url`).
+- Adicionar origem externa ao app (fonte, imagem, script, API) exige ampliar a CSP em `nginx.conf` e
+  em `vercel.json` juntos; senão o navegador bloqueia em produção.
+- Criar conta de teste em produção fica com o usuário: agentes não criam contas.
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 

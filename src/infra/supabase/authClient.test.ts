@@ -128,7 +128,7 @@ test('signOutOthers calls auth.signOut with scope "others"', async () => {
   assert.deepEqual(options, { scope: 'others' });
 });
 
-test('sign-up forwards the claim code as auth metadata', async () => {
+test('sign-up forwards the claim code as auth metadata and returns the confirmation link to this origin', async () => {
   let payload: unknown;
   const client = createAuthClient(
     {
@@ -146,6 +146,7 @@ test('sign-up forwards the claim code as auth metadata', async () => {
     options: {
       data: { name: 'Ana', username: 'ana-voleio', claim_code: 'ABCD1234' },
       captchaToken: undefined,
+      emailRedirectTo: 'https://panelinha.test/auth/callback',
     },
   });
 });

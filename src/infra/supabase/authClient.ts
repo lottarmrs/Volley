@@ -32,7 +32,11 @@ export function createAuthClient(
       const { error } = await auth.signUp({
         email,
         password,
-        options: { data: { name, username, claim_code: claimCode }, captchaToken },
+        options: {
+          data: { name, username, claim_code: claimCode },
+          captchaToken,
+          emailRedirectTo: `${location.origin}/auth/callback`,
+        },
       });
       fail(error);
     },

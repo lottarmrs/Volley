@@ -6,8 +6,10 @@ type TableResponse = { data: unknown[] | null; error: unknown };
 
 function fakeClient(responses: Record<string, TableResponse>) {
   const calls: string[] = [];
+  const rpcArgs: Record<string, unknown> = {};
   return {
     calls,
+    rpcArgs,
     from(table: string) {
       calls.push(table);
       const response = responses[table] ?? { data: null, error: new Error(`unstubbed: ${table}`) };
@@ -21,16 +23,23 @@ function fakeClient(responses: Record<string, TableResponse>) {
         },
       };
     },
+    rpc(name: string, args: unknown) {
+      calls.push(`rpc:${name}`);
+      rpcArgs[name] = args;
+      return Promise.resolve(
+        responses[`rpc:${name}`] ?? { data: null, error: new Error(`unstubbed: rpc:${name}`) },
+      );
+    },
   };
 }
 
-test('fetchProfilesByUserIds falls back to community_profile_summary for RLS-hidden profiles, nulling their email', async () => {
+test('fetchProfilesByUserIds falls back to community_profile_summaries for RLS-hidden profiles, nulling their email', async () => {
   const client = fakeClient({
     profiles: {
       data: [{ id: 'u1', name: 'Ana', email: 'ana@example.com' }],
       error: null,
     },
-    community_profile_summary: {
+    'rpc:community_profile_summaries': {
       data: [{ id: 'u2', name: 'Bruno' }],
       error: null,
     },
@@ -40,7 +49,8 @@ test('fetchProfilesByUserIds falls back to community_profile_summary for RLS-hid
 
   assert.deepEqual(profiles.get('u1'), { id: 'u1', name: 'Ana', email: 'ana@example.com' });
   assert.deepEqual(profiles.get('u2'), { id: 'u2', name: 'Bruno', email: null });
-  assert.deepEqual(client.calls, ['profiles', 'community_profile_summary']);
+  assert.deepEqual(client.calls, ['profiles', 'rpc:community_profile_summaries']);
+  assert.deepEqual(client.rpcArgs['community_profile_summaries'], { p_user_ids: ['u2'] });
 });
 
 test('fetchProfilesByUserIds skips the fallback query when the first query returns every id', async () => {
@@ -73,7 +83,7 @@ test('fetchProfilesByUserIds keeps already-fetched profiles if the fallback quer
       data: [{ id: 'u1', name: 'Ana', email: 'ana@example.com' }],
       error: null,
     },
-    community_profile_summary: { data: null, error: new Error('boom') },
+    'rpc:community_profile_summaries': { data: null, error: new Error('boom') },
   });
 
   const profiles = await fetchProfilesByUserIds(['u1', 'u2'], client);

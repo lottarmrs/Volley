@@ -114,8 +114,11 @@ Pendências:
 - **AF-FREEZE-001:** o sync automático não adiciona consumidor do sync genérico, mas passa a acioná-lo
   sozinho — o oposto da direção de W13. Foi pedido explícito do usuário; a W13 precisa levar isso em
   conta.
-- **Advisor:** `security_definer_view` em `community_profile_summary` (ERROR, anterior a esta branch);
-  bucket `team-crests` vazio a remover pelo painel ou pela Storage API.
+- **Advisor:** o ERROR `security_definer_view` em `community_profile_summary` foi resolvido em
+  2026-09-15 por `20260915150000_advisor_security_findings.sql` (view trocada pela função
+  `community_profile_summaries`, `anon` sem privilégio de tabela no `public`). Seguem no painel de
+  Auth: OTP expiry acima de 1 h e leaked password protection desligada. Bucket `team-crests` vazio a
+  remover pelo painel ou pela Storage API.
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 

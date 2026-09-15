@@ -181,6 +181,13 @@ const communityProfileSummaryReadonlyMigration = readFixture(
   ),
 );
 
+const advisorSecurityFindingsMigration = readFixture(
+  new URL(
+    '../../../supabase/migrations/20260915150000_advisor_security_findings.sql',
+    import.meta.url,
+  ),
+);
+
 const profileVisibilityStatusMigration = readFixture(
   new URL(
     '../../../supabase/migrations/20260726210000_profile_visibility_status_rules.sql',
@@ -2468,6 +2475,31 @@ test('community_profile_summary is read-only for authenticated, not just anon', 
   const grantAt = baseSchema.search(/grant select on public\.community_profile_summary to/i);
   assert.ok(revokeAt !== -1 && grantAt !== -1, 'missing grant/revoke pair');
   assert.ok(revokeAt < grantAt, 'revoke must come before the select grant');
+});
+
+test('community_profile_summary view is replaced by an id/name SECURITY DEFINER function', () => {
+  // The advisor flags the view as ERROR (security_definer_view). A view cannot be both
+  // security_invoker and bypass the profiles RLS that hides other members, so the same
+  // predicate moves into a function whose privilege is explicit.
+  const fn = extractSqlFunction(advisorSecurityFindingsMigration, 'community_profile_summaries');
+  assert.ok(fn, 'missing community_profile_summaries');
+  assert.match(fn, /returns table \(id uuid, name text\)/i);
+  assert.match(fn, /security definer/i);
+  assert.match(fn, /set search_path = ''/i);
+  assert.match(fn, /public\.current_user_shares_profile\(p\.id\)/i);
+  assert.doesNotMatch(fn, /email/i);
+  assert.match(
+    advisorSecurityFindingsMigration,
+    /revoke all on function public\.community_profile_summaries\(uuid\[\]\) from public, anon;/i,
+  );
+  assert.match(
+    advisorSecurityFindingsMigration,
+    /grant execute on function public\.community_profile_summaries\(uuid\[\]\) to authenticated;/i,
+  );
+  assert.match(
+    advisorSecurityFindingsMigration,
+    /drop view if exists public\.community_profile_summary;/i,
+  );
 });
 
 test('career regeneration uses statement triggers, not row triggers', () => {

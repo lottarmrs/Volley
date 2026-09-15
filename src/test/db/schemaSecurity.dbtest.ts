@@ -89,15 +89,20 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
-  test('TARGET: the PUBLIC-executable definer really is uninvokable', async () => {
-    // Proves the exemption above instead of trusting it.
+  test('TARGET: the event trigger definer is neither granted to anon nor invokable', async () => {
+    // Proves the exemption above instead of trusting it: no API role holds EXECUTE, and even
+    // the owner cannot call it outside an event trigger.
+    const { rows } = await client.query<{ allowed: boolean }>(
+      "select has_function_privilege('anon', 'public.rls_auto_enable()', 'EXECUTE') as allowed",
+    );
+    assert.equal(rows[0].allowed, false, 'rls_auto_enable must not be executable by anon');
+
     const attempt = await client
-      .query('set role anon; select public.rls_auto_enable();')
+      .query('select public.rls_auto_enable();')
       .catch((error: Error) => error);
 
     assert.ok(attempt instanceof Error, 'an event trigger function must not be directly callable');
     assert.match((attempt as Error).message, /can only be called as triggers/i);
-    await client.query('reset role');
   });
 
   test('TARGET: anon holds no table privilege anywhere in public', async () => {

@@ -57,15 +57,15 @@ export async function fetchProfilesByUserIds(
 
   // RLS now hides full profile rows (including email) from ordinary community
   // members (see 20260726170000_community_profile_privacy.sql). Any id missing from
-  // the result above is re-fetched from community_profile_summary, which exposes
+  // the result above is re-fetched from community_profile_summaries, which exposes
   // only id/name -- merged in with email forced to null since we have no basis to
   // show it.
   const missingIds = ids.filter((id) => !profiles.has(id));
   if (missingIds.length > 0) {
-    const { data: summaryData, error: summaryError } = await client
-      .from('community_profile_summary')
-      .select('id, name')
-      .in('id', missingIds);
+    const { data: summaryData, error: summaryError } = await client.rpc(
+      'community_profile_summaries',
+      { p_user_ids: missingIds },
+    );
 
     if (summaryError) {
       console.warn(

@@ -72,9 +72,73 @@ function player(id: string, communityIds: string[] = []): Player {
   };
 }
 
+test('applyCommunityDeletion marks a synced community deleted so the deletion reaches the cloud', () => {
+  const result = applyCommunityDeletion({
+    communityId: 'c1',
+    communities: [{ ...community('c1', 'Terça'), cloudId: 'cloud-c1' }, community('c2', 'Quinta')],
+    players: [],
+    presenceRecords: [],
+    templates: [],
+    drafts: [],
+    now,
+  });
+
+  assert.deepEqual(
+    result.communities.map(({ id, deletedAt, syncStatus }) => ({ id, deletedAt, syncStatus })),
+    [
+      { id: 'c1', deletedAt: now, syncStatus: 'pending' },
+      { id: 'c2', deletedAt: undefined, syncStatus: undefined },
+    ],
+  );
+});
+
+test('applyCommunityDeletion soft-deletes synced presence, templates and drafts and drops local-only ones', () => {
+  const result = applyCommunityDeletion({
+    communityId: 'c1',
+    communities: [{ ...community('c1', 'Terça'), cloudId: 'cloud-c1' }],
+    players: [],
+    presenceRecords: [
+      { communityId: 'c1', cloudId: 'cloud-pr' },
+      { communityId: 'c1' },
+      { communityId: 'c2', cloudId: 'cloud-pr-2' },
+    ] as CommunityPresence[],
+    templates: [
+      { communityId: 'c1', cloudId: 'cloud-tpl' },
+      { communityId: 'c1' },
+    ] as WhatsAppListTemplate[],
+    drafts: [
+      { communityId: 'c1', cloudId: 'cloud-draft' },
+      { communityId: 'c1' },
+    ] as WhatsAppListDraft[],
+    now,
+  });
+
+  const shape = (
+    items: { cloudId?: string; communityId: string; deletedAt?: string; syncStatus?: string }[],
+  ) =>
+    items.map(({ cloudId, communityId, deletedAt, syncStatus }) => ({
+      cloudId,
+      communityId,
+      deletedAt,
+      syncStatus,
+    }));
+
+  assert.deepEqual(shape(result.presenceRecords), [
+    { cloudId: 'cloud-pr', communityId: 'c1', deletedAt: now, syncStatus: 'pending' },
+    { cloudId: 'cloud-pr-2', communityId: 'c2', deletedAt: undefined, syncStatus: undefined },
+  ]);
+  assert.deepEqual(shape(result.templates), [
+    { cloudId: 'cloud-tpl', communityId: 'c1', deletedAt: now, syncStatus: 'pending' },
+  ]);
+  assert.deepEqual(shape(result.drafts), [
+    { cloudId: 'cloud-draft', communityId: 'c1', deletedAt: now, syncStatus: 'pending' },
+  ]);
+});
+
 test('applyCommunityDeletion removes the community and local operational references', () => {
   const result = applyCommunityDeletion({
     communityId: 'c1',
+    now,
     communities: [{ id: 'c1' }, { id: 'c2' }] as Community[],
     players: [player('p1', ['c1', 'c2']), player('p2', ['c2'])],
     presenceRecords: [{ communityId: 'c1' }, { communityId: 'c2' }] as CommunityPresence[],

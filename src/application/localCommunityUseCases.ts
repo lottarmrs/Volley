@@ -158,6 +158,30 @@ export function duplicateLocalCommunity(input: {
   return { duplicate, includeAthletes: input.includeAthletes };
 }
 
+type CommunityScopedRecord = {
+  communityId: string;
+  cloudId?: string;
+  deletedAt?: string;
+  syncStatus?: string;
+  updatedAt?: string;
+};
+
+// Registro que ja existe na nuvem precisa continuar na lista com deletedAt: o upload so
+// envia a exclusao do que ainda enxerga, e o download traria de volta o que sumiu daqui.
+function deleteCommunityScopedRecords<T extends CommunityScopedRecord>(
+  records: T[],
+  communityId: string,
+  now: string,
+): T[] {
+  return records.flatMap((record) => {
+    if (record.communityId !== communityId) return [record];
+    if (!record.cloudId) return [];
+    return [
+      { ...record, deletedAt: record.deletedAt ?? now, syncStatus: 'pending', updatedAt: now },
+    ];
+  });
+}
+
 export function applyCommunityDeletion(input: {
   communityId: string;
   communities: Community[];
@@ -165,17 +189,18 @@ export function applyCommunityDeletion(input: {
   presenceRecords: CommunityPresence[];
   templates: WhatsAppListTemplate[];
   drafts: WhatsAppListDraft[];
+  now: string;
 }) {
-  const { communityId } = input;
+  const { communityId, now } = input;
   return {
-    communities: input.communities.filter((community) => community.id !== communityId),
+    communities: applyLocalCommunityDeletion({ communities: input.communities, communityId, now }),
     players: input.players.map((player) => ({
       ...player,
       communityIds: (player.communityIds ?? []).filter((id) => id !== communityId),
     })),
-    presenceRecords: input.presenceRecords.filter((record) => record.communityId !== communityId),
-    templates: input.templates.filter((template) => template.communityId !== communityId),
-    drafts: input.drafts.filter((draft) => draft.communityId !== communityId),
+    presenceRecords: deleteCommunityScopedRecords(input.presenceRecords, communityId, now),
+    templates: deleteCommunityScopedRecords(input.templates, communityId, now),
+    drafts: deleteCommunityScopedRecords(input.drafts, communityId, now),
   };
 }
 

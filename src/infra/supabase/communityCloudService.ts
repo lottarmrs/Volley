@@ -109,12 +109,19 @@ export const communityCloudService = {
     }
   },
 
-  async softDelete(cloudId: string): Promise<void> {
-    const { error } = await supabase
+  // `client` so e trocado em teste. Sem `.select()`, um UPDATE barrado pela RLS muda zero
+  // linhas sem erro e o sync marcava a exclusao como enviada.
+  async softDelete(cloudId: string, client: any = supabase): Promise<void> {
+    const now = new Date().toISOString();
+    const { data, error } = await client
       .from('communities')
-      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', cloudId);
+      .update({ deleted_at: now, updated_at: now })
+      .eq('id', cloudId)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('A exclusão da comunidade não foi aplicada na nuvem.');
+    }
   },
 };

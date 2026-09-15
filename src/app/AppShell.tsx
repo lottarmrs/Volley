@@ -495,6 +495,7 @@ export function AppShell() {
       presenceRecords: communityPresence.presenceRecords,
       templates: whatsAppLists.rawTemplates,
       drafts: whatsAppLists.drafts,
+      now: new Date().toISOString(),
     });
     comm.setCommunities(next.communities);
     play.setPlayers(next.players);

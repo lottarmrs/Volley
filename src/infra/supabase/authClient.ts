@@ -1,11 +1,22 @@
-import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
+import { isSupabaseConfigured, supabase, supabaseKey, supabaseUrl } from '../../lib/supabaseClient';
 
 import type { AuthClient, MfaEnrollment } from '@app/authClient';
 export type { AuthClient, MfaEnrollment };
 
+type AuthSettings = { external?: Record<string, boolean> };
+
+async function fetchAuthSettings(): Promise<AuthSettings> {
+  const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+    headers: { apikey: supabaseKey ?? '' },
+  });
+  if (!response.ok) throw new Error(`auth settings responded ${response.status}`);
+  return response.json();
+}
+
 export function createAuthClient(
   auth: typeof supabase.auth,
   location: Pick<Location, 'origin'> = window.location,
+  loadAuthSettings: () => Promise<AuthSettings> = fetchAuthSettings,
 ): AuthClient {
   const fail = (error: { message: string } | null) => {
     if (error) throw error;
@@ -121,6 +132,16 @@ export function createAuthClient(
       });
       fail(verified.error);
     },
+    // Com o provedor desativado, signInWithOAuth nao falha aqui: manda o navegador para uma
+    // pagina de erro do Supabase. Na duvida, o botao fica escondido.
+    async isGoogleEnabled() {
+      try {
+        const settings = await loadAuthSettings();
+        return settings.external?.google === true;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 
@@ -155,6 +176,7 @@ const unavailableAuthClient: AuthClient = {
   verifyTotp: async (_code: string, _factorId?: string) => {
     throw unavailable;
   },
+  isGoogleEnabled: async () => false,
 };
 
 export const supabaseAuthClient = isSupabaseConfigured

@@ -50,6 +50,7 @@ function fakeAuthClient(options: {
       throw new Error('not implemented');
     },
     verifyTotp: async () => {},
+    isGoogleEnabled: async () => false,
   };
 }
 

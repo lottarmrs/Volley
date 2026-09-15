@@ -32,6 +32,7 @@ const { authClientMock } = vi.hoisted(() => ({
     signOutOthers: vi.fn(),
     enrollTotp: vi.fn(),
     verifyTotp: vi.fn(),
+    isGoogleEnabled: vi.fn().mockResolvedValue(false),
   },
 }));
 
@@ -170,6 +171,40 @@ describe('AuthForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
     expect(signUp).not.toHaveBeenCalled();
   });
+
+  it('esconde o login com Google quando o provedor não está ativo', () => {
+    render(
+      <MemoryRouter>
+        <AuthForm
+          mode="signin"
+          loading={false}
+          onSignIn={vi.fn()}
+          onSignUp={vi.fn()}
+          onGoogle={vi.fn()}
+          onForgotPassword={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('button', { name: /continuar com google/i })).toBeNull();
+    expect(screen.queryByText(/ou acesse com/i)).toBeNull();
+  });
+
+  it('mostra o login com Google quando o provedor está ativo', () => {
+    render(
+      <MemoryRouter>
+        <AuthForm
+          mode="signin"
+          loading={false}
+          googleEnabled
+          onSignIn={vi.fn()}
+          onSignUp={vi.fn()}
+          onGoogle={vi.fn()}
+          onForgotPassword={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: /continuar com google/i })).toBeDefined();
+  });
 });
 
 describe('LoginPage', () => {
@@ -192,6 +227,29 @@ describe('LoginPage', () => {
       <LoginPage mode="signup" />,
     );
     expect(screen.getByRole('button', { name: 'Criar conta' })).toBeDefined();
+  });
+
+  it('não oferece o Google quando o Supabase diz que o provedor está desativado', async () => {
+    authClientMock.isGoogleEnabled.mockResolvedValue(false);
+    renderAuthPage(
+      '/cadastro',
+      { state: { kind: 'anonymous' } },
+      undefined,
+      <LoginPage mode="signup" />,
+    );
+    await waitFor(() => expect(authClientMock.isGoogleEnabled).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /continuar com google/i })).toBeNull();
+  });
+
+  it('oferece o Google quando o Supabase diz que o provedor está ativo', async () => {
+    authClientMock.isGoogleEnabled.mockResolvedValue(true);
+    renderAuthPage(
+      '/entrar',
+      { state: { kind: 'anonymous' } },
+      undefined,
+      <LoginPage mode="signin" />,
+    );
+    expect(await screen.findByRole('button', { name: /continuar com google/i })).toBeDefined();
   });
 });
 

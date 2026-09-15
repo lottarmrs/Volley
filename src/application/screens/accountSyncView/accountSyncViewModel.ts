@@ -13,4 +13,5 @@ export interface AccountSyncViewModel {
   recoverableSyncActions?: RecoverableSyncActions;
   syncIssueSummary?: SyncIssueSummary;
   syncConflicts?: SyncConflictItem[];
+  googleEnabled?: boolean;
 }

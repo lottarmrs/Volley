@@ -15,6 +15,7 @@ export interface AuthClient {
   ): Promise<void>;
   signInWithGoogle(): Promise<void>;
   linkGoogleIdentity(): Promise<void>;
+  isGoogleEnabled(): Promise<boolean>;
   requestPasswordRecovery(email: string, captchaToken?: string): Promise<void>;
   updatePassword(password: string): Promise<void>;
   getAssuranceLevel(): Promise<AssuranceLevel>;

@@ -160,4 +160,16 @@ describe('AccountSyncView sync recovery', () => {
     }) as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/configurar-mfa');
   });
+
+  it('esconde Vincular Google quando o provedor não está ativo', () => {
+    renderAccount();
+
+    expect(screen.queryByRole('button', { name: /vincular google/i })).toBeNull();
+  });
+
+  it('mostra Vincular Google quando o provedor está ativo', () => {
+    renderAccount({ googleEnabled: true });
+
+    expect(screen.getByRole('button', { name: /vincular google/i })).toBeTruthy();
+  });
 });

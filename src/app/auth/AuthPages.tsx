@@ -25,6 +25,7 @@ import { validatePasswordLength } from './passwordPolicy';
 import { OtpInput } from '../../ui/OtpInput';
 import { normalizeHandle, validateHandle } from '@logic/handle';
 import { useHandleAvailability } from '@hooks/useHandleAvailability';
+import { useGoogleAuthEnabled } from '@hooks/useGoogleAuthEnabled';
 
 function destinationFromLocationState(state: unknown): string {
   const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
@@ -125,6 +126,7 @@ export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { state, authClient } = useAuthSession();
+  const googleEnabled = useGoogleAuthEnabled(authClient.isGoogleEnabled);
   useEffect(() => {
     if (state.kind === 'initializing' || state.kind === 'anonymous') return;
     navigate(routeForAuthState(state) ?? destinationFromLocationState(location.state), {
@@ -157,6 +159,7 @@ export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
           onSignIn={authClient.signIn}
           onSignUp={authClient.signUp}
           onGoogle={authClient.signInWithGoogle}
+          googleEnabled={googleEnabled}
           onForgotPassword={() => navigate('/recuperar-senha')}
         />
       </div>

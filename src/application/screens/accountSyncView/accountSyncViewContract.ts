@@ -16,6 +16,7 @@ export interface AccountSyncViewContractInput {
   recoverableSyncActions?: RecoverableSyncActions;
   syncIssueSummary?: SyncIssueSummary;
   syncConflicts?: SyncConflictItem[];
+  googleEnabled?: boolean;
 
   onSync: () => Promise<void>;
   onRepairDuplicates: () => Promise<void>;
@@ -39,6 +40,7 @@ function buildModel(input: AccountSyncViewContractInput): AccountSyncViewModel {
     recoverableSyncActions: input.recoverableSyncActions,
     syncIssueSummary: input.syncIssueSummary,
     syncConflicts: input.syncConflicts,
+    googleEnabled: input.googleEnabled,
   };
 }
 

@@ -222,3 +222,27 @@ test('enrollTotp does not touch existing factors when the first enroll succeeds'
   assert.equal(unenrollCalls, 0, 'a verified factor is never removed on the happy path');
   assert.deepEqual(result, { factorId: 'first', qrCode: 'qr', secret: 'S' });
 });
+
+test('isGoogleEnabled reads the Google provider flag from the auth settings', async () => {
+  const enabled = createAuthClient({} as never, { origin: 'https://panelinha.test' }, async () => ({
+    external: { google: true, email: true },
+  }));
+  const disabled = createAuthClient(
+    {} as never,
+    { origin: 'https://panelinha.test' },
+    async () => ({
+      external: { google: false, email: true },
+    }),
+  );
+
+  assert.equal(await enabled.isGoogleEnabled(), true);
+  assert.equal(await disabled.isGoogleEnabled(), false);
+});
+
+test('isGoogleEnabled answers false when the auth settings cannot be read', async () => {
+  const client = createAuthClient({} as never, { origin: 'https://panelinha.test' }, async () => {
+    throw new Error('network down');
+  });
+
+  assert.equal(await client.isGoogleEnabled(), false);
+});

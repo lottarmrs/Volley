@@ -21,6 +21,7 @@ import {
 import { supabaseAuthClient } from '@infra/supabase/authClient';
 import { normalizeHandle, validateHandle } from '@logic/handle';
 import { useHandleAvailability } from '@hooks/useHandleAvailability';
+import { useGoogleAuthEnabled } from '@hooks/useGoogleAuthEnabled';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
 import { useAuthSession } from '../auth/useAuthSession';
@@ -258,6 +259,7 @@ export function HandleChangeForm({ onDone }: { onDone: () => void }) {
 
 export function PerfilSyncRoute() {
   const { auth, cloudSync, play } = useShell();
+  const googleEnabled = useGoogleAuthEnabled(supabaseAuthClient.isGoogleEnabled);
   return (
     <AccountSyncView
       contract={buildAccountSyncViewContract({
@@ -265,6 +267,7 @@ export function PerfilSyncRoute() {
         profile: auth.profile,
         loading: auth.loading,
         isSupabaseConfigured: auth.isSupabaseConfigured,
+        googleEnabled,
         onSignOut: auth.signOut,
         onLinkGoogleIdentity: supabaseAuthClient.linkGoogleIdentity,
         onSync: cloudSync.sync,

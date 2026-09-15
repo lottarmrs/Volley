@@ -47,6 +47,7 @@ export interface AuthFormProps {
   ): Promise<void>;
   onGoogle(): Promise<void>;
   onForgotPassword(): void;
+  googleEnabled?: boolean;
 }
 
 export function AuthForm({
@@ -56,6 +57,7 @@ export function AuthForm({
   onSignUp,
   onGoogle,
   onForgotPassword,
+  googleEnabled = false,
 }: AuthFormProps) {
   const isSignUp = mode === 'signup';
   const [email, setEmail] = useState('');
@@ -619,18 +621,22 @@ export function AuthForm({
           </button>
         </form>
 
-        <div className="divider text-[10px] opacity-40 uppercase tracking-widest my-2">
-          Ou acesse com
-        </div>
+        {googleEnabled && (
+          <>
+            <div className="divider text-[10px] opacity-40 uppercase tracking-widest my-2">
+              Ou acesse com
+            </div>
 
-        <button
-          type="button"
-          className="btn btn-outline btn-block uppercase tracking-wider text-xs font-bold gap-2.5 h-11 rounded-xl border-base-300 hover:bg-base-300/40 transition-colors"
-          onClick={handleGoogle}
-          disabled={loading}
-        >
-          <Chrome className="w-4 h-4" /> Continuar com Google
-        </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-block uppercase tracking-wider text-xs font-bold gap-2.5 h-11 rounded-xl border-base-300 hover:bg-base-300/40 transition-colors"
+              onClick={handleGoogle}
+              disabled={loading}
+            >
+              <Chrome className="w-4 h-4" /> Continuar com Google
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -5,8 +5,8 @@ type ViteImportMeta = ImportMeta & {
 };
 
 const env: Record<string, string | undefined> = (import.meta as ViteImportMeta).env ?? {};
-const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.VITE_SUPABASE_ANON_KEY;
+export const supabaseUrl = env.VITE_SUPABASE_URL;
+export const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 

@@ -150,16 +150,18 @@ export function AccountSyncView({
 
             {/* Ações de Segurança / Conta */}
             <div className="flex items-center gap-2 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-base-300/50">
-              <button
-                type="button"
-                className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold min-h-[44px] sm:min-h-0"
-                onClick={() =>
-                  handleAction('Vincular Google', () => dispatch({ kind: 'linkGoogleIdentity' }))
-                }
-                disabled={actionLoading}
-              >
-                Vincular Google
-              </button>
+              {model.googleEnabled && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold min-h-[44px] sm:min-h-0"
+                  onClick={() =>
+                    handleAction('Vincular Google', () => dispatch({ kind: 'linkGoogleIdentity' }))
+                  }
+                  disabled={actionLoading}
+                >
+                  Vincular Google
+                </button>
+              )}
               <Link
                 to="/configurar-mfa"
                 className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold min-h-[44px] sm:min-h-0"

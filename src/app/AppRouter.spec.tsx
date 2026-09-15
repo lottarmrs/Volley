@@ -37,6 +37,7 @@ const stubAuthClient = {
   signOutOthers: async () => {},
   enrollTotp: async () => ({ factorId: '', qrCode: '', secret: '' }),
   verifyTotp: async () => {},
+  isGoogleEnabled: async () => false,
 } as unknown as AuthClient;
 
 export const readyState: AuthSessionState = {

@@ -1,4 +1,4 @@
-import { lazy, useEffect, useRef } from 'react';
+import { lazy, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { derivePhase } from '@domain/sessionPhase';
 import {
@@ -107,6 +107,7 @@ export function SessionWizardRoute() {
     phase: derivePhase(sess.activeSession, sess.games),
   });
   const bootstrapped = useRef(false);
+  const [bootstrapDone, setBootstrapDone] = useState(false);
 
   useEffect(() => {
     if (bootstrapped.current) return;
@@ -120,18 +121,20 @@ export function SessionWizardRoute() {
       });
       sess.setActiveSession(result.session);
       wizard.setWizardStep(result.nextWizardStep);
+      setBootstrapDone(true);
       return;
     }
     if (resolution.kind === 'adopt') {
       bootstrapped.current = true;
       wizard.updateSession({ communityId: community.id });
+      setBootstrapDone(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolution.kind, community.id, type]);
 
   if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
   if (!sess.activeSession) {
-    if (!bootstrapped.current) return null;
+    if (!bootstrapDone) return null;
     return <Navigate to={paths.comunidade(community.id)} replace />;
   }
 

@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Star } from 'lucide-react';
+import { getStarLabelText } from './starRatingLabels';
 
 export interface StarRatingProps {
   value: number; // 0 to 5
@@ -9,25 +10,6 @@ export interface StarRatingProps {
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   id?: string;
-}
-
-const RATING_LABELS: Record<number, string> = {
-  0.5: 'Iniciante -',
-  1: 'Iniciante / Recreativo',
-  1.5: 'Em Evolução',
-  2: 'Abaixo da Média',
-  2.5: 'Regular -',
-  3: 'Regular / Mediano',
-  3.5: 'Bom / Competitivo',
-  4: 'Avançado',
-  4.5: 'Muito Bom +',
-  5: 'Destaque / Nível Seleção',
-};
-
-export function getStarLabelText(value: number): string {
-  if (value <= 0) return 'Não Avaliado';
-  const rounded = Math.round(value * 2) / 2;
-  return RATING_LABELS[rounded] ?? `${rounded} Estrelas`;
 }
 
 export function StarRating({
@@ -83,10 +65,7 @@ export function StarRating({
   return (
     <div id={id} className="inline-flex items-center gap-3 select-none shrink-0">
       {/* Stars Container - fixed dimensions, zero layout shift */}
-      <div
-        className="flex items-center gap-1 shrink-0"
-        onMouseLeave={handleMouseLeaveContainer}
-      >
+      <div className="flex items-center gap-1 shrink-0" onMouseLeave={handleMouseLeaveContainer}>
         {[1, 2, 3, 4, 5].map((starIndex) => {
           const fillAmount = Math.max(0, Math.min(1, activeValue - (starIndex - 1)));
           const isFull = fillAmount >= 1;
@@ -103,7 +82,9 @@ export function StarRating({
               aria-label={`${starIndex} estrelas`}
             >
               {/* Background empty star */}
-              <Star className={`${iconSizes[size]} text-base-content/20 stroke-1 fill-transparent pointer-events-none`} />
+              <Star
+                className={`${iconSizes[size]} text-base-content/20 stroke-1 fill-transparent pointer-events-none`}
+              />
 
               {/* Foreground filled/half star */}
               {(isFull || isHalf) && (

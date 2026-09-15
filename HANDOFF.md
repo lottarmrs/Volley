@@ -10,6 +10,13 @@
 >
 > **2026-09-14, depois:** a XS-W3-09 (`ORGANIZER` pelo cargo Organizador) foi integrada em `main` por
 > merge `--no-ff` — ver a seção dela antes de "Branches".
+>
+> **2026-09-15:** `main` integrou `exec/cloud-compat-and-auto-sync` (sync compatível com o projeto
+> Panelinha e sincronização automática) e a correção de materializar rodada, que agora abre a sessão
+> ao vivo pronta para iniciar. Os erros de CI em arquivos rastreados foram zerados (ESLint,
+> Prettier, `check:architecture`), e este `main` **substituiu o `main` do GitHub por force push**. O
+> `main` anterior do GitHub (`c1317bb`, 2026-08-20, sem ancestral comum com este repositório) ficou
+> em `backup/main-2026-08-20`. O push dispara o deploy de produção na Vercel.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 

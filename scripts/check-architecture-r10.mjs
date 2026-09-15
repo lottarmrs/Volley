@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -36,9 +36,11 @@ function isExplicitlyNonTarget(file, content) {
   if (path.startsWith('docs/architecture/audit/')) return true;
   if (/\/C7-[^/]+\.md$/.test(path)) return true;
   const head = firstLines(content, 30);
-  return /Status:\s*`(?:HISTORICAL|SUPERSEDED|TRANSITIONAL)/i.test(head)
-    || /NOT TARGET SOURCE OF TRUTH/i.test(head)
-    || /Canonical-ID namespace:\s*`HISTORICAL-SOURCE-ALIASES`/.test(head);
+  return (
+    /Status:\s*`(?:HISTORICAL|SUPERSEDED|TRANSITIONAL)/i.test(head) ||
+    /NOT TARGET SOURCE OF TRUTH/i.test(head) ||
+    /Canonical-ID namespace:\s*`HISTORICAL-SOURCE-ALIASES`/.test(head)
+  );
 }
 
 const architectureFiles = walk(architectureRoot);
@@ -52,13 +54,22 @@ const forbiddenTargetLexemes = [
   { label: 'deprecated Match command alias RevertEvent', re: /\bRevertEvent\b/g },
   { label: 'deprecated singular StandingProjection', re: /\bStandingProjection\b/g },
   { label: 'deprecated PlayerMatchStats entity alias', re: /\bPlayerMatchStats\b/g },
-  { label: 'ambiguous Request ID / Correlation ID heading', re: /Request ID\s*\/\s*Correlation ID/g },
+  {
+    label: 'ambiguous Request ID / Correlation ID heading',
+    re: /Request ID\s*\/\s*Correlation ID/g,
+  },
   { label: 'ambiguous Q0/I0 severity fusion', re: /\bQ0\s*\/\s*I0\b/g },
   { label: 'ambiguous Q1/I1 severity fusion', re: /\bQ1\s*\/\s*I1\b/g },
-  { label: 'Q* used as invariant severity rather than QA risk tier', re: /\bQ[01]\s+(?:global\/local\s+)?invariants?\b/gi },
+  {
+    label: 'Q* used as invariant severity rather than QA risk tier',
+    re: /\bQ[01]\s+(?:global\/local\s+)?invariants?\b/gi,
+  },
   { label: 'orphan Rating projection owner label', re: /\bRating projection\b/g },
-  { label: 'orphan Rating\/display owner label', re: /\bRating\/display\b/g },
-  { label: 'orphan Rating \/ Identity sports evaluation owner label', re: /\bRating \/ Identity sports evaluation\b/g },
+  { label: 'orphan Rating/display owner label', re: /\bRating\/display\b/g },
+  {
+    label: 'orphan Rating / Identity sports evaluation owner label',
+    re: /\bRating \/ Identity sports evaluation\b/g,
+  },
   { label: 'ambiguous canonical correlation_id catch-all', re: /\bcorrelation_id\b/g },
 ];
 
@@ -67,15 +78,22 @@ for (const file of targetArchitectureFiles) {
   for (const rule of forbiddenTargetLexemes) {
     const matches = [...content.matchAll(rule.re)];
     if (matches.length > 0) {
-      const sample = matches.slice(0, 3).map((m) => m[0]).join(', ');
+      const sample = matches
+        .slice(0, 3)
+        .map((m) => m[0])
+        .join(', ');
       fail(file, `${rule.label} (${matches.length} occurrence(s); sample: ${sample})`);
     }
   }
 
-  const genericContribution = [...content.matchAll(/\bMatchStatContribution\b/g)]
-    .filter((m) => content.slice(Math.max(0, m.index - 6), m.index) !== 'Player');
+  const genericContribution = [...content.matchAll(/\bMatchStatContribution\b/g)].filter(
+    (m) => content.slice(Math.max(0, m.index - 6), m.index) !== 'Player',
+  );
   if (genericContribution.length > 0) {
-    fail(file, `noncanonical MatchStatContribution alias (${genericContribution.length} occurrence(s)); use PlayerMatchStatContribution for the canonical entity`);
+    fail(
+      file,
+      `noncanonical MatchStatContribution alias (${genericContribution.length} occurrence(s)); use PlayerMatchStatContribution for the canonical entity`,
+    );
   }
 }
 
@@ -86,7 +104,11 @@ for (const file of operationsFiles) {
   if (!/> Status:\s*`[^`]+`/.test(head)) fail(file, 'missing visible Status header');
   if (!/> Owner:\s*`[^`]+`/.test(head)) fail(file, 'missing visible Owner header');
   if (!/> Last reviewed:\s*`[^`]+`/.test(head)) fail(file, 'missing visible Last reviewed header');
-  if (!/(Governing target|Current migration authority|Current reconstruction authority|Current operations authority):/i.test(head)) {
+  if (
+    !/(Governing target|Current migration authority|Current reconstruction authority|Current operations authority):/i.test(
+      head,
+    )
+  ) {
     fail(file, 'missing governing/current architecture authority pointer in header');
   }
 }
@@ -120,10 +142,16 @@ for (const file of operationsFiles) {
   const file = join(operationsRoot, 'auth-production-checklist.md');
   const head = firstLines(readFileSync(file, 'utf8'), 32);
   if (!/platform\/staff authorization vocabulary only/i.test(head)) {
-    fail(file, 'legacy master/programmer role vocabulary is not explicitly scoped as platform/staff authorization');
+    fail(
+      file,
+      'legacy master/programmer role vocabulary is not explicitly scoped as platform/staff authorization',
+    );
   }
   if (!/OWNER \| ADMIN \| MEMBER/.test(head) || !/ORGANIZER/.test(head)) {
-    fail(file, 'legacy role scope does not explicitly separate Community governance and Organizer responsibility');
+    fail(
+      file,
+      'legacy role scope does not explicitly separate Community governance and Organizer responsibility',
+    );
   }
 }
 
@@ -144,8 +172,11 @@ for (const file of operationsFiles) {
 }
 
 // Local invariant exact references must resolve to an owner N2 definition.
-const ownerN2Files = targetArchitectureFiles.filter((file) => /\/N2\.\d{2}[^/]*\.md$/.test(repoPath(file)));
-const localInvariantPattern = /\b(?:PX|ID|COM|SES|REG|BAL|MATCH|COMP|STAT|NOTIF|MEDIA|OFFLINE|RT|DATA|API|SEC|REL|PERF|OBS|QA|OPS|MIG|GOV)-INV-\d{3}\b/g;
+const ownerN2Files = targetArchitectureFiles.filter((file) =>
+  /\/N2\.\d{2}[^/]*\.md$/.test(repoPath(file)),
+);
+const localInvariantPattern =
+  /\b(?:PX|ID|COM|SES|REG|BAL|MATCH|COMP|STAT|NOTIF|MEDIA|OFFLINE|RT|DATA|API|SEC|REL|PERF|OBS|QA|OPS|MIG|GOV)-INV-\d{3}\b/g;
 const definedLocalInvariants = new Set();
 for (const file of ownerN2Files) {
   const content = readFileSync(file, 'utf8');
@@ -154,7 +185,8 @@ for (const file of ownerN2Files) {
 for (const file of targetArchitectureFiles) {
   const content = readFileSync(file, 'utf8');
   for (const id of new Set(content.match(localInvariantPattern) ?? [])) {
-    if (!definedLocalInvariants.has(id)) fail(file, `unknown exact local invariant reference: ${id}`);
+    if (!definedLocalInvariants.has(id))
+      fail(file, `unknown exact local invariant reference: ${id}`);
   }
 }
 

@@ -1,7 +1,8 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { StarRating, getStarLabelText } from './StarRating';
+import { StarRating } from './StarRating';
+import { getStarLabelText } from './starRatingLabels';
 
 describe('StarRating', () => {
   it('formats rating labels correctly', () => {
@@ -19,10 +20,10 @@ describe('StarRating', () => {
   it('triggers onChange when star is clicked', () => {
     const handleChange = vi.fn();
     render(<StarRating value={3} onChange={handleChange} />);
-    
+
     const stars = screen.getAllByRole('button');
     expect(stars).toHaveLength(5);
-    
+
     fireEvent.click(stars[4]); // 5th star
     expect(handleChange).toHaveBeenCalled();
   });

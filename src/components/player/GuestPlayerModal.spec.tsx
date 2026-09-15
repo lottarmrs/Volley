@@ -7,24 +7,14 @@ import type { Player } from '../../types';
 describe('GuestPlayerModal', () => {
   it('does not render when isOpen is false', () => {
     render(
-      <GuestPlayerModal
-        isOpen={false}
-        onClose={vi.fn()}
-        players={[]}
-        onAddGuestPlayer={vi.fn()}
-      />,
+      <GuestPlayerModal isOpen={false} onClose={vi.fn()} players={[]} onAddGuestPlayer={vi.fn()} />,
     );
     expect(screen.queryByText(/adicionar convidado/i)).toBeNull();
   });
 
   it('renders modal with default guest fields when isOpen is true', () => {
     render(
-      <GuestPlayerModal
-        isOpen={true}
-        onClose={vi.fn()}
-        players={[]}
-        onAddGuestPlayer={vi.fn()}
-      />,
+      <GuestPlayerModal isOpen={true} onClose={vi.fn()} players={[]} onAddGuestPlayer={vi.fn()} />,
     );
 
     expect(screen.getByRole('heading', { name: /cadastrar convidado rápido/i })).toBeDefined();

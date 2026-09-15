@@ -11,10 +11,17 @@ test.describe('Session Wizard & Balancing Flow', () => {
       nome: `Atleta ${i + 1}`,
       apelido: `P${i + 1}`,
       genero: i % 2 === 0 ? 'M' : 'F',
-      posicaoPrincipal: i % 4 === 0 ? 'levantador' : i % 4 === 1 ? 'ponteiro' : i % 4 === 2 ? 'central' : 'oposto',
+      posicaoPrincipal:
+        i % 4 === 0 ? 'levantador' : i % 4 === 1 ? 'ponteiro' : i % 4 === 2 ? 'central' : 'oposto',
       ativo: true,
       communityIds: [communityId],
-      atributos: { saque: 70 + (i % 20), recepcao: 70 + (i % 20), levantamento: 70, ataque: 75, defesa: 70 },
+      atributos: {
+        saque: 70 + (i % 20),
+        recepcao: 70 + (i % 20),
+        levantamento: 70,
+        ataque: 75,
+        defesa: 70,
+      },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }));

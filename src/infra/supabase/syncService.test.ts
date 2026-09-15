@@ -2063,9 +2063,13 @@ test('o download mantem a Session convertida local quando a leitura por id falha
       authorityModel: 'target',
     });
 
-    const result = await syncService.syncNow(emptyPayload({ sessions: [localSession] }), 'owner-1', {
-      onIssue: (context, error) => issues.push({ context, error }),
-    });
+    const result = await syncService.syncNow(
+      emptyPayload({ sessions: [localSession] }),
+      'owner-1',
+      {
+        onIssue: (context, error) => issues.push({ context, error }),
+      },
+    );
 
     const session = result.sessions.find((item) => item.id === 'target-session');
     assert.equal(session?.name, localSession.name);
@@ -2090,7 +2094,9 @@ test('uma Session de comunidade ativada nasce no modelo target', async () => {
   let upsertSessionCalls = 0;
 
   try {
-    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    communityEvaluationCloudService.activatedCommunityIds = async () => [
+      '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+    ];
     sessionCohortCloudService.createTargetSession = async (input) => {
       receivedCreateInput.push(input);
       return { id: 'target-session-cloud' };
@@ -2102,7 +2108,12 @@ test('uma Session de comunidade ativada nasce no modelo target', async () => {
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
           makeSession({ id: 'new-session', name: 'Treino de Terca', communityId: 'community-1' }),
         ],
@@ -2151,7 +2162,12 @@ test('uma Session de comunidade nao ativada continua no caminho legado', async (
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
           makeSession({ id: 'legacy-session', name: 'Treino Livre', communityId: 'community-1' }),
         ],
@@ -2182,7 +2198,9 @@ test('falha ao criar no modelo target nao cai para o legado em silencio', async 
   const issues: { context: string; error: unknown }[] = [];
 
   try {
-    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    communityEvaluationCloudService.activatedCommunityIds = async () => [
+      '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+    ];
     sessionCohortCloudService.createTargetSession = async () => {
       throw createError;
     };
@@ -2193,9 +2211,18 @@ test('falha ao criar no modelo target nao cai para o legado em silencio', async 
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
-          makeSession({ id: 'failed-session', name: 'Treino de Quinta', communityId: 'community-1' }),
+          makeSession({
+            id: 'failed-session',
+            name: 'Treino de Quinta',
+            communityId: 'community-1',
+          }),
         ],
       }),
       'owner-1',
@@ -2232,7 +2259,9 @@ test('uma copia obsoleta de Session target ja criada adota a linha existente em 
   const issues: { context: string; error: unknown }[] = [];
 
   try {
-    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    communityEvaluationCloudService.activatedCommunityIds = async () => [
+      '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+    ];
     sessionCohortCloudService.createTargetSession = async () => {
       throw duplicateError;
     };
@@ -2257,7 +2286,12 @@ test('uma copia obsoleta de Session target ja criada adota a linha existente em 
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
           makeSession({ id: 'stale-session', name: 'Treino de Terca', communityId: 'community-1' }),
         ],
@@ -2296,7 +2330,9 @@ test('Session duplicada cuja linha existente e legada (leitura P0002) segue o up
   const issues: { context: string; error: unknown }[] = [];
 
   try {
-    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    communityEvaluationCloudService.activatedCommunityIds = async () => [
+      '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+    ];
     sessionCohortCloudService.createTargetSession = async () => {
       throw duplicateError;
     };
@@ -2311,7 +2347,10 @@ test('Session duplicada cuja linha existente e legada (leitura P0002) segue o up
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
         communities: [
-          makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' }),
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
         ],
         sessions: [
           makeSession({
@@ -2355,7 +2394,9 @@ test('Session target duplicada cuja leitura tambem falha fica pendente, reporta 
   const issues: { context: string; error: unknown }[] = [];
 
   try {
-    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    communityEvaluationCloudService.activatedCommunityIds = async () => [
+      '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+    ];
     sessionCohortCloudService.createTargetSession = async () => {
       throw duplicateError;
     };
@@ -2374,7 +2415,12 @@ test('Session target duplicada cuja leitura tambem falha fica pendente, reporta 
     });
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [localSession],
       }),
       'owner-1',
@@ -2404,13 +2450,20 @@ test('a marca de modelo target sobrevive a um persist orientado por estado', asy
   const originalActivatedCommunityIds = communityEvaluationCloudService.activatedCommunityIds;
 
   try {
-    communityEvaluationCloudService.activatedCommunityIds = async () => ['9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f'];
+    communityEvaluationCloudService.activatedCommunityIds = async () => [
+      '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+    ];
     sessionCohortCloudService.createTargetSession = async () => ({ id: 'target-session-cloud' });
     operationalCloudService.upsertSession = async (item) => ({ ...item, cloudId: 'legacy-cloud' });
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
           makeSession({ id: 'new-session', name: 'Treino de Terca', communityId: 'community-1' }),
         ],
@@ -2454,9 +2507,18 @@ test('falha transitoria ao resolver ativacao mantem a Session pendente e nao cri
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
-          makeSession({ id: 'pending-session', name: 'Treino de Sexta', communityId: 'community-1' }),
+          makeSession({
+            id: 'pending-session',
+            name: 'Treino de Sexta',
+            communityId: 'community-1',
+          }),
         ],
       }),
       'owner-1',
@@ -2515,7 +2577,11 @@ test('id de comunidade nao-UUID nao envenena a consulta de ativacao das demais S
             name: 'Treino Local',
             communityId: 'community-1700000000000',
           }),
-          makeSession({ id: 'activated-session', name: 'Treino Ativado', communityId: 'community-2' }),
+          makeSession({
+            id: 'activated-session',
+            name: 'Treino Ativado',
+            communityId: 'community-2',
+          }),
         ],
       }),
       'owner-1',
@@ -2630,7 +2696,12 @@ test('RPC de ativacao ausente (PGRST202) segue no caminho legado sem reportar pr
 
     const result = await syncService.uploadLocalDataToCloud(
       emptyPayload({
-        communities: [makeSharedCommunity({ id: 'community-1', cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f' })],
+        communities: [
+          makeSharedCommunity({
+            id: 'community-1',
+            cloudId: '9d3c1e2a-5b4f-4c6d-8e7f-0a1b2c3d4e5f',
+          }),
+        ],
         sessions: [
           makeSession({ id: 'legacy-session', name: 'Treino Livre', communityId: 'community-1' }),
         ],

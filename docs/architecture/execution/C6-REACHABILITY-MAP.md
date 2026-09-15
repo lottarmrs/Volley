@@ -1,5 +1,11 @@
 # C6 — mapa de alcançabilidade
 
+> Status: `TRANSITIONAL / C6 EXECUTION EVIDENCE`
+>
+> Owner: `Migration + Architecture Governance`
+>
+> Last reviewed: `2026-09-15`
+
 > Levantado em **2026-09-10**, depois de três dead ends consecutivos descobertos durante a
 > execução da W6-03 e da W3-08. **Re-derivado em 2026-09-13**, no fim da XS-W3-08
 > (branch `exec/c6-w3-08-target-cohort-reachability`, base `88e3475`), rodando de novo o comando do

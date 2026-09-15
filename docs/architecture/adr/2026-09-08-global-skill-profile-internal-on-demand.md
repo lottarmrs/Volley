@@ -1,5 +1,11 @@
 # Global Skill Profile: internal computation on demand
 
+> Status: `CANONICAL / ADR / XS-W5-04`
+>
+> Owner: `N2.02 / Player Skill Profile`
+>
+> Last reviewed: `2026-09-15`
+
 Date: 2026-09-08. Scope: C6.02 XS-W5-04, N2.02 Player Skill Profile ownership.
 
 ## Decision

@@ -93,7 +93,12 @@ export const avatarStorageService = {
     }
 
     const blob = await toWebp(file);
-    const rawExt = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const rawExt =
+      file.name
+        .split('.')
+        .pop()
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]/g, '') || 'jpg';
     const allowedExts = ['webp', 'jpg', 'jpeg', 'png', 'gif'];
     const ext = blob.type === 'image/webp' ? 'webp' : allowedExts.includes(rawExt) ? rawExt : 'jpg';
     const sanitizedPlayerId = playerCloudId.replace(/[^a-zA-Z0-9_-]/g, '');

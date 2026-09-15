@@ -1,5 +1,11 @@
 # Community skill profile computed on demand
 
+> Status: `CANONICAL / ADR / XS-W5-03`
+>
+> Owner: `N2.02 / Player Skill Profile`
+>
+> Last reviewed: `2026-09-15`
+
 Status: accepted for the experimental XS-W5-03 read surface, 2026-09-06.
 
 Owner: N2.02 / Player Skill Profile. Context: C6.02 W5-03 and OPEN-RATING-001.

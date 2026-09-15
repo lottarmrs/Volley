@@ -2,17 +2,17 @@
 
 ## Commands
 
-| Task | Command |
-|------|---------|
-| Dev server | `npm run dev` (port 3000, 0.0.0.0) |
-| Type check | `npm run lint` (alias: `npm run typecheck` — both are `tsc --noEmit`) |
-| ESLint | `npm run lint:eslint` |
-| Format check | `npm run format:check` |
-| Format write | `npm run format` |
-| All tests | `npm test` (runs `test:unit` + `test:ui` in sequence) |
-| Unit tests only | `npm run test:unit` (Node test runner + tsx → `src/**/*.test.ts`) |
-| UI tests only | `npm run test:ui` (Vitest + jsdom + RTL → `src/**/*.spec.{ts,tsx}`) |
-| Production build | `npm run build` (Vite, outputs to `dist/`) |
+| Task             | Command                                                               |
+| ---------------- | --------------------------------------------------------------------- |
+| Dev server       | `npm run dev` (port 3000, 0.0.0.0)                                    |
+| Type check       | `npm run lint` (alias: `npm run typecheck` — both are `tsc --noEmit`) |
+| ESLint           | `npm run lint:eslint`                                                 |
+| Format check     | `npm run format:check`                                                |
+| Format write     | `npm run format`                                                      |
+| All tests        | `npm test` (runs `test:unit` + `test:ui` in sequence)                 |
+| Unit tests only  | `npm run test:unit` (Node test runner + tsx → `src/**/*.test.ts`)     |
+| UI tests only    | `npm run test:ui` (Vitest + jsdom + RTL → `src/**/*.spec.{ts,tsx}`)   |
+| Production build | `npm run build` (Vite, outputs to `dist/`)                            |
 
 **CI verification order:** `typecheck → lint:eslint → format:check → test → build`.
 
@@ -32,17 +32,17 @@ Local-first React 19 + Vite 6 app. Optional Supabase sync (disabled by default; 
 
 ### Vertical slice structure (enforced via `tsconfig.json` + `vite.config.ts` path aliases)
 
-| Alias | Directory | Purpose |
-|-------|-----------|---------|
-| `@domain/*` | `src/domain/` | Pure domain logic (permissions, session setup) |
-| `@logic/*` | `src/logic/` | Business logic (balancing, calculations, sync, migrations) |
-| `@app/*` | `src/application/` | Use cases & view models (orchestrate domain <→ infra/hooks) |
-| `@infra/*` | `src/infra/` | Supabase cloud services & auth client |
-| `@hooks/*` | `src/hooks/` | React hooks wrapping state + domain logic |
-| `@ui/*` | `src/ui/` | Shared UI primitives |
-| `@storage/*` | `src/storage/` | `localStorage` repository |
-| `@shared/types` | `src/types.ts` | Barrel re-export from `src/shared/types/` |
-| `@shared/types/*` | `src/shared/types/` | Type definitions (player, session, community, sync) |
+| Alias             | Directory           | Purpose                                                     |
+| ----------------- | ------------------- | ----------------------------------------------------------- |
+| `@domain/*`       | `src/domain/`       | Pure domain logic (permissions, session setup)              |
+| `@logic/*`        | `src/logic/`        | Business logic (balancing, calculations, sync, migrations)  |
+| `@app/*`          | `src/application/`  | Use cases & view models (orchestrate domain <→ infra/hooks) |
+| `@infra/*`        | `src/infra/`        | Supabase cloud services & auth client                       |
+| `@hooks/*`        | `src/hooks/`        | React hooks wrapping state + domain logic                   |
+| `@ui/*`           | `src/ui/`           | Shared UI primitives                                        |
+| `@storage/*`      | `src/storage/`      | `localStorage` repository                                   |
+| `@shared/types`   | `src/types.ts`      | Barrel re-export from `src/shared/types/`                   |
+| `@shared/types/*` | `src/shared/types/` | Type definitions (player, session, community, sync)         |
 
 `src/components/` — page-level view components (dashboard, player, session, community, etc).
 `src/app/` — router + auth guards/pages.

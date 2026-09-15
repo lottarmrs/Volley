@@ -27,6 +27,21 @@ export function AccountSyncView({
   const [success, setSuccess] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  const handleAction = async (name: string, fn: () => Promise<void>) => {
+    setError(null);
+    setSuccess(null);
+    setActionLoading(true);
+    try {
+      await fn();
+      setSuccess(`Operação "${name}" concluída com sucesso!`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || `Erro ao realizar a operação: ${name}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Atalho de Teclado (Ctrl+S ou Cmd+S) para acionar Sincronização rápida
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -66,21 +81,6 @@ export function AccountSyncView({
       : cloudHealth.level === 'attention'
         ? 'border-warning/25 bg-warning/10 text-warning'
         : 'border-error/25 bg-error/10 text-error';
-
-  const handleAction = async (name: string, fn: () => Promise<void>) => {
-    setError(null);
-    setSuccess(null);
-    setActionLoading(true);
-    try {
-      await fn();
-      setSuccess(`Operação "${name}" concluída com sucesso!`);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || `Erro ao realizar a operação: ${name}`);
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   if (!model.isSupabaseConfigured) {
     return (

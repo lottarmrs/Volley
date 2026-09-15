@@ -232,7 +232,9 @@ export function formatSyncIssueError(error: unknown): string {
     try {
       const json = JSON.stringify(error);
       if (json && json !== '{}') return json;
-    } catch {}
+    } catch {
+      return 'Falha desconhecida';
+    }
   }
   return 'Falha desconhecida';
 }

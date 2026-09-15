@@ -6,7 +6,9 @@ test.describe('Player Management Flow', () => {
     await clearLocalStorage(page);
   });
 
-  test('AccountGate protects community roster /comunidades/:id/pessoas for guests', async ({ page }) => {
+  test('AccountGate protects community roster /comunidades/:id/pessoas for guests', async ({
+    page,
+  }) => {
     await page.goto('/comunidades/comm_test_1/pessoas');
 
     // AccountGate renders AccountRequiredView for guests

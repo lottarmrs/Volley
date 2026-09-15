@@ -1,7 +1,15 @@
 import { test as base } from '@playwright/test';
 import { seedLocalStorage, clearLocalStorage } from './seed';
 
-export type UserRole = 'master' | 'programmer' | 'owner' | 'admin' | 'moderator' | 'organizador' | 'member' | 'guest';
+export type UserRole =
+  | 'master'
+  | 'programmer'
+  | 'owner'
+  | 'admin'
+  | 'moderator'
+  | 'organizador'
+  | 'member'
+  | 'guest';
 
 export interface TestFixtures {
   mockUserRole: (role: UserRole, communityId?: string) => Promise<void>;
@@ -9,14 +17,15 @@ export interface TestFixtures {
 }
 
 export const test = base.extend<TestFixtures>({
-  mockUserRole: async ({ page }, use) => {
+  mockUserRole: async ({ page }, provide) => {
     const fn = async (role: UserRole, communityId: string = 'comm_test_1') => {
       const userId = `user_${role}_1`;
-      const globalRole = role === 'master' ? 'master' : role === 'programmer' ? 'programmer' : 'user';
+      const globalRole =
+        role === 'master' ? 'master' : role === 'programmer' ? 'programmer' : 'user';
 
-      const communityMemberRole = (['owner', 'admin', 'moderator', 'organizador', 'member'].includes(role)
-        ? role
-        : 'member') as any;
+      const communityMemberRole = (
+        ['owner', 'admin', 'moderator', 'organizador', 'member'].includes(role) ? role : 'member'
+      ) as any;
 
       const demoCommunity = {
         id: communityId,
@@ -45,26 +54,33 @@ export const test = base.extend<TestFixtures>({
         activeCommunityId: communityId,
       });
 
-      await page.addInitScript((args) => {
-        window.localStorage.setItem(
-          'vpg_auth_mock',
-          JSON.stringify({
-            user: { id: args.userId, email: `${args.role}@test.com` },
-            profile: { id: args.userId, name: `Usuário ${args.role.toUpperCase()}`, role: args.globalRole },
-            members: args.demoMembers,
-          }),
-        );
-      }, { userId, role, globalRole, demoMembers });
+      await page.addInitScript(
+        (args) => {
+          window.localStorage.setItem(
+            'vpg_auth_mock',
+            JSON.stringify({
+              user: { id: args.userId, email: `${args.role}@test.com` },
+              profile: {
+                id: args.userId,
+                name: `Usuário ${args.role.toUpperCase()}`,
+                role: args.globalRole,
+              },
+              members: args.demoMembers,
+            }),
+          );
+        },
+        { userId, role, globalRole, demoMembers },
+      );
     };
 
-    await use(fn);
+    await provide(fn);
   },
 
-  resetStorage: async ({ page }, use) => {
+  resetStorage: async ({ page }, provide) => {
     const fn = async () => {
       await clearLocalStorage(page);
     };
-    await use(fn);
+    await provide(fn);
   },
 });
 

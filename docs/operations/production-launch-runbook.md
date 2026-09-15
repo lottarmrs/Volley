@@ -1,5 +1,13 @@
 # Runbook — colocar o app em uso oficial
 
+> Status: `CURRENT-OPERATIONAL / TRILHA-A`
+>
+> Owner: `Platform Operations`
+>
+> Last reviewed: `2026-09-15`
+>
+> Governing target: [`N2.21-operations-deploy.md`](../architecture/operations/N2.21-operations-deploy.md)
+
 > Escrito em **2026-09-10**. Trilha A: colocar em produção o app que já existe e funciona, sem
 > depender de terminar o programa C6 — que é uma refundação construída ao lado e hoje sustenta uma
 > única funcionalidade viva. Ver [mapa de alcançabilidade](../architecture/execution/C6-REACHABILITY-MAP.md).

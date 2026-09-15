@@ -43,13 +43,22 @@ export async function seedLocalStorage(page: Page, options: SeedDataOptions = {}
       window.localStorage.setItem('vpg_championship_teams', JSON.stringify(data.championshipTeams));
     }
     if (data.championshipRounds) {
-      window.localStorage.setItem('vpg_championship_rounds', JSON.stringify(data.championshipRounds));
+      window.localStorage.setItem(
+        'vpg_championship_rounds',
+        JSON.stringify(data.championshipRounds),
+      );
     }
     if (data.championshipRequests) {
-      window.localStorage.setItem('vpg_championship_requests', JSON.stringify(data.championshipRequests));
+      window.localStorage.setItem(
+        'vpg_championship_requests',
+        JSON.stringify(data.championshipRequests),
+      );
     }
     if (data.activeCommunityId) {
-      window.localStorage.setItem('vpg_active_community_id', JSON.stringify(data.activeCommunityId));
+      window.localStorage.setItem(
+        'vpg_active_community_id',
+        JSON.stringify(data.activeCommunityId),
+      );
     }
   }, options);
 }

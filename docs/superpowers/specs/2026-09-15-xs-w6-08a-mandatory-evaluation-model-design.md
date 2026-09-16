@@ -32,9 +32,12 @@ the Community's owner.
 1. **Activate every Community** — the existing ones through the migration, new ones through a
    trigger. The server checks stay as they are and always pass. Removing the activation concept is
    out of scope.
-2. **`ORGANIZER` for owner, admin, moderator and organizador.** Moderator is included so the server
-   matches `canCreateSession`, which already allows moderators; leaving them out would remove a
-   permission they have today.
+2. **`ORGANIZER` for owner, admin, moderator and organizador** in legacy Communities. Those are
+   exactly the legacy roles `community_role_capabilities` grants `manage_sessions`, and the roles
+   `canCreateSession` already allows, so the mirror translates a permission the legacy role already
+   carries instead of inventing one. Target-model Communities keep `GINV-CAP-002` — a governance
+   rank never confers an operational capability there — and no Community in production or created
+   by the app is target-model.
 3. **Only those roles create Community Sessions.** The app says so before creating the draft,
    instead of letting a member's Session loop on `42501` in every sync.
 
@@ -73,6 +76,13 @@ entering the set, the revocation on leaving it while still active, and the full 
 `project_legacy_community_membership` when the membership ends. An ownership transfer moves the old
 owner to admin, which stays inside the set, so nothing is revoked.
 
+The role list is the default `manage_sessions` set of `community_role_capabilities`.
+`community_role_capability_overrides` can remove a capability per Community; production has no
+override rows, and honoring them is out of scope.
+
+`app_private.community_membership_drift()` is redefined so `MISSING_ORGANIZER` covers the same four
+roles instead of `organizador` alone; every other branch is unchanged.
+
 ### Backfill
 
 ```sql
@@ -91,8 +101,9 @@ In production this grants 7 responsibilities (6 owners, 1 admin).
 
 ### Out of scope
 
-Communities with `authority_model = 'target'` are not mirrored, so a role change there grants
-nothing. None exists in production.
+Communities with `authority_model = 'target'` — created only by `create_community_with_owner`, which
+the app does not call — are not mirrored and gain no `ORGANIZER` from rank. That is `GINV-CAP-002`
+working as designed, not a gap; `governanceCapabilities.dbtest.ts` pins it and stays unchanged.
 
 ## Part 2 — App
 
@@ -142,23 +153,30 @@ is W14.
 - a Community inserted directly into `public.communities` is activated;
 - a Community that existed before the migration is activated — asserted by rebuilding with the
   migration excluded, creating a Community, then applying the migration file;
-- the owner holds an effective `ORGANIZER` right after `create_community_with_owner`;
+- in a legacy Community (row in `public.communities` plus an active `owner` row in
+  `community_members`), the owner holds an effective `ORGANIZER` as soon as the owner row exists;
 - promoting a member to admin, to moderator and to organizador grants `ORGANIZER`; demoting to member
   revokes it; an ownership transfer keeps both parties' `ORGANIZER`;
+- `community_membership_drift()` reports `MISSING_ORGANIZER` for an admin whose responsibility was
+  revoked by hand, and nothing after the backfill;
 - the backfill grants `ORGANIZER` to an admin who existed before the migration;
-- the owner can `create_target_session` for the Community; a plain member gets `42501`.
+- the legacy owner can `create_target_session` for the Community; a plain member gets `42501`;
+- a target Community from `create_community_with_owner` stays without rank-derived `ORGANIZER`.
 
-Suites that assert behavior of a Community that is **not** activated get a fixture helper that
-deletes the Community's row from `app_private.community_evaluation_cutovers` with the superuser
-client before the assertion: `communityEvaluationEditor`, `balanceInputSnapshots`,
-`playerEvaluationContributions`, `playerAccountLink`, `sessionRosterRevisions`,
-`targetSessionCurrentRosterRevision`. Suites asserting that an owner or admin lacks
-`session.manage` are updated to the new rule: `playerEvaluationContributions` (owner holds
-`session.manage` now), `governanceCapabilities` (per-role capability lists gain `session.manage` for
-owner, admin and moderator) and `sessionTargetRoot` (an owner without an explicit grant can now create
-a COMMUNITY target Session; the refusal case moves to a plain member). Suites that grant `ORGANIZER`
-explicitly keep working, since the grant is `on conflict do update`. The full suite run identifies any
-other expectation the new rule changes.
+Existing suites that change:
+
+- `communityEvaluationEditor.dbtest.ts` and `balanceInputSnapshots.dbtest.ts` create Communities
+  and rely on them starting **not** activated; every test that needs activation already activates
+  explicitly. Their Community fixture (`context()` and `newCommunity()`) deletes the new row from
+  `app_private.community_evaluation_cutovers` right after creating the Community, restoring the
+  starting state those tests were written against.
+- `communityMembershipMirror.dbtest.ts`, test "a moderator mirrors as member, never above it": the
+  moderator's governance projection is still `member`, but the responsibilities now equal
+  `['ORGANIZER']`.
+
+`governanceCapabilities`, `playerEvaluationContributions` and `sessionTargetRoot` build target or
+unmirrored Communities and stay unchanged. The full `npm run test:db` run is the check that nothing
+else depended on a Community starting unactivated.
 
 ### UI
 
@@ -185,5 +203,7 @@ other expectation the new rule changes.
 
 - **Activation is irreversible** on the server. After the migration runs in production, legacy
   evaluation writes are refused for every Community.
-- **Target-model Communities** do not get `ORGANIZER` from role changes.
+- **Target-model Communities** do not get `ORGANIZER` from rank (`GINV-CAP-002`).
+- **Capability overrides** that remove `manage_sessions` from a role in one Community are not
+  honored by the mirror.
 - Applying the migration to Panelinha waits for explicit user approval.

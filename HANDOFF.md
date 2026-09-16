@@ -26,9 +26,10 @@
 >
 > **2026-09-16:** por direção do usuário, o modelo de avaliação novo passou a ser obrigatório. A
 > XS-W6-08a foi publicada em `main` (`81b43d7`) e a migration `mandatory_evaluation_model` foi
-> aplicada no Panelinha: as 6 comunidades estão ativadas e donos e admins têm `ORGANIZER`. Próximas:
-> XS-W6-08b (importar atributos como avaliação inicial) e XS-W6-08c (wizard sorteia pelo snapshot
-> autorizado). O domínio de produção agora é `panelinhahub.vercel.app`.
+> aplicada no Panelinha: as 6 comunidades estão ativadas e donos e admins têm `ORGANIZER`. A
+> XS-W6-08b (importar atributos) foi **cancelada**: os atributos de produção são padrões de criação em
+> lote, não avaliações. Próxima: XS-W6-08c (wizard sorteia pelo snapshot autorizado). O domínio de
+> produção agora é `panelinhahub.vercel.app`.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -181,8 +182,8 @@ Operação que vale saber:
 
 Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`. Publicada em `main` do
 GitHub em 2026-09-16 por fast-forward de `8f87288` para `81b43d7`: CI verde (run `35100374572`) e deploy
-de produção `READY`. Primeira de três fatias (08a obrigatoriedade, 08b importação de atributos, 08c sorteio pelo
-snapshot autorizado). Ver a
+de produção `READY`. Primeira de três fatias planejadas (08a obrigatoriedade, 08b importação de
+atributos — cancelada, ver abaixo —, 08c sorteio pelo snapshot autorizado). Ver a
 [spec](docs/superpowers/specs/2026-09-15-xs-w6-08a-mandatory-evaluation-model-design.md) e o
 [plano](docs/superpowers/plans/2026-09-16-xs-w6-08a-mandatory-evaluation-model.md).
 
@@ -209,8 +210,17 @@ linha de base. A ativação é irreversível: escrita legada de avaliação é r
 
 O `main` local em `C:\Volley` ficou em `8f87288`: havia trabalho sem commit de outra sessão em
 `src/hooks/useCommunityMembers.ts`, que este `main` também muda, então atualizar lá exige merge desse
-arquivo. Até a XS-W6-08b, todo atleta entra no snapshot como estimado (nota 5); o wizard ainda sorteia
-pelos atributos locais até a XS-W6-08c.
+arquivo.
+
+**XS-W6-08b cancelada em 2026-09-16, por decisão do usuário.** A fatia importaria `players.attributes`
+como avaliação inicial. A leitura de produção mostrou que não há o que importar: dos 41 atletas vivos,
+34 têm atributos e todos são padrões de criação em lote — 24 criados em 2026-08-21 com 3 em todas as
+dimensões (conjunto de chaves antigo, com `presencaDeRede` e sem `velocidade`/`controleEmocional`) e
+10 criados em 2026-08-20 com 5 em todas (`MID_SCALE`). Nenhum tem conta nem valor variado. Importar
+gravaria notas que ninguém deu, com peso de avaliador na média de quem avaliar depois. As notas do
+modelo novo começam vazias e vêm do editor de avaliação; até lá o snapshot autorizado sai com todos
+estimados, o mesmo resultado que a importação daria. O wizard ainda sorteia pelos atributos locais até
+a XS-W6-08c.
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 

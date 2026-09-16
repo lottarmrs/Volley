@@ -5,7 +5,9 @@ Make the versioned evaluation model mandatory for every Community, and give the 
 real team draw consume the authorized snapshot:
 
 1. **XS-W6-08a** (this slice) — every Community activated; `ORGANIZER` by role.
-2. **XS-W6-08b** — import each player's current attributes as an initial evaluation.
+2. **XS-W6-08b** — import each player's current attributes as an initial evaluation. **Cancelled on
+   2026-09-16:** production attributes are bulk creation defaults (3 or 5 in every dimension), not
+   evaluations.
 3. **XS-W6-08c** — the wizard draws from the authorized snapshot
    ([draft spec](2026-09-15-xs-w6-08-authorized-team-formation-design.md), rewritten when its turn
    comes).

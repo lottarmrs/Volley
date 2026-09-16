@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FC } from 'react';
 import type { CommunityEvaluationCommand, CommunityEvaluationEditorContext } from '@shared/types';
 import {
-  activateCommunityEvaluation,
   loadCommunityEvaluationEditor,
   parseScores,
   setCommunityEvaluator,
@@ -34,7 +33,6 @@ const Editor: FC<{
   const [pending, setPending] = useState<CommunityEvaluationCommand | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<AppError>();
-  const [managerAcknowledged, setManagerAcknowledged] = useState(false);
   const [selectedEvaluator, setSelectedEvaluator] = useState('');
   const [reload, setReload] = useState(0);
   const [loadedKey, setLoadedKey] = useState('');
@@ -52,7 +50,6 @@ const Editor: FC<{
       setError(undefined);
       setMessage('');
       setSelectedEvaluator('');
-      setManagerAcknowledged(false);
       if (result.ok) {
         setContext(result.value);
         setLoadedKey(requestKey);
@@ -125,7 +122,7 @@ const Editor: FC<{
     );
   }
 
-  async function manage(action: () => ReturnType<typeof activateCommunityEvaluation>) {
+  async function manage(action: () => ReturnType<typeof setCommunityEvaluator>) {
     if (busy.current || pending) return;
     busy.current = true;
     setManaging(true);
@@ -137,66 +134,42 @@ const Editor: FC<{
     if (result.ok) setReload((value) => value + 1);
     else setError(result.error);
   }
-  const management = context.can_manage_evaluators && (
+  const management = context.can_manage_evaluators && context.authority_model === 'target' && (
     <fieldset disabled={managing || !!pending} className="space-y-3">
-      {context.authority_model === 'legacy' && (
-        <>
-          <label className="label gap-3">
-            <input
-              type="checkbox"
-              className="checkbox"
-              checked={managerAcknowledged}
-              onChange={(event) => setManagerAcknowledged(event.target.checked)}
-            />
-            <span>Confirmo que novas avaliações usarão o modelo experimental.</span>
-          </label>
-          <button
-            className="btn btn-outline btn-sm"
-            disabled={!managerAcknowledged || managing}
-            onClick={() => void manage(() => activateCommunityEvaluation(communityId))}
-          >
-            Ativar novo modelo
-          </button>
-        </>
-      )}
-      {context.authority_model === 'target' && (
-        <>
-          <label className="text-sm">
-            Avaliador
-            <select
-              aria-label="Avaliador"
-              className="select select-bordered select-sm w-full"
-              value={selectedEvaluator}
-              onChange={(event) => setSelectedEvaluator(event.target.value)}
-            >
-              <option value="">Selecione</option>
-              {context.members.map((member) => (
-                <option key={member.user_id} value={member.user_id}>
-                  {member.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            className="btn btn-outline btn-sm"
-            disabled={!selectedEvaluator || managing}
-            onClick={() =>
-              void manage(() =>
-                setCommunityEvaluator(
-                  communityId,
-                  selectedEvaluator,
-                  !context.members.find((member) => member.user_id === selectedEvaluator)
-                    ?.is_evaluator,
-                ),
-              )
-            }
-          >
-            {context.members.find((member) => member.user_id === selectedEvaluator)?.is_evaluator
-              ? 'Revogar avaliador'
-              : 'Autorizar avaliador'}
-          </button>
-        </>
-      )}
+      <label className="text-sm">
+        Avaliador
+        <select
+          aria-label="Avaliador"
+          className="select select-bordered select-sm w-full"
+          value={selectedEvaluator}
+          onChange={(event) => setSelectedEvaluator(event.target.value)}
+        >
+          <option value="">Selecione</option>
+          {context.members.map((member) => (
+            <option key={member.user_id} value={member.user_id}>
+              {member.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        className="btn btn-outline btn-sm"
+        disabled={!selectedEvaluator || managing}
+        onClick={() =>
+          void manage(() =>
+            setCommunityEvaluator(
+              communityId,
+              selectedEvaluator,
+              !context.members.find((member) => member.user_id === selectedEvaluator)
+                ?.is_evaluator,
+            ),
+          )
+        }
+      >
+        {context.members.find((member) => member.user_id === selectedEvaluator)?.is_evaluator
+          ? 'Revogar avaliador'
+          : 'Autorizar avaliador'}
+      </button>
     </fieldset>
   );
   const mismatch =

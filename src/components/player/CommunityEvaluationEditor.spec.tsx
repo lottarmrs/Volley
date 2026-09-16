@@ -4,7 +4,6 @@ import { CommunityEvaluationEditor } from './CommunityEvaluationEditor';
 import {
   loadCommunityEvaluationEditor,
   submitCommunityEvaluation,
-  activateCommunityEvaluation,
   setCommunityEvaluator,
 } from '@app/communityEvaluationUseCases';
 
@@ -12,7 +11,6 @@ vi.mock('@app/communityEvaluationUseCases', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@app/communityEvaluationUseCases')>()),
   loadCommunityEvaluationEditor: vi.fn(),
   submitCommunityEvaluation: vi.fn(),
-  activateCommunityEvaluation: vi.fn(),
   setCommunityEvaluator: vi.fn(),
 }));
 const context = {
@@ -32,7 +30,6 @@ describe('versioned Community evaluation editor', () => {
     vi.clearAllMocks();
     vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({ ok: true, value: context });
     vi.mocked(submitCommunityEvaluation).mockResolvedValue({ ok: true, value: undefined });
-    vi.mocked(activateCommunityEvaluation).mockResolvedValue({ ok: true, value: undefined });
     vi.mocked(setCommunityEvaluator).mockResolvedValue({ ok: true, value: undefined });
   });
 
@@ -99,7 +96,7 @@ describe('versioned Community evaluation editor', () => {
     await waitFor(() => expect(loadCommunityEvaluationEditor).toHaveBeenCalledTimes(2));
   });
 
-  it('requires separate acknowledgement and evaluator assignment for managers', async () => {
+  it('offers managers no activation and assigns evaluators in the target model', async () => {
     vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
       ok: true,
       value: {
@@ -110,11 +107,14 @@ describe('versioned Community evaluation editor', () => {
         members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
       },
     });
-    render(<CommunityEvaluationEditor {...props} />);
-    const activate = await screen.findByRole('button', { name: 'Ativar novo modelo' });
-    expect((activate as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.queryByLabelText('Saque')).toBeNull();
-    fireEvent.click(screen.getByRole('checkbox'));
+    const legacy = render(<CommunityEvaluationEditor {...props} />);
+    expect(
+      await screen.findByText('Este modelo ainda não foi ativado nesta comunidade.'),
+    ).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Ativar novo modelo' })).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    legacy.unmount();
+
     vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
       ok: true,
       value: {
@@ -124,10 +124,7 @@ describe('versioned Community evaluation editor', () => {
         members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
       },
     });
-    fireEvent.click(activate);
-    await waitFor(() => expect(activateCommunityEvaluation).toHaveBeenCalledWith('community'));
-    expect(setCommunityEvaluator).not.toHaveBeenCalled();
-    await waitFor(() => expect(loadCommunityEvaluationEditor).toHaveBeenCalledTimes(2));
+    render(<CommunityEvaluationEditor {...props} />);
     fireEvent.change(await screen.findByLabelText('Avaliador'), { target: { value: 'member' } });
     fireEvent.click(screen.getByRole('button', { name: 'Autorizar avaliador' }));
     await waitFor(() =>
@@ -261,8 +258,8 @@ describe('versioned Community evaluation editor', () => {
   it.each(['community', 'account', 'unmount'])(
     'ignores late management success after %s change',
     async (change) => {
-      let finish!: (value: Awaited<ReturnType<typeof activateCommunityEvaluation>>) => void;
-      vi.mocked(activateCommunityEvaluation).mockReturnValueOnce(
+      let finish!: (value: Awaited<ReturnType<typeof setCommunityEvaluator>>) => void;
+      vi.mocked(setCommunityEvaluator).mockReturnValueOnce(
         new Promise((resolve) => {
           finish = resolve;
         }),
@@ -271,14 +268,16 @@ describe('versioned Community evaluation editor', () => {
         ok: true,
         value: {
           ...context,
-          authority_model: 'legacy',
           can_evaluate: false,
           can_manage_evaluators: true,
+          members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
         },
       });
       const view = render(<CommunityEvaluationEditor {...props} currentUserId="a" />);
-      fireEvent.click(await screen.findByRole('checkbox'));
-      fireEvent.click(screen.getByRole('button', { name: 'Ativar novo modelo' }));
+      fireEvent.change(await screen.findByLabelText('Avaliador'), {
+        target: { value: 'member' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Autorizar avaliador' }));
       if (change === 'unmount') view.unmount();
       else {
         view.rerender(
@@ -288,7 +287,7 @@ describe('versioned Community evaluation editor', () => {
             currentUserId={change === 'account' ? 'b' : 'a'}
           />,
         );
-        await screen.findByRole('checkbox');
+        await screen.findByLabelText('Avaliador');
       }
       const loads = vi.mocked(loadCommunityEvaluationEditor).mock.calls.length;
       await act(async () => finish({ ok: true, value: undefined }));

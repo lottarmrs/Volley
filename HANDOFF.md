@@ -52,29 +52,30 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia    | Assunto                                                 | Estado    |
-| -------- | ------------------------------------------------------- | --------- |
-| XS-W3-01 | Session target root                                     | concluída |
-| XS-W3-02 | Session organizer assignment                            | concluída |
-| XS-W3-03 | Session courts                                          | concluída |
-| XS-W3-04 | Session rules snapshot                                  | concluída |
-| XS-W3-05 | SessionParticipant + RosterRevision                     | concluída |
-| XS-W3-06 | Lifecycle/readiness semantic commands                   | concluída |
-| XS-W3-07 | Session cohort cutover                                  | concluída |
-| XS-W4-01 | Registration schema e invariantes                       | concluída |
-| XS-W4-02 | Open/Close/Lock Registration                            | concluída |
-| XS-W4-03 | JoinRegistration                                        | concluída |
-| XS-W4-04 | Leave / promoção / capacidade                           | concluída |
-| XS-W4-05 | FinalizeSessionRoster                                   | concluída |
-| XS-W4-06 | Legacy Session Registration introduction                | concluída |
-| XS-W5-01 | Versioned PlayerEvaluation source model                 | concluída |
-| XS-W5-02 | Skill rubric/dimension contract                         | concluída |
-| XS-W5-03 | CommunityPlayerSkillProfile + editor de avaliação       | concluída |
-| XS-W5-04 | GlobalPlayerSkillProfile interno sob demanda            | concluída |
-| XS-W6-01 | Snapshots imutáveis de entrada do balanceador           | concluída |
-| XS-W6-02 | Porta de formação de times / solver determinístico      | concluída |
-| XS-W3-08 | Session target alcançável pelo cliente (por sync)       | concluída |
-| XS-W3-09 | `ORGANIZER` pelo cargo Organizador (espelho de membros) | concluída |
+| Fatia     | Assunto                                                       | Estado              |
+| --------- | ------------------------------------------------------------- | ------------------- |
+| XS-W3-01  | Session target root                                           | concluída           |
+| XS-W3-02  | Session organizer assignment                                  | concluída           |
+| XS-W3-03  | Session courts                                                | concluída           |
+| XS-W3-04  | Session rules snapshot                                        | concluída           |
+| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída           |
+| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída           |
+| XS-W3-07  | Session cohort cutover                                        | concluída           |
+| XS-W4-01  | Registration schema e invariantes                             | concluída           |
+| XS-W4-02  | Open/Close/Lock Registration                                  | concluída           |
+| XS-W4-03  | JoinRegistration                                              | concluída           |
+| XS-W4-04  | Leave / promoção / capacidade                                 | concluída           |
+| XS-W4-05  | FinalizeSessionRoster                                         | concluída           |
+| XS-W4-06  | Legacy Session Registration introduction                      | concluída           |
+| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída           |
+| XS-W5-02  | Skill rubric/dimension contract                               | concluída           |
+| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída           |
+| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída           |
+| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída           |
+| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída           |
+| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída           |
+| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída           |
+| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída na branch |
 
 ### Compatibilização da nuvem e sync automático — 2026-09-14
 
@@ -166,6 +167,26 @@ Operação que vale saber:
 - Adicionar origem externa ao app (fonte, imagem, script, API) exige ampliar a CSP em `nginx.conf` e
   em `vercel.json` juntos; senão o navegador bloqueia em produção.
 - Criar conta de teste em produção fica com o usuário: agentes não criam contas.
+
+### O que a XS-W6-08a entregou — modelo de avaliação obrigatório
+
+Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`, ainda não integrada em
+`main`. Primeira de três fatias (08a obrigatoriedade, 08b importação de atributos, 08c sorteio pelo
+snapshot autorizado). Ver a
+[spec](docs/superpowers/specs/2026-09-15-xs-w6-08a-mandatory-evaluation-model-design.md) e o
+[plano](docs/superpowers/plans/2026-09-16-xs-w6-08a-mandatory-evaluation-model.md).
+
+- `20260915180000_mandatory_evaluation_model.sql`: ativa todas as comunidades e um gatilho ativa as
+  novas; o espelho concede `ORGANIZER` a dono, admin, moderador e organizador (os cargos legados com
+  `manage_sessions`) e revoga quando saem desse conjunto; o drift cobre os quatro; backfill.
+  Comunidades target seguem o `GINV-CAP-002`.
+- A rota do wizard espera os membros serem lidos e, para membro comum, mostra "Só dono, admin,
+  moderador ou Organizador criam sessões nesta comunidade." sem criar rascunho.
+- O editor de avaliação perdeu a confirmação do modelo experimental e o botão de ativar.
+
+**Não aplicado em produção.** A ativação é irreversível e recusa escrita legada de avaliação; aplicar
+no Panelinha espera o ok do usuário. Overrides de capacidade por comunidade não são respeitados pelo
+espelho (produção tem 0).
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 

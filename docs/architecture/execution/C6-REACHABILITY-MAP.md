@@ -180,8 +180,11 @@ XS-W3-09:
    `community_responsibilities` vêm de um backfill único na migration `20260827150000`.
    `set_community_member_role` não grava responsabilidade. — **Derrubada no app para o cargo
    Organizador** pela XS-W3-09 (integrada em 2026-09-14): o trigger que espelha `community_members`
-   concede `ORGANIZER` a quem recebe o cargo pelo painel. Continua de pé para dono e admin, que o N2.03
-   não trata como organizadores; `set_community_organizer` segue sem chamador.
+   concede `ORGANIZER` a quem recebe o cargo pelo painel. **Derrubada também para dono, admin e
+   moderador** pela XS-W6-08a, em comunidades legadas: o espelho traduz o `manage_sessions` que esses
+   cargos já têm. Continua de pé em comunidades target (`GINV-CAP-002`), que o app não cria;
+   `set_community_organizer` segue sem chamador. A mesma fatia ativa o modelo de avaliação em toda
+   comunidade, então a ativação deixa de ser parede para captura e editor.
 
 ## O que isto significa para o produto
 

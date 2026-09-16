@@ -23,6 +23,12 @@
 > de Google só aparecem com o provedor ativo, achados do advisor do Supabase fechados, e rotas diretas e
 > cabeçalhos de segurança passam a funcionar na Vercel (`vercel.json`, `0cb57f9`). Ver "Correções de
 > produção — 2026-09-15" antes da seção da XS-W3-08.
+>
+> **2026-09-16:** por direção do usuário, o modelo de avaliação novo passou a ser obrigatório. A
+> XS-W6-08a foi publicada em `main` (`81b43d7`) e a migration `mandatory_evaluation_model` foi
+> aplicada no Panelinha: as 6 comunidades estão ativadas e donos e admins têm `ORGANIZER`. Próximas:
+> XS-W6-08b (importar atributos como avaliação inicial) e XS-W6-08c (wizard sorteia pelo snapshot
+> autorizado). O domínio de produção agora é `panelinhahub.vercel.app`.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -52,30 +58,30 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia     | Assunto                                                       | Estado              |
-| --------- | ------------------------------------------------------------- | ------------------- |
-| XS-W3-01  | Session target root                                           | concluída           |
-| XS-W3-02  | Session organizer assignment                                  | concluída           |
-| XS-W3-03  | Session courts                                                | concluída           |
-| XS-W3-04  | Session rules snapshot                                        | concluída           |
-| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída           |
-| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída           |
-| XS-W3-07  | Session cohort cutover                                        | concluída           |
-| XS-W4-01  | Registration schema e invariantes                             | concluída           |
-| XS-W4-02  | Open/Close/Lock Registration                                  | concluída           |
-| XS-W4-03  | JoinRegistration                                              | concluída           |
-| XS-W4-04  | Leave / promoção / capacidade                                 | concluída           |
-| XS-W4-05  | FinalizeSessionRoster                                         | concluída           |
-| XS-W4-06  | Legacy Session Registration introduction                      | concluída           |
-| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída           |
-| XS-W5-02  | Skill rubric/dimension contract                               | concluída           |
-| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída           |
-| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída           |
-| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída           |
-| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída           |
-| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída           |
-| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída           |
-| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída na branch |
+| Fatia     | Assunto                                                       | Estado    |
+| --------- | ------------------------------------------------------------- | --------- |
+| XS-W3-01  | Session target root                                           | concluída |
+| XS-W3-02  | Session organizer assignment                                  | concluída |
+| XS-W3-03  | Session courts                                                | concluída |
+| XS-W3-04  | Session rules snapshot                                        | concluída |
+| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída |
+| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída |
+| XS-W3-07  | Session cohort cutover                                        | concluída |
+| XS-W4-01  | Registration schema e invariantes                             | concluída |
+| XS-W4-02  | Open/Close/Lock Registration                                  | concluída |
+| XS-W4-03  | JoinRegistration                                              | concluída |
+| XS-W4-04  | Leave / promoção / capacidade                                 | concluída |
+| XS-W4-05  | FinalizeSessionRoster                                         | concluída |
+| XS-W4-06  | Legacy Session Registration introduction                      | concluída |
+| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída |
+| XS-W5-02  | Skill rubric/dimension contract                               | concluída |
+| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída |
+| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída |
+| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída |
+| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída |
+| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída |
+| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída |
+| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída |
 
 ### Compatibilização da nuvem e sync automático — 2026-09-14
 
@@ -167,11 +173,15 @@ Operação que vale saber:
 - Adicionar origem externa ao app (fonte, imagem, script, API) exige ampliar a CSP em `nginx.conf` e
   em `vercel.json` juntos; senão o navegador bloqueia em produção.
 - Criar conta de teste em produção fica com o usuário: agentes não criam contas.
+- Desde 2026-09-16 a produção responde em `panelinhahub.vercel.app`; `volley-six.vercel.app` devolve
+  `DEPLOYMENT_NOT_FOUND`. As Redirect URLs do Supabase precisam do domínio novo para o link de
+  confirmação do cadastro.
 
 ### O que a XS-W6-08a entregou — modelo de avaliação obrigatório
 
-Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`, ainda não integrada em
-`main`. Primeira de três fatias (08a obrigatoriedade, 08b importação de atributos, 08c sorteio pelo
+Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`. Publicada em `main` do
+GitHub em 2026-09-16 por fast-forward de `8f87288` para `81b43d7`: CI verde (run `35100374572`) e deploy
+de produção `READY`. Primeira de três fatias (08a obrigatoriedade, 08b importação de atributos, 08c sorteio pelo
 snapshot autorizado). Ver a
 [spec](docs/superpowers/specs/2026-09-15-xs-w6-08a-mandatory-evaluation-model-design.md) e o
 [plano](docs/superpowers/plans/2026-09-16-xs-w6-08a-mandatory-evaluation-model.md).
@@ -184,9 +194,23 @@ snapshot autorizado). Ver a
   moderador ou Organizador criam sessões nesta comunidade." sem criar rascunho.
 - O editor de avaliação perdeu a confirmação do modelo experimental e o botão de ativar.
 
-**Não aplicado em produção.** A ativação é irreversível e recusa escrita legada de avaliação; aplicar
-no Panelinha espera o ok do usuário. Overrides de capacidade por comunidade não são respeitados pelo
-espelho (produção tem 0).
+Evidência antes do merge: `npm run test:db` **702/702** (a primeira rodada deu 700/702 e revelou dois
+fixtures que dependiam do modelo antigo: `globalSkillProfile` passou a remover a ativação, e
+`governanceCapabilities` passou a criar comunidade target, onde o `GINV-CAP-002` vale), `npm test`
+1002 unitários + 308 de UI, typecheck, ESLint, Prettier, `check:architecture` e build.
+
+**Aplicada no Panelinha em 2026-09-16**, por pedido explícito do usuário, como
+`mandatory_evaluation_model`. Antes: 0 comunidades ativadas, 0 `ORGANIZER`, drift vazio. Depois: 6/6
+ativadas, `ORGANIZER` para 6 donos e 1 admin, drift vazio com a regra nova, gatilho criado, nenhuma
+das funções novas executável por `anon` ou `authenticated`. O advisor de segurança ficou igual à
+linha de base. A ativação é irreversível: escrita legada de avaliação é recusada em toda comunidade
+(não havia nenhuma). Overrides de capacidade por comunidade não são respeitados pelo espelho
+(produção tem 0).
+
+O `main` local em `C:\Volley` ficou em `8f87288`: havia trabalho sem commit de outra sessão em
+`src/hooks/useCommunityMembers.ts`, que este `main` também muda, então atualizar lá exige merge desse
+arquivo. Até a XS-W6-08b, todo atleta entra no snapshot como estimado (nota 5); o wizard ainda sorteia
+pelos atributos locais até a XS-W6-08c.
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 

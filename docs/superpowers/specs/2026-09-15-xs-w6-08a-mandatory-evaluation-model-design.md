@@ -180,8 +180,10 @@ else depended on a Community starting unactivated.
 
 ### UI
 
-- `SessionWizardRoute`: a member with resolved members sees the blocked view and no draft is
-  created; an owner bootstraps the draft; unresolved members neither block nor bootstrap.
+- Session creation guard: the decision lives in a pure `resolveSessionCreationAccess` (`pending`
+  while members are unresolved, `blocked` without `canCreateSession`, `allowed` otherwise) with a
+  unit test, and the blocked view is a small `SessionCreationBlocked` component with its own spec.
+  `SessionWizardRoute` only wires them, because rendering the route needs the whole shell.
 - `CommunityEvaluationEditor.spec.tsx`: the activation test is replaced by one asserting the
   management block no longer offers activation.
 - `useCommunityPermissions`: `membersResolved` false while loading, true after the list arrives and

@@ -103,7 +103,7 @@ In production this grants 7 responsibilities (6 owners, 1 admin).
 
 Communities with `authority_model = 'target'` — created only by `create_community_with_owner`, which
 the app does not call — are not mirrored and gain no `ORGANIZER` from rank. That is `GINV-CAP-002`
-working as designed, not a gap; `governanceCapabilities.dbtest.ts` pins it and stays unchanged.
+working as designed, not a gap; `governanceCapabilities.dbtest.ts` pins it on a target Community.
 
 ## Part 2 — App
 
@@ -174,9 +174,17 @@ Existing suites that change:
   moderator's governance projection is still `member`, but the responsibilities now equal
   `['ORGANIZER']`.
 
-`governanceCapabilities`, `playerEvaluationContributions` and `sessionTargetRoot` build target or
-unmirrored Communities and stay unchanged. The full `npm run test:db` run is the check that nothing
-else depended on a Community starting unactivated.
+Found by the first full `npm run test:db` run (700/702), corrected during execution:
+
+- `globalSkillProfile.dbtest.ts` writes a legacy evaluation into a Community it creates with
+  `create_community_with_owner`, so it also relied on starting unactivated; its `community()`
+  fixture deletes the activation like the editor and snapshot fixtures.
+- `governanceCapabilities.dbtest.ts` proved `GINV-CAP-002` on a Community inserted straight into
+  `public.communities`, which is a **legacy** Community whose owner the mirror now gives
+  `ORGANIZER`. By user decision its `newCommunity()` fixture creates the Community with
+  `authority_model = 'target'`, the model where the invariant holds; every assertion is unchanged.
+
+`playerEvaluationContributions` and `sessionTargetRoot` build target Communities and stay unchanged.
 
 ### UI
 

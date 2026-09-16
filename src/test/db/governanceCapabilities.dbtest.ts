@@ -55,7 +55,7 @@ if (!isTestDatabaseConfigured()) {
 
   async function newCommunity(name: string, ownerId: string): Promise<string> {
     const { rows } = await client.query<{ id: string }>(
-      'insert into public.communities (name, owner_id) values ($1, $2) returning id',
+      "insert into public.communities (name, owner_id, authority_model) values ($1, $2, 'target') returning id",
       [name, ownerId],
     );
     // GINV-COM-001, enforced from XS-W2-04 onward by a deferred constraint trigger: a

@@ -78,6 +78,10 @@ if (!isTestDatabaseConfigured()) {
     const { rows } = await asIdentityCommitting(client, ownerId, () =>
       client.query<{ id: string }>('select public.create_community_with_owner($1) as id', [name]),
     );
+    await client.query(
+      'delete from app_private.community_evaluation_cutovers where community_id = $1',
+      [rows[0].id],
+    );
     return rows[0].id;
   }
 

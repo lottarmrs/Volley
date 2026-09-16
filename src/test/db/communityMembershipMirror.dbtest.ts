@@ -215,14 +215,14 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(await drift(community), []);
   });
 
-  test('a moderator mirrors as member, never above it', async () => {
+  test('a moderator mirrors as member on governance and holds ORGANIZER from manage_sessions', async () => {
     const c = await panelContext();
     await setRole(c.owner.id, c.community, c.member.id, 'moderator');
     assert.deepEqual(await membership(c.community, c.member.id), {
       role: 'member',
       status: 'active',
     });
-    assert.deepEqual(await activeResponsibilities(c.community, c.member.id), []);
+    assert.deepEqual(await activeResponsibilities(c.community, c.member.id), ['ORGANIZER']);
   });
 
   test('an ORGANIZER granted by set_community_organizer survives member -> admin', async () => {

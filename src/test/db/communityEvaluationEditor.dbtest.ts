@@ -49,6 +49,10 @@ if (!isTestDatabaseConfigured()) {
       ]),
     );
     const community = rows[0].id;
+    await client.query(
+      'delete from app_private.community_evaluation_cutovers where community_id = $1',
+      [community],
+    );
     const member = await user('Evaluator');
     await client.query(
       "insert into public.community_memberships (community_id,user_id,role,status) values ($1,$2,'member','active')",

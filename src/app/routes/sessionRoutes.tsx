@@ -10,9 +10,12 @@ import {
 import { buildHistoryViewContract } from '@app/screens/historyView/historyViewContract';
 import { buildSessionWizardContract } from '@app/screens/sessionWizard/sessionWizardContract';
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
+import { resolveSessionCreationAccess } from '@app/sessionCreationAccess';
 import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionLifecycleUseCases';
 import { getCommunitySessions } from '@logic/community';
 import { generateUUID } from '@logic/uuid';
+import { SessionCreationBlocked } from '../../components/session/SessionCreationBlocked';
+import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { useCommunityShell } from '../shellContext';
 
 const HistoryView = lazy(() =>
@@ -97,8 +100,14 @@ export function CommunitySessionDetailRoute() {
 
 export function SessionWizardRoute() {
   const shell = useCommunityShell();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { community, sess, play, comm, wizard } = shell;
+  const permissions = useCommunityPermissions(community);
+  const access = resolveSessionCreationAccess({
+    membersResolved: permissions.membersResolved,
+    canCreateSession: permissions.canCreateSession,
+  });
   const type = searchParams.get('tipo') === 'torneio' ? 'tournament' : undefined;
   const resolution = resolveWizardRoute({
     communityId: community.id,
@@ -111,6 +120,7 @@ export function SessionWizardRoute() {
 
   useEffect(() => {
     if (bootstrapped.current) return;
+    if (access !== 'allowed') return;
     if (resolution.kind === 'create') {
       bootstrapped.current = true;
       const result = buildManualSessionStartResult({
@@ -130,9 +140,12 @@ export function SessionWizardRoute() {
       setBootstrapDone(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolution.kind, community.id, type]);
+  }, [resolution.kind, community.id, type, access]);
 
   if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
+  if (access === 'blocked' && !bootstrapDone) {
+    return <SessionCreationBlocked onBack={() => navigate(paths.comunidade(community.id))} />;
+  }
   if (!sess.activeSession) {
     if (!bootstrapDone) return null;
     return <Navigate to={paths.comunidade(community.id)} replace />;

@@ -47,12 +47,15 @@ export function useCommunityMembers({
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolved, setResolved] = useState(false);
 
   const reload = useCallback(async () => {
     if (!enabled || !communityCloudId) {
       setMembers([]);
+      setResolved(true);
       return;
     }
+    setResolved(false);
     setLoading(true);
     setError(null);
     try {
@@ -63,6 +66,7 @@ export function useCommunityMembers({
         return;
       }
       setMembers(result.value.members);
+      setResolved(true);
     } catch (e) {
       setError(messageOf(e, 'Não foi possível carregar os membros.'));
     } finally {
@@ -190,6 +194,7 @@ export function useCommunityMembers({
     activeMembers,
     pendingRequests,
     loading,
+    resolved,
     error,
     currentMember,
     canManage,

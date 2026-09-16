@@ -160,8 +160,7 @@ const Editor: FC<{
             setCommunityEvaluator(
               communityId,
               selectedEvaluator,
-              !context.members.find((member) => member.user_id === selectedEvaluator)
-                ?.is_evaluator,
+              !context.members.find((member) => member.user_id === selectedEvaluator)?.is_evaluator,
             ),
           )
         }

@@ -32,6 +32,7 @@ import {
 } from '../../logic/balancingCompatibility';
 import { buildRosterIntegrityIssues } from '../../application/sessionLifecycleUseCases';
 import { TournamentBracket } from '../tournament/TournamentBracket';
+import { SessionGenerationStatus } from './SessionGenerationStatus';
 import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
 import { SelectablePlayerCard } from './cards/SelectablePlayerCard';
@@ -60,6 +61,8 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     selectedDivisionIndex,
     isGenerating,
     generationProgress,
+    generationStage,
+    authorizedDraw,
     partnershipMatrix,
     stepLabels,
     positionLabels,
@@ -1712,33 +1715,11 @@ export function SessionWizard({ contract }: SessionWizardProps) {
             )}
 
             {isGenerating ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase text-text-muted tracking-widest flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 animate-pulse text-accent" /> Equilibrando os
-                    times…
-                  </p>
-                  <span className="text-[10px] font-mono font-bold text-accent">
-                    {generationProgress}%
-                  </span>
-                </div>
-                <progress
-                  className="progress progress-accent w-full"
-                  value={generationProgress}
-                  max={100}
-                />
-                <p className="text-[9px] text-text-muted/80 uppercase font-semibold leading-normal mt-1 p-3 bg-neutral/30 rounded-xl border border-base-300">
-                  ℹ️ Estamos testando milhares de combinações para achar o time mais equilibrado.
-                  Isso pode levar alguns segundos — quanto maior o grupo, um pouquinho mais.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => dispatch({ kind: 'cancelGeneration' })}
-                  className="btn btn-ghost btn-sm w-full text-xs"
-                >
-                  <X className="w-3.5 h-3.5" /> Cancelar
-                </button>
-              </div>
+              <SessionGenerationStatus
+                stage={generationStage}
+                progress={generationProgress}
+                onCancel={() => dispatch({ kind: 'cancelGeneration' })}
+              />
             ) : (
               <div className="flex gap-4">
                 <button
@@ -2114,15 +2095,39 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               </div>
             )}
 
-            {estimatedCount > 0 && (
-              <div className="space-y-2">
-                <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
-                    {estimatedCount} atleta(s) entraram com avaliação estimada pela média da turma.
-                  </span>
-                </div>
+            {validationErrors.generation && (
+              <div role="alert" className="alert alert-error alert-soft text-xs font-semibold">
+                {validationErrors.generation}
               </div>
+            )}
+
+            {authorizedDraw ? (
+              <div className="space-y-2">
+                <span className="badge badge-accent badge-soft text-xs font-semibold">
+                  Notas autorizadas da comunidade
+                </span>
+                {authorizedDraw.estimatedCount > 0 && (
+                  <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
+                      {authorizedDraw.estimatedCount} de {authorizedDraw.participantCount} atletas
+                      sem avaliação — sorteio com notas estimadas. Avalie pelo perfil do atleta.
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              estimatedCount > 0 && (
+                <div className="space-y-2">
+                  <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
+                      {estimatedCount} atleta(s) entraram com avaliação estimada pela média da
+                      turma.
+                    </span>
+                  </div>
+                </div>
+              )
             )}
 
             {currentDiv.diagnostics && (

@@ -1,4 +1,4 @@
-import type { Community, Division, Player, Session } from '@shared/types';
+import type { AuthorizedFormationStage, Community, Division, Player, Session } from '@shared/types';
 import type { PartnershipMatrix } from '@logic/partnershipHistory';
 import type { ScreenContract } from '../screenContract';
 import type { SessionWizardModel } from './sessionWizardModel';
@@ -13,6 +13,8 @@ export type SessionWizardHookApi = {
   setSelectedDivisionIndex: (i: number) => void;
   isGenerating: boolean;
   progress: number;
+  generationStage: AuthorizedFormationStage | null;
+  authorizedDraw: { estimatedCount: number; participantCount: number } | null;
   nextStep: () => void;
   prevStep: () => void;
   updateSession: (patch: Partial<Session>) => void;
@@ -52,6 +54,8 @@ function buildModel(input: SessionWizardContractInput): SessionWizardModel {
     selectedDivisionIndex: h.selectedDivisionIndex,
     isGenerating: h.isGenerating,
     generationProgress: h.progress,
+    generationStage: h.generationStage,
+    authorizedDraw: h.authorizedDraw,
     partnershipMatrix: h.partnershipMatrix,
     stepLabels: ['Sessão', 'Atletas', 'Formato', 'Regras', 'Revisão', 'Times', 'Tabela'],
     positionLabels: {

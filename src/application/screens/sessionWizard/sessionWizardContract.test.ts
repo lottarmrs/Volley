@@ -24,6 +24,8 @@ function makeHookApi(overrides: Partial<Record<keyof SessionWizardHookApi, unkno
     setSelectedDivisionIndex: noop,
     isGenerating: false,
     progress: 0,
+    generationStage: null,
+    authorizedDraw: null,
     nextStep: noop,
     prevStep: noop,
     updateSession: noop,
@@ -255,4 +257,17 @@ test('buildModel expõe stepLabels, positionLabels e positionOrder', () => {
   assert.equal(c.model.stepLabels.length, 7);
   assert.equal(c.model.positionOrder.length, 6);
   assert.equal(c.model.positionLabels['levantador'], 'Levantador');
+});
+
+test('o modelo expoe a etapa da cadeia e as contagens do sorteio autorizado', () => {
+  const c = buildSessionWizardContract(
+    makeInput(
+      makeHookApi({
+        generationStage: 'snapshot' as never,
+        authorizedDraw: { estimatedCount: 3, participantCount: 8 } as never,
+      }),
+    ),
+  );
+  assert.equal(c.model.generationStage, 'snapshot');
+  assert.deepEqual(c.model.authorizedDraw, { estimatedCount: 3, participantCount: 8 });
 });

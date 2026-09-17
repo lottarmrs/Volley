@@ -6,5 +6,6 @@ export interface AuthorizedFormationProgress {
   readonly finalizedPlayerCloudIds?: readonly string[];
   readonly snapshotId?: string;
   readonly snapshotRosterRevisionId?: string;
+  readonly publishedCandidateSetId?: string;
   readonly pendingCommandIds: Readonly<Record<string, string>>;
 }

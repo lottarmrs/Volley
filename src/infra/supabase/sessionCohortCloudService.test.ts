@@ -103,3 +103,55 @@ test('inspection adapter rejects RPC arrays that are not one-row responses', asy
 
   await assert.rejects(service.inspect('session-4'), /Invalid Session cutover inspection response/);
 });
+
+test('roster revision read maps entries and sends only the revision id', async () => {
+  const calls: unknown[] = [];
+  const service = createSessionCohortCloudService({
+    rpc: async (name, args) => {
+      calls.push([name, args]);
+      return {
+        data: [
+          {
+            roster_revision_id: 'r-1',
+            session_id: 's-1',
+            entries: [
+              {
+                participant_id: 'pa',
+                identity_kind: 'PLAYER',
+                player_id: 'p-1',
+                display_name_at_time: 'Ana',
+              },
+              {
+                participant_id: 'pb',
+                identity_kind: 'GUEST',
+                player_id: null,
+                display_name_at_time: 'Bia',
+              },
+            ],
+          },
+        ],
+        error: null,
+      };
+    },
+  });
+
+  assert.deepEqual(await service.readRosterRevision('r-1'), {
+    rosterRevisionId: 'r-1',
+    sessionId: 's-1',
+    entries: [
+      { participantId: 'pa', identityKind: 'PLAYER', playerId: 'p-1' },
+      { participantId: 'pb', identityKind: 'GUEST', playerId: null },
+    ],
+  });
+  assert.deepEqual(calls, [['read_target_roster_revision', { p_roster_revision_id: 'r-1' }]]);
+});
+
+test('roster revision read rejects malformed entries', async () => {
+  const service = createSessionCohortCloudService({
+    rpc: async () => ({
+      data: [{ roster_revision_id: 'r', session_id: 's', entries: [{ participant_id: 1 }] }],
+      error: null,
+    }),
+  });
+  await assert.rejects(service.readRosterRevision('r'), /Invalid target roster revision response/);
+});

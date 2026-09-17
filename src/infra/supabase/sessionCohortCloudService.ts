@@ -6,6 +6,11 @@ import type {
   SessionCutoverInspection,
   TargetSessionRead,
 } from '@app/sessionCohortCutover';
+import type {
+  RosterRevisionEntryRead,
+  RosterRevisionRead,
+  SessionCohortRosterGateway,
+} from '@app/authorizedFormationGateways';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 
 export interface RpcClient {
@@ -89,6 +94,36 @@ function targetSessionFromResponse(data: unknown): TargetSessionRead {
   };
 }
 
+function rosterRevisionFromResponse(data: unknown): RosterRevisionRead {
+  const invalid = () => new Error('Invalid target roster revision response');
+  const row = Array.isArray(data) ? (data.length === 1 ? data[0] : undefined) : data;
+  if (!row || typeof row !== 'object' || Array.isArray(row)) throw invalid();
+  const value = row as Record<string, unknown>;
+  if (
+    typeof value.roster_revision_id !== 'string' ||
+    typeof value.session_id !== 'string' ||
+    !Array.isArray(value.entries)
+  ) {
+    throw invalid();
+  }
+  const entries: RosterRevisionEntryRead[] = value.entries.map((raw) => {
+    const entry = raw as Record<string, unknown>;
+    if (
+      typeof entry.participant_id !== 'string' ||
+      (entry.identity_kind !== 'PLAYER' && entry.identity_kind !== 'GUEST') ||
+      !isStringOrNull(entry.player_id)
+    ) {
+      throw invalid();
+    }
+    return {
+      participantId: entry.participant_id,
+      identityKind: entry.identity_kind,
+      playerId: entry.player_id,
+    };
+  });
+  return { rosterRevisionId: value.roster_revision_id, sessionId: value.session_id, entries };
+}
+
 const TARGET_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function targetSessionIdFromResponse(data: unknown): string {
@@ -100,8 +135,18 @@ function targetSessionIdFromResponse(data: unknown): string {
 
 export function createSessionCohortCloudService(
   client: RpcClient,
-): SessionCohortInspectionGateway & SessionCohortReadGateway & SessionCohortCreationGateway {
+): SessionCohortInspectionGateway &
+  SessionCohortReadGateway &
+  SessionCohortCreationGateway &
+  SessionCohortRosterGateway {
   return {
+    async readRosterRevision(rosterRevisionId) {
+      const { data, error } = await client.rpc('read_target_roster_revision', {
+        p_roster_revision_id: rosterRevisionId,
+      });
+      if (error) throw error;
+      return rosterRevisionFromResponse(data);
+    },
     async inspect(sessionId) {
       const { data, error } = await client.rpc('inspect_legacy_session_cutover', {
         p_session_id: sessionId,

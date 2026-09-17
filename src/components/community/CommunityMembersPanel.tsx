@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AuthRole, Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
+import { fetchApprovedMemberPlayerQuery } from '@app/communityPlayerSearchUseCases';
 import {
   buildCommunityMembersViewModel,
   COMMUNITY_ROLE_LABELS,
@@ -28,6 +29,7 @@ interface CommunityMembersPanelProps {
   globalRole?: AuthRole | null;
   /** Atletas desta comunidade, para casar membro↔ficha via player.userId. */
   players?: Player[];
+  onLinkedPlayer?: (player: Player, communityId: string) => void;
 }
 
 function messageOf(error: unknown, fallback: string): string {
@@ -42,6 +44,7 @@ export function CommunityMembersPanel({
   isSupabaseConfigured,
   globalRole = null,
   players = [],
+  onLinkedPlayer,
 }: CommunityMembersPanelProps) {
   const enabled = isSupabaseConfigured && !!community.cloudId;
   const {
@@ -116,12 +119,29 @@ export function CommunityMembersPanel({
     }
   };
 
+  const refreshApprovedPlayer = async (userId: string) => {
+    if (!onLinkedPlayer) return;
+    const result = await fetchApprovedMemberPlayerQuery(userId, community.id);
+    if (result.ok === false) {
+      setActionError(result.error.message);
+    } else if (result.value) {
+      onLinkedPlayer(result.value, community.id);
+    } else {
+      setActionError(
+        'Entrada confirmada. O atleta não foi encontrado no elenco; sincronize novamente.',
+      );
+    }
+  };
+
   const handleInvite = async (event: FormEvent) => {
     event.preventDefault();
     const email = inviteEmail.trim();
     if (!email) return;
     // Sem papel: entra como 'member' (default do use case) e o cargo se define no card.
-    const ok = await runAction(() => invite(email), 'Não foi possível adicionar.');
+    const ok = await runAction(async () => {
+      const addedMember = await invite(email);
+      await refreshApprovedPlayer(addedMember.userId);
+    }, 'Não foi possível adicionar.');
     if (ok) {
       setInviteEmail('');
     }
@@ -345,7 +365,10 @@ export function CommunityMembersPanel({
                     <button
                       type="button"
                       onClick={() =>
-                        runAction(() => approveRequest(member.id), 'Falha ao aprovar.')
+                        runAction(async () => {
+                          await approveRequest(member.id);
+                          await refreshApprovedPlayer(member.userId);
+                        }, 'Falha ao aprovar.')
                       }
                       className="btn btn-success btn-sm"
                       disabled={busy}

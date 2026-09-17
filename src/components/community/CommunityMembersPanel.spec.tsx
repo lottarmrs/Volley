@@ -1,7 +1,12 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Community, CommunityMember } from '../../types';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
+import { playerCloudService } from '@infra/supabase/playerCloudService';
+
+vi.mock('@infra/supabase/playerCloudService', () => ({
+  playerCloudService: { fetchLinkedToUser: vi.fn() },
+}));
 
 const { useCommunityMembersMock } = vi.hoisted(() => ({
   useCommunityMembersMock: vi.fn(),
@@ -50,6 +55,30 @@ function mockUseCommunityMembers(members: CommunityMember[]) {
 }
 
 describe('CommunityMembersPanel', () => {
+  it('atualiza o elenco local após aprovar o membro', async () => {
+    mockUseCommunityMembers([
+      member({ id: 'owner', userId: 'owner', role: 'owner' }),
+      member({ id: 'pending', userId: 'applicant', status: 'pending', name: 'Bia' }),
+    ]);
+    const player = { id: 'athlete', cloudId: 'cloud-athlete', nome: 'Bia', userId: 'applicant' };
+    vi.mocked(playerCloudService.fetchLinkedToUser).mockResolvedValue(player as never);
+    const onLinkedPlayer = vi.fn();
+    render(
+      <CommunityMembersPanel
+        community={community}
+        currentUserId="owner"
+        isSupabaseConfigured
+        onLinkedPlayer={onLinkedPlayer}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Aprovar' }));
+    await waitFor(() =>
+      expect(onLinkedPlayer).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'athlete', communityIds: ['community-local'] }),
+        'community-local',
+      ),
+    );
+  });
   it('offers Organizador as a role option when the viewer can manage members', () => {
     mockUseCommunityMembers([
       member({ id: 'owner-row', userId: 'owner-1', role: 'owner', name: 'Ana' }),

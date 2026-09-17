@@ -101,6 +101,7 @@ export function useCommunityMembers({
       });
       if (result.ok === false) throw new Error(result.error.message);
       await reload();
+      return result.value.member;
     },
     [communityCloudId, communityLocalId, currentUserId, globalRole, members, reload],
   );

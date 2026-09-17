@@ -937,6 +937,7 @@ function CommunityDetailView({
             isSupabaseConfigured={isSupabaseConfigured}
             globalRole={globalRole}
             players={communityPlayers}
+            onLinkedPlayer={onLinkedCloudPlayer}
           />
         )}
         {activeTab === 'rules' && (

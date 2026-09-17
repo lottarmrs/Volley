@@ -88,6 +88,7 @@ Platform/staff roles, if retained, are **not** Community governance roles and ar
 - `CommunityMember` is the local role inside one community.
 - Only active memberships grant write permissions.
 - Pending, invited, and rejected memberships do not grant product mutations.
+- Approved entry also enrolls the account's athlete in the Community roster. The approval and sports enrollment commit together, reusing the existing Player or creating the missing account profile. Direct member addition follows the same rule. Banned athletes require resolution before approval. Membership and sports participation remain separate records; changing a role or leaving does not delete the athlete or their history.
 - Local-only communities keep local-first owner behavior.
 
 ### Target interpretation

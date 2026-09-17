@@ -247,9 +247,16 @@ export function applyLinkedCloudPlayer(
   player: Player,
   communityId: string,
 ): Player[] {
+  const existingPlayer = players.find((item) => item.id === player.id);
   const updatedPlayer: Player = {
     ...player,
-    communityIds: Array.from(new Set([...(player.communityIds ?? []), communityId])),
+    communityIds: Array.from(
+      new Set([
+        ...(existingPlayer?.communityIds ?? []),
+        ...(player.communityIds ?? []),
+        communityId,
+      ]),
+    ),
     syncStatus: 'synced',
   };
   return players.some((item) => item.id === player.id)

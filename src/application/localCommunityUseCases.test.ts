@@ -315,5 +315,5 @@ test('applyLinkedCloudPlayer upserts a synced player and ensures community membe
   const updated = applyLinkedCloudPlayer(inserted, { ...remote, nome: 'Atualizado' }, 'c2');
   assert.equal(updated.length, 2);
   assert.equal(updated[1].nome, 'Atualizado');
-  assert.deepEqual(updated[1].communityIds, ['c2']);
+  assert.deepEqual(updated[1].communityIds, ['c1', 'c2']);
 });

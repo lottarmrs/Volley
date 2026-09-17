@@ -17,6 +17,28 @@ const supabaseCommunityPlayerSearchGateway: CommunityPlayerSearchGateway = {
   fetchByCloudId: playerCloudService.fetchByCloudId,
 };
 
+export async function fetchApprovedMemberPlayerQuery(
+  userId: string,
+  communityId: string,
+): Promise<AppResult<Player | null>> {
+  try {
+    const player = await playerCloudService.fetchLinkedToUser(userId);
+    return appOk(
+      player
+        ? {
+            ...player,
+            communityIds: [...new Set([...(player.communityIds ?? []), communityId])],
+          }
+        : null,
+    );
+  } catch (error) {
+    return technicalError(
+      'Entrada confirmada. Não foi possível atualizar o elenco agora; sincronize novamente.',
+      error,
+    );
+  }
+}
+
 export async function searchPlayerByUsernameQuery(
   username: string,
   gateway: CommunityPlayerSearchGateway = supabaseCommunityPlayerSearchGateway,

@@ -25,6 +25,15 @@ export type {
   AuthorizedFormationStage,
 } from './shared/types/authorizedFormation';
 export type {
+  CandidateSetPublicationState,
+  PublishedTeamCandidateSet,
+  PublishTeamCandidateSetRequest,
+  TeamCandidatePayload,
+  TeamCandidateSetConstraints,
+  TeamCandidateSetPayload,
+  TeamCandidateSetRead,
+} from './shared/types/teamCandidateSet';
+export type {
   CommunitySkillProfile,
   CommunitySkillProfileRequest,
 } from './shared/types/communitySkillProfile';

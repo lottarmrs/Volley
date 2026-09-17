@@ -1,4 +1,9 @@
-import type { BalanceInputSnapshot, BalanceInputSnapshotCaptureRequest } from '@shared/types';
+import type {
+  BalanceInputSnapshot,
+  BalanceInputSnapshotCaptureRequest,
+  PublishedTeamCandidateSet,
+  PublishTeamCandidateSetRequest,
+} from '@shared/types';
 import type { CreateTargetSessionInput, TargetSessionRead } from './sessionCohortCutover';
 
 export type RegistrationWindowStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'LOCKED';
@@ -74,4 +79,9 @@ export interface AuthorizedFormationGateway {
   readonly registration: RegistrationGateway;
   captureSnapshot(input: BalanceInputSnapshotCaptureRequest): Promise<BalanceInputSnapshot>;
   readSnapshot(snapshotId: string): Promise<BalanceInputSnapshot>;
+}
+
+export interface TeamCandidateSetGateway {
+  readRosterRevision(rosterRevisionId: string): Promise<RosterRevisionRead>;
+  publish(input: PublishTeamCandidateSetRequest): Promise<PublishedTeamCandidateSet>;
 }

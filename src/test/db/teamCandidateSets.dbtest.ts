@@ -537,4 +537,72 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(rows[0].created_by, null);
     assert.equal(rows[0].set_fingerprint, published.set_fingerprint);
   });
+
+  test('a leitura devolve o conjunto com os candidatos em ordem para quem forma times', async () => {
+    const f = await fixture();
+    const [a, b, c, d] = f.participants;
+    const published = await publish(
+      f.ownerId,
+      f,
+      setOf([
+        [
+          [b, a],
+          [c, d],
+        ],
+        [
+          [a, c],
+          [b, d],
+        ],
+      ]),
+    );
+    const { rows } = await asIdentityCommitting(client, f.ownerId, () =>
+      client.query<{
+        result: {
+          set_id: string;
+          session_id: string;
+          snapshot_id: string;
+          team_count: number;
+          set_fingerprint: string;
+          candidates: { candidate_index: number; assignment: string[][] }[];
+        };
+      }>('select public.read_team_candidate_set($1) as result', [published.set_id]),
+    );
+    const read = rows[0].result;
+    assert.equal(read.set_id, published.set_id);
+    assert.equal(read.session_id, f.sessionId);
+    assert.equal(read.snapshot_id, f.snapshotId);
+    assert.equal(read.team_count, 2);
+    assert.equal(read.set_fingerprint, published.set_fingerprint);
+    assert.deepEqual(
+      read.candidates.map((candidate) => candidate.candidate_index),
+      [0, 1],
+    );
+    assert.deepEqual(read.candidates[0].assignment, [[a, b].sort(), [c, d].sort()]);
+  });
+
+  test('ler exige quem forma times e um conjunto existente', async () => {
+    const f = await fixture();
+    const [a, b, c, d] = f.participants;
+    const published = await publish(
+      f.ownerId,
+      f,
+      setOf([
+        [
+          [a, b],
+          [c, d],
+        ],
+      ]),
+    );
+    const outsider = await newUser('outsider');
+    for (const actor of [outsider, null]) {
+      const denied = await asIdentity(client, actor, () =>
+        client.query('select public.read_team_candidate_set($1)', [published.set_id]),
+      ).catch((thrown: Error) => thrown);
+      assert.equal((denied as { code?: string }).code, '42501', `ator ${actor ?? 'anonimo'}`);
+    }
+    const missing = await asIdentity(client, f.ownerId, () =>
+      client.query('select public.read_team_candidate_set($1)', [randomUUID()]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((missing as { code?: string }).code, 'P0002');
+  });
 }

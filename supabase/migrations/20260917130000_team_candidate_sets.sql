@@ -400,3 +400,63 @@ revoke all on function public.publish_team_candidate_set(uuid, uuid, uuid, jsonb
   from public, anon;
 grant execute on function public.publish_team_candidate_set(uuid, uuid, uuid, jsonb)
   to authenticated;
+
+create function public.read_team_candidate_set(p_set_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_set app_private.team_candidate_sets;
+  v_session public.sessions;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+  if p_set_id is null then
+    raise exception 'set_id is required' using errcode = '23514';
+  end if;
+
+  select * into v_set from app_private.team_candidate_sets s where s.id = p_set_id;
+  if not found then
+    raise exception 'Team candidate set not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_session from public.sessions s where s.id = v_set.session_id;
+  perform public.assert_target_session_write_authorized(v_session);
+
+  return pg_catalog.jsonb_build_object(
+    'set_id', v_set.id,
+    'session_id', v_set.session_id,
+    'roster_revision_id', v_set.roster_revision_id,
+    'snapshot_id', v_set.snapshot_id,
+    'published_at', v_set.published_at,
+    'team_count', v_set.team_count,
+    'hard_constraints', v_set.hard_constraints,
+    'contract_version', v_set.contract_version,
+    'algorithm_version', v_set.algorithm_version,
+    'objective_policy_version', v_set.objective_policy_version,
+    'set_fingerprint', v_set.set_fingerprint,
+    'client_claimed', v_set.client_claimed,
+    'candidates', coalesce(
+      (select pg_catalog.jsonb_agg(
+                pg_catalog.jsonb_build_object(
+                  'candidate_index', c.candidate_index,
+                  'candidate_fingerprint', c.candidate_fingerprint,
+                  'assignment', c.assignment,
+                  'client_claimed', c.client_claimed
+                )
+                order by c.candidate_index
+              )
+         from app_private.team_candidate_solutions c
+        where c.set_id = v_set.id),
+      '[]'::jsonb
+    )
+  );
+end;
+$$;
+
+revoke all on function public.read_team_candidate_set(uuid) from public, anon;
+grant execute on function public.read_team_candidate_set(uuid) to authenticated;

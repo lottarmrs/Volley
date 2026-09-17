@@ -21,6 +21,10 @@ export {
   TEAM_FORMATION_OBJECTIVE_POLICY,
 } from './shared/types/teamFormation';
 export type {
+  AuthorizedFormationProgress,
+  AuthorizedFormationStage,
+} from './shared/types/authorizedFormation';
+export type {
   CommunitySkillProfile,
   CommunitySkillProfileRequest,
 } from './shared/types/communitySkillProfile';

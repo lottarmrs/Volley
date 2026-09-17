@@ -1,5 +1,6 @@
 import type { CloudSyncStatus } from './sync';
 import type { Attributes, Gender, Position, RotationType } from './player';
+import type { AuthorizedFormationProgress } from './authorizedFormation';
 
 export interface TeamStrengthSnapshot {
   overall: number;
@@ -325,6 +326,7 @@ export interface Session {
   /** Nome de exibição de quem controla, resolvido no download para a tela poder nomear. */
   controlHolderName?: string | null;
   authorityModel?: 'legacy' | 'target';
+  authorizedFormation?: AuthorizedFormationProgress;
 }
 
 export type GameStatus = 'scheduled' | 'active' | 'paused' | 'finished' | 'cancelled' | 'walkover';

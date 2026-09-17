@@ -1614,7 +1614,13 @@ Expected: FAIL — `Cannot find module './authorizedTeamFormationRules'`.
 Create `src/application/authorizedTeamFormationRules.ts`:
 
 ```ts
-import type { Community, Player, Session, TeamFormationRequest } from '@shared/types';
+import type {
+  Community,
+  FormationParticipant,
+  Player,
+  Session,
+  TeamFormationRequest,
+} from '@shared/types';
 import type { RosterRevisionRead } from './authorizedFormationGateways';
 import {
   appOk,
@@ -1704,7 +1710,7 @@ export function rekeyAuthorizedRequest(
     if (localId) localByParticipant.set(entry.participantId, localId);
   }
 
-  const participants = [];
+  const participants: FormationParticipant[] = [];
   for (const participant of request.participants) {
     const localId = localByParticipant.get(participant.participantId);
     if (!localId) return null;
@@ -2609,7 +2615,8 @@ export async function prepareAuthorizedTeamFormation(
 
   for (let attemptIndex = 0; ; attemptIndex += 1) {
     try {
-      return { session, result: appOk(await attempt()) };
+      const draw = await attempt();
+      return { session, result: appOk(draw) };
     } catch (error) {
       if (error instanceof ChainCancelled) return { session, result: null };
       const failure =

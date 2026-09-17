@@ -59,31 +59,32 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia     | Assunto                                                       | Estado    |
-| --------- | ------------------------------------------------------------- | --------- |
-| XS-W3-01  | Session target root                                           | concluída |
-| XS-W3-02  | Session organizer assignment                                  | concluída |
-| XS-W3-03  | Session courts                                                | concluída |
-| XS-W3-04  | Session rules snapshot                                        | concluída |
-| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída |
-| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída |
-| XS-W3-07  | Session cohort cutover                                        | concluída |
-| XS-W4-01  | Registration schema e invariantes                             | concluída |
-| XS-W4-02  | Open/Close/Lock Registration                                  | concluída |
-| XS-W4-03  | JoinRegistration                                              | concluída |
-| XS-W4-04  | Leave / promoção / capacidade                                 | concluída |
-| XS-W4-05  | FinalizeSessionRoster                                         | concluída |
-| XS-W4-06  | Legacy Session Registration introduction                      | concluída |
-| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída |
-| XS-W5-02  | Skill rubric/dimension contract                               | concluída |
-| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída |
-| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída |
-| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída |
-| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída |
-| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída |
-| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída |
-| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída |
-| XS-W6-08c | Sorteio do wizard pelo snapshot autorizado                    | concluída |
+| Fatia     | Assunto                                                       | Estado              |
+| --------- | ------------------------------------------------------------- | ------------------- |
+| XS-W3-01  | Session target root                                           | concluída           |
+| XS-W3-02  | Session organizer assignment                                  | concluída           |
+| XS-W3-03  | Session courts                                                | concluída           |
+| XS-W3-04  | Session rules snapshot                                        | concluída           |
+| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída           |
+| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída           |
+| XS-W3-07  | Session cohort cutover                                        | concluída           |
+| XS-W4-01  | Registration schema e invariantes                             | concluída           |
+| XS-W4-02  | Open/Close/Lock Registration                                  | concluída           |
+| XS-W4-03  | JoinRegistration                                              | concluída           |
+| XS-W4-04  | Leave / promoção / capacidade                                 | concluída           |
+| XS-W4-05  | FinalizeSessionRoster                                         | concluída           |
+| XS-W4-06  | Legacy Session Registration introduction                      | concluída           |
+| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída           |
+| XS-W5-02  | Skill rubric/dimension contract                               | concluída           |
+| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída           |
+| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída           |
+| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída           |
+| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída           |
+| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída           |
+| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída           |
+| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída           |
+| XS-W6-08c | Sorteio do wizard pelo snapshot autorizado                    | concluída           |
+| XS-W6-03  | Publicação do conjunto de candidatos                          | concluída na branch |
 
 ### Compatibilização da nuvem e sync automático — 2026-09-14
 
@@ -206,6 +207,24 @@ Session target continua invisível em outro aparelho (XS-W3-08).
 Panelinha já tinha `approved_members_join_roster` (`20260915155701`) aplicada, com o código só como
 trabalho não commitado em `C:\Volley`. A branch (worktree `C:\Volley-approved-members`) commita esse
 trabalho, idêntico ao que está no banco, e corrige um defeito dele. Ver "Membros aprovados entram no elenco".
+
+### O que a XS-W6-03 entregou — publicação do conjunto de candidatos
+
+Branch `exec/c6-candidate-set-publication`, worktree `C:\Volley-xs-w6-03`. Ver a
+[spec revisada](docs/superpowers/specs/2026-09-17-xs-w6-03-candidate-set-publication-design.md) e o
+[plano](docs/superpowers/plans/2026-09-17-xs-w6-03-candidate-set-publication.md).
+
+- `20260917130000_team_candidate_sets.sql`: tabelas privadas e imutáveis `team_candidate_sets` e
+  `team_candidate_solutions`, `publish_team_candidate_set` e `read_team_candidate_set`. O servidor confere
+  o organizador, o snapshot do elenco atual, de 1 a 8 candidatos, a partição exata dos participantes e as
+  restrições que o app declara (guardadas no conjunto); pontuação e diagnóstico do app ficam em
+  `client_claimed`, sem valor de autoridade.
+- Nos resultados de um sorteio autorizado, o botão "Publicar" traduz os times para os participantes do
+  elenco e publica; mostra "Publicado", ou o erro com a opção de tentar de novo. Gerar de novo zera a
+  publicação.
+- A confirmação continua local: nada consome o conjunto até a XS-W6-04.
+
+**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário.
 
 ### Membros aprovados entram no elenco — 2026-09-15 a 2026-09-17
 
@@ -590,12 +609,10 @@ separadamente, e **a escolha é de produto, ainda não feita**:
   configurar, testar o cadastro real contra o CSP do Turnstile, rodar o e2e no ambiente) exigem um
   Supabase real e ainda não foram feitos;
 - **C6**: a próxima fatia na ordem de
-  `docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` é a `XS-W6-03`
-  (publicação do conjunto de candidatos), que tem
-  [design](docs/superpowers/specs/2026-09-10-xs-w6-03-candidate-set-publication-design.md) e não
-  tem plano. Ela pressupõe captura de snapshot e revisão de elenco que nenhum caminho do app produz
-  hoje. A parede 3 do mapa caiu no app para o cargo Organizador com a XS-W3-09; dono e admin
-  continuam sem `ORGANIZER`.
+  `docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md` é a `XS-W6-04`
+  (escolha do organizador e confirmação do sorteio), a primeira consumidora do conjunto que a
+  XS-W6-03 publica. A captura de snapshot e a revisão de elenco já vêm do wizard desde a XS-W6-08c,
+  e donos e admins têm `ORGANIZER` desde a XS-W6-08a.
 
 Antes de qualquer uma, leia a seção "Backlog da review independente de branch — 2026-09-08", mais
 abaixo: há um achado de segurança **aberto** (A9) e uma decisão de produto pendente (A6).

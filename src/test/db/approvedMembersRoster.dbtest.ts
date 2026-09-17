@@ -10,7 +10,11 @@ test.before(async () => {
   client = await connect();
   const result = await rebuildFromMigrations(client);
   assert.deepEqual(
-    result.failures.filter((failure) => failure.migration.includes('approved_members_join_roster')),
+    result.failures.filter(
+      (failure) =>
+        failure.migration.includes('approved_members_join_roster') ||
+        failure.migration.includes('enrolled_roster_owner'),
+    ),
     [],
   );
 });
@@ -176,11 +180,57 @@ test('migration preenche membros ativos antigos sem restaurar remoções do elen
     'supabase/migrations/20260915155701_approved_members_join_roster.sql',
     'utf8',
   );
+  const ownerFix = readFileSync(
+    'supabase/migrations/20260917120000_enrolled_roster_owner.sql',
+    'utf8',
+  );
   await client.query(migration);
+  await client.query(ownerFix);
   await client.query(migration);
+  await client.query(ownerFix);
   assert.equal((await roster(c.community, c.member.id)).length, 1);
   assert.deepEqual(await roster(c.community, waiting.id), []);
   const removedRows = await roster(c.community, removed.id);
   assert.equal(removedRows[0].active, false);
   assert.ok(removedRows[0].deleted_at);
+});
+
+test('o sync de quem aprovou consegue reenviar o vínculo do atleta aprovado', async () => {
+  const c = await context();
+  const account = await rpc(c.member.id, 'select * from public.ensure_account_ready()');
+  const request = await pending(c.community, c.member.id);
+  await rpc(c.owner.id, 'select public.approve_join_request($1)', [request]);
+  await rpc(
+    c.owner.id,
+    `insert into public.community_players (owner_id, community_id, player_id, active)
+     values ($1, $2, $3, true)
+     on conflict (community_id, player_id) do update
+       set owner_id = excluded.owner_id, active = excluded.active`,
+    [c.owner.id, c.community, account.rows[0].player_id],
+  );
+  assert.equal((await roster(c.community, c.member.id)).length, 1);
+});
+
+test('reparo devolve ao dono da comunidade o vínculo que só a conta do atleta possuía', async () => {
+  const c = await context();
+  const account = await rpc(c.member.id, 'select * from public.ensure_account_ready()');
+  await client.query(
+    "insert into public.community_members (community_id, user_id, role, status) values ($1, $2, 'member', 'active')",
+    [c.community, c.member.id],
+  );
+  await client.query(
+    'insert into public.community_players (owner_id, community_id, player_id, active) values ($1, $2, $3, true)',
+    [c.member.id, c.community, account.rows[0].player_id],
+  );
+  const migration = readFileSync(
+    'supabase/migrations/20260917120000_enrolled_roster_owner.sql',
+    'utf8',
+  );
+  await client.query(migration);
+  await client.query(migration);
+  const { rows } = await client.query(
+    'select owner_id from public.community_players where community_id = $1 and player_id = $2',
+    [c.community, account.rows[0].player_id],
+  );
+  assert.equal(rows[0].owner_id, c.owner.id);
 });

@@ -202,10 +202,34 @@ fast-forward. Ver a
 cancelar o wizard depois da preparação deixa a Session target e a janela em `DRAFT` no servidor;
 Session target continua invisível em outro aparelho (XS-W3-08).
 
-**Divergência encontrada ao aplicar:** o Panelinha já tem `approved_members_join_roster`
-(`20260915155701`) aplicada, mas essa migration, `approvedMembersRoster.dbtest.ts` e 8 arquivos
-modificados (membros aprovados entram no elenco) existem só como trabalho não commitado em `C:\Volley`,
-de 2026-09-15 e sem sessão dona. Não descartar: terminar, testar e commitar numa branch própria.
+**Divergência encontrada ao aplicar (resolvida na branch `feat/approved-members-join-roster`):** o
+Panelinha já tinha `approved_members_join_roster` (`20260915155701`) aplicada, com o código só como
+trabalho não commitado em `C:\Volley`. A branch (worktree `C:\Volley-approved-members`) commita esse
+trabalho, idêntico ao que está no banco, e corrige um defeito dele. Ver "Membros aprovados entram no elenco".
+
+### Membros aprovados entram no elenco — 2026-09-15 a 2026-09-17
+
+Aprovar pedido de entrada (`approve_join_request`, `approve_community_join_request`) ou adicionar membro
+direto (`add_community_member_by_identifier`) inclui o atleta da conta no elenco da comunidade, na mesma
+transação, por `app_private.enroll_approved_member`: reaproveita o Player da conta ou cria um,
+recusa atleta com perfil apagado ou banido do elenco (`23514`, o pedido continua pendente) e preenche os
+membros ativos antigos sem restaurar quem foi removido do elenco. Na tela de membros, aprovar ou adicionar
+já traz o atleta para o elenco local.
+
+- `20260915155701_approved_members_join_roster.sql`: aplicada no Panelinha em 2026-09-15 antes de ser
+  commitada; o arquivo gera as mesmas três funções públicas que estão no banco (conferido por hash).
+- `20260917120000_enrolled_roster_owner.sql`: o vínculo criado pertencia à conta do atleta. O sync de
+  quem aprovou reenvia `community_players` com o próprio `owner_id`, e a RLS só deixa atualizar linha
+  própria, então todo sync seguinte falhava com `42501` em "vínculos atleta↔comunidade". O vínculo passa a
+  pertencer a quem aprovou (ou ao dono da comunidade no preenchimento), e os vínculos de conta de atleta sem
+  cargo de gestão voltam para o dono da comunidade. No Panelinha eram 2 linhas. **Não aplicada no
+  Panelinha**: espera o ok do usuário.
+- `approvedMembersRoster.dbtest.ts` (9 testes), incluindo o reenvio do sync e o reparo.
+
+Limite conhecido, anterior a esta branch: a RLS de `community_players` só aceita os cargos
+`owner`, `admin` e `organizer` e exige `owner_id` igual a quem escreve, então comunidade com mais de
+um gestor ainda pode ver o sync de um gestor recusar vínculos criados por outro; o cargo legado
+`organizador` também não entra nessa lista.
 
 ### O que a XS-W6-08a entregou — modelo de avaliação obrigatório
 

@@ -32,6 +32,7 @@ import {
 } from '../../logic/balancingCompatibility';
 import { buildRosterIntegrityIssues } from '../../application/sessionLifecycleUseCases';
 import { TournamentBracket } from '../tournament/TournamentBracket';
+import { CandidateSetPublication } from './CandidateSetPublication';
 import { SessionGenerationStatus } from './SessionGenerationStatus';
 import { SessionWizardProgress } from './SessionWizardProgress';
 import { SessionSetupSummary } from './SessionSetupSummary';
@@ -63,6 +64,8 @@ export function SessionWizard({ contract }: SessionWizardProps) {
     generationProgress,
     generationStage,
     authorizedDraw,
+    publicationState,
+    publicationError,
     partnershipMatrix,
     stepLabels,
     positionLabels,
@@ -2106,6 +2109,11 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                 <span className="badge badge-accent badge-soft text-xs font-semibold">
                   Notas autorizadas da comunidade
                 </span>
+                <CandidateSetPublication
+                  state={publicationState}
+                  error={publicationError}
+                  onPublish={() => dispatch({ kind: 'publishCandidateSet' })}
+                />
                 {authorizedDraw.estimatedCount > 0 && (
                   <div role="alert" className="alert alert-warning alert-soft p-2 items-start">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />

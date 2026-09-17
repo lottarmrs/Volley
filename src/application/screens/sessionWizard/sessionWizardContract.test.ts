@@ -26,6 +26,9 @@ function makeHookApi(overrides: Partial<Record<keyof SessionWizardHookApi, unkno
     progress: 0,
     generationStage: null,
     authorizedDraw: null,
+    publicationState: 'idle',
+    publicationError: null,
+    publishCandidateSet: async () => {},
     nextStep: noop,
     prevStep: noop,
     updateSession: noop,
@@ -270,4 +273,23 @@ test('o modelo expoe a etapa da cadeia e as contagens do sorteio autorizado', ()
   );
   assert.equal(c.model.generationStage, 'snapshot');
   assert.deepEqual(c.model.authorizedDraw, { estimatedCount: 3, participantCount: 8 });
+});
+
+test('publicar repassa ao hook e o modelo expoe o estado da publicacao', async () => {
+  let published = 0;
+  const c = buildSessionWizardContract(
+    makeInput(
+      makeHookApi({
+        publicationState: 'error',
+        publicationError: 'Falhou',
+        publishCandidateSet: async () => {
+          published += 1;
+        },
+      }),
+    ),
+  );
+  assert.equal(c.model.publicationState, 'error');
+  assert.equal(c.model.publicationError, 'Falhou');
+  await c.dispatch({ kind: 'publishCandidateSet' });
+  assert.equal(published, 1);
 });

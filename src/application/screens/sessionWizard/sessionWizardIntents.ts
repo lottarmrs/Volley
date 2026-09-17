@@ -11,6 +11,7 @@ export type SessionWizardIntent =
   | { kind: 'useLastSelection' }
   | { kind: 'generateDivisions'; advanceStep?: boolean }
   | { kind: 'cancelGeneration' }
+  | { kind: 'publishCandidateSet' }
   | { kind: 'confirmDivision' }
   | { kind: 'startGeneratedTournament' }
   | { kind: 'selectDivisionIndex'; index: number }

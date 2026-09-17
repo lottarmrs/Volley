@@ -1,4 +1,11 @@
-import type { AuthorizedFormationStage, Community, Division, Player, Session } from '@shared/types';
+import type {
+  AuthorizedFormationStage,
+  CandidateSetPublicationState,
+  Community,
+  Division,
+  Player,
+  Session,
+} from '@shared/types';
 import type { PartnershipMatrix } from '@logic/partnershipHistory';
 
 export interface SessionWizardModel {
@@ -13,6 +20,8 @@ export interface SessionWizardModel {
   generationProgress: number;
   generationStage: AuthorizedFormationStage | null;
   authorizedDraw: { estimatedCount: number; participantCount: number } | null;
+  publicationState: CandidateSetPublicationState;
+  publicationError: string | null;
   partnershipMatrix?: PartnershipMatrix;
   stepLabels: string[];
   positionLabels: Record<string, string>;

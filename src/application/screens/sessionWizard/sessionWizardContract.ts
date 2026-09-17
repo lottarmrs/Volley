@@ -1,4 +1,11 @@
-import type { AuthorizedFormationStage, Community, Division, Player, Session } from '@shared/types';
+import type {
+  AuthorizedFormationStage,
+  CandidateSetPublicationState,
+  Community,
+  Division,
+  Player,
+  Session,
+} from '@shared/types';
 import type { PartnershipMatrix } from '@logic/partnershipHistory';
 import type { ScreenContract } from '../screenContract';
 import type { SessionWizardModel } from './sessionWizardModel';
@@ -15,6 +22,9 @@ export type SessionWizardHookApi = {
   progress: number;
   generationStage: AuthorizedFormationStage | null;
   authorizedDraw: { estimatedCount: number; participantCount: number } | null;
+  publicationState: CandidateSetPublicationState;
+  publicationError: string | null;
+  publishCandidateSet: () => Promise<void>;
   nextStep: () => void;
   prevStep: () => void;
   updateSession: (patch: Partial<Session>) => void;
@@ -56,6 +66,8 @@ function buildModel(input: SessionWizardContractInput): SessionWizardModel {
     generationProgress: h.progress,
     generationStage: h.generationStage,
     authorizedDraw: h.authorizedDraw,
+    publicationState: h.publicationState,
+    publicationError: h.publicationError,
     partnershipMatrix: h.partnershipMatrix,
     stepLabels: ['Sessão', 'Atletas', 'Formato', 'Regras', 'Revisão', 'Times', 'Tabela'],
     positionLabels: {
@@ -106,6 +118,9 @@ export function buildSessionWizardContract(
         return;
       case 'cancelGeneration':
         h.cancelGeneration();
+        return;
+      case 'publishCandidateSet':
+        await h.publishCandidateSet();
         return;
       case 'confirmDivision':
         h.confirmDivision();

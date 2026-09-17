@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Session, Player, Team, Division, Game } from '../types';
+import { Session, Player, Team, Division, Game, Community } from '../types';
+import type { AuthorizedFormationStage } from '../types';
+import type { AuthorizedFormationGateway } from '../application/authorizedFormationGateways';
+import {
+  classifyFormationAuthority,
+  precheckAuthorizedSelection,
+} from '../application/authorizedTeamFormationRules';
+import { prepareAuthorizedTeamFormation } from '../application/authorizedTeamFormationUseCases';
+import type { DivisionGenerationPlan } from '../application/sessionLifecycleUseCases';
 import { buildBalanceErrorResponse } from '../logic/balancerMessages';
 import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
@@ -43,6 +51,8 @@ interface UseSessionWizardProps {
   setPage: (page: any) => void;
   sessions: Session[];
   teams: Team[];
+  communities?: Community[];
+  authorizedFormationGateway?: AuthorizedFormationGateway;
 }
 
 export function useSessionWizard({
@@ -56,6 +66,8 @@ export function useSessionWizard({
   setPage,
   sessions,
   teams,
+  communities = [],
+  authorizedFormationGateway,
 }: UseSessionWizardProps) {
   const [wizardStep, setWizardStep] = useState(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -64,6 +76,17 @@ export function useSessionWizard({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const workerRef = useRef<Worker | null>(null);
+  const [generationStage, setGenerationStage] = useState<AuthorizedFormationStage | null>(null);
+  const [authorizedDraw, setAuthorizedDraw] = useState<{
+    estimatedCount: number;
+    participantCount: number;
+  } | null>(null);
+  const preparationRef = useRef(0);
+  const activeSessionIdRef = useRef<string | null>(activeSession?.id ?? null);
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSession?.id ?? null;
+  }, [activeSession?.id]);
 
   const terminateWorker = (worker: Worker | null) => {
     worker?.terminate();
@@ -171,25 +194,14 @@ export function useSessionWizard({
     setProgress(result.nextProgress);
   };
 
-  const generateDivisions = (advanceStep = true) => {
-    const plan = buildDivisionGenerationPlan({
-      activeSession,
-      players,
-      seed: Math.floor(Math.random() * 1000000),
-      partnershipMatrix,
-    });
-    if (!plan) return;
-
-    // A retry starts clean. Leaving the previous generation error on screen made a
-    // successful second attempt still look failed.
+  const clearGenerationError = () =>
     setValidationErrors((current) => {
       if (current.generation === undefined) return current;
       const { generation: _cleared, ...rest } = current;
       return rest;
     });
 
-    updateSession(plan.sessionPatch);
-
+  const startBalancing = (plan: DivisionGenerationPlan, advanceStep: boolean) => {
     const finish = (divisions: Division[]) => {
       const result = buildDivisionGenerationCompletionApplicationResult({
         divisions,
@@ -293,7 +305,101 @@ export function useSessionWizard({
     worker.postMessage(start.message);
   };
 
+  const stopGenerationWithError = (message: string) => {
+    setGenerationStage(null);
+    applyGenerationStatusState(
+      buildDivisionGenerationCancelApplicationResult(null).generationStatus,
+    );
+    setValidationErrors((current) => ({ ...current, generation: message }));
+  };
+
+  const prepareAndBalance = async (
+    plan: DivisionGenerationPlan,
+    advanceStep: boolean,
+    session: Session,
+    communityCloudId: string | null,
+    selectedPlayers: Player[],
+  ) => {
+    const token = preparationRef.current + 1;
+    preparationRef.current = token;
+    const isCancelled = () => preparationRef.current !== token;
+    terminateWorker(workerRef.current);
+    applyGenerationStatusState({ nextIsGenerating: true, nextProgress: 0 });
+    setGenerationStage('session');
+
+    const output = await prepareAuthorizedTeamFormation(
+      {
+        session,
+        communityCloudId,
+        players: selectedPlayers,
+        teamCount: plan.updatedConfig.teamCount,
+        config: plan.updatedConfig,
+        createId: generateUUID,
+        onStage: (stage) => {
+          if (!isCancelled()) setGenerationStage(stage);
+        },
+        onSessionChange: (next) => {
+          if (activeSessionIdRef.current === next.id) setActiveSession(next);
+        },
+        isCancelled,
+      },
+      authorizedFormationGateway,
+    );
+
+    if (isCancelled() || output.result === null) return;
+    setGenerationStage(null);
+    if (!output.result.ok) {
+      stopGenerationWithError(output.result.error.message);
+      return;
+    }
+    setAuthorizedDraw({
+      estimatedCount: output.result.value.estimatedCount,
+      participantCount: output.result.value.participantCount,
+    });
+    startBalancing(
+      { ...plan, request: { ...plan.request, request: output.result.value.request } },
+      advanceStep,
+    );
+  };
+
+  const generateDivisions = (advanceStep = true) => {
+    const plan = buildDivisionGenerationPlan({
+      activeSession,
+      players,
+      seed: Math.floor(Math.random() * 1000000),
+      partnershipMatrix,
+    });
+    if (!plan || !activeSession) return;
+
+    clearGenerationError();
+
+    const authority = classifyFormationAuthority(activeSession, communities);
+    if (authority.kind === 'local') {
+      setAuthorizedDraw(null);
+      updateSession(plan.sessionPatch);
+      startBalancing(plan, advanceStep);
+      return;
+    }
+
+    const session =
+      buildSessionPatchResult({
+        activeSession,
+        patch: plan.sessionPatch,
+        now: new Date().toISOString(),
+      }) ?? activeSession;
+    setActiveSession(session);
+
+    const precheck = precheckAuthorizedSelection(session, players);
+    if (!precheck.ok) {
+      stopGenerationWithError(precheck.error.message);
+      return;
+    }
+    void prepareAndBalance(plan, advanceStep, session, authority.communityCloudId, precheck.value);
+  };
+
   const cancelGeneration = () => {
+    preparationRef.current += 1;
+    setGenerationStage(null);
     const result = buildDivisionGenerationCancelApplicationResult(workerRef.current);
     terminateWorker(result.workerToTerminate);
     applyGenerationStatusState(result.generationStatus);
@@ -381,6 +487,7 @@ export function useSessionWizard({
   };
 
   const cancelWizard = () => {
+    preparationRef.current += 1;
     const request = buildWizardCancelRequestResult();
     const result = buildWizardCancelApplicationResult(confirm(request.confirmationMessage));
     if (!result) return;
@@ -407,6 +514,8 @@ export function useSessionWizard({
     setSelectedDivisionIndex,
     isGenerating,
     progress,
+    generationStage,
+    authorizedDraw,
     nextStep,
     prevStep,
     goToStep,

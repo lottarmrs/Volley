@@ -139,6 +139,7 @@ export function AppShell() {
     setPage: (page: LegacyPage) => navigate(pathForLegacyPage(page, activeCommunityId)),
     sessions: sess.sessions,
     teams: sess.teams,
+    communities: comm.communities,
   });
 
   // ── Cloud sync ────────────────────────────────────────────────────────────

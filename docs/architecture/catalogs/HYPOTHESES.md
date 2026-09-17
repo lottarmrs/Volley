@@ -73,7 +73,7 @@ For I0/I1 safety/correctness boundaries, an unvalidated hypothesis may influence
 |---|---|---|---|
 | `HYP-REG-001` | Rejoin after withdrawal should create a new RegistrationEntry rather than revive the previous row | Audit/query simplicity + product history UX | Before physical schema/command contract freeze |
 | `HYP-REG-002` | WAITLISTED requires `queue_sequence`; confirmed entry may keep original sequence separately for audit without affecting queue authority | Schema/query tests and historical reporting needs | During Data/C5 model design |
-| `HYP-REG-003` | Reopen should exist only before Session start and explicitly stale downstream roster/TeamDraw | Product reopen scenarios + staleness tests | Before `OPEN-REG-006` closes |
+| `HYP-REG-003` | Reopen should exist only before Session start and explicitly stale downstream roster/TeamDraw | **Accepted 2026-09-17 (XS-W6-08c):** reopen is DRAFT/SCHEDULED only; staleness is enforced by roster revision currency (`40001` on capture) | Closed with `OPEN-REG-006` |
 | `HYP-REG-004` | Organizer-added participant should use a dedicated semantic command rather than overloading self-join | Authorization/audit clarity in organizer workflows | Before organizer-managed Registration UI/API |
 
 ---

@@ -52,9 +52,9 @@ também `claim_session_ownership`, `transfer_session_ownership`, `find_player_by
 lista porque `20260827210000_target_session_root.sql` e `20260908160000_security_audit_remediation.sql`
 as recriam. Elas não contam como capacidade C6.
 
-Das ~46 restantes, que são comandos semânticos destinados ao cliente, **8 são alcançáveis**: 5 por
+Das ~46 restantes, que são comandos semânticos destinados ao cliente, **21 são alcançáveis**: 5 por
 tela, 1 por tela e por sync, e 2 **só por sync** — os dois novos, ambos da XS-W3-08, e ambos
-condicionados a uma responsabilidade que, até a XS-W3-09, a interface não concedia (ver abaixo).
+condicionados a uma responsabilidade que, até a XS-W3-09, a interface não concedia (ver abaixo). A XS-W6-08c somou 13 pelo sorteio do wizard, incluindo as duas RPCs novas da reabertura e da leitura da janela, e tornou `create_target_session` alcançável também por tela; as contagens por tipo acima são as de antes dela.
 
 ### Alcançável
 
@@ -65,6 +65,7 @@ condicionados a uma responsabilidade que, até a XS-W3-09, a interface não conc
 | Ativação por comunidade             | tela e sync     | `PlayerEditView` → `isCommunityEvaluationActivated`; e `syncService` → `playerEvaluationCloudService` / `communityEvaluationCloudService.activatedCommunityIds` → `community_evaluation_target_ids` |
 | Criar Session no modelo target      | **só sync**     | `uploadLocalDataToCloud` → `sessionCohortCloudService.createTargetSession` → `create_target_session`                                                                                          |
 | Ler Session target por id           | **só sync**     | `syncNow` → `mergeTargetCohortSessionReads` → `sessionCohortCloudService.readTargetSession` → `read_target_session`                                                                           |
+| Sorteio autorizado | tela | `SessionWizard` → `useSessionWizard.generateDivisions` → `prepareAuthorizedTeamFormation` → `create_target_session`, `create_registration_window`, `open_registration`, `reopen_registration`, `add_registration_entry`, `remove_registration_entry`, `change_registration_capacity`, `close_registration`, `lock_registration`, `finalize_session_roster`, `read_registration_window`, `read_target_roster_revision`, `capture_balance_input_snapshot`, `read_balance_input_snapshot` |
 
 ### Os comandos que a XS-W3-08 tocou, nível por nível
 
@@ -155,9 +156,9 @@ Não é só fiação faltando: não existe Session legada elegível para ligar (
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **W3**                            | `update_target_session_draft`, `publish/schedule/start/finish/cancel_target_session`, `assign/revoke_target_session_organizer`, `add/configure_target_session_court`, `freeze_target_session_rules_snapshot`, `replace_target_quick_session_roster`, `read_target_roster_revision`, `read_target_session_readiness`, `transition_legacy_session_to_target`, `inspect_legacy_session_cutover` |
 | **W3-08 (governança)**            | `set_community_organizer`                                                                                                                                                                                                                    |
-| **W4 inteira**                    | `create_registration_window`, `open/close/lock_registration`, `join/leave_registration`, `add/remove_registration_entry`, `change_registration_capacity`, `finalize_session_roster`, `inspect_registration_introduction`, `introduce_registration_from_legacy_roster` |
+| **W4 (restante)** | `join/leave_registration`, `inspect_registration_introduction`, `introduce_registration_from_legacy_roster` |
 | **W5-01, W5-02**                  | `record_player_evaluation` (o editor usa o próprio comando), `skill_rubric_dimensions_for`                                                                                                                                                  |
-| **W6-01, W6-02**                  | `capture_balance_input_snapshot`, `read_balance_input_snapshot`, e o adaptador autorizado                                                                                                                                                  |
+| **W6-01, W6-02**                  | o adaptador autorizado                                                                                                                                                  |
 | **W2 (fora do C6, mesmo padrão)** | `create_community_with_owner`, `archive_community`, `update_community_profile` — nomeados em `src/application/command/communityCommands.ts`, que nada fora de teste importa; o app cria e edita comunidade por `upsert` genérico na tabela. E `approve/reject/request/withdraw_community_join_request`, enquanto o cliente chama os RPCs legados `approve_join_request` / `reject_join_request` |
 | **Operacional**                   | `reset_product_data` — `resetScaffoldCloudService` não é importado por nada                                                                                                                                                                 |
 

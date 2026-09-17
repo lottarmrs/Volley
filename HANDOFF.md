@@ -28,7 +28,7 @@
 > XS-W6-08a foi publicada em `main` (`81b43d7`) e a migration `mandatory_evaluation_model` foi
 > aplicada no Panelinha: as 6 comunidades estão ativadas e donos e admins têm `ORGANIZER`. A
 > XS-W6-08b (importar atributos) foi **cancelada**: os atributos de produção são padrões de criação em
-> lote, não avaliações. Próxima: XS-W6-08c (wizard sorteia pelo snapshot autorizado). O domínio de
+> lote, não avaliações. A XS-W6-08c (wizard sorteia pelo snapshot autorizado) está implementada na branch; ver a seção dela. O domínio de
 > produção agora é `panelinhahub.vercel.app`.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -59,30 +59,31 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia     | Assunto                                                       | Estado    |
-| --------- | ------------------------------------------------------------- | --------- |
-| XS-W3-01  | Session target root                                           | concluída |
-| XS-W3-02  | Session organizer assignment                                  | concluída |
-| XS-W3-03  | Session courts                                                | concluída |
-| XS-W3-04  | Session rules snapshot                                        | concluída |
-| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída |
-| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída |
-| XS-W3-07  | Session cohort cutover                                        | concluída |
-| XS-W4-01  | Registration schema e invariantes                             | concluída |
-| XS-W4-02  | Open/Close/Lock Registration                                  | concluída |
-| XS-W4-03  | JoinRegistration                                              | concluída |
-| XS-W4-04  | Leave / promoção / capacidade                                 | concluída |
-| XS-W4-05  | FinalizeSessionRoster                                         | concluída |
-| XS-W4-06  | Legacy Session Registration introduction                      | concluída |
-| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída |
-| XS-W5-02  | Skill rubric/dimension contract                               | concluída |
-| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída |
-| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída |
-| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída |
-| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída |
-| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída |
-| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída |
-| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída |
+| Fatia     | Assunto                                                       | Estado              |
+| --------- | ------------------------------------------------------------- | ------------------- |
+| XS-W3-01  | Session target root                                           | concluída           |
+| XS-W3-02  | Session organizer assignment                                  | concluída           |
+| XS-W3-03  | Session courts                                                | concluída           |
+| XS-W3-04  | Session rules snapshot                                        | concluída           |
+| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída           |
+| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída           |
+| XS-W3-07  | Session cohort cutover                                        | concluída           |
+| XS-W4-01  | Registration schema e invariantes                             | concluída           |
+| XS-W4-02  | Open/Close/Lock Registration                                  | concluída           |
+| XS-W4-03  | JoinRegistration                                              | concluída           |
+| XS-W4-04  | Leave / promoção / capacidade                                 | concluída           |
+| XS-W4-05  | FinalizeSessionRoster                                         | concluída           |
+| XS-W4-06  | Legacy Session Registration introduction                      | concluída           |
+| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída           |
+| XS-W5-02  | Skill rubric/dimension contract                               | concluída           |
+| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída           |
+| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída           |
+| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída           |
+| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída           |
+| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída           |
+| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída           |
+| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída           |
+| XS-W6-08c | Sorteio do wizard pelo snapshot autorizado                    | concluída na branch |
 
 ### Compatibilização da nuvem e sync automático — 2026-09-14
 
@@ -177,6 +178,28 @@ Operação que vale saber:
 - Desde 2026-09-16 a produção responde em `panelinhahub.vercel.app`; `volley-six.vercel.app` devolve
   `DEPLOYMENT_NOT_FOUND`. As Redirect URLs do Supabase precisam do domínio novo para o link de
   confirmação do cadastro.
+
+### O que a XS-W6-08c entregou — sorteio pelo snapshot autorizado
+
+Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`. Ver a
+[spec](docs/superpowers/specs/2026-09-16-xs-w6-08c-authorized-team-formation-design.md) e o
+[plano](docs/superpowers/plans/2026-09-17-xs-w6-08c-authorized-team-formation.md).
+
+- `20260916120000_reopen_registration.sql`: `reopen_registration` (fecha o `OPEN-REG-006`, só antes de
+  a Session começar) e `read_registration_window` (status, revisão, capacidade e confirmados, só para o
+  organizador).
+- Toda sessão de comunidade sincronizada passa pela cadeia ao gerar times: Session target criada ou
+  adotada, inscrição W4 pela diferença lida no servidor, elenco finalizado, snapshot capturado ou
+  reaproveitado, participantes trocados pelos ids locais, e só então o Worker de sempre. Cada comando
+  guarda o id antes de chamar, então repetir retoma pelo recibo; `40001` refaz a cadeia uma vez.
+- Sem internet, o sorteio de sessão de comunidade bloqueia com mensagem; sessão rápida e comunidade só
+  local seguem offline. Convidado sincronizado entra como jogador comum.
+- A tela mostra a etapa da preparação, o selo "Notas autorizadas da comunidade" e quantos atletas saíram
+  com nota estimada — hoje todos, porque não existe avaliação no modelo novo.
+
+**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário. Limites conhecidos:
+cancelar o wizard depois da preparação deixa a Session target e a janela em `DRAFT` no servidor;
+Session target continua invisível em outro aparelho (XS-W3-08).
 
 ### O que a XS-W6-08a entregou — modelo de avaliação obrigatório
 

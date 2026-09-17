@@ -103,7 +103,7 @@ Primary owner: Registration.
 | `OPEN-REG-003` | Exact numeric waitlist position visible to member vs coarser status | Return minimum necessary status; do not expose full queue identities | Product/privacy validation |
 | `OPEN-REG-004` | Future protected/reserved slot categories | **DEFERRED** — not V1; strict FIFO remains baseline | New quota/category requirement requires fairness ADR |
 | `OPEN-REG-005` | Future cancellation/refund/payment concepts attached to Registration | **DEFERRED** — payment out of current scope | Product/business/payment scope decision |
-| `OPEN-REG-006` | Exact Reopen semantics after a roster revision exists | Reopen cannot silently preserve downstream artifacts as current; stale/revision behavior required | Product need for reopen + concurrency/design review |
+| `OPEN-REG-006` | Exact Reopen semantics after a roster revision exists | **Closed 2026-09-17 by XS-W6-08c:** `reopen_registration` reopens a CLOSED or LOCKED Window only while the Session is DRAFT or SCHEDULED; earlier roster revisions stay immutable history, finalizing again creates the next revision, and capture refuses a revision that is not current (`40001`) | Closed |
 
 ---
 
@@ -560,7 +560,6 @@ The complete catalog remains authoritative, but these are especially likely to b
 - `OPEN-MATCH-001/002` before broad Community offline Match rollout;
 - `OPEN-BAL-001/002/003/010` before claiming a final canonical balancing policy;
 - `OPEN-RATING-001` before freezing aggregation algorithm as permanent;
-- `OPEN-REG-006` before implementing reopen after finalized roster;
 - `OPEN-MIG-009/010/011` before lossy historical Match/Competition auto-normalization;
 - `OPEN-MIG-020` before any destructive reset exception;
 - `OPEN-REL-001/007` before publishing numerical DR guarantees;

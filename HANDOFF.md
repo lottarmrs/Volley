@@ -202,7 +202,7 @@ fast-forward. Ver a
 cancelar o wizard depois da preparação deixa a Session target e a janela em `DRAFT` no servidor;
 Session target continua invisível em outro aparelho (XS-W3-08).
 
-**Divergência encontrada ao aplicar (resolvida na branch `feat/approved-members-join-roster`):** o
+**Divergência encontrada ao aplicar (resolvida e publicada em `main`):** o
 Panelinha já tinha `approved_members_join_roster` (`20260915155701`) aplicada, com o código só como
 trabalho não commitado em `C:\Volley`. A branch (worktree `C:\Volley-approved-members`) commita esse
 trabalho, idêntico ao que está no banco, e corrige um defeito dele. Ver "Membros aprovados entram no elenco".
@@ -222,8 +222,9 @@ já traz o atleta para o elenco local.
   quem aprovou reenvia `community_players` com o próprio `owner_id`, e a RLS só deixa atualizar linha
   própria, então todo sync seguinte falhava com `42501` em "vínculos atleta↔comunidade". O vínculo passa a
   pertencer a quem aprovou (ou ao dono da comunidade no preenchimento), e os vínculos de conta de atleta sem
-  cargo de gestão voltam para o dono da comunidade. No Panelinha eram 2 linhas. **Não aplicada no
-  Panelinha**: espera o ok do usuário.
+  cargo de gestão voltam para o dono da comunidade. Aplicada no Panelinha em 2026-09-17 como
+  `enrolled_roster_owner`: as 2 linhas foram reparadas e não sobrou vínculo sem quem possa mantê-lo. Branch
+  integrada em `main` (`351cd8d`) e publicada.
 - `approvedMembersRoster.dbtest.ts` (9 testes), incluindo o reenvio do sync e o reparo.
 
 Limite conhecido, anterior a esta branch: a RLS de `community_players` só aceita os cargos

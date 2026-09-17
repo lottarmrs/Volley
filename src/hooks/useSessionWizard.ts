@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Player, Team, Division, Game, Community } from '../types';
-import type { AuthorizedFormationStage } from '../types';
-import type { AuthorizedFormationGateway } from '../application/authorizedFormationGateways';
+import type { AuthorizedFormationStage, CandidateSetPublicationState } from '../types';
+import type {
+  AuthorizedFormationGateway,
+  TeamCandidateSetGateway,
+} from '../application/authorizedFormationGateways';
 import {
   classifyFormationAuthority,
   precheckAuthorizedSelection,
 } from '../application/authorizedTeamFormationRules';
 import { prepareAuthorizedTeamFormation } from '../application/authorizedTeamFormationUseCases';
+import {
+  clearCandidateSetPublication,
+  publishTeamCandidateSet,
+} from '../application/teamCandidateSetUseCases';
 import type { DivisionGenerationPlan } from '../application/sessionLifecycleUseCases';
 import { buildBalanceErrorResponse } from '../logic/balancerMessages';
 import type { BalanceResponse } from '../logic/balancerMessages';
@@ -53,6 +60,7 @@ interface UseSessionWizardProps {
   teams: Team[];
   communities?: Community[];
   authorizedFormationGateway?: AuthorizedFormationGateway;
+  teamCandidateSetGateway?: TeamCandidateSetGateway;
 }
 
 export function useSessionWizard({
@@ -68,6 +76,7 @@ export function useSessionWizard({
   teams,
   communities = [],
   authorizedFormationGateway,
+  teamCandidateSetGateway,
 }: UseSessionWizardProps) {
   const [wizardStep, setWizardStep] = useState(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -82,6 +91,9 @@ export function useSessionWizard({
     participantCount: number;
   } | null>(null);
   const preparationRef = useRef(0);
+  const [publicationBusy, setPublicationBusy] = useState(false);
+  const [publicationError, setPublicationError] = useState<string | null>(null);
+  const [publishedSetId, setPublishedSetId] = useState<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(activeSession?.id ?? null);
 
   useEffect(() => {
@@ -352,6 +364,12 @@ export function useSessionWizard({
       stopGenerationWithError(output.result.error.message);
       return;
     }
+    const cleared = clearCandidateSetPublication(output.session);
+    if (cleared !== output.session && activeSessionIdRef.current === cleared.id) {
+      setActiveSession(cleared);
+    }
+    setPublishedSetId(null);
+    setPublicationError(null);
     setAuthorizedDraw({
       estimatedCount: output.result.value.estimatedCount,
       participantCount: output.result.value.participantCount,
@@ -396,6 +414,38 @@ export function useSessionWizard({
     }
     void prepareAndBalance(plan, advanceStep, session, authority.communityCloudId, precheck.value);
   };
+
+  const publishCandidateSet = async () => {
+    if (!activeSession || bestDivisions.length === 0 || publicationBusy) return;
+    setPublicationBusy(true);
+    setPublicationError(null);
+    const output = await publishTeamCandidateSet(
+      {
+        session: activeSession,
+        divisions: bestDivisions,
+        players,
+        createId: generateUUID,
+        onSessionChange: (next) => {
+          if (activeSessionIdRef.current === next.id) setActiveSession(next);
+        },
+      },
+      teamCandidateSetGateway,
+    );
+    setPublicationBusy(false);
+    if (output.result.ok) {
+      setPublishedSetId(output.result.value.setId);
+    } else {
+      setPublicationError(output.result.error.message);
+    }
+  };
+
+  const publicationState: CandidateSetPublicationState = publicationBusy
+    ? 'publishing'
+    : publicationError
+      ? 'error'
+      : publishedSetId || activeSession?.authorizedFormation?.publishedCandidateSetId
+        ? 'published'
+        : 'idle';
 
   const cancelGeneration = () => {
     preparationRef.current += 1;
@@ -516,6 +566,9 @@ export function useSessionWizard({
     progress,
     generationStage,
     authorizedDraw,
+    publishCandidateSet,
+    publicationState,
+    publicationError,
     nextStep,
     prevStep,
     goToStep,

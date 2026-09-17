@@ -4,11 +4,17 @@ import type { BalanceResponse, BalanceRequest } from '../logic/balancerMessages'
 import { fromLocalSnapshots } from '../application/teamFormationAdapters';
 import { mapPlayersToBalanceSnapshots } from '../logic/balancingCompatibility';
 import { makePlayer, makeSession } from '../test/fixtures';
-import type { Community, Player, Session } from '../types';
+import type { Community, Division, Player, Session } from '../types';
 import { useSessionWizard } from './useSessionWizard';
 
 const fallbackControl = vi.hoisted(() => ({ error: null as Error | null }));
 const chain = vi.hoisted(() => ({ prepare: vi.fn() }));
+const publication = vi.hoisted(() => ({ publish: vi.fn() }));
+
+vi.mock('../application/teamCandidateSetUseCases', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../application/teamCandidateSetUseCases')>();
+  return { ...actual, publishTeamCandidateSet: publication.publish };
+});
 
 vi.mock('../application/authorizedTeamFormationUseCases', () => ({
   prepareAuthorizedTeamFormation: chain.prepare,
@@ -444,5 +450,109 @@ describe('useSessionWizard authorized formation', () => {
     expect(FakeWorker.instances).toHaveLength(0);
     expect(result.current.isGenerating).toBe(false);
     expect(result.current.generationStage).toBeNull();
+  });
+});
+
+describe('useSessionWizard candidate set publication', () => {
+  const divisions = [
+    { teams: [{ playerIds: ['a', 'b'] }, { playerIds: ['c', 'd'] }], score: 1, penalty: 0 },
+  ] as unknown as Division[];
+
+  beforeEach(() => {
+    localStorage.clear();
+    publication.publish.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('publishes the divisions on screen and reports published', async () => {
+    const players = syncedPlayers();
+    const setActiveSession = vi.fn();
+    publication.publish.mockImplementation(async (input) => {
+      const next = {
+        ...input.session,
+        authorizedFormation: { pendingCommandIds: {}, publishedCandidateSetId: 'set-1' },
+      };
+      input.onSessionChange?.(next);
+      return {
+        session: next,
+        result: { ok: true, value: { setId: 'set-1', setFingerprint: 'fp' } },
+      };
+    });
+    const { result } = renderWizard(communitySession(players), players, {
+      communities: [COMMUNITY],
+      setActiveSession,
+    });
+
+    act(() => result.current.setBestDivisions(divisions));
+    expect(result.current.publicationState).toBe('idle');
+
+    await act(async () => {
+      await result.current.publishCandidateSet();
+    });
+
+    expect(publication.publish).toHaveBeenCalledTimes(1);
+    expect(publication.publish.mock.calls[0][0].divisions).toEqual(divisions);
+    expect(publication.publish.mock.calls[0][0].players).toBe(players);
+    expect(setActiveSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorizedFormation: expect.objectContaining({ publishedCandidateSetId: 'set-1' }),
+      }),
+    );
+    expect(result.current.publicationState).toBe('published');
+    expect(result.current.publicationError).toBeNull();
+  });
+
+  it('shows the error and lets the organizer try again', async () => {
+    const players = syncedPlayers();
+    publication.publish
+      .mockImplementationOnce(async (input) => ({
+        session: input.session,
+        result: {
+          ok: false,
+          error: {
+            kind: 'conflict',
+            code: 'roster_revision',
+            message: 'O elenco mudou em outro aparelho. Tente de novo.',
+            recoverable: true,
+          },
+        },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        session: input.session,
+        result: { ok: true, value: { setId: 'set-2', setFingerprint: 'fp' } },
+      }));
+    const { result } = renderWizard(communitySession(players), players, {
+      communities: [COMMUNITY],
+    });
+    act(() => result.current.setBestDivisions(divisions));
+
+    await act(async () => {
+      await result.current.publishCandidateSet();
+    });
+    expect(result.current.publicationState).toBe('error');
+    expect(result.current.publicationError).toBe(
+      'O elenco mudou em outro aparelho. Tente de novo.',
+    );
+
+    await act(async () => {
+      await result.current.publishCandidateSet();
+    });
+    expect(result.current.publicationState).toBe('published');
+    expect(result.current.publicationError).toBeNull();
+  });
+
+  it('does nothing without divisions on screen', async () => {
+    const players = syncedPlayers();
+    const { result } = renderWizard(communitySession(players), players, {
+      communities: [COMMUNITY],
+    });
+    await act(async () => {
+      await result.current.publishCandidateSet();
+    });
+    expect(publication.publish).not.toHaveBeenCalled();
+    expect(result.current.publicationState).toBe('idle');
   });
 });

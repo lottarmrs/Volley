@@ -28,7 +28,7 @@
 > XS-W6-08a foi publicada em `main` (`81b43d7`) e a migration `mandatory_evaluation_model` foi
 > aplicada no Panelinha: as 6 comunidades estão ativadas e donos e admins têm `ORGANIZER`. A
 > XS-W6-08b (importar atributos) foi **cancelada**: os atributos de produção são padrões de criação em
-> lote, não avaliações. A XS-W6-08c (wizard sorteia pelo snapshot autorizado) está implementada na branch; ver a seção dela. O domínio de
+> lote, não avaliações. A XS-W6-08c (wizard sorteia pelo snapshot autorizado) foi publicada em `main` (`6af7daa`) e a migration `reopen_registration` aplicada no Panelinha em 2026-09-17; ver a seção dela. O domínio de
 > produção agora é `panelinhahub.vercel.app`.
 
 ## 0. Trabalho corrente — execução arquitetural C6
@@ -59,31 +59,31 @@ existe, é testado e faz o que promete. **Concluída não quer dizer alcançáve
 
 ### Estado das fatias
 
-| Fatia     | Assunto                                                       | Estado              |
-| --------- | ------------------------------------------------------------- | ------------------- |
-| XS-W3-01  | Session target root                                           | concluída           |
-| XS-W3-02  | Session organizer assignment                                  | concluída           |
-| XS-W3-03  | Session courts                                                | concluída           |
-| XS-W3-04  | Session rules snapshot                                        | concluída           |
-| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída           |
-| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída           |
-| XS-W3-07  | Session cohort cutover                                        | concluída           |
-| XS-W4-01  | Registration schema e invariantes                             | concluída           |
-| XS-W4-02  | Open/Close/Lock Registration                                  | concluída           |
-| XS-W4-03  | JoinRegistration                                              | concluída           |
-| XS-W4-04  | Leave / promoção / capacidade                                 | concluída           |
-| XS-W4-05  | FinalizeSessionRoster                                         | concluída           |
-| XS-W4-06  | Legacy Session Registration introduction                      | concluída           |
-| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída           |
-| XS-W5-02  | Skill rubric/dimension contract                               | concluída           |
-| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída           |
-| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída           |
-| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída           |
-| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída           |
-| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída           |
-| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída           |
-| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída           |
-| XS-W6-08c | Sorteio do wizard pelo snapshot autorizado                    | concluída na branch |
+| Fatia     | Assunto                                                       | Estado    |
+| --------- | ------------------------------------------------------------- | --------- |
+| XS-W3-01  | Session target root                                           | concluída |
+| XS-W3-02  | Session organizer assignment                                  | concluída |
+| XS-W3-03  | Session courts                                                | concluída |
+| XS-W3-04  | Session rules snapshot                                        | concluída |
+| XS-W3-05  | SessionParticipant + RosterRevision                           | concluída |
+| XS-W3-06  | Lifecycle/readiness semantic commands                         | concluída |
+| XS-W3-07  | Session cohort cutover                                        | concluída |
+| XS-W4-01  | Registration schema e invariantes                             | concluída |
+| XS-W4-02  | Open/Close/Lock Registration                                  | concluída |
+| XS-W4-03  | JoinRegistration                                              | concluída |
+| XS-W4-04  | Leave / promoção / capacidade                                 | concluída |
+| XS-W4-05  | FinalizeSessionRoster                                         | concluída |
+| XS-W4-06  | Legacy Session Registration introduction                      | concluída |
+| XS-W5-01  | Versioned PlayerEvaluation source model                       | concluída |
+| XS-W5-02  | Skill rubric/dimension contract                               | concluída |
+| XS-W5-03  | CommunityPlayerSkillProfile + editor de avaliação             | concluída |
+| XS-W5-04  | GlobalPlayerSkillProfile interno sob demanda                  | concluída |
+| XS-W6-01  | Snapshots imutáveis de entrada do balanceador                 | concluída |
+| XS-W6-02  | Porta de formação de times / solver determinístico            | concluída |
+| XS-W3-08  | Session target alcançável pelo cliente (por sync)             | concluída |
+| XS-W3-09  | `ORGANIZER` pelo cargo Organizador (espelho de membros)       | concluída |
+| XS-W6-08a | Modelo de avaliação obrigatório; `ORGANIZER` por cargo legado | concluída |
+| XS-W6-08c | Sorteio do wizard pelo snapshot autorizado                    | concluída |
 
 ### Compatibilização da nuvem e sync automático — 2026-09-14
 
@@ -181,7 +181,8 @@ Operação que vale saber:
 
 ### O que a XS-W6-08c entregou — sorteio pelo snapshot autorizado
 
-Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`. Ver a
+Branch `exec/c6-authorized-team-formation` (worktree `C:\Volley-xs-w6-08`), integrada em `main` por
+fast-forward. Ver a
 [spec](docs/superpowers/specs/2026-09-16-xs-w6-08c-authorized-team-formation-design.md) e o
 [plano](docs/superpowers/plans/2026-09-17-xs-w6-08c-authorized-team-formation.md).
 
@@ -197,9 +198,14 @@ Branch `exec/c6-authorized-team-formation`, worktree `C:\Volley-xs-w6-08`. Ver a
 - A tela mostra a etapa da preparação, o selo "Notas autorizadas da comunidade" e quantos atletas saíram
   com nota estimada — hoje todos, porque não existe avaliação no modelo novo.
 
-**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário. Limites conhecidos:
+**Publicada em 2026-09-17:** `main` em `6af7daa`, deploy de produção READY e `panelinhahub.vercel.app` respondendo 200. A migration foi aplicada no Panelinha como `reopen_registration`; as duas funções são `SECURITY DEFINER` com `search_path` vazio, executáveis só por `authenticated`, e o advisor de segurança só acrescentou o aviso esperado de RPC chamável por usuário logado. Antes da integração: typecheck, ESLint, Prettier, arquitetura e build limpos; 1025 testes unitários, 316 de interface e 711 de banco passando. O sorteio autorizado ainda não foi exercitado com uma conta real em produção. Limites conhecidos:
 cancelar o wizard depois da preparação deixa a Session target e a janela em `DRAFT` no servidor;
 Session target continua invisível em outro aparelho (XS-W3-08).
+
+**Divergência encontrada ao aplicar:** o Panelinha já tem `approved_members_join_roster`
+(`20260915155701`) aplicada, mas essa migration, `approvedMembersRoster.dbtest.ts` e 8 arquivos
+modificados (membros aprovados entram no elenco) existem só como trabalho não commitado em `C:\Volley`,
+de 2026-09-15 e sem sessão dona. Não descartar: terminar, testar e commitar numa branch própria.
 
 ### O que a XS-W6-08a entregou — modelo de avaliação obrigatório
 
@@ -242,8 +248,7 @@ dimensões (conjunto de chaves antigo, com `presencaDeRede` e sem `velocidade`/`
 10 criados em 2026-08-20 com 5 em todas (`MID_SCALE`). Nenhum tem conta nem valor variado. Importar
 gravaria notas que ninguém deu, com peso de avaliador na média de quem avaliar depois. As notas do
 modelo novo começam vazias e vêm do editor de avaliação; até lá o snapshot autorizado sai com todos
-estimados, o mesmo resultado que a importação daria. O wizard ainda sorteia pelos atributos locais até
-a XS-W6-08c.
+estimados, o mesmo resultado que a importação daria. Desde a XS-W6-08c, o wizard sorteia sessão de comunidade sincronizada por esse snapshot.
 
 ### O que a XS-W3-08 entregou — Session target alcançável por sync
 

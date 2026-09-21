@@ -6,8 +6,8 @@ test.describe('Settings, Admin Panel & Backup Recovery Flow', () => {
     await clearLocalStorage(page);
   });
 
-  test('AccountGate protects admin panel /admin for guests', async ({ page }) => {
-    await page.goto('/admin');
+  test('AccountGate protects the platform panel for guests', async ({ page }) => {
+    await page.goto('/plataforma');
 
     await expect(page.getByRole('link', { name: /Criar conta grátis/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /Já tenho conta/i })).toBeVisible();

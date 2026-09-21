@@ -208,6 +208,43 @@ Panelinha já tinha `approved_members_join_roster` (`20260915155701`) aplicada, 
 trabalho não commitado em `C:\Volley`. A branch (worktree `C:\Volley-approved-members`) commita esse
 trabalho, idêntico ao que está no banco, e corrige um defeito dele. Ver "Membros aprovados entram no elenco".
 
+### Navegação da comunidade unificada — 2026-09-21
+
+Branch `exec/community-navigation`, worktree `C:\Volley-navegacao`. Ver a
+[spec](docs/superpowers/specs/2026-09-21-community-navigation-unification-design.md) e o
+[plano](docs/superpowers/plans/2026-09-21-community-navigation-unification.md).
+
+A comunidade tinha duas navegações concorrentes: cinco áreas na lateral e dez abas dentro da Visão
+geral, com quatro pares cobrindo o mesmo conteúdo. As abas não entravam na URL — não havia link,
+voltar nem recarregar. Agora são seis áreas, cada uma com endereço próprio, e as subáreas também.
+
+- **Gestão** abre Membros, com Regras e Dados ao lado. Antes abria Regras, e Membros ficava escondido
+  numa aba da Visão geral.
+- **Sessões** reúne lista, Presença, Lista de WhatsApp e Torneios.
+- **Desempenho** reúne Ranking, Estatísticas e Histórico.
+- **Ligas** virou área própria da comunidade.
+- `/admin` virou `/plataforma`, encerrando a colisão de nomes com Gestão.
+- Nenhum endereço antigo quebrou: `?aba=`, `?sessao=` e `/admin` redirecionam.
+
+Três painéis foram comparados antes de qualquer remoção, e a comparação mudou duas decisões do
+plano:
+
+- **Atletas** tinha filtro por posição e frequência, vínculo de atleta por nome de usuário e
+  compartilhar, que a área Pessoas não tinha. Tudo isso foi levado para lá (`CommunityRosterTools`,
+  com o filtro puro em `communityRosterFilters`), e a aba foi apagada.
+- **Ranking** não duplicava a tabela de estatísticas: são telas diferentes. Virou subárea, ao lado de
+  Estatísticas.
+- **Sessões** duplicava mesmo o histórico que a área já renderiza, e foi apagada.
+
+A guarda de alterações não salvas saiu do seletor de abas e passou para os links
+(`GuardedLink`/`UnsavedGuardHost`), porque o app monta `BrowserRouter` e `useBlocker` exige roteador
+de dados.
+
+`CommunitiesView.tsx` caiu de 3.483 para 558 linhas: ficou com a lista de comunidades, a criação, a
+descoberta e a entrada por código.
+
+**Sem push**: espera o ok do usuário.
+
 ### O que a XS-W6-03 entregou — publicação do conjunto de candidatos
 
 Branch `exec/c6-candidate-set-publication`, worktree `C:\Volley-xs-w6-03`. Ver a

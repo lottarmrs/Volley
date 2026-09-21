@@ -243,8 +243,8 @@ describe('AppRouter — rotas globais', () => {
     expect(await screen.findByRole('heading', { name: /painel de controle/i })).toBeTruthy();
   });
 
-  it('deixa staff entrar em /admin', async () => {
-    renderApp('/admin', {
+  it('deixa staff entrar na plataforma', async () => {
+    renderApp('/plataforma', {
       ...readyState,
       account: {
         ...readyState.account,
@@ -300,6 +300,22 @@ describe('AppRouter — comunidade', () => {
     seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
     renderApp('/comunidades/c1/gestao/regras');
     expect((await screen.findByRole('tab', { name: 'Regras' })).className).toContain('tab-active');
+  });
+});
+
+describe('AppRouter — plataforma', () => {
+  it('/admin leva staff para /plataforma', async () => {
+    renderApp('/admin', {
+      ...readyState,
+      account: {
+        ...readyState.account,
+        profile: { ...readyState.account.profile, role: 'master' },
+      },
+    } as AuthSessionState);
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe('/plataforma'),
+    );
+    expect(await screen.findByRole('heading', { name: /usuários & papéis/i })).toBeTruthy();
   });
 });
 

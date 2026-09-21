@@ -100,7 +100,8 @@ export function AppRouter() {
             <Route path="/comunidades" element={<ComunidadesRoute />} />
             <Route path="/perfil" element={<PerfilRoute />} />
             <Route path="/perfil/sync" element={<PerfilSyncRoute />} />
-            <Route path="/admin" element={<AdminRoute />} />
+            <Route path="/plataforma" element={<AdminRoute />} />
+            <Route path="/admin" element={<Navigate to="/plataforma" replace />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/painel" replace />} />

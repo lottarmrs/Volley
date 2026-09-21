@@ -32,3 +32,21 @@ export function useUnsavedGuard(guard: UnsavedGuard): void {
     // destino é uma ref, não estado.
   }, [register, guard.dirty, guard.label, guard.save]);
 }
+
+export function createUnsavedGuardStore() {
+  let guard: UnsavedGuard | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    register(next: UnsavedGuard | null) {
+      guard = next;
+      listeners.forEach((listener) => listener());
+    },
+    read(): UnsavedGuard | null {
+      return guard;
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}

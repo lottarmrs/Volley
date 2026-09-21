@@ -21,7 +21,7 @@ export const paths = {
   comunidades: '/comunidades',
   perfil: '/perfil',
   perfilSync: '/perfil/sync',
-  admin: '/admin',
+  plataforma: '/plataforma',
   sessaoAtivaSemComunidade: '/sessao/ativa',
   comunidade: (communityId: string) => `/comunidades/${communityId}`,
   sessoes: (communityId: string) => `/comunidades/${communityId}/sessoes`,
@@ -36,22 +36,17 @@ export const paths = {
   pessoas: (communityId: string) => `/comunidades/${communityId}/pessoas`,
   atleta: (communityId: string, playerId: string) =>
     `/comunidades/${communityId}/pessoas/editar-atleta/${playerId}`,
-  desempenho: (
-    communityId: string,
-    options?: { aba?: 'ranking' | 'historico'; sessao?: string },
-  ) => {
-    const base = `/comunidades/${communityId}/desempenho`;
-    const query = new URLSearchParams();
-    if (options?.sessao) {
-      query.set('aba', 'historico');
-      query.set('sessao', options.sessao);
-    } else if (options?.aba) {
-      query.set('aba', options.aba);
-    }
-    const suffix = query.toString();
-    return suffix ? `${base}?${suffix}` : base;
+  desempenho: (communityId: string) => `/comunidades/${communityId}/desempenho`,
+  historico: (communityId: string, options?: { sessao?: string }) => {
+    const base = `/comunidades/${communityId}/desempenho/historico`;
+    return options?.sessao ? `${base}?sessao=${encodeURIComponent(options.sessao)}` : base;
   },
   gestao: (communityId: string) => `/comunidades/${communityId}/gestao`,
+  regras: (communityId: string) => `/comunidades/${communityId}/gestao/regras`,
+  dados: (communityId: string) => `/comunidades/${communityId}/gestao/dados`,
+  presenca: (communityId: string) => `/comunidades/${communityId}/sessoes/presenca`,
+  listaWhatsapp: (communityId: string) => `/comunidades/${communityId}/sessoes/lista-whatsapp`,
+  ligasComunidade: (communityId: string) => `/comunidades/${communityId}/ligas`,
 } as const;
 
 export type RouteResolution = { kind: 'ok' } | { kind: 'redirect'; to: string };
@@ -104,6 +99,34 @@ export function resolveLegacyLiveSessionRoute(input: {
 
 export function resolveAdminRoute(input: { isStaff: boolean }): RouteResolution {
   return input.isStaff ? { kind: 'ok' } : { kind: 'redirect', to: paths.painel };
+}
+
+export function resolveLegacyQueryRoute(pathname: string, search: string): RouteResolution {
+  if (pathname === '/admin') return { kind: 'redirect', to: paths.plataforma };
+
+  const segments = segmentsOf(pathname);
+  const isDesempenho =
+    segments[0] === 'comunidades' && !!segments[1] && segments[2] === 'desempenho' && !segments[3];
+  if (!isDesempenho) return { kind: 'ok' };
+
+  const query = new URLSearchParams(search);
+  const sessao = query.get('sessao');
+  if (sessao) return { kind: 'redirect', to: paths.historico(segments[1], { sessao }) };
+  const aba = query.get('aba');
+  if (aba === 'historico') return { kind: 'redirect', to: paths.historico(segments[1]) };
+  if (aba === 'ranking') return { kind: 'redirect', to: paths.desempenho(segments[1]) };
+  return { kind: 'ok' };
+}
+
+export function resolveCommunityAreaAccess(input: {
+  area: string | null;
+  hasRole: boolean;
+  communityId: string;
+}): RouteResolution {
+  if (input.area === 'gestao' && !input.hasRole) {
+    return { kind: 'redirect', to: paths.comunidade(input.communityId) };
+  }
+  return { kind: 'ok' };
 }
 
 export function resolveWizardRoute(input: {
@@ -192,7 +215,7 @@ export function pathForLegacyPage(page: LegacyPage, communityId: string | null):
     case 'player-edit':
       return communityId ? paths.atleta(communityId, NEW_PLAYER_ID) : paths.comunidades;
     case 'history':
-      return communityId ? paths.desempenho(communityId, { aba: 'historico' }) : paths.painel;
+      return communityId ? paths.historico(communityId) : paths.painel;
     case 'communities':
       return paths.comunidades;
     case 'dashboard':
@@ -214,7 +237,7 @@ export function getPageTitleForPath(pathname: string): string {
   }
   if (segments[0] === 'perfil')
     return segments[1] === 'sync' ? 'Sincronização & Backup Nuvem' : 'Meu Perfil';
-  if (segments[0] === 'admin') return 'Administração da Plataforma';
+  if (segments[0] === 'plataforma') return 'Administração da plataforma';
   if (segments[0] === 'sessao' && segments[1] === 'ativa') return 'Sessão em Andamento';
   if (segments[0] !== 'comunidades') return 'Panelinha';
   if (segments.length === 1) return 'Comunidades';
@@ -226,12 +249,18 @@ export function getPageTitleForPath(pathname: string): string {
       if (segments[3] === 'nova') return 'Configuração da Sessão';
       if (segments[3] === 'ativa') return 'Sessão em Andamento';
       if (segments[3] === 'torneios') return 'Torneios & Campeonatos';
+      if (segments[3] === 'presenca') return 'Presença';
+      if (segments[3] === 'lista-whatsapp') return 'Lista de WhatsApp';
       return 'Detalhe da Sessão';
     case 'pessoas':
       return segments[3] === 'editar-atleta' ? 'Perfil do Atleta' : 'Pessoas';
+    case 'ligas':
+      return 'Ligas da Comunidade';
     case 'desempenho':
-      return 'Desempenho';
+      return segments[3] === 'historico' ? 'Histórico' : 'Desempenho';
     case 'gestao':
+      if (segments[3] === 'regras') return 'Regras da Comunidade';
+      if (segments[3] === 'dados') return 'Dados da Comunidade';
       return 'Gestão da Comunidade';
     default:
       return 'Panelinha';
@@ -336,6 +365,13 @@ export function getShellNavigationItems(input: {
         active: area === 'pessoas',
       },
       {
+        id: 'comunidade-ligas',
+        label: 'Ligas',
+        icon: 'tournament',
+        to: paths.ligasComunidade(communityId),
+        active: area === 'ligas',
+      },
+      {
         id: 'comunidade-desempenho',
         label: 'Desempenho',
         icon: 'ranking',
@@ -400,11 +436,11 @@ export function getShellNavigationItems(input: {
 
   if (input.isStaff) {
     items.push({
-      id: 'admin',
-      label: 'Administração',
+      id: 'plataforma',
+      label: 'Plataforma',
       icon: 'admin',
-      to: paths.admin,
-      active: path === paths.admin,
+      to: paths.plataforma,
+      active: path.startsWith(paths.plataforma),
     });
   }
 

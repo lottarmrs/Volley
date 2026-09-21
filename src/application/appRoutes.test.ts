@@ -11,7 +11,9 @@ import {
   paths,
   resolveAdminRoute,
   resolveBackTarget,
+  resolveCommunityAreaAccess,
   resolveCommunityRoute,
+  resolveLegacyQueryRoute,
   resolveLegacyLiveSessionRoute,
   resolveLiveSessionRoute,
   resolveNewSessionPath,
@@ -26,7 +28,7 @@ test('paths monta as rotas globais e as aninhadas de comunidade', () => {
   assert.equal(paths.comunidades, '/comunidades');
   assert.equal(paths.perfil, '/perfil');
   assert.equal(paths.perfilSync, '/perfil/sync');
-  assert.equal(paths.admin, '/admin');
+  assert.equal(paths.plataforma, '/plataforma');
   assert.equal(paths.sessaoAtivaSemComunidade, '/sessao/ativa');
   assert.equal(paths.comunidade('c1'), '/comunidades/c1');
   assert.equal(paths.sessoes('c1'), '/comunidades/c1/sessoes');
@@ -39,18 +41,6 @@ test('paths monta as rotas globais e as aninhadas de comunidade', () => {
   assert.equal(paths.atleta('c1', 'p7'), '/comunidades/c1/pessoas/editar-atleta/p7');
   assert.equal(paths.atleta('c1', NEW_PLAYER_ID), '/comunidades/c1/pessoas/editar-atleta/novo');
   assert.equal(paths.gestao('c1'), '/comunidades/c1/gestao');
-});
-
-test('desempenho carrega aba e sessão como query deep-linkável', () => {
-  assert.equal(paths.desempenho('c1'), '/comunidades/c1/desempenho');
-  assert.equal(
-    paths.desempenho('c1', { aba: 'historico' }),
-    '/comunidades/c1/desempenho?aba=historico',
-  );
-  assert.equal(
-    paths.desempenho('c1', { sessao: 's9' }),
-    '/comunidades/c1/desempenho?aba=historico&sessao=s9',
-  );
 });
 
 test('extractCommunityId só reconhece o id dentro de /comunidades/:id', () => {
@@ -268,7 +258,7 @@ test('getPageTitleForPath deriva o título da URL', () => {
   assert.equal(getPageTitleForPath('/comunidades/c1/gestao'), 'Gestão da Comunidade');
   assert.equal(getPageTitleForPath('/perfil'), 'Meu Perfil');
   assert.equal(getPageTitleForPath('/perfil/sync'), 'Sincronização & Backup Nuvem');
-  assert.equal(getPageTitleForPath('/admin'), 'Administração da Plataforma');
+  assert.equal(getPageTitleForPath('/plataforma'), 'Administração da plataforma');
   assert.equal(getPageTitleForPath('/sessao/ativa'), 'Sessão em Andamento');
   assert.equal(getPageTitleForPath('/rota/que/nao/existe'), 'Panelinha');
 });
@@ -327,8 +317,8 @@ test('o começo rápido mantém a pelada de hoje marcada como ativa', () => {
 
 test('sidebar global expõe administração só para staff', () => {
   const items = getShellNavigationItems({ pathname: '/painel', isStaff: true, pendingChanges: 0 });
-  assert.equal(items.at(-1)?.id, 'admin');
-  assert.equal(items.at(-1)?.to, '/admin');
+  assert.equal(items.at(-1)?.id, 'plataforma');
+  assert.equal(items.at(-1)?.to, '/plataforma');
 });
 
 test('resolvePlayerRoute aceita id, handle e a sentinela de novo atleta', () => {
@@ -415,7 +405,7 @@ test('resolvePlayerEditAction nao faz nada sem playerId ou quando o alvo nao exi
   );
 });
 
-test('sidebar dentro da comunidade troca para as 5 áreas mais a volta', () => {
+test('sidebar dentro da comunidade troca para as 6 áreas mais a volta', () => {
   const items = getShellNavigationItems({
     pathname: '/comunidades/c1/pessoas/editar-atleta/p7',
     isStaff: true,
@@ -427,6 +417,7 @@ test('sidebar dentro da comunidade troca para as 5 áreas mais a volta', () => {
       { id: 'comunidade-visao-geral', to: '/comunidades/c1', active: false },
       { id: 'comunidade-sessoes', to: '/comunidades/c1/sessoes', active: false },
       { id: 'comunidade-pessoas', to: '/comunidades/c1/pessoas', active: true },
+      { id: 'comunidade-ligas', to: '/comunidades/c1/ligas', active: false },
       { id: 'comunidade-desempenho', to: '/comunidades/c1/desempenho', active: false },
       { id: 'comunidade-gestao', to: '/comunidades/c1/gestao', active: false },
       { id: 'voltar-comunidades', to: '/comunidades', active: false },
@@ -446,4 +437,102 @@ test('getReturnRouteForPath calcula o destino padronizado de retorno', () => {
   assert.equal(getReturnRouteForPath('/perfil/sync'), '/perfil');
   assert.equal(getReturnRouteForPath('/ligas/l1'), '/ligas');
   assert.equal(getReturnRouteForPath('/painel'), null);
+});
+
+test('paths das areas novas da comunidade', () => {
+  assert.equal(paths.presenca('c1'), '/comunidades/c1/sessoes/presenca');
+  assert.equal(paths.listaWhatsapp('c1'), '/comunidades/c1/sessoes/lista-whatsapp');
+  assert.equal(paths.ligasComunidade('c1'), '/comunidades/c1/ligas');
+  assert.equal(paths.desempenho('c1'), '/comunidades/c1/desempenho');
+  assert.equal(paths.historico('c1'), '/comunidades/c1/desempenho/historico');
+  assert.equal(
+    paths.historico('c1', { sessao: 's1' }),
+    '/comunidades/c1/desempenho/historico?sessao=s1',
+  );
+  assert.equal(paths.gestao('c1'), '/comunidades/c1/gestao');
+  assert.equal(paths.regras('c1'), '/comunidades/c1/gestao/regras');
+  assert.equal(paths.dados('c1'), '/comunidades/c1/gestao/dados');
+  assert.equal(paths.plataforma, '/plataforma');
+});
+
+test('enderecos antigos redirecionam para os novos', () => {
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/desempenho', '?aba=ranking'), {
+    kind: 'redirect',
+    to: '/comunidades/c1/desempenho',
+  });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/desempenho', '?aba=historico'), {
+    kind: 'redirect',
+    to: '/comunidades/c1/desempenho/historico',
+  });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/desempenho', '?sessao=s1'), {
+    kind: 'redirect',
+    to: '/comunidades/c1/desempenho/historico?sessao=s1',
+  });
+  assert.deepEqual(resolveLegacyQueryRoute('/admin', ''), {
+    kind: 'redirect',
+    to: '/plataforma',
+  });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/desempenho', ''), { kind: 'ok' });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/gestao', ''), { kind: 'ok' });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/sessoes/presenca', ''), { kind: 'ok' });
+});
+
+test('gestao exige cargo na comunidade', () => {
+  assert.deepEqual(
+    resolveCommunityAreaAccess({ area: 'gestao', hasRole: false, communityId: 'c1' }),
+    { kind: 'redirect', to: '/comunidades/c1' },
+  );
+  assert.deepEqual(
+    resolveCommunityAreaAccess({ area: 'gestao', hasRole: true, communityId: 'c1' }),
+    { kind: 'ok' },
+  );
+  assert.deepEqual(
+    resolveCommunityAreaAccess({ area: 'pessoas', hasRole: false, communityId: 'c1' }),
+    { kind: 'ok' },
+  );
+});
+
+test('a lateral da comunidade lista as seis areas e marca a ativa', () => {
+  const items = getShellNavigationItems({
+    pathname: '/comunidades/c1/gestao/regras',
+    isStaff: false,
+    pendingChanges: 0,
+  });
+  assert.deepEqual(
+    items.map((item) => item.label),
+    ['Visão geral', 'Sessões', 'Pessoas', 'Ligas', 'Desempenho', 'Gestão', 'Trocar comunidade'],
+  );
+  assert.deepEqual(
+    items.filter((item) => item.active).map((item) => item.id),
+    ['comunidade-gestao'],
+  );
+
+  const naPresenca = getShellNavigationItems({
+    pathname: '/comunidades/c1/sessoes/presenca',
+    isStaff: false,
+    pendingChanges: 0,
+  });
+  assert.deepEqual(
+    naPresenca.filter((item) => item.active).map((item) => item.id),
+    ['comunidade-sessoes'],
+  );
+});
+
+test('a plataforma substitui a administracao no menu e no titulo', () => {
+  const items = getShellNavigationItems({
+    pathname: '/plataforma',
+    isStaff: true,
+    pendingChanges: 0,
+  });
+  const plataforma = items.find((item) => item.id === 'plataforma');
+  assert.equal(plataforma?.label, 'Plataforma');
+  assert.equal(plataforma?.to, '/plataforma');
+  assert.equal(plataforma?.active, true);
+  assert.equal(getPageTitleForPath('/plataforma'), 'Administração da plataforma');
+  assert.equal(getPageTitleForPath('/comunidades/c1/gestao/regras'), 'Regras da Comunidade');
+  assert.equal(getPageTitleForPath('/comunidades/c1/gestao/dados'), 'Dados da Comunidade');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/presenca'), 'Presença');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/lista-whatsapp'), 'Lista de WhatsApp');
+  assert.equal(getPageTitleForPath('/comunidades/c1/ligas'), 'Ligas da Comunidade');
+  assert.equal(getPageTitleForPath('/comunidades/c1/desempenho/historico'), 'Histórico');
 });

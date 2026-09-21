@@ -184,7 +184,7 @@ export function SessionRecapView({ recap, isGuest, communityId }: SessionRecapVi
         <section className="flex flex-col gap-3 sm:flex-row">
           {communityId && (
             <Link
-              to={paths.desempenho(communityId, { aba: 'ranking' })}
+              to={paths.desempenho(communityId)}
               className="btn btn-primary min-h-[48px] flex-1 gap-2 px-6 font-black uppercase tracking-wider"
             >
               <Volleyball className="h-5 w-5" />

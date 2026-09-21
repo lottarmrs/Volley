@@ -197,7 +197,7 @@ export function CommunityPerformanceRoute() {
           type="button"
           role="tab"
           className={`tab whitespace-nowrap ${aba === 'ranking' ? 'tab-active' : ''}`}
-          onClick={() => navigate(paths.desempenho(community.id, { aba: 'ranking' }))}
+          onClick={() => navigate(paths.desempenho(community.id))}
         >
           Ranking
         </button>
@@ -205,7 +205,7 @@ export function CommunityPerformanceRoute() {
           type="button"
           role="tab"
           className={`tab whitespace-nowrap ${aba === 'historico' ? 'tab-active' : ''}`}
-          onClick={() => navigate(paths.desempenho(community.id, { aba: 'historico' }))}
+          onClick={() => navigate(paths.historico(community.id))}
         >
           Histórico
         </button>
@@ -231,13 +231,11 @@ export function CommunityPerformanceRoute() {
             selectedHistorySessionId: selectedSessionId,
             setSelectedHistorySessionId: (id) =>
               navigate(
-                id
-                  ? paths.desempenho(community.id, { sessao: id })
-                  : paths.desempenho(community.id, { aba: 'historico' }),
+                id ? paths.historico(community.id, { sessao: id }) : paths.historico(community.id),
               ),
             onDeleteSession: (sessionId) => {
               sess.deleteSession(sessionId);
-              navigate(paths.desempenho(community.id, { aba: 'historico' }));
+              navigate(paths.historico(community.id));
             },
             onBackToDashboard: () => navigate(paths.comunidade(community.id)),
             initialTab: 'sessions',

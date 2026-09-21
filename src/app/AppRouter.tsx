@@ -23,7 +23,9 @@ import {
   PerfilSyncRoute,
 } from './routes/globalRoutes';
 import {
+  CommunityDataRoute,
   CommunityGestaoRoute,
+  CommunityRulesRoute,
   CommunityOverviewRoute,
   CommunityPeopleRoute,
   CommunityPerformanceRoute,
@@ -73,6 +75,8 @@ export function AppRouter() {
               <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
               <Route path="desempenho" element={<CommunityPerformanceRoute />} />
               <Route path="gestao" element={<CommunityGestaoRoute />} />
+              <Route path="gestao/regras" element={<CommunityRulesRoute />} />
+              <Route path="gestao/dados" element={<CommunityDataRoute />} />
             </Route>
             <Route path="*" element={<Navigate to="/comunidades" replace />} />
           </Route>

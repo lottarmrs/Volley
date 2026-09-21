@@ -12,6 +12,7 @@ import {
   NEW_PLAYER_ID,
   paths,
   resolveBackTarget,
+  resolveCommunityAreaAccess,
   resolveCommunityRoute,
   resolvePlayerEditAction,
   resolvePlayerRoute,
@@ -24,6 +25,15 @@ import { useShell, useCommunityShell } from '../shellContext';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
+import {
+  applyCommunityHistoryClear,
+  applyCommunityMembershipDuplicate,
+  applyLinkedCloudPlayer,
+} from '@app/localCommunityUseCases';
+import { CommunityMembersPanel } from '../../components/community/CommunityMembersPanel';
+import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
+import { CommunityRulesArea } from '../../components/community/areas/CommunityRulesArea';
+import { CommunityDataArea } from '../../components/community/areas/CommunityDataArea';
 
 const PlayersView = lazy(() =>
   import('../../components/player/PlayersView').then((module) => ({ default: module.PlayersView })),
@@ -64,13 +74,140 @@ export function CommunityOverviewRoute() {
   return <CommunitiesView contract={contract} />;
 }
 
-export function CommunityGestaoRoute() {
-  const { community } = useCommunityShell();
-  const contract = useCommunitiesContract({
-    selectedCommunityId: community.id,
-    initialCommunityTab: 'rules',
+function useGestaoContext() {
+  const shell = useCommunityShell();
+  const navigate = useNavigate();
+  const permissions = useCommunityPermissions(shell.community);
+  const acesso = resolveCommunityAreaAccess({
+    area: 'gestao',
+    hasRole: permissions.role !== null,
+    communityId: shell.community.id,
   });
-  return <CommunitiesView contract={contract} />;
+  return { shell, navigate, permissions, acesso };
+}
+
+function GestaoTabs({
+  communityId,
+  ativa,
+}: {
+  communityId: string;
+  ativa: 'membros' | 'regras' | 'dados';
+}) {
+  return (
+    <CommunityAreaTabs
+      items={[
+        { to: paths.gestao(communityId), label: 'Membros', active: ativa === 'membros' },
+        { to: paths.regras(communityId), label: 'Regras', active: ativa === 'regras' },
+        { to: paths.dados(communityId), label: 'Dados', active: ativa === 'dados' },
+      ]}
+    />
+  );
+}
+
+export function CommunityGestaoRoute() {
+  const { shell, acesso } = useGestaoContext();
+  const { community, play, auth } = shell;
+  if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
+
+  return (
+    <div className="space-y-5">
+      <GestaoTabs communityId={community.id} ativa="membros" />
+      <CommunityMembersPanel
+        community={community}
+        currentUserId={auth.user?.id ?? null}
+        isSupabaseConfigured={auth.isSupabaseConfigured}
+        globalRole={auth.profile?.role ?? null}
+        players={getCommunityPlayers(community.id, play.players)}
+        onLinkedPlayer={(player, communityId) =>
+          play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId))
+        }
+      />
+    </div>
+  );
+}
+
+export function CommunityRulesRoute() {
+  const { shell, permissions, acesso } = useGestaoContext();
+  const { community, communityRules } = shell;
+  if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
+
+  return (
+    <div className="space-y-5">
+      <GestaoTabs communityId={community.id} ativa="regras" />
+      <CommunityRulesArea
+        rules={communityRules.getRules(community)}
+        canEditRules={permissions.canEditRules}
+        onSave={(draftRules) => {
+          try {
+            communityRules.saveRules(draftRules, permissions.canEditRules);
+          } catch (err) {
+            if ((err as Error).message === 'PERMISSION_DENIED') {
+              alert('Erro: Ação não autorizada pelo nível de permissão.');
+            }
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+export function CommunityDataRoute() {
+  const { shell, navigate, permissions, acesso } = useGestaoContext();
+  const { community, play, sess, comm } = shell;
+  if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
+
+  return (
+    <div className="space-y-5">
+      <GestaoTabs communityId={community.id} ativa="dados" />
+      <CommunityDataArea
+        community={community}
+        players={play.players}
+        sessions={sess.sessions}
+        canEditRules={permissions.canEditRules}
+        canDeleteCommunity={permissions.canDeleteCommunity}
+        canClearHistory={permissions.canClearHistory}
+        onUpdateCommunity={(id, patch) => {
+          try {
+            return comm.updateCommunity(id, patch, permissions.canEditRules);
+          } catch (err) {
+            if ((err as Error).message === 'PERMISSION_DENIED') {
+              alert('Erro: Ação não autorizada pelo nível de permissão.');
+            }
+            return false;
+          }
+        }}
+        onDeleteCommunity={(id) => {
+          if (!permissions.canDeleteCommunity) {
+            alert('Erro: Ação não autorizada pelo nível de permissão.');
+            return;
+          }
+          if (!window.confirm('Excluir esta comunidade? Os atletas continuarão cadastrados.')) {
+            return;
+          }
+          shell.deleteCommunityAggregate(id);
+          navigate(paths.comunidades);
+        }}
+        onDuplicateCommunity={(id, includeAthletes) => {
+          const result = comm.duplicateCommunity(id, includeAthletes);
+          if (result?.includeAthletes) {
+            play.setPlayers((prev) =>
+              applyCommunityMembershipDuplicate(prev, {
+                sourceCommunityId: id,
+                duplicateCommunityId: result.duplicate.id,
+              }),
+            );
+          }
+        }}
+        onClearCommunityHistory={(id) => {
+          if (!permissions.canClearHistory) {
+            alert('Erro: Ação não autorizada pelo nível de permissão.');
+            return;
+          }
+          sess.setSessions((prev) => applyCommunityHistoryClear(prev, id));
+        }}
+      />
+    </div>
+  );
 }
 
 export function CommunityPeopleRoute() {

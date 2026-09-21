@@ -281,9 +281,15 @@ describe('AppRouter — comunidade', () => {
     expect(screen.queryByText(COMMUNITY_LIST_MARKER)).toBeNull();
   });
 
-  it('abre a gestão da comunidade na aba Regras', async () => {
+  it('abre a gestão da comunidade em Membros', async () => {
     seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
     renderApp('/comunidades/c1/gestao');
+    expect((await screen.findByRole('tab', { name: 'Membros' })).className).toContain('tab-active');
+  });
+
+  it('regras e dados são subáreas de gestão, com endereço próprio', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
+    renderApp('/comunidades/c1/gestao/regras');
     expect((await screen.findByRole('tab', { name: 'Regras' })).className).toContain('tab-active');
   });
 });

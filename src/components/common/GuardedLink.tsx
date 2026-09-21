@@ -88,19 +88,15 @@ export function UnsavedGuardHost({ children }: { children: ReactNode }) {
   );
 }
 
-export function GuardedLink({
-  to,
-  className,
-  children,
-  role,
-  ariaSelected,
-}: {
+export interface GuardedLinkProps {
   to: string;
   className?: string;
   children: ReactNode;
   role?: string;
   ariaSelected?: boolean;
-}) {
+}
+
+export function GuardedLink({ to, className, children, role, ariaSelected }: GuardedLinkProps) {
   const gate = useGuardGate();
   return (
     <Link

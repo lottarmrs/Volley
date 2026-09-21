@@ -26,10 +26,7 @@ export type CommunityTab =
   | 'whatsapp'
   | 'sessions'
   | 'championships'
-  | 'ranking'
-  | 'members'
-  | 'rules'
-  | 'data';
+  | 'ranking';
 
 export interface CommunityPresenceApi {
   getPresence: (communityId: string) => CommunityPresence | null;

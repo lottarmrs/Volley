@@ -79,6 +79,7 @@ import {
   resolveRoundSessionOpening,
 } from '../application/championshipUseCases';
 import { appOk, productError } from '@app/appResult';
+import { UnsavedGuardHost } from '../components/common/GuardedLink';
 
 const navigationIconByKey: Record<ShellNavItem['icon'], ReactNode> = {
   dashboard: <LayoutDashboard className="w-5 h-5" />,
@@ -815,7 +816,9 @@ export function AppShell() {
                   </div>
                 }
               >
-                <Outlet context={shell} />
+                <UnsavedGuardHost>
+                  <Outlet context={shell} />
+                </UnsavedGuardHost>
               </Suspense>
             </motion.div>
           </AnimatePresence>

@@ -34,6 +34,7 @@ import { CommunityMembersPanel } from '../../components/community/CommunityMembe
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityRulesArea } from '../../components/community/areas/CommunityRulesArea';
 import { CommunityDataArea } from '../../components/community/areas/CommunityDataArea';
+import { CommunityLeaguesArea } from '../../components/community/areas/CommunityLeaguesArea';
 
 const PlayersView = lazy(() =>
   import('../../components/player/PlayersView').then((module) => ({ default: module.PlayersView })),
@@ -313,6 +314,32 @@ export function PlayerEditRoute() {
           }
         },
       })}
+    />
+  );
+}
+
+export function CommunityLeaguesRoute() {
+  const shell = useCommunityShell();
+  const { community, play, sess, championships } = shell;
+  const permissions = useCommunityPermissions(community);
+
+  return (
+    <CommunityLeaguesArea
+      community={community}
+      players={getCommunityPlayers(community.id, play.players)}
+      games={sess.games}
+      pointEvents={sess.pointEvents}
+      sessionTeams={sess.teams}
+      championships={championships.championships}
+      championshipTeams={championships.championshipTeams}
+      championshipRounds={championships.championshipRounds}
+      canManage={permissions.canEditRules}
+      onCreateChampionship={championships.create}
+      onMaterializeRound={shell.materializeChampionshipRound}
+      onDeleteChampionship={shell.deleteChampionshipAggregate}
+      onRescheduleRound={championships.rescheduleRound}
+      onSetRoundSkipped={championships.setRoundSkipped}
+      onUpdateChampionshipRecurrence={championships.updateRecurrence}
     />
   );
 }

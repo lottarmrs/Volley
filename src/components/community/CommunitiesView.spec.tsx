@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { appOk } from '../../application/appResult';
 import { makeGame, makePlayer, makeTeam } from '../../test/fixtures';
 import type { Championship, ChampionshipRound, ChampionshipTeam, Community } from '../../types';
-import { ChampionshipsTab } from './CommunitiesView';
+import { CommunityLeaguesArea } from './areas/CommunityLeaguesArea';
 
 const community: Community = {
   id: 'community-1',
@@ -70,10 +70,10 @@ const players = [
 
 import { BrowserRouter } from 'react-router';
 
-function renderTab(overrides: Partial<ComponentProps<typeof ChampionshipsTab>> = {}) {
+function renderTab(overrides: Partial<ComponentProps<typeof CommunityLeaguesArea>> = {}) {
   return render(
     <BrowserRouter>
-      <ChampionshipsTab
+      <CommunityLeaguesArea
         community={community}
         players={players}
         games={[]}
@@ -95,7 +95,7 @@ function renderTab(overrides: Partial<ComponentProps<typeof ChampionshipsTab>> =
   );
 }
 
-describe('ChampionshipsTab', () => {
+describe('CommunityLeaguesArea', () => {
   it('renders league list, next round and current standings', () => {
     renderTab({
       championships: [championship],

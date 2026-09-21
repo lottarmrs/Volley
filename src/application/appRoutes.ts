@@ -37,6 +37,7 @@ export const paths = {
   atleta: (communityId: string, playerId: string) =>
     `/comunidades/${communityId}/pessoas/editar-atleta/${playerId}`,
   desempenho: (communityId: string) => `/comunidades/${communityId}/desempenho`,
+  estatisticas: (communityId: string) => `/comunidades/${communityId}/desempenho/estatisticas`,
   historico: (communityId: string, options?: { sessao?: string }) => {
     const base = `/comunidades/${communityId}/desempenho/historico`;
     return options?.sessao ? `${base}?sessao=${encodeURIComponent(options.sessao)}` : base;
@@ -257,7 +258,9 @@ export function getPageTitleForPath(pathname: string): string {
     case 'ligas':
       return 'Ligas da Comunidade';
     case 'desempenho':
-      return segments[3] === 'historico' ? 'Histórico' : 'Desempenho';
+      if (segments[3] === 'historico') return 'Histórico';
+      if (segments[3] === 'estatisticas') return 'Estatísticas';
+      return 'Desempenho';
     case 'gestao':
       if (segments[3] === 'regras') return 'Regras da Comunidade';
       if (segments[3] === 'dados') return 'Dados da Comunidade';

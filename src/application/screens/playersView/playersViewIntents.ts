@@ -5,4 +5,6 @@ export type PlayersViewIntent =
   | { kind: 'addPlayer' }
   | { kind: 'editPlayer'; player: Player }
   | { kind: 'restoreDemoPlayers' }
-  | { kind: 'addGuestPlayer'; player: Player; editDetails: boolean };
+  | { kind: 'addGuestPlayer'; player: Player; editDetails: boolean }
+  | { kind: 'createPlayerInCommunity'; name: string }
+  | { kind: 'linkedCloudPlayer'; player: Player; communityId: string };

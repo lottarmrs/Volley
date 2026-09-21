@@ -19,7 +19,7 @@ import type {
 import type { CreateChampionshipInput } from '@app/championshipUseCases';
 import type { AppResult } from '@app/appResult';
 
-export type CommunityTab = 'summary' | 'players' | 'ranking';
+export type CommunityTab = 'summary';
 
 export interface CommunityPresenceApi {
   getPresence: (communityId: string) => CommunityPresence | null;

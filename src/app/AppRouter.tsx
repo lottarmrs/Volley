@@ -25,6 +25,8 @@ import {
 import {
   CommunityDataRoute,
   CommunityGestaoRoute,
+  CommunityHistoryRoute,
+  CommunityStatsRoute,
   CommunityLeaguesRoute,
   CommunityRulesRoute,
   CommunityOverviewRoute,
@@ -80,6 +82,8 @@ export function AppRouter() {
               <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
               <Route path="ligas" element={<CommunityLeaguesRoute />} />
               <Route path="desempenho" element={<CommunityPerformanceRoute />} />
+              <Route path="desempenho/estatisticas" element={<CommunityStatsRoute />} />
+              <Route path="desempenho/historico" element={<CommunityHistoryRoute />} />
               <Route path="gestao" element={<CommunityGestaoRoute />} />
               <Route path="gestao/regras" element={<CommunityRulesRoute />} />
               <Route path="gestao/dados" element={<CommunityDataRoute />} />

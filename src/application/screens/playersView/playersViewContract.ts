@@ -1,9 +1,10 @@
 import type { Community, Game, Player, PointEvent, Session, Team } from '@shared/types';
 import type { ScreenContract } from '../screenContract';
-import type { PlayersViewModel } from './playersViewModel';
+import type { CommunityRosterContext, PlayersViewModel } from './playersViewModel';
 import type { PlayersViewIntent } from './playersViewIntents';
 
 export interface PlayersViewContractInput {
+  roster?: CommunityRosterContext | null;
   players: Player[];
   communities: Community[];
   games: Game[];
@@ -15,10 +16,13 @@ export interface PlayersViewContractInput {
   onEditPlayer: (player: Player) => void;
   onRestoreDemoPlayers: () => void;
   onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
+  onCreatePlayerInCommunity?: (name: string) => void;
+  onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
 }
 
 function buildModel(input: PlayersViewContractInput): PlayersViewModel {
   return {
+    roster: input.roster ?? null,
     players: input.players,
     communities: input.communities,
     games: input.games,
@@ -48,6 +52,12 @@ export function buildPlayersViewContract(
         return;
       case 'addGuestPlayer':
         input.onAddGuestPlayer(intent.player, intent.editDetails);
+        return;
+      case 'createPlayerInCommunity':
+        input.onCreatePlayerInCommunity?.(intent.name);
+        return;
+      case 'linkedCloudPlayer':
+        input.onLinkedCloudPlayer?.(intent.player, intent.communityId);
         return;
     }
   };

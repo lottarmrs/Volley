@@ -8,6 +8,12 @@ import { PlayerItem } from './PlayerComponents';
 import { GuestPlayerModal } from './GuestPlayerModal';
 import { FutCardModal } from './FutCardModal';
 import { matchesSearch } from '../../logic/textNormalization';
+import {
+  matchesCommunityRosterFilter,
+  type CommunityRosterFilter,
+} from '@app/communityRosterFilters';
+import { getCommunitySessions } from '@logic/community';
+import { CommunityRosterTools } from '../community/areas/CommunityRosterTools';
 import { EmptyState } from '../../ui/EmptyState';
 
 export const PlayersView = ({
@@ -16,12 +22,14 @@ export const PlayersView = ({
   contract: ScreenContract<PlayersViewModel, PlayersViewIntent>;
 }) => {
   const { model, dispatch } = contract;
-  const { players, communities, games, pointEvents, teams, sessions } = model;
+  const { roster, players, communities, games, pointEvents, teams, sessions } = model;
   const [showInactive, setShowInactive] = useState(false);
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [selectedVutPlayer, setSelectedVutPlayer] = useState<Player | null>(null);
+  const [rosterFilter, setRosterFilter] = useState<CommunityRosterFilter>('all');
+  const communitySessions = roster ? getCommunitySessions(roster.community.id, sessions) : [];
 
   const visiblePlayers = players
     .filter((player) => (showInactive ? true : player.ativo))
@@ -33,10 +41,29 @@ export const PlayersView = ({
     .filter(
       (player) =>
         matchesSearch(player.nome, searchQuery) || matchesSearch(player.apelido, searchQuery),
+    )
+    .filter((player) =>
+      roster ? matchesCommunityRosterFilter(player, rosterFilter, communitySessions) : true,
     );
 
   return (
     <div className="space-y-6">
+      {roster && (
+        <CommunityRosterTools
+          community={roster.community}
+          players={players}
+          visiblePlayers={visiblePlayers}
+          filter={rosterFilter}
+          onFilterChange={setRosterFilter}
+          canManageMembers={roster.canManageMembers}
+          currentUserId={roster.currentUserId}
+          isSupabaseConfigured={roster.isSupabaseConfigured}
+          onCreatePlayer={(name) => dispatch({ kind: 'createPlayerInCommunity', name })}
+          onLinkedPlayer={(player, communityId) =>
+            dispatch({ kind: 'linkedCloudPlayer', player, communityId })
+          }
+        />
+      )}
       {/* Header and Controls */}
       <div className="flex flex-col gap-3 bg-base-200 p-3 sm:p-4 rounded-xl border border-base-300 shadow-sm">
         <div className="flex items-center justify-between gap-2">

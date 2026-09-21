@@ -274,10 +274,11 @@ describe('AppRouter — comunidade', () => {
     expect(await screen.findByText(COMMUNITY_LIST_MARKER)).toBeTruthy();
   });
 
-  it('abre o detalhe da comunidade da URL', async () => {
+  it('abre a visão geral da comunidade da URL, sem barra de abas', async () => {
     seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
     renderApp('/comunidades/c1');
-    expect((await screen.findByRole('tab', { name: 'Resumo' })).className).toContain('tab-active');
+    expect(await screen.findByRole('link', { name: /sessões/i })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Resumo' })).toBeNull();
     expect(screen.queryByText(COMMUNITY_LIST_MARKER)).toBeNull();
   });
 
@@ -350,7 +351,7 @@ describe('AppRouter — primeiro uso das áreas com conta', () => {
     renderApp(paths.comunidade('c1'));
 
     expect(await screen.findByRole('heading', { name: /sua comunidade está de pé/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /cadastrar atletas/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /cadastrar atletas/i })).toBeTruthy();
     // O painel de estatísticas zeradas não pode aparecer no primeiro uso.
     expect(screen.queryByText(/^Pontos$/)).toBeNull();
   });

@@ -25,6 +25,7 @@ import { useShell, useCommunityShell } from '../shellContext';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
+import { LegacyQueryRedirect } from './LegacyQueryRedirect';
 import {
   applyCommunityHistoryClear,
   applyCommunityMembershipDuplicate,
@@ -35,6 +36,8 @@ import { CommunityAreaTabs } from '../../components/community/areas/CommunityAre
 import { CommunityRulesArea } from '../../components/community/areas/CommunityRulesArea';
 import { CommunityDataArea } from '../../components/community/areas/CommunityDataArea';
 import { CommunityLeaguesArea } from '../../components/community/areas/CommunityLeaguesArea';
+import { CommunityOverviewArea } from '../../components/community/areas/CommunityOverviewArea';
+import { CommunityRankingArea } from '../../components/community/areas/CommunityRankingArea';
 
 const PlayersView = lazy(() =>
   import('../../components/player/PlayersView').then((module) => ({ default: module.PlayersView })),
@@ -70,9 +73,30 @@ export function CommunityShell() {
 }
 
 export function CommunityOverviewRoute() {
-  const { community } = useCommunityShell();
-  const contract = useCommunitiesContract({ selectedCommunityId: community.id });
-  return <CommunitiesView contract={contract} />;
+  const shell = useCommunityShell();
+  const { community, play, sess, communityRules } = shell;
+  const permissions = useCommunityPermissions(community);
+  const communityPlayers = getCommunityPlayers(community.id, play.players);
+
+  return (
+    <CommunityOverviewArea
+      community={community}
+      players={play.players}
+      sessions={sess.sessions}
+      games={sess.games}
+      pointEvents={sess.pointEvents}
+      sessionReports={sess.sessionReports}
+      canCreateSession={permissions.canCreateSession}
+      canManageRoster={permissions.canEditPlayerProfile}
+      onCreateSession={() =>
+        shell.createSessionFromCommunity(
+          community,
+          communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+          communityRules.getRules(community),
+        )
+      }
+    />
+  );
 }
 
 function useGestaoContext() {
@@ -214,12 +238,19 @@ export function CommunityDataRoute() {
 export function CommunityPeopleRoute() {
   const shell = useCommunityShell();
   const navigate = useNavigate();
-  const { community, play, sess, comm } = shell;
+  const { community, play, sess, comm, auth } = shell;
+  const permissions = useCommunityPermissions(community);
   const communityPlayers = getCommunityPlayers(community.id, play.players);
 
   return (
     <PlayersView
       contract={buildPlayersViewContract({
+        roster: {
+          community,
+          canManageMembers: permissions.canManageMembers,
+          currentUserId: auth.user?.id ?? null,
+          isSupabaseConfigured: auth.isSupabaseConfigured,
+        },
         players: communityPlayers,
         communities: comm.communities,
         games: sess.games,
@@ -238,6 +269,9 @@ export function CommunityPeopleRoute() {
         onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
         onAddGuestPlayer: (newPlayer, editDetails) =>
           shell.applyGuestPlayer(newPlayer, editDetails, community.id),
+        onCreatePlayerInCommunity: (name) => shell.createPlayerForCommunity(name, community.id),
+        onLinkedCloudPlayer: (player, communityId) =>
+          play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId)),
       })}
     />
   );
@@ -344,69 +378,97 @@ export function CommunityLeaguesRoute() {
   );
 }
 
+function DesempenhoTabs({
+  communityId,
+  ativa,
+}: {
+  communityId: string;
+  ativa: 'ranking' | 'estatisticas' | 'historico';
+}) {
+  return (
+    <CommunityAreaTabs
+      items={[
+        { to: paths.desempenho(communityId), label: 'Ranking', active: ativa === 'ranking' },
+        {
+          to: paths.estatisticas(communityId),
+          label: 'Estatísticas',
+          active: ativa === 'estatisticas',
+        },
+        { to: paths.historico(communityId), label: 'Histórico', active: ativa === 'historico' },
+      ]}
+    />
+  );
+}
+
 export function CommunityPerformanceRoute() {
-  const shell = useCommunityShell();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { community, play, sess } = shell;
-  const selectedSessionId = searchParams.get('sessao');
-  const aba = selectedSessionId ? 'historico' : (searchParams.get('aba') ?? 'ranking');
-  const communityPlayers = getCommunityPlayers(community.id, play.players);
-  const communitySessions = getCommunitySessions(community.id, sess.sessions);
+  const { community, play, sess } = useCommunityShell();
 
   return (
-    <div className="space-y-5">
-      <div role="tablist" className="tabs tabs-box flex-wrap justify-start">
-        <button
-          type="button"
-          role="tab"
-          className={`tab whitespace-nowrap ${aba === 'ranking' ? 'tab-active' : ''}`}
-          onClick={() => navigate(paths.desempenho(community.id))}
-        >
-          Ranking
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={`tab whitespace-nowrap ${aba === 'historico' ? 'tab-active' : ''}`}
-          onClick={() => navigate(paths.historico(community.id))}
-        >
-          Histórico
-        </button>
-      </div>
-
-      {aba === 'ranking' ? (
-        <RankingModule
-          players={communityPlayers}
+    <LegacyQueryRedirect>
+      <div className="space-y-5">
+        <DesempenhoTabs communityId={community.id} ativa="ranking" />
+        <CommunityRankingArea
+          community={community}
+          players={play.players}
+          sessions={sess.sessions}
           games={sess.games}
           pointEvents={sess.pointEvents}
           teams={sess.teams}
-          sessions={communitySessions}
+          sessionReports={sess.sessionReports}
         />
-      ) : (
-        <HistoryView
-          contract={buildHistoryViewContract({
-            sessions: communitySessions,
-            games: sess.games,
-            pointEvents: sess.pointEvents,
-            teams: sess.teams,
-            players: play.players,
-            sessionReports: sess.sessionReports,
-            selectedHistorySessionId: selectedSessionId,
-            setSelectedHistorySessionId: (id) =>
-              navigate(
-                id ? paths.historico(community.id, { sessao: id }) : paths.historico(community.id),
-              ),
-            onDeleteSession: (sessionId) => {
-              sess.deleteSession(sessionId);
-              navigate(paths.historico(community.id));
-            },
-            onBackToDashboard: () => navigate(paths.comunidade(community.id)),
-            initialTab: 'sessions',
-            hideTabs: false,
-          })}
-        />
-      )}
+      </div>
+    </LegacyQueryRedirect>
+  );
+}
+
+export function CommunityStatsRoute() {
+  const { community, play, sess } = useCommunityShell();
+
+  return (
+    <div className="space-y-5">
+      <DesempenhoTabs communityId={community.id} ativa="estatisticas" />
+      <RankingModule
+        players={getCommunityPlayers(community.id, play.players)}
+        games={sess.games}
+        pointEvents={sess.pointEvents}
+        teams={sess.teams}
+        sessions={getCommunitySessions(community.id, sess.sessions)}
+      />
+    </div>
+  );
+}
+
+export function CommunityHistoryRoute() {
+  const { community, play, sess } = useCommunityShell();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedSessionId = searchParams.get('sessao');
+
+  return (
+    <div className="space-y-5">
+      <DesempenhoTabs communityId={community.id} ativa="historico" />
+      <HistoryView
+        contract={buildHistoryViewContract({
+          sessions: getCommunitySessions(community.id, sess.sessions),
+          games: sess.games,
+          pointEvents: sess.pointEvents,
+          teams: sess.teams,
+          players: play.players,
+          sessionReports: sess.sessionReports,
+          selectedHistorySessionId: selectedSessionId,
+          setSelectedHistorySessionId: (id) =>
+            navigate(
+              id ? paths.historico(community.id, { sessao: id }) : paths.historico(community.id),
+            ),
+          onDeleteSession: (sessionId) => {
+            sess.deleteSession(sessionId);
+            navigate(paths.historico(community.id));
+          },
+          onBackToDashboard: () => navigate(paths.comunidade(community.id)),
+          initialTab: 'sessions',
+          hideTabs: false,
+        })}
+      />
     </div>
   );
 }

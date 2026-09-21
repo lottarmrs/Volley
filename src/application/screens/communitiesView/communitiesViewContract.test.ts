@@ -249,10 +249,10 @@ test('linkedCloudPlayer (opcional) nao lanca quando ausente', async () => {
 
 test('selectedCommunityId e initialCommunityTab chegam ao modelo', () => {
   const c = buildCommunitiesViewContract(
-    makeInput({ selectedCommunityId: 'c1', initialCommunityTab: 'ranking' }),
+    makeInput({ selectedCommunityId: 'c1', initialCommunityTab: 'summary' }),
   );
   assert.equal(c.model.selectedCommunityId, 'c1');
-  assert.equal(c.model.initialCommunityTab, 'ranking');
+  assert.equal(c.model.initialCommunityTab, 'summary');
 });
 
 test('selectCommunity repassa o id e o nulo de volta para a lista', async () => {

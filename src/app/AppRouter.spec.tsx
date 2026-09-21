@@ -281,6 +281,14 @@ describe('AppRouter — comunidade', () => {
     expect(screen.queryByText(COMMUNITY_LIST_MARKER)).toBeNull();
   });
 
+  it('presença e lista de WhatsApp são subáreas de Sessões', async () => {
+    seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
+    renderApp('/comunidades/c1/sessoes/presenca');
+    expect((await screen.findByRole('tab', { name: 'Presença' })).className).toContain(
+      'tab-active',
+    );
+  });
+
   it('abre a gestão da comunidade em Membros', async () => {
     seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
     renderApp('/comunidades/c1/gestao');

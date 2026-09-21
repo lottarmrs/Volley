@@ -35,7 +35,9 @@ import {
 import {
   CommunitySessionDetailRoute,
   CommunitySessionsRoute,
+  CommunityPresenceRoute,
   CommunityTournamentsRoute,
+  CommunityWhatsAppRoute,
   SessionActiveRoute,
   SessionWizardRoute,
 } from './routes/sessionRoutes';
@@ -72,6 +74,8 @@ export function AppRouter() {
               <Route path="pessoas/editar-atleta/:playerId" element={<PlayerEditRoute />} />
               <Route path="sessoes" element={<CommunitySessionsRoute />} />
               <Route path="sessoes/torneios" element={<CommunityTournamentsRoute />} />
+              <Route path="sessoes/presenca" element={<CommunityPresenceRoute />} />
+              <Route path="sessoes/lista-whatsapp" element={<CommunityWhatsAppRoute />} />
               <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
               <Route path="desempenho" element={<CommunityPerformanceRoute />} />
               <Route path="gestao" element={<CommunityGestaoRoute />} />

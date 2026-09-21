@@ -12,11 +12,14 @@ import { buildSessionWizardContract } from '@app/screens/sessionWizard/sessionWi
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
 import { resolveSessionCreationAccess } from '@app/sessionCreationAccess';
 import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionLifecycleUseCases';
-import { getCommunitySessions } from '@logic/community';
+import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { generateUUID } from '@logic/uuid';
 import { SessionCreationBlocked } from '../../components/session/SessionCreationBlocked';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { useCommunityShell } from '../shellContext';
+import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
+import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
+import { CommunityWhatsAppArea } from '../../components/community/areas/CommunityWhatsAppArea';
 
 const HistoryView = lazy(() =>
   import('../../components/history/HistoryView').then((module) => ({
@@ -39,32 +42,105 @@ export const SessionActiveView = lazy(() =>
   })),
 );
 
+function SessoesTabs({
+  communityId,
+  ativa,
+}: {
+  communityId: string;
+  ativa: 'lista' | 'presenca' | 'whatsapp' | 'torneios';
+}) {
+  return (
+    <CommunityAreaTabs
+      items={[
+        { to: paths.sessoes(communityId), label: 'Sessões', active: ativa === 'lista' },
+        { to: paths.presenca(communityId), label: 'Presença', active: ativa === 'presenca' },
+        {
+          to: paths.listaWhatsapp(communityId),
+          label: 'Lista de WhatsApp',
+          active: ativa === 'whatsapp',
+        },
+        { to: paths.torneios(communityId), label: 'Torneios', active: ativa === 'torneios' },
+      ]}
+    />
+  );
+}
+
+export function CommunityPresenceRoute() {
+  const shell = useCommunityShell();
+  const { community, play, communityPresence, communityRules } = shell;
+  const permissions = useCommunityPermissions(community);
+  const communityPlayers = getCommunityPlayers(community.id, play.players);
+
+  return (
+    <div className="space-y-5">
+      <SessoesTabs communityId={community.id} ativa="presenca" />
+      <CommunityPresenceArea
+        community={community}
+        players={communityPlayers}
+        presenceApi={communityPresence}
+        canCreateSession={permissions.canCreateSession}
+        onCreateSession={() =>
+          shell.createSessionFromCommunity(
+            community,
+            communityPresence
+              .getPresentPlayers(community.id, communityPlayers)
+              .map((player) => player.id),
+            communityRules.getRules(community),
+          )
+        }
+      />
+    </div>
+  );
+}
+
+export function CommunityWhatsAppRoute() {
+  const shell = useCommunityShell();
+  const { community, play, whatsAppLists } = shell;
+  const permissions = useCommunityPermissions(community);
+
+  return (
+    <div className="space-y-5">
+      <SessoesTabs communityId={community.id} ativa="whatsapp" />
+      <CommunityWhatsAppArea
+        community={community}
+        players={getCommunityPlayers(community.id, play.players)}
+        whatsAppApi={whatsAppLists}
+        canCreateSession={permissions.canCreateSession}
+        canEditRules={permissions.canEditRules}
+      />
+    </div>
+  );
+}
+
 export function CommunitySessionsRoute() {
   const { community, sess, play } = useCommunityShell();
   const navigate = useNavigate();
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
 
   return (
-    <HistoryView
-      contract={buildHistoryViewContract({
-        sessions: communitySessions,
-        games: sess.games,
-        pointEvents: sess.pointEvents,
-        teams: sess.teams,
-        players: play.players,
-        sessionReports: sess.sessionReports,
-        selectedHistorySessionId: null,
-        setSelectedHistorySessionId: (id) =>
-          navigate(id ? paths.sessao(community.id, id) : paths.sessoes(community.id)),
-        onDeleteSession: (sessionId) => {
-          sess.deleteSession(sessionId);
-          navigate(paths.sessoes(community.id));
-        },
-        onBackToDashboard: () => navigate(paths.comunidade(community.id)),
-        initialTab: 'sessions',
-        hideTabs: true,
-      })}
-    />
+    <div className="space-y-5">
+      <SessoesTabs communityId={community.id} ativa="lista" />
+      <HistoryView
+        contract={buildHistoryViewContract({
+          sessions: communitySessions,
+          games: sess.games,
+          pointEvents: sess.pointEvents,
+          teams: sess.teams,
+          players: play.players,
+          sessionReports: sess.sessionReports,
+          selectedHistorySessionId: null,
+          setSelectedHistorySessionId: (id) =>
+            navigate(id ? paths.sessao(community.id, id) : paths.sessoes(community.id)),
+          onDeleteSession: (sessionId) => {
+            sess.deleteSession(sessionId);
+            navigate(paths.sessoes(community.id));
+          },
+          onBackToDashboard: () => navigate(paths.comunidade(community.id)),
+          initialTab: 'sessions',
+          hideTabs: true,
+        })}
+      />
+    </div>
   );
 }
 
@@ -204,22 +280,25 @@ export function CommunityTournamentsRoute() {
   const navigate = useNavigate();
 
   return (
-    <TournamentsModule
-      sessions={getCommunitySessions(community.id, sess.sessions)}
-      games={sess.games}
-      teams={sess.teams}
-      sessionReports={sess.sessionReports}
-      onNewTournament={() =>
-        navigate(resolveNewSessionPath({ communityIds: [community.id], type: 'tournament' }))
-      }
-      onOpenTournament={(tournament, shouldOpenLive) => {
-        if (shouldOpenLive) {
-          sess.setActiveSession(tournament);
-          navigate(paths.sessaoAtiva(community.id));
-        } else {
-          navigate(paths.sessao(community.id, tournament.id));
+    <div className="space-y-5">
+      <SessoesTabs communityId={community.id} ativa="torneios" />
+      <TournamentsModule
+        sessions={getCommunitySessions(community.id, sess.sessions)}
+        games={sess.games}
+        teams={sess.teams}
+        sessionReports={sess.sessionReports}
+        onNewTournament={() =>
+          navigate(resolveNewSessionPath({ communityIds: [community.id], type: 'tournament' }))
         }
-      }}
-    />
+        onOpenTournament={(tournament, shouldOpenLive) => {
+          if (shouldOpenLive) {
+            sess.setActiveSession(tournament);
+            navigate(paths.sessaoAtiva(community.id));
+          } else {
+            navigate(paths.sessao(community.id, tournament.id));
+          }
+        }}
+      />
+    </div>
   );
 }

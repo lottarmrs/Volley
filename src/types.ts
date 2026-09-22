@@ -34,6 +34,12 @@ export type {
   TeamCandidateSetRead,
 } from './shared/types/teamCandidateSet';
 export type {
+  RegistrationBoard,
+  RegistrationBoardEntry,
+  RegistrationBoardStatus,
+  RegistrationEntryStatus,
+} from './shared/types/registrationBoard';
+export type {
   CommunitySkillProfile,
   CommunitySkillProfileRequest,
 } from './shared/types/communitySkillProfile';

@@ -52,9 +52,9 @@ também `claim_session_ownership`, `transfer_session_ownership`, `find_player_by
 lista porque `20260827210000_target_session_root.sql` e `20260908160000_security_audit_remediation.sql`
 as recriam. Elas não contam como capacidade C6.
 
-Das ~46 restantes, que são comandos semânticos destinados ao cliente, **22 são alcançáveis**: 5 por
+Das ~46 restantes, que são comandos semânticos destinados ao cliente, **24 são alcançáveis**: 5 por
 tela, 1 por tela e por sync, e 2 **só por sync** — os dois novos, ambos da XS-W3-08, e ambos
-condicionados a uma responsabilidade que, até a XS-W3-09, a interface não concedia (ver abaixo). A XS-W6-08c somou 13 pelo sorteio do wizard, incluindo as duas RPCs novas da reabertura e da leitura da janela, e tornou `create_target_session` alcançável também por tela; as contagens por tipo acima são as de antes dela. A XS-W6-03 somou `publish_team_candidate_set`, pelo botão Publicar.
+condicionados a uma responsabilidade que, até a XS-W3-09, a interface não concedia (ver abaixo). A XS-W6-08c somou 13 pelo sorteio do wizard, incluindo as duas RPCs novas da reabertura e da leitura da janela, e tornou `create_target_session` alcançável também por tela; as contagens por tipo acima são as de antes dela. A XS-W6-03 somou `publish_team_candidate_set`, pelo botão Publicar. A tela de inscrição somou as duas leituras novas e trouxe `join_registration` e `leave_registration` para o alcance do atleta, que até aqui não tinha comando nenhum.
 
 ### Alcançável
 
@@ -67,6 +67,7 @@ condicionados a uma responsabilidade que, até a XS-W3-09, a interface não conc
 | Ler Session target por id           | **só sync**     | `syncNow` → `mergeTargetCohortSessionReads` → `sessionCohortCloudService.readTargetSession` → `read_target_session`                                                                           |
 | Sorteio autorizado | tela | `SessionWizard` → `useSessionWizard.generateDivisions` → `prepareAuthorizedTeamFormation` → `create_target_session`, `create_registration_window`, `open_registration`, `reopen_registration`, `add_registration_entry`, `remove_registration_entry`, `change_registration_capacity`, `close_registration`, `lock_registration`, `finalize_session_roster`, `read_registration_window`, `read_target_roster_revision`, `capture_balance_input_snapshot`, `read_balance_input_snapshot` |
 | Publicar candidatos | tela | `SessionWizard` → `CandidateSetPublication` → `useSessionWizard.publishCandidateSet` → `publishTeamCandidateSet` → `read_target_roster_revision`, `publish_team_candidate_set` |
+| Inscrição da pelada | tela | `RegistrationBoardView` → `useRegistrationBoard` → `registrationUseCases` → `create_registration_window`, `open_registration`, `close_registration`, `reopen_registration`, `join_registration`, `leave_registration`, `add_registration_entry`, `remove_registration_entry`, `change_registration_capacity`, `read_registration_board`, `read_session_registration` |
 
 ### Os comandos que a XS-W3-08 tocou, nível por nível
 
@@ -157,7 +158,7 @@ Não é só fiação faltando: não existe Session legada elegível para ligar (
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **W3**                            | `update_target_session_draft`, `publish/schedule/start/finish/cancel_target_session`, `assign/revoke_target_session_organizer`, `add/configure_target_session_court`, `freeze_target_session_rules_snapshot`, `replace_target_quick_session_roster`, `read_target_roster_revision`, `read_target_session_readiness`, `transition_legacy_session_to_target`, `inspect_legacy_session_cutover` |
 | **W3-08 (governança)**            | `set_community_organizer`                                                                                                                                                                                                                    |
-| **W4 (restante)** | `join/leave_registration`, `inspect_registration_introduction`, `introduce_registration_from_legacy_roster` |
+| **W4 (restante)** | `inspect_registration_introduction`, `introduce_registration_from_legacy_roster` |
 | **W5-01, W5-02**                  | `record_player_evaluation` (o editor usa o próprio comando), `skill_rubric_dimensions_for`                                                                                                                                                  |
 | **W6-01, W6-02**                  | o adaptador autorizado                                                                                                                                                  |
 | **W6-03** | `read_team_candidate_set` (sem consumidor até a XS-W6-04) |

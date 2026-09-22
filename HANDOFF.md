@@ -208,6 +208,32 @@ Panelinha já tinha `approved_members_join_roster` (`20260915155701`) aplicada, 
 trabalho não commitado em `C:\Volley`. A branch (worktree `C:\Volley-approved-members`) commita esse
 trabalho, idêntico ao que está no banco, e corrige um defeito dele. Ver "Membros aprovados entram no elenco".
 
+### A inscrição ganhou tela — 2026-09-22
+
+Branch `exec/registration-screen`, worktree `C:\Volley-inscricao`. Ver a
+[spec](docs/superpowers/specs/2026-09-22-registration-screen-design.md) e o
+[plano](docs/superpowers/plans/2026-09-22-registration-screen.md).
+
+A onda W4 inteira rodava escondida atrás do botão de gerar times. Agora a inscrição pertence à
+sessão marcada: o organizador abre dias antes, os atletas se inscrevem sozinhos, quem passa da
+capacidade entra na reserva, e quem desiste libera a vaga para o primeiro da fila.
+
+- `20260922120000_registration_board.sql`: `read_registration_board` e `read_session_registration`,
+  autorizadas por membro ativo da comunidade, com a reserva, as posições e o que quem lê pode fazer.
+  A leitura da XS-W6-08c continua intacta, porque a cadeia do sorteio depende dela.
+- Tela em `/comunidades/:id/sessoes/:sessionId/inscricao`, com dois modos; portas pela Agenda e pelo
+  cartão da próxima pelada no painel. A forma da tela saiu da skill `impeccable`: painel de situação
+  no topo e uma lista só, na ordem de chegada, cortada pela faixa do fim das vagas.
+- O sorteio passou a adotar a janela aberta: o elenco sai dos confirmados, e a seleção do wizard
+  deixou de competir com a inscrição.
+
+**Próxima fatia, já decidida com o usuário:** a vaga se confirma pelo **pagamento**. O organizador
+marca cada atleta como pago, a reserva passa a ser ordenada por quem pagou primeiro, o organizador
+pode ajustar essa ordem, e a lista só fecha para o sorteio com o pagamento em dia. Isso reabre
+`OPEN-REG-004` (fila estritamente por chegada) e `OPEN-REG-005` (pagamento fora do V1).
+
+**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário.
+
 ### Navegação da comunidade unificada — 2026-09-21
 
 Branch `exec/community-navigation`, worktree `C:\Volley-navegacao`. Ver a

@@ -9,6 +9,7 @@ const players = [
   makePlayer('a', { cloudId: 'cloud-a', nome: 'Ana' }),
   makePlayer('b', { cloudId: 'cloud-b', nome: 'Bia' }),
   makePlayer('c', { cloudId: 'cloud-c', nome: 'Caio' }),
+  makePlayer('d', { cloudId: 'cloud-d', nome: 'Duda' }),
 ];
 
 function board(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
@@ -67,6 +68,7 @@ function api(overrides: Partial<RegistrationBoardApi> = {}): RegistrationBoardAp
     removeAthlete: vi.fn(),
     changeCapacity: vi.fn(),
     setOpen: vi.fn(),
+    reload: vi.fn(),
     ...overrides,
   };
 }
@@ -155,5 +157,33 @@ describe('RegistrationBoardView', () => {
     renderView({ board: board({ status: 'CLOSED', viewerEntryStatus: null }) });
     expect(screen.queryByRole('button', { name: /quero jogar/i })).toBeNull();
     expect(screen.getByText(/fechada/i)).toBeDefined();
+  });
+
+  it('enquanto carrega, não afirma que a inscrição não abriu', () => {
+    renderView({ board: null, loading: true });
+    expect(screen.queryByText(/ainda não abriu/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /quero jogar/i })).toBeNull();
+    expect(screen.getByRole('status').textContent).toMatch(/carregando/i);
+  });
+
+  it('quando a leitura falha, oferece tentar de novo em vez do painel de estreia', () => {
+    const contrato = renderView({
+      board: null,
+      error: 'Não foi possível carregar a inscrição. Tente de novo.',
+    });
+    expect(screen.queryByText(/ainda não abriu/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /tentar de novo/i }));
+    expect(contrato.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('escolher o atleta não inscreve ninguém; só o botão inscreve', () => {
+    const contrato = renderView({ board: board({ viewerCanManage: true }) });
+    const seletor = screen.getByLabelText(/incluir atleta/i);
+
+    fireEvent.change(seletor, { target: { value: 'cloud-d' } });
+    expect(contrato.addAthlete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^incluir$/i }));
+    expect(contrato.addAthlete).toHaveBeenCalledWith('cloud-d');
   });
 });

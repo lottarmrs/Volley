@@ -32,6 +32,7 @@ export interface RegistrationBoardApi {
   removeAthlete: (playerCloudId: string) => Promise<void>;
   changeCapacity: (capacity: number) => Promise<void>;
   setOpen: (open: boolean) => Promise<void>;
+  reload: () => Promise<void>;
 }
 
 export function useRegistrationBoard(input: UseRegistrationBoardInput): RegistrationBoardApi {
@@ -43,31 +44,34 @@ export function useRegistrationBoard(input: UseRegistrationBoardInput): Registra
   const [error, setError] = useState<string | null>(null);
   const pending = useRef<Record<string, { commandId: string; entryId: string }>>({});
 
+  const ler = useCallback(
+    async (viva: () => boolean) => {
+      if (!sessionCloudId) {
+        setBoard(null);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const proximo = await defaultRegistrationBoardGateway.readSessionBoard(sessionCloudId);
+        if (viva()) setBoard(proximo);
+      } catch {
+        if (viva()) setError('Não foi possível carregar a inscrição. Tente de novo.');
+      } finally {
+        if (viva()) setLoading(false);
+      }
+    },
+    [sessionCloudId],
+  );
+
   useEffect(() => {
     let active = true;
-    if (!sessionCloudId) {
-      setBoard(null);
-      setLoading(false);
-      return () => {
-        active = false;
-      };
-    }
-    setLoading(true);
-    defaultRegistrationBoardGateway
-      .readSessionBoard(sessionCloudId)
-      .then((next) => {
-        if (active) setBoard(next);
-      })
-      .catch(() => {
-        if (active) setError('Não foi possível carregar a inscrição. Tente de novo.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    void ler(() => active);
     return () => {
       active = false;
     };
-  }, [sessionCloudId]);
+  }, [ler]);
 
   const comando = (chave: string) => {
     const atual = pending.current[chave];
@@ -85,14 +89,19 @@ export function useRegistrationBoard(input: UseRegistrationBoardInput): Registra
       setBusy(true);
       setError(null);
       const ids = comando(chave);
-      const resultado = await acao(ids);
-      setBusy(false);
-      if (resultado.ok) {
-        delete pending.current[chave];
-        setBoard(resultado.value);
-        return;
+      try {
+        const resultado = await acao(ids);
+        if (resultado.ok) {
+          delete pending.current[chave];
+          setBoard(resultado.value);
+          return;
+        }
+        setError(resultado.error.message);
+      } catch {
+        setError('Não foi possível falar com a nuvem. Tente de novo.');
+      } finally {
+        setBusy(false);
       }
-      setError(resultado.error.message);
     },
     [],
   );
@@ -165,5 +174,6 @@ export function useRegistrationBoard(input: UseRegistrationBoardInput): Registra
           commandId: ids.commandId,
         });
       }),
+    reload: () => ler(() => true),
   };
 }

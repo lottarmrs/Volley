@@ -20,7 +20,6 @@ import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
 import { CommunityWhatsAppArea } from '../../components/community/areas/CommunityWhatsAppArea';
-import { RegistrationBoardView } from '../../components/session/RegistrationBoardView';
 import { useRegistrationBoard } from '../../hooks/useRegistrationBoard';
 
 const HistoryView = lazy(() =>
@@ -36,6 +35,11 @@ const TournamentsModule = lazy(() =>
 const SessionWizard = lazy(() =>
   import('../../components/session/SessionWizard').then((module) => ({
     default: module.SessionWizard,
+  })),
+);
+const RegistrationBoardView = lazy(() =>
+  import('../../components/session/RegistrationBoardView').then((module) => ({
+    default: module.RegistrationBoardView,
   })),
 );
 export const SessionActiveView = lazy(() =>

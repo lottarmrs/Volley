@@ -20,6 +20,20 @@
 
 Node >= 20 (22 recommended — see `.nvmrc`). Node < 20.6 fails: Vite 6 + `node --import tsx` both require >= 20.6. Run `nvm use` if anything errors.
 
+## Design Bench (`preview/`)
+
+Every community route sits behind `AuthGuard`, so a screen under `/comunidades`, `/ligas`, `/agenda`
+or `/painel` cannot be opened in a browser without an account — and states like loading, read
+failure or a locked list never show up on demand even with one. `preview/<screen>.html` +
+`preview/<screen>.tsx` mount the real component with fake data, one state per block, and the dev
+server serves them at `http://localhost:3100/preview/<screen>.html`.
+
+`vite build` only emits the root `index.html`, so nothing under `preview/` reaches production —
+verified against `dist/`. These files are dev-only scaffolding: no auth bypass, no flag, no
+production code path. Keep them out of `src/`, and add one whenever a new screen lands.
+
+First one: `preview/inscricao.html` (registration board, 12 states).
+
 ## Two Test Runners (Do Not Confuse)
 
 - **`test:unit`** — Node's built-in test runner + tsx. Glob: `src/**/*.test.ts`. Pure-logic/domain/application tests, zero DOM.

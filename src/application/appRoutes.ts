@@ -25,6 +25,8 @@ export const paths = {
   sessaoAtivaSemComunidade: '/sessao/ativa',
   comunidade: (communityId: string) => `/comunidades/${communityId}`,
   sessoes: (communityId: string) => `/comunidades/${communityId}/sessoes`,
+  inscricao: (communityId: string, sessionId: string) =>
+    `/comunidades/${communityId}/sessoes/${sessionId}/inscricao`,
   sessaoNova: (communityId: string, type?: 'tournament' | 'free_play') =>
     type === 'tournament'
       ? `/comunidades/${communityId}/sessoes/nova?tipo=torneio`
@@ -252,6 +254,7 @@ export function getPageTitleForPath(pathname: string): string {
       if (segments[3] === 'torneios') return 'Torneios & Campeonatos';
       if (segments[3] === 'presenca') return 'Presença';
       if (segments[3] === 'lista-whatsapp') return 'Lista de WhatsApp';
+      if (segments[4] === 'inscricao') return 'Inscrição';
       return 'Detalhe da Sessão';
     case 'pessoas':
       return segments[3] === 'editar-atleta' ? 'Perfil do Atleta' : 'Pessoas';

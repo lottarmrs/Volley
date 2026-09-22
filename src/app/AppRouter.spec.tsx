@@ -675,4 +675,22 @@ describe('AppRouter — wizard e sessão ativa', () => {
     expect(screen.queryByPlaceholderText(WIZARD_MARKER)).toBeNull();
     expect(await screen.findByText(SESSION_ACTIVE_MARKER, {}, { timeout: 5000 })).toBeTruthy();
   });
+
+  it('a agenda leva à inscrição da pelada marcada', async () => {
+    const amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    seedLocalDb({
+      communities: [community],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Pelada de quinta',
+          date: amanha,
+          status: 'configured',
+          communityId: 'c1',
+        } as Partial<Session>,
+      ],
+    });
+    renderApp(paths.inscricao('c1', 's1'));
+    expect(await screen.findByRole('heading', { name: /inscri/i })).toBeTruthy();
+  });
 });

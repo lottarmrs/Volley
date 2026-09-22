@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { Dashboard } from './Dashboard';
 import type { DashboardModel } from '@app/screens/dashboard/dashboardModel';
 
@@ -9,6 +10,7 @@ function createMockContract(modelOverrides: Partial<DashboardModel> = {}) {
     activeSession: null,
     sessionDraft: null,
     games: [],
+    proximaPelada: null,
     ...modelOverrides,
   };
   const dispatch = vi.fn();
@@ -84,5 +86,23 @@ describe('Dashboard', () => {
       kind: 'resumeDraft',
       draft: expect.anything(),
     });
+  });
+
+  it('o cartao da proxima pelada leva a inscricao', () => {
+    const { contract } = createMockContract({
+      proximaPelada: {
+        to: '/comunidades/c1/sessoes/s1/inscricao',
+        title: 'Pelada de quinta',
+        subtitle: 'quinta-feira, 24 de setembro',
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Dashboard contract={contract} />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByRole('link', { name: /pelada de quinta/i });
+    expect(link.getAttribute('href')).toBe('/comunidades/c1/sessoes/s1/inscricao');
   });
 });

@@ -72,6 +72,9 @@ export function PainelRoute() {
         activeSession: sess.activeSession,
         sessionDraft: shell.sessionDraft,
         games: sess.games,
+        sessions: sess.sessions,
+        communities: comm.communities,
+        today: formatLocalDateInput(new Date()),
         // Sem comunidade nenhuma, `resolveNewSessionPath` despeja o usuario numa
         // lista vazia de comunidades. O comeco rapido cria a comunidade sozinho.
         onNewSession: () =>
@@ -146,7 +149,7 @@ export function AgendaRoute() {
       onOpen={(item) =>
         navigate(
           item.kind === 'session'
-            ? paths.sessao(item.communityId, item.refId)
+            ? paths.inscricao(item.communityId, item.refId)
             : paths.torneios(item.communityId),
         )
       }

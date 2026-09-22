@@ -1,5 +1,7 @@
-import type { Game, Session } from '@shared/types';
+import type { Community, Game, Session } from '@shared/types';
 import type { SessionDraft } from '@logic/sessionDraft';
+import { buildAgendaItems } from '@app/agendaViewModel';
+import { paths } from '@app/appRoutes';
 import type { ScreenContract } from '../screenContract';
 import type { DashboardModel } from './dashboardModel';
 import type { DashboardIntent } from './dashboardIntents';
@@ -18,6 +20,32 @@ export interface DashboardContractInput {
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
   onCommunities: () => void;
+  sessions: Session[];
+  communities: Community[];
+  today: string;
+}
+
+function formatarDia(iso: string): string {
+  const data = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(data.getTime())) return iso;
+  return data.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function proximaPelada(input: DashboardContractInput): DashboardModel['proximaPelada'] {
+  const proxima = buildAgendaItems({
+    today: input.today,
+    communities: input.communities,
+    sessions: input.sessions,
+    championships: [],
+    championshipTeams: [],
+    championshipRounds: [],
+  }).find((item) => item.kind === 'session');
+  if (!proxima) return null;
+  return {
+    to: paths.inscricao(proxima.communityId, proxima.refId),
+    title: proxima.title,
+    subtitle: formatarDia(proxima.date),
+  };
 }
 
 function buildModel(input: DashboardContractInput): DashboardModel {
@@ -25,6 +53,7 @@ function buildModel(input: DashboardContractInput): DashboardModel {
     activeSession: input.activeSession,
     sessionDraft: input.sessionDraft,
     games: input.games,
+    proximaPelada: proximaPelada(input),
   };
 }
 

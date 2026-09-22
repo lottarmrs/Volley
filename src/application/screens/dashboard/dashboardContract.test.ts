@@ -55,6 +55,9 @@ function makeInput(overrides: Partial<DashboardContractInput> = {}): DashboardCo
     onExportBackup: () => {},
     onImportBackup: () => {},
     onCommunities: () => {},
+    sessions: [],
+    communities: [],
+    today: '2026-09-22',
     ...overrides,
   };
 }
@@ -147,4 +150,33 @@ test('communities chama onCommunities', async () => {
   const c = buildDashboardContract(makeInput({ onCommunities: onCommunities.fn as never }));
   await c.dispatch({ kind: 'communities' });
   assert.equal(onCommunities.calls.length, 1);
+});
+
+test('a proxima pelada aponta para a inscricao da sessao futura mais proxima', () => {
+  const c = buildDashboardContract(
+    makeInput({
+      communities: [{ id: 'c1', name: 'Panelinha' } as never],
+      sessions: [
+        makeSession({ id: 's2', name: 'Pelada de sabado', date: '2026-09-26', communityId: 'c1' }),
+        makeSession({ id: 's1', name: 'Pelada de quinta', date: '2026-09-24', communityId: 'c1' }),
+      ],
+    }),
+  );
+  assert.deepEqual(c.model.proximaPelada, {
+    to: '/comunidades/c1/sessoes/s1/inscricao',
+    title: 'Pelada de quinta',
+    subtitle: 'quinta-feira, 24 de setembro',
+  });
+});
+
+test('sem sessao futura, a proxima pelada e nula', () => {
+  const c = buildDashboardContract(
+    makeInput({
+      communities: [{ id: 'c1', name: 'Panelinha' } as never],
+      sessions: [
+        makeSession({ id: 's0', name: 'Pelada antiga', date: '2026-09-01', communityId: 'c1' }),
+      ],
+    }),
+  );
+  assert.equal(c.model.proximaPelada, null);
 });

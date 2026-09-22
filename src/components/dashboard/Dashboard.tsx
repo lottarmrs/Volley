@@ -9,7 +9,9 @@ import {
   Sparkles,
   ChevronRight,
   Shield,
+  CalendarDays,
 } from 'lucide-react';
+import { Link } from 'react-router';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { DashboardModel } from '@app/screens/dashboard/dashboardModel';
 import type { DashboardIntent } from '@app/screens/dashboard/dashboardIntents';
@@ -21,7 +23,7 @@ interface DashboardProps {
 
 export function Dashboard({ contract }: DashboardProps) {
   const { model, dispatch } = contract;
-  const { activeSession, sessionDraft, games } = model;
+  const { activeSession, sessionDraft, games, proximaPelada } = model;
   const phase = derivePhase(activeSession, games);
   const mostrarCardAtivo = phase !== 'rascunho' && phase !== 'encerrada';
 
@@ -121,6 +123,31 @@ export function Dashboard({ contract }: DashboardProps) {
               </button>
             </div>
           </div>
+        )}
+
+        {proximaPelada && (
+          <Link
+            to={proximaPelada.to}
+            className="flex items-center justify-between gap-4 rounded-2xl border border-primary/25 bg-base-200 p-5 shadow-md transition-colors hover:bg-base-300"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/15">
+                <CalendarDays className="h-6 w-6 text-primary" />
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary">
+                  Próxima pelada
+                </span>
+                <h2 className="mt-1 text-base font-black uppercase tracking-tight text-white">
+                  {proximaPelada.title}
+                </h2>
+                <p className="text-xs font-medium text-base-content/60">
+                  {proximaPelada.subtitle} · garanta sua vaga
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-base-content/40" />
+          </Link>
         )}
       </div>
 

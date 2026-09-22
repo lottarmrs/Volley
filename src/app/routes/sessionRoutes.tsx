@@ -20,6 +20,8 @@ import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
 import { CommunityWhatsAppArea } from '../../components/community/areas/CommunityWhatsAppArea';
+import { RegistrationBoardView } from '../../components/session/RegistrationBoardView';
+import { useRegistrationBoard } from '../../hooks/useRegistrationBoard';
 
 const HistoryView = lazy(() =>
   import('../../components/history/HistoryView').then((module) => ({
@@ -141,6 +143,34 @@ export function CommunitySessionsRoute() {
         })}
       />
     </div>
+  );
+}
+
+export function CommunityRegistrationRoute() {
+  const { community, play, sess, comm } = useCommunityShell();
+  const { sessionId } = useParams();
+  const permissions = useCommunityPermissions(community);
+  const session = sess.sessions.find((item) => item.id === sessionId) ?? null;
+  const communityCloudId =
+    comm.communities.find((item) => item.id === community.id)?.cloudId ?? null;
+  const api = useRegistrationBoard({
+    session,
+    communityCloudId,
+    defaultCapacity: session?.config?.teamCount ? session.config.teamCount * 6 : 12,
+    onSessionChange: (next) =>
+      sess.setSessions((prev) => prev.map((item) => (item.id === next.id ? next : item))),
+  });
+
+  if (!session) return <Navigate to={paths.sessoes(community.id)} replace />;
+
+  return (
+    <RegistrationBoardView
+      api={api}
+      players={getCommunityPlayers(community.id, play.players)}
+      sessionName={session.name}
+      sessionDate={session.date}
+      canOpen={permissions.canCreateSession}
+    />
   );
 }
 

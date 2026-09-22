@@ -39,6 +39,7 @@ import {
   CommunitySessionDetailRoute,
   CommunitySessionsRoute,
   CommunityPresenceRoute,
+  CommunityRegistrationRoute,
   CommunityTournamentsRoute,
   CommunityWhatsAppRoute,
   SessionActiveRoute,
@@ -79,6 +80,7 @@ export function AppRouter() {
               <Route path="sessoes/torneios" element={<CommunityTournamentsRoute />} />
               <Route path="sessoes/presenca" element={<CommunityPresenceRoute />} />
               <Route path="sessoes/lista-whatsapp" element={<CommunityWhatsAppRoute />} />
+              <Route path="sessoes/:sessionId/inscricao" element={<CommunityRegistrationRoute />} />
               <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
               <Route path="ligas" element={<CommunityLeaguesRoute />} />
               <Route path="desempenho" element={<CommunityPerformanceRoute />} />

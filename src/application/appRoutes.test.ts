@@ -252,6 +252,7 @@ test('getPageTitleForPath deriva o título da URL', () => {
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/ativa'), 'Sessão em Andamento');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/torneios'), 'Torneios & Campeonatos');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9'), 'Detalhe da Sessão');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9/inscricao'), 'Inscrição');
   assert.equal(getPageTitleForPath('/comunidades/c1/pessoas'), 'Pessoas');
   assert.equal(getPageTitleForPath('/comunidades/c1/pessoas/editar-atleta/p7'), 'Perfil do Atleta');
   assert.equal(getPageTitleForPath('/comunidades/c1/desempenho'), 'Desempenho');
@@ -453,6 +454,7 @@ test('paths das areas novas da comunidade', () => {
   assert.equal(paths.regras('c1'), '/comunidades/c1/gestao/regras');
   assert.equal(paths.dados('c1'), '/comunidades/c1/gestao/dados');
   assert.equal(paths.plataforma, '/plataforma');
+  assert.equal(paths.inscricao('c1', 's9'), '/comunidades/c1/sessoes/s9/inscricao');
 });
 
 test('enderecos antigos redirecionam para os novos', () => {

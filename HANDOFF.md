@@ -232,7 +232,7 @@ marca cada atleta como pago, a reserva passa a ser ordenada por quem pagou prime
 pode ajustar essa ordem, e a lista só fecha para o sorteio com o pagamento em dia. Isso reabre
 `OPEN-REG-004` (fila estritamente por chegada) e `OPEN-REG-005` (pagamento fora do V1).
 
-**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário.
+**Aplicada no Panelinha em 2026-09-22** (`registration_board`) e publicada em `main`.
 
 ### Navegação da comunidade unificada — 2026-09-21
 

@@ -226,7 +226,7 @@ function fakeGateway(options: { sessionExists?: boolean; unknownRosterPlayers?: 
     },
   };
 
-  return { gateway, calls, commandIds, failures };
+  return { gateway, calls, commandIds, failures, windows };
 }
 
 function athletes(ids: string[]): Player[] {
@@ -455,4 +455,52 @@ test('the Window id is reported before create_registration_window runs', async (
     },
   });
   assert.deepEqual(callsWhenWindowIdAppeared, ['createTargetSession']);
+});
+
+test('com inscrição aberta, o elenco sai dos confirmados e a seleção local não manda', async () => {
+  const { gateway, windows, calls } = fakeGateway({ sessionExists: true });
+  const windowId = 'janela-existente';
+  windows.set(windowId, {
+    sessionId: CLOUD,
+    status: 'OPEN',
+    revision: 4,
+    capacity: 4,
+    confirmed: ['cloud-a', 'cloud-b'],
+    finalized: new Map(),
+  });
+
+  const session = makeSession('session-1', {
+    communityId: 'community-1',
+    cloudId: CLOUD,
+    authorityModel: 'target',
+    authorizedFormation: { windowId, pendingCommandIds: {} },
+  });
+
+  const output = await prepareAuthorizedTeamFormation(
+    {
+      session,
+      communityCloudId: CLOUD,
+      players: [
+        makePlayer('a', { cloudId: 'cloud-a' }),
+        makePlayer('b', { cloudId: 'cloud-b' }),
+        makePlayer('c', { cloudId: 'cloud-c' }),
+      ],
+      teamCount: 2,
+      config: makeFreePlayConfig(),
+      createId,
+    },
+    gateway,
+  );
+
+  assert.equal(output.result?.ok, true);
+  assert.equal(
+    calls.some((call) => call.startsWith('addEntry')),
+    false,
+    'não inscreve de novo quem a janela já confirmou',
+  );
+  assert.equal(
+    calls.some((call) => call.startsWith('removeEntry')),
+    false,
+    'não tira quem a inscrição confirmou só porque o wizard não o selecionou',
+  );
 });

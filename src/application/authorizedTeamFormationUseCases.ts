@@ -189,6 +189,20 @@ export async function prepareAuthorizedTeamFormation(
     const lifecycle = <T>(key: string, run: (windowCommand: WindowCommand) => Promise<T>) =>
       command(key, (commandId) => run({ commandId, windowId: id, expectedRevision: revision }));
 
+    const inscricaoAberta = status === 'OPEN' && confirmed.length > 0 && !!progress.windowId;
+    if (inscricaoAberta) {
+      revision = await lifecycle('closeWindow', (c) => gateway.registration.closeWindow(c));
+      revision = await lifecycle('lockWindow', (c) => gateway.registration.lockWindow(c));
+      const finalizada = await lifecycle('finalizeRoster', (c) =>
+        gateway.registration.finalizeRoster(c),
+      );
+      commit({
+        finalizedRosterRevisionId: finalizada.rosterRevisionId,
+        finalizedPlayerCloudIds: confirmed,
+      });
+      return finalizada.rosterRevisionId;
+    }
+
     if (status === 'DRAFT') {
       revision = await lifecycle('openWindow', (c) => gateway.registration.openWindow(c));
       status = 'OPEN';

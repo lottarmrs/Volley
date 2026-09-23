@@ -125,16 +125,21 @@ vez, como já manda `REG-INV-013`.
 
 ### Quem o executa
 
-`app_private.apply_payment_deadline(p_window_id)`, chamada no topo de todo comando que toca a
-janela, depois da trava da linha e antes da ação pedida: marcar pagamento, entrar, sair, incluir,
-tirar, mudar capacidade, fechar, reabrir, travar e finalizar. Mais um comando explícito,
-`apply_registration_payment_deadline`, que é o botão "aplicar agora".
+`app_private.apply_payment_deadline(p_window_id)`, chamada depois da trava da linha e antes da ação
+pedida, em três comandos: **marcar pagamento**, o botão **aplicar agora**
+(`apply_registration_payment_deadline`) e **travar a inscrição**.
+
+Não em todos os comandos que tocam a janela, como uma versão anterior desta spec dizia. O motivo é
+que a regra que importa depois do prazo — "só quem pagou sobe" — mora na promoção, e a promoção já é
+chamada por sair, tirar e mudar capacidade. Levar o corte a esses comandos exigiria reescrever oito
+funções de comando inteiras para ganhar um efeito que a promoção já produz. O corte roda onde muda
+o resultado, e o quadro mostra o corte pendente enquanto ele não rodou.
+
+O corte **só age enquanto a janela está `OPEN`**. Depois de fechada ou travada, quem cura a lista é
+o organizador, pela mão — o prazo já fez o que tinha para fazer.
 
 A leitura do quadro **calcula** o corte pendente sem escrever — ela é `stable` — e o devolve em
 `pending_deadline_cut`, para a tela poder dizer quem sai e quem entra antes de acontecer.
-
-**A garantia que torna o atraso inofensivo:** `finalize_session_roster` aplica o corte antes de
-materializar o elenco. O sorteio nunca consome uma lista vencida.
 
 ### O pior caso
 
@@ -153,9 +158,14 @@ Três coisas seguram isso, e nenhuma delas é um caso especial no código:
 
 ## O sorteio
 
-`finalize_session_roster` passa a recusar com `23514` enquanto houver entrada `CONFIRMED` sem
-`paid_at`, nomeando quantas faltam. `lock_registration` mantém o comportamento atual: travar é
-decisão do organizador, e é o finalizar que materializa o elenco.
+`lock_registration` passa a recusar com `23514` e `hint = 'REGISTRATION_UNPAID'` enquanto houver
+entrada `CONFIRMED` sem `paid_at`, dizendo quantas faltam. Travar é o momento em que a lista para de
+receber gente, e é o que a sua frase "a lista só fecha para o sorteio" descreve.
+
+A regra vale para o sorteio transitivamente, porque `finalize_session_roster` já exige a janela
+`LOCKED` desde a XS-W4-05: sem travar não há elenco, e sem pagamento em dia não há como travar. Pôr
+a guarda em `lock` em vez de em `finalize` troca a reescrita de uma função de 204 linhas pela de uma
+de 85, sem abrir buraco na regra.
 
 A saída é sempre legal: marcar como pago — o que o organizador faz quando alguém paga em dinheiro na
 quadra, ou quando decide que alguém joga de graça — ou tirar da lista. Marcar como pago significa
@@ -193,9 +203,9 @@ Em pt-BR, somando aos três da fatia anterior:
 
 - **Banco, contra PostgreSQL real:** a ordem das quatro faixas; pagar na reserva sobe na fila; o
   corte rebaixa os não pagos e promove os pagos; o corte não promove quem não pagou; idempotência do
-  corte; mudar o prazo permite um corte novo; marcar pagamento depois do corte promove de volta;
-  `finalize` recusa com pendência e aceita quitado; o corte roda dentro de cada comando; autorização
-  de marcar pagamento.
+  corte; mudar o prazo permite um corte novo; marcar pagamento depois do corte promove de volta; o
+  corte não age com a janela fechada; `lock` recusa com pendência e aceita quitado; autorização de
+  marcar pagamento.
 - **Casos de uso:** id de comando guardado antes da chamada, repetição sem duplicar, classificação
   dos erros novos.
 - **Tela:** situação de pagamento do atleta nas três formas, marcação do organizador, aviso de corte

@@ -234,7 +234,7 @@ quatro faixas — fixado pelo organizador, pago, não pago, perdeu o prazo.
 `paymentDeadline` e `paymentNote` — a versão em texto, para colar no grupo, do que esta fatia
 formalizou. A tela lê a chave PIX de lá. Unificar os dois é assunto de uma fatia própria.
 
-**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário.
+**Aplicada no Panelinha em 2026-09-23** (`registration_payment`) e publicada em `main`.
 
 ### A inscrição ganhou tela — 2026-09-22
 

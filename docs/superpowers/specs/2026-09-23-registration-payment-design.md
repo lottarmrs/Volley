@@ -127,7 +127,11 @@ vez, como já manda `REG-INV-013`.
 
 `app_private.apply_payment_deadline(p_window_id)`, chamada depois da trava da linha e antes da ação
 pedida, em três comandos: **marcar pagamento**, o botão **aplicar agora**
-(`apply_registration_payment_deadline`) e **travar a inscrição**.
+(`apply_registration_payment_deadline`) e **fechar a inscrição**.
+
+Fechar, e não travar, porque a única transição para `LOCKED` é `CLOSED -> LOCKED` e o corte só age
+com a janela `OPEN`: em `lock` ele nunca dispararia. Fechar é o último instante em que a janela
+ainda está aberta.
 
 Não em todos os comandos que tocam a janela, como uma versão anterior desta spec dizia. O motivo é
 que a regra que importa depois do prazo — "só quem pagou sobe" — mora na promoção, e a promoção já é

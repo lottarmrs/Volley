@@ -494,4 +494,97 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(rows[0].window_revision, antes + 1);
     assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
   });
+
+  async function travar(
+    actorId: string,
+    windowId: string,
+  ): Promise<{ ok: true; revision: number } | { ok: false; code?: string; hint?: string }> {
+    const revision = (
+      await client.query<{ revision: number }>(
+        'select revision from public.registration_windows where id = $1',
+        [windowId],
+      )
+    ).rows[0].revision;
+    try {
+      // OPEN -> CLOSED -> LOCKED: travar exige fechar antes, e e em fechar que o corte roda.
+      const fechada = await asIdentityCommitting(client, actorId, () =>
+        client.query<{ window_revision: number }>(
+          'select * from public.close_registration($1,$2,$3)',
+          [randomUUID(), windowId, revision],
+        ),
+      );
+      const { rows } = await asIdentityCommitting(client, actorId, () =>
+        client.query<{ window_revision: number }>(
+          'select * from public.lock_registration($1,$2,$3)',
+          [randomUUID(), windowId, fechada.rows[0].window_revision],
+        ),
+      );
+      return { ok: true, revision: rows[0].window_revision };
+    } catch (thrown) {
+      const erro = thrown as { code?: string; hint?: string };
+      return { ok: false, code: erro.code, hint: erro.hint };
+    }
+  }
+
+  test('sem pagamento em uso, travar continua funcionando como antes', async () => {
+    const f = await fixture(2);
+    await inscrever(f, 'a');
+    await inscrever(f, 'b');
+
+    const resultado = await travar(f.ownerId, f.windowId);
+    assert.equal(resultado.ok, true, 'a cadeia do sorteio nao pode ter quebrado');
+  });
+
+  test('com pagamento em uso, travar recusa enquanto faltar alguém', async () => {
+    const f = await fixture(2);
+    const a = await inscrever(f, 'a');
+    await inscrever(f, 'b');
+    await marcar(f.ownerId, f.windowId, a.playerId, true);
+
+    const recusa = await travar(f.ownerId, f.windowId);
+    assert.equal(recusa.ok, false);
+    assert.equal((recusa as { code?: string }).code, '23514');
+    assert.equal((recusa as { hint?: string }).hint, 'REGISTRATION_UNPAID');
+  });
+
+  test('com todo mundo pago, travar passa', async () => {
+    const f = await fixture(2);
+    const a = await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    await marcar(f.ownerId, f.windowId, a.playerId, true);
+    await marcar(f.ownerId, f.windowId, b.playerId, true);
+
+    const resultado = await travar(f.ownerId, f.windowId);
+    assert.equal(resultado.ok, true);
+  });
+
+  test('um prazo definido basta para a guarda valer, mesmo sem ninguém pago', async () => {
+    const f = await fixture(1);
+    await inscrever(f, 'a');
+    await asIdentityCommitting(client, f.ownerId, () =>
+      client.query('select * from public.set_registration_payment_due($1,$2,$3)', [
+        randomUUID(),
+        f.windowId,
+        new Date(Date.now() + 86400000).toISOString(),
+      ]),
+    );
+
+    const recusa = await travar(f.ownerId, f.windowId);
+    assert.equal(recusa.ok, false);
+    assert.equal((recusa as { hint?: string }).hint, 'REGISTRATION_UNPAID');
+  });
+
+  test('fechar aplica o corte, e travar decide sobre a lista ja cortada', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    await marcar(f.ownerId, f.windowId, b.playerId, true);
+    await venceuOPrazo(f.windowId);
+
+    const resultado = await travar(f.ownerId, f.windowId);
+
+    assert.equal(resultado.ok, true, 'depois do corte so sobra o pago, entao trava');
+    assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
+    assert.equal(await statusDe(f.windowId, b.playerId), 'CONFIRMED');
+  });
 }

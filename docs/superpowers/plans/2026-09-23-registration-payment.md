@@ -1316,7 +1316,7 @@ cd /c/Volley-pagamento && printf '%s\n' 'feat: comandos de pagamento da inscrica
 
 ---
 
-### Task 4: Travar exige pagamento em dia
+### Task 4: Fechar aplica o corte, travar exige pagamento em dia
 
 **Files:**
 
@@ -1328,7 +1328,9 @@ cd /c/Volley-pagamento && printf '%s\n' 'feat: comandos de pagamento da inscrica
 - Consumes: `app_private.apply_payment_deadline` (Task 2); `app_private.assert_registration_lifecycle_transition` e o corpo de `public.lock_registration`, de `20260831132100_registration_lifecycle_commands.sql`.
 - Produces: `public.lock_registration(p_command_id uuid, p_window_id uuid, p_expected_revision integer) returns table (window_revision integer)` substituída — mesma assinatura, duas regras novas.
 
-**Por que em `lock` e não em `finalize`:** `finalize_session_roster` já exige a janela `LOCKED` desde a XS-W4-05. Sem travar não há elenco, e sem pagamento em dia não há como travar, então a regra alcança o sorteio de qualquer jeito — trocando a reescrita de uma função de 204 linhas pela de uma de 85.
+**Por que o corte fica em `close`:** a única transição para `LOCKED` é `CLOSED -> LOCKED`, e o corte só age com a janela `OPEN`. Em `lock` ele seria código morto, porque a janela já teria sido fechada no comando anterior. Fechar é o último instante em que ela ainda está aberta.
+
+**Por que a guarda fica em `lock` e não em `finalize`:** `finalize_session_roster` já exige a janela `LOCKED` desde a XS-W4-05. Sem travar não há elenco, e sem pagamento em dia não há como travar, então a regra alcança o sorteio de qualquer jeito — trocando a reescrita de uma função de 204 linhas pela de uma de 85.
 
 **A armadilha que este passo evita:** se a guarda valesse sempre, toda comunidade que nunca tocou em pagamento pararia de travar a inscrição, e a cadeia do sorteio da XS-W6-08c quebraria inteira. A guarda só vale quando a janela **usa pagamento**: tem prazo definido, ou alguém já foi marcado como pago.
 
@@ -1433,11 +1435,107 @@ cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.m
 
 Esperado: `ℹ fail 4` — os quatro casos com pagamento em uso; o primeiro teste já passa, porque é o comportamento de hoje.
 
-- [ ] **Step 3: Substituir `lock_registration`**
+- [ ] **Step 3: Substituir `close_registration` e `lock_registration`**
 
 Acrescentar ao fim de `supabase/migrations/20260923120000_registration_payment.sql`. O corpo é o de `20260831132100_registration_lifecycle_commands.sql` com duas inserções, marcadas nos comentários:
 
 ```sql
+-- Substitui a de 20260831132100_registration_lifecycle_commands.sql.
+--
+-- Fechar é o último instante em que a janela ainda está OPEN, e o corte do prazo só age enquanto
+-- ela está aberta -- então é aqui que ele roda, não em lock. A transição permitida é
+-- OPEN -> CLOSED -> LOCKED: com o corte em lock, ele nunca dispararia, porque a janela já teria
+-- sido fechada no comando anterior.
+--
+-- O corte não toca `revision`, então o p_expected_revision de quem chamou continua válido.
+create or replace function public.close_registration(
+  p_command_id uuid,
+  p_window_id uuid,
+  p_expected_revision integer
+)
+returns table (window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_new_revision integer;
+begin
+  if p_command_id is null or p_window_id is null then
+    raise exception 'command_id and window_id are required' using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(p_command_id, 'close_registration', p_window_id);
+  if v_receipt is not null then
+    return query select (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  if v_session.lifecycle_status not in ('DRAFT', 'SCHEDULED') then
+    raise exception 'Session must be DRAFT or SCHEDULED to change Registration state'
+      using errcode = '23514';
+  end if;
+
+  if v_window.status = 'CLOSED' then
+    v_result := pg_catalog.jsonb_build_object('window_revision', v_window.revision);
+    perform app_private.record_command_receipt(
+      p_command_id, (select auth.uid()), 'close_registration', p_window_id,
+      v_result, 'REGISTRATION_LIFECYCLE'
+    );
+    return query select v_window.revision;
+    return;
+  end if;
+
+  perform app_private.assert_registration_lifecycle_transition(v_window.status, 'CLOSED');
+
+  -- O corte, enquanto a janela ainda está aberta.
+  perform app_private.apply_payment_deadline(p_window_id);
+
+  if v_window.revision is distinct from p_expected_revision then
+    raise exception 'Stale Registration Window revision' using errcode = '40001';
+  end if;
+
+  update public.registration_windows
+     set status = 'CLOSED',
+         closed_at = pg_catalog.now(),
+         revision = revision + 1,
+         updated_at = pg_catalog.now()
+   where id = p_window_id
+  returning revision into v_new_revision;
+
+  v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'close_registration', p_window_id,
+    v_result, 'REGISTRATION_LIFECYCLE'
+  );
+
+  return query select v_new_revision;
+end;
+$$;
+
+revoke all on function public.close_registration(uuid, uuid, integer) from public, anon;
+grant execute on function public.close_registration(uuid, uuid, integer) to authenticated;
+
 -- Substitui a de 20260831132100_registration_lifecycle_commands.sql.
 --
 -- Travar é o momento em que a lista para de receber gente, então é onde a regra "a lista só fecha
@@ -1509,11 +1607,6 @@ begin
 
   perform app_private.assert_registration_lifecycle_transition(v_window.status, 'LOCKED');
 
-  -- INSERÇÃO 1: o corte roda antes de decidir quem está dentro. Ele não toca `revision`, então o
-  -- p_expected_revision de quem chamou continua válido.
-  perform app_private.apply_payment_deadline(p_window_id);
-
-  -- INSERÇÃO 2: a guarda de pagamento.
   v_payment_in_use := v_window.payment_due_at is not null
     or exists (
       select 1

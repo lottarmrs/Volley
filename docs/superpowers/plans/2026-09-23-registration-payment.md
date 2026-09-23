@@ -1912,7 +1912,8 @@ begin
                 join public.registration_entries e on e.id = r.entry_id
                where e.paid_at is not null
                order by r.posicao
-               limit pg_catalog.greatest(v_livres, 0)
+               -- greatest e construcao da linguagem, nao funcao: nao aceita qualificacao.
+               limit greatest(v_livres, 0)
             ) sobem
         ),
         '[]'::jsonb

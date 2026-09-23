@@ -587,4 +587,74 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
     assert.equal(await statusDe(f.windowId, b.playerId), 'CONFIRMED');
   });
+
+  interface Quadro {
+    capacity: number;
+    payment_due_at: string | null;
+    paid_count: number;
+    viewer_paid_at: string | null;
+    pending_deadline_cut: { demoted: string[]; promoted: string[] } | null;
+    entries: {
+      player_id: string;
+      status: string;
+      queue_position: number | null;
+      paid_at: string | null;
+      payment_lapsed_at: string | null;
+    }[];
+  }
+
+  async function quadro(actorId: string, windowId: string): Promise<Quadro> {
+    const { rows } = await asIdentityCommitting(client, actorId, () =>
+      client.query<{ board: Quadro }>('select public.read_registration_board($1) as board', [
+        windowId,
+      ]),
+    );
+    return rows[0].board;
+  }
+
+  test('o quadro traz pagamento, contagem e a reserva na ordem do pagamento', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    await inscrever(f, 'b');
+    const c = await inscrever(f, 'c');
+
+    await marcar(f.ownerId, f.windowId, a.playerId, true);
+    await marcar(f.ownerId, f.windowId, c.playerId, true);
+
+    const q = await quadro(f.ownerId, f.windowId);
+    assert.equal(q.paid_count, 1, 'conta os pagos entre os confirmados');
+    assert.equal(q.pending_deadline_cut, null, 'sem prazo vencido, nao ha corte pendente');
+
+    const reservaDoQuadro = q.entries.filter((e) => e.status === 'WAITLISTED');
+    assert.equal(reservaDoQuadro[0].player_id, c.playerId, 'o pago vem primeiro na reserva');
+    assert.equal(reservaDoQuadro[0].queue_position, 1);
+    assert.notEqual(reservaDoQuadro[0].paid_at, null);
+    assert.equal(reservaDoQuadro[1].queue_position, 2);
+  });
+
+  test('o quadro anuncia o corte pendente sem aplicá-lo', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    await marcar(f.ownerId, f.windowId, b.playerId, true);
+    await venceuOPrazo(f.windowId);
+
+    const q = await quadro(f.ownerId, f.windowId);
+    assert.deepEqual(q.pending_deadline_cut, { demoted: [a.playerId], promoted: [b.playerId] });
+    assert.equal(
+      await statusDe(f.windowId, a.playerId),
+      'CONFIRMED',
+      'ler nao muda nada no banco',
+    );
+  });
+
+  test('o atleta vê o próprio pagamento', async () => {
+    const f = await fixture(2);
+    const a = await inscrever(f, 'a');
+    await marcar(f.ownerId, f.windowId, a.playerId, true);
+
+    const q = await quadro(a.userId, f.windowId);
+    assert.notEqual(q.viewer_paid_at, null);
+    assert.equal(q.payment_due_at, null);
+  });
 }

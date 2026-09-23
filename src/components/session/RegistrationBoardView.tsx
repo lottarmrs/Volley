@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Check,
   ChevronsUp,
+  Circle,
   Clock3,
   DoorOpen,
   Lock,
@@ -257,7 +258,7 @@ export function RegistrationBoardView({
                 <span className={board.viewerPaidAt ? 'text-success' : 'text-warning'}>
                   {pagamento}
                 </span>
-                {!board.viewerPaidAt && pixKey && (
+                {!board.viewerPaidAt && pixKey && !board.viewerCanManage && (
                   <span className="text-base-content/60">
                     PIX <span className="font-mono text-base-content/80">{pixKey}</span>
                   </span>
@@ -468,8 +469,10 @@ const Linha: React.FC<LinhaProps> = ({
         {marcador}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate font-bold text-base-content">{nome}</p>
+        {/* O nome leva o espaco que sobrar e nunca some: com marca de corte, badge e tres botoes
+            competindo na mesma linha, um flex sem piso comprime o nome ate zero no celular. */}
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="min-w-[4rem] flex-1 truncate font-bold text-base-content">{nome}</p>
           {pago && !board.viewerCanManage && (
             <Check className="h-4 w-4 shrink-0 text-success" aria-label={`${nome} pagou`} />
           )}
@@ -485,10 +488,12 @@ const Linha: React.FC<LinhaProps> = ({
             </span>
           )}
           {euMesmo && (
-            <span className="badge badge-primary badge-xs font-bold uppercase">Você</span>
+            <span className="badge badge-primary badge-xs hidden shrink-0 font-bold uppercase sm:inline-flex">
+              Você
+            </span>
           )}
         </div>
-        <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-base-content/50">
+        <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-wider text-base-content/50">
           {posicao}
           {player?.status.presencaFrequente && ' · Presença frequente'}
           {/* De onde a inscricao veio e assunto de quem organiza; para o atleta
@@ -499,8 +504,10 @@ const Linha: React.FC<LinhaProps> = ({
             ' · Incluído pela organização'}
         </p>
       </div>
+      {/* No celular, quem organiza tem tres botoes por linha: o overall e a primeira coisa a sair,
+          porque ali a pergunta e "pagou?", nao "quao bom e?". Para o atleta ele continua visivel. */}
       {overall !== null && (
-        <div className="shrink-0 text-right">
+        <div className={`shrink-0 text-right ${board.viewerCanManage ? 'hidden sm:block' : ''}`}>
           <p className="font-mono text-lg font-black leading-none text-secondary">{overall}</p>
           <p className="text-[8px] font-bold uppercase tracking-wider text-base-content/55">Over</p>
         </div>
@@ -515,7 +522,7 @@ const Linha: React.FC<LinhaProps> = ({
           disabled={api.busy}
           onClick={() => void api.markPaid(entry.playerId, !pago)}
         >
-          <Check className="h-4 w-4" />
+          {pago ? <Check className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
         </button>
       )}
       {board.viewerCanManage && reserva && board.status !== 'LOCKED' && (

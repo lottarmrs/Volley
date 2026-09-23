@@ -208,6 +208,34 @@ Panelinha já tinha `approved_members_join_roster` (`20260915155701`) aplicada, 
 trabalho não commitado em `C:\Volley`. A branch (worktree `C:\Volley-approved-members`) commita esse
 trabalho, idêntico ao que está no banco, e corrige um defeito dele. Ver "Membros aprovados entram no elenco".
 
+### A vaga se confirma pelo pagamento — 2026-09-23
+
+Branch `exec/registration-payment`, worktree `C:\Volley-pagamento`. Ver a
+[spec](docs/superpowers/specs/2026-09-23-registration-payment-design.md) e o
+[plano](docs/superpowers/plans/2026-09-23-registration-payment.md).
+
+Pagamento é um segundo eixo sobre a inscrição: `status` diz se está dentro, `queue_sequence` diz
+quando chegou, `paid_at` diz se quitou. A reserva passa a ser ordenada por quem pagou primeiro, com
+quatro faixas — fixado pelo organizador, pago, não pago, perdeu o prazo.
+
+- `20260923120000_registration_payment.sql`: colunas de pagamento, `registration_reserve_order`,
+  `apply_payment_deadline`, quatro comandos, `close_registration` aplicando o corte,
+  `lock_registration` exigindo pagamento em dia e o quadro anunciando o corte pendente.
+- O prazo é opcional. O corte roda em marcar pagamento, no botão "aplicar agora" e em fechar a
+  inscrição — não num serviço de relógio. `pg_cron` existe no Panelinha e continua desinstalado de
+  propósito.
+- **Fechar, e não travar, aplica o corte:** a única transição para `LOCKED` é `CLOSED -> LOCKED`, e
+  o corte só age com a janela `OPEN`. Em `lock` ele seria código morto. A execução descobriu isso;
+  a spec e o plano foram corrigidos.
+- A guarda de pagamento em `lock` só vale quando a janela usa pagamento, senão toda comunidade que
+  nunca cobrou nada pararia de travar a lista — tem teste de regressão dedicado.
+
+**Sobreposição conhecida:** `WhatsAppListTemplate` já tem `pixKey`, `defaultValue`,
+`paymentDeadline` e `paymentNote` — a versão em texto, para colar no grupo, do que esta fatia
+formalizou. A tela lê a chave PIX de lá. Unificar os dois é assunto de uma fatia própria.
+
+**Migration não aplicada no Panelinha e sem push**: ambos esperam o ok do usuário.
+
 ### A inscrição ganhou tela — 2026-09-22
 
 Branch `exec/registration-screen`, worktree `C:\Volley-inscricao`. Ver a

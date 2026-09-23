@@ -368,7 +368,6 @@ comment on column public.registration_windows.payment_deadline_applied_at is
 
 alter table public.registration_entries
   add column paid_at timestamptz,
-  add column paid_marked_by_user_id uuid references auth.users(id) on delete set null,
   add column payment_lapsed_at timestamptz,
   add column reserve_rank bigint;
 
@@ -1018,13 +1017,11 @@ begin
     -- deve ficar atrás de quem nunca pagou.
     update public.registration_entries
        set paid_at = pg_catalog.now(),
-           paid_marked_by_user_id = (select auth.uid()),
            payment_lapsed_at = null
      where id = v_entry.id;
   else
     update public.registration_entries
-       set paid_at = null,
-           paid_marked_by_user_id = null
+       set paid_at = null
      where id = v_entry.id;
   end if;
 

@@ -56,7 +56,11 @@ Em `registration_windows`:
 Em `registration_entries`:
 
 - `paid_at timestamptz null` — quando o organizador marcou. Desmarcar volta a nulo.
-- `paid_marked_by_user_id uuid null references auth.users(id) on delete set null` — quem marcou.
+
+**Quem marcou não vira coluna.** `app_private.command_receipts` já guarda `actor_id` por comando, e
+uma segunda referência `SET NULL` a `auth.users` na mesma linha criaria a colisão que o teste
+`authCascadeSafety` mede: duas ações de delete na mesma linha, uma podendo reescrever a pré-imagem
+da outra.
 - `payment_lapsed_at timestamptz null` — quando perdeu o prazo. É o que separa "ainda não pagou" de
   "perdeu a vaga por não ter pago".
 - `reserve_rank bigint null` — o ajuste manual do organizador.

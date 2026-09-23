@@ -641,11 +641,7 @@ if (!isTestDatabaseConfigured()) {
 
     const q = await quadro(f.ownerId, f.windowId);
     assert.deepEqual(q.pending_deadline_cut, { demoted: [a.playerId], promoted: [b.playerId] });
-    assert.equal(
-      await statusDe(f.windowId, a.playerId),
-      'CONFIRMED',
-      'ler nao muda nada no banco',
-    );
+    assert.equal(await statusDe(f.windowId, a.playerId), 'CONFIRMED', 'ler nao muda nada no banco');
   });
 
   test('o atleta vê o próprio pagamento', async () => {

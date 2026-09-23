@@ -332,6 +332,28 @@ if (!isTestDatabaseConfigured()) {
         udt_name: 'uuid',
         is_nullable: 'YES',
       },
+      // Fatia do pagamento (2026-09-23): pagamento e um segundo eixo sobre a inscricao, e a
+      // ordem da reserva passa a derivar dele. Quem marcou nao vira coluna -- command_receipts
+      // ja guarda actor_id, e uma segunda referencia SET NULL a auth.users criaria a colisao
+      // que authCascadeSafety mede.
+      {
+        table_name: 'registration_entries',
+        column_name: 'paid_at',
+        udt_name: 'timestamptz',
+        is_nullable: 'YES',
+      },
+      {
+        table_name: 'registration_entries',
+        column_name: 'payment_lapsed_at',
+        udt_name: 'timestamptz',
+        is_nullable: 'YES',
+      },
+      {
+        table_name: 'registration_entries',
+        column_name: 'reserve_rank',
+        udt_name: 'int8',
+        is_nullable: 'YES',
+      },
       {
         table_name: 'registration_windows',
         column_name: 'id',
@@ -409,6 +431,20 @@ if (!isTestDatabaseConfigured()) {
         column_name: 'updated_at',
         udt_name: 'timestamptz',
         is_nullable: 'NO',
+      },
+      // Fatia do pagamento (2026-09-23): o prazo e opcional, e applied_at torna o corte
+      // idempotente para um dado prazo.
+      {
+        table_name: 'registration_windows',
+        column_name: 'payment_due_at',
+        udt_name: 'timestamptz',
+        is_nullable: 'YES',
+      },
+      {
+        table_name: 'registration_windows',
+        column_name: 'payment_deadline_applied_at',
+        udt_name: 'timestamptz',
+        is_nullable: 'YES',
       },
     ]);
   });

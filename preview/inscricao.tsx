@@ -124,7 +124,7 @@ function quadro(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
     confirmedCount: 4,
     waitlistedCount: 3,
     paymentDueAt: null,
-    paidCount: 0,
+    paidCount: 2,
     viewerCanManage: false,
     viewerPlayerId: 'cloud-e',
     viewerEntryStatus: 'WAITLISTED',
@@ -132,11 +132,11 @@ function quadro(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
     viewerPaidAt: null,
     pendingDeadlineCut: null,
     entries: [
-      entrada(0, 'CONFIRMED', null),
-      entrada(1, 'CONFIRMED', null),
+      entrada(0, 'CONFIRMED', null, { paidAt: '2026-09-23T09:00:00.000Z' }),
+      entrada(1, 'CONFIRMED', null, { paidAt: '2026-09-23T09:30:00.000Z' }),
       entrada(2, 'CONFIRMED', null),
       entrada(3, 'CONFIRMED', null),
-      entrada(4, 'WAITLISTED', 1),
+      entrada(4, 'WAITLISTED', 1, { paidAt: '2026-09-23T10:00:00.000Z' }),
       entrada(5, 'WAITLISTED', 2),
       entrada(6, 'WAITLISTED', 3),
     ],
@@ -235,6 +235,83 @@ const ESTADOS: { nome: string; api: RegistrationBoardApi; canOpen?: boolean }[] 
   },
   { nome: 'Sem janela — o atleta espera', api: api({ board: null }) },
   { nome: 'Sem janela — quem organiza abre', api: api({ board: null }), canOpen: true },
+  {
+    nome: 'Prazo definido, faltando gente pagar',
+    api: api({
+      board: quadro({
+        viewerCanManage: true,
+        paymentDueAt: '2026-09-24T15:00:00.000Z',
+      }),
+    }),
+  },
+  {
+    nome: 'Prazo vencido, corte pendente',
+    api: api({
+      board: quadro({
+        viewerCanManage: true,
+        paymentDueAt: '2026-09-23T12:00:00.000Z',
+        pendingDeadlineCut: { demoted: ['cloud-c', 'cloud-d'], promoted: ['cloud-e'] },
+      }),
+    }),
+  },
+  {
+    nome: 'Lista quitada, pronta para o sorteio',
+    api: api({
+      board: quadro({
+        viewerCanManage: true,
+        paidCount: 4,
+        paymentDueAt: '2026-09-24T15:00:00.000Z',
+        entries: [
+          entrada(0, 'CONFIRMED', null, { paidAt: '2026-09-23T09:00:00.000Z' }),
+          entrada(1, 'CONFIRMED', null, { paidAt: '2026-09-23T09:30:00.000Z' }),
+          entrada(2, 'CONFIRMED', null, { paidAt: '2026-09-23T09:40:00.000Z' }),
+          entrada(3, 'CONFIRMED', null, { paidAt: '2026-09-23T09:50:00.000Z' }),
+          entrada(4, 'WAITLISTED', 1, { paidAt: '2026-09-23T10:00:00.000Z' }),
+          entrada(5, 'WAITLISTED', 2),
+        ],
+      }),
+    }),
+  },
+  {
+    nome: 'Atleta em dia',
+    api: api({
+      board: quadro({
+        viewerPlayerId: 'cloud-a',
+        viewerEntryStatus: 'CONFIRMED',
+        viewerQueuePosition: null,
+        viewerPaidAt: '2026-09-23T09:00:00.000Z',
+      }),
+    }),
+  },
+  {
+    nome: 'Atleta que falta pagar, com prazo',
+    api: api({
+      board: quadro({
+        viewerPlayerId: 'cloud-c',
+        viewerEntryStatus: 'CONFIRMED',
+        viewerQueuePosition: null,
+        paymentDueAt: '2026-09-24T15:00:00.000Z',
+      }),
+    }),
+  },
+  {
+    nome: 'Atleta que perdeu o prazo',
+    api: api({
+      board: quadro({
+        viewerPlayerId: 'cloud-g',
+        viewerEntryStatus: 'WAITLISTED',
+        viewerQueuePosition: 3,
+        paymentDueAt: '2026-09-23T12:00:00.000Z',
+        entries: [
+          entrada(0, 'CONFIRMED', null, { paidAt: '2026-09-23T09:00:00.000Z' }),
+          entrada(1, 'CONFIRMED', null, { paidAt: '2026-09-23T09:30:00.000Z' }),
+          entrada(4, 'WAITLISTED', 1, { paidAt: '2026-09-23T10:00:00.000Z' }),
+          entrada(5, 'WAITLISTED', 2),
+          entrada(6, 'WAITLISTED', 3, { paymentLapsedAt: '2026-09-23T12:00:00.000Z' }),
+        ],
+      }),
+    }),
+  },
 ];
 
 export function Bancada() {
@@ -261,6 +338,7 @@ export function Bancada() {
               sessionName="Pelada de quinta"
               sessionDate="2026-09-24"
               canOpen={estado.canOpen}
+              pixKey="pelada@panelinha.com.br"
             />
           </section>
         ))}

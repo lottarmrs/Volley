@@ -101,8 +101,8 @@ Primary owner: Registration.
 | `OPEN-REG-001` | Unlimited-capacity RegistrationWindow vs omit Registration when capacity irrelevant | Do not invent a magic “infinite” number; choose explicit product semantics | Product flow needing sign-up without capacity |
 | `OPEN-REG-002` | State/policy for waitlisted entry becoming temporarily ineligible | Promotion must revalidate and skip/block safely; no silent confirmation | Membership/link eligibility scenarios + audit UX |
 | `OPEN-REG-003` | Exact numeric waitlist position visible to member vs coarser status | Return minimum necessary status; do not expose full queue identities | Product/privacy validation |
-| `OPEN-REG-004` | Future protected/reserved slot categories | **DEFERRED** — not V1; strict FIFO remains baseline | New quota/category requirement requires fairness ADR |
-| `OPEN-REG-005` | Future cancellation/refund/payment concepts attached to Registration | **DEFERRED** — payment out of current scope | Product/business/payment scope decision |
+| `OPEN-REG-004` | Future protected/reserved slot categories | **DECIDED 2026-09-23** — payment orders the waitlist; strict FIFO is no longer the only baseline. See `docs/superpowers/specs/2026-09-23-registration-payment-design.md` | Superseded by the payment slice |
+| `OPEN-REG-005` | Future cancellation/refund/payment concepts attached to Registration | **PARTIALLY DECIDED 2026-09-23** — payment is in (mark paid, deadline, waitlist order); refund and cancellation remain out | Refund/cancellation still requires a product decision |
 | `OPEN-REG-006` | Exact Reopen semantics after a roster revision exists | **Closed 2026-09-17 by XS-W6-08c:** `reopen_registration` reopens a CLOSED or LOCKED Window only while the Session is DRAFT or SCHEDULED; earlier roster revisions stay immutable history, finalizing again creates the next revision, and capture refuses a revision that is not current (`40001`) | Closed |
 
 ---

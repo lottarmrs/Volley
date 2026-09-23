@@ -225,3 +225,350 @@ $$;
 
 revoke all on function app_private.apply_payment_deadline(uuid)
   from public, anon, authenticated;
+
+-- Marcar pagamento é a única operação de pagamento permitida com a janela CLOSED ou LOCKED:
+-- reconciliar quem pagou é trabalho que vai até o último minuto, e travar a lista não deveria
+-- obrigar o organizador a reabrir só para corrigir um "pago".
+create function public.mark_registration_payment(
+  p_command_id uuid,
+  p_window_id uuid,
+  p_player_id uuid,
+  p_paid boolean
+)
+returns table (window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_entry public.registration_entries;
+  v_new_revision integer;
+begin
+  if p_command_id is null or p_window_id is null or p_player_id is null or p_paid is null then
+    raise exception 'command_id, window_id, player_id and paid are required'
+      using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'mark_registration_payment', p_window_id
+  );
+  if v_receipt is not null then
+    return query select (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  if v_session.lifecycle_status not in ('DRAFT', 'SCHEDULED') then
+    raise exception 'Session must be DRAFT or SCHEDULED to mark Registration payment'
+      using errcode = '23514';
+  end if;
+
+  select * into v_entry
+    from public.registration_entries
+   where registration_window_id = p_window_id
+     and player_id = p_player_id
+     and status in ('CONFIRMED', 'WAITLISTED');
+  if not found then
+    raise exception 'Registration entry not found for this Player' using errcode = 'P0002';
+  end if;
+
+  perform app_private.apply_payment_deadline(p_window_id);
+
+  if p_paid then
+    -- Limpar o atraso devolve a entrada à faixa dos pagos: quem foi rebaixado por engano não
+    -- deve ficar atrás de quem nunca pagou.
+    update public.registration_entries
+       set paid_at = pg_catalog.now(),
+           paid_marked_by_user_id = (select auth.uid()),
+           payment_lapsed_at = null
+     where id = v_entry.id;
+  else
+    update public.registration_entries
+       set paid_at = null,
+           paid_marked_by_user_id = null
+     where id = v_entry.id;
+  end if;
+
+  -- Marcar pode ter acabado de tornar a entrada promovível, e o corte pode ter aberto vagas.
+  perform app_private.promote_waitlist_to_capacity(p_window_id);
+
+  update public.registration_windows
+     set revision = revision + 1,
+         updated_at = pg_catalog.now()
+   where id = p_window_id
+  returning revision into v_new_revision;
+
+  v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'mark_registration_payment', p_window_id,
+    v_result, 'REGISTRATION_ENTRY'
+  );
+
+  return query select v_new_revision;
+end;
+$$;
+
+revoke all on function public.mark_registration_payment(uuid, uuid, uuid, boolean)
+  from public, anon;
+grant execute on function public.mark_registration_payment(uuid, uuid, uuid, boolean)
+  to authenticated;
+
+-- Definir ou limpar o prazo. Nulo limpa; um instante no passado é recusado, porque um prazo que
+-- já venceu ao ser criado cortaria a lista no comando seguinte sem ninguém ter tido chance.
+create function public.set_registration_payment_due(
+  p_command_id uuid,
+  p_window_id uuid,
+  p_due_at timestamptz
+)
+returns table (window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_new_revision integer;
+begin
+  if p_command_id is null or p_window_id is null then
+    raise exception 'command_id and window_id are required' using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'set_registration_payment_due', p_window_id
+  );
+  if v_receipt is not null then
+    return query select (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  if v_window.status = 'LOCKED' then
+    raise exception 'Registration Window is LOCKED' using errcode = '23514';
+  end if;
+
+  if p_due_at is not null and p_due_at <= pg_catalog.now() then
+    raise exception 'Payment due date must be in the future' using errcode = '23514';
+  end if;
+
+  update public.registration_windows
+     set payment_due_at = p_due_at,
+         revision = revision + 1,
+         updated_at = pg_catalog.now()
+   where id = p_window_id
+  returning revision into v_new_revision;
+
+  v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'set_registration_payment_due', p_window_id,
+    v_result, 'REGISTRATION_LIFECYCLE'
+  );
+
+  return query select v_new_revision;
+end;
+$$;
+
+revoke all on function public.set_registration_payment_due(uuid, uuid, timestamptz)
+  from public, anon;
+grant execute on function public.set_registration_payment_due(uuid, uuid, timestamptz)
+  to authenticated;
+
+-- Subir ao topo da reserva. Uma ação, não uma reordenação: grava um rank menor que todos os
+-- outros em vez de renumerar a fila, então nenhuma outra entrada muda de lugar relativo.
+create function public.boost_registration_reserve_entry(
+  p_command_id uuid,
+  p_window_id uuid,
+  p_player_id uuid
+)
+returns table (window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_entry public.registration_entries;
+  v_min bigint;
+  v_new_revision integer;
+begin
+  if p_command_id is null or p_window_id is null or p_player_id is null then
+    raise exception 'command_id, window_id and player_id are required' using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'boost_registration_reserve_entry', p_window_id
+  );
+  if v_receipt is not null then
+    return query select (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  if v_window.status = 'LOCKED' then
+    raise exception 'Registration Window is LOCKED' using errcode = '23514';
+  end if;
+
+  select * into v_entry
+    from public.registration_entries
+   where registration_window_id = p_window_id
+     and player_id = p_player_id
+     and status = 'WAITLISTED';
+  if not found then
+    raise exception 'Waitlisted Registration entry not found for this Player'
+      using errcode = 'P0002';
+  end if;
+
+  select pg_catalog.min(reserve_rank) into v_min
+    from public.registration_entries
+   where registration_window_id = p_window_id;
+
+  update public.registration_entries
+     set reserve_rank = coalesce(v_min, 1) - 1
+   where id = v_entry.id;
+
+  update public.registration_windows
+     set revision = revision + 1,
+         updated_at = pg_catalog.now()
+   where id = p_window_id
+  returning revision into v_new_revision;
+
+  v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'boost_registration_reserve_entry', p_window_id,
+    v_result, 'REGISTRATION_ENTRY'
+  );
+
+  return query select v_new_revision;
+end;
+$$;
+
+revoke all on function public.boost_registration_reserve_entry(uuid, uuid, uuid)
+  from public, anon;
+grant execute on function public.boost_registration_reserve_entry(uuid, uuid, uuid)
+  to authenticated;
+
+-- O botão "aplicar agora". Quando não havia o que cortar, devolve a revisão de sempre sem bumpar:
+-- um comando que não mudou nada não deveria invalidar o quadro de quem está olhando.
+create function public.apply_registration_payment_deadline(
+  p_command_id uuid,
+  p_window_id uuid
+)
+returns table (window_revision integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session public.sessions;
+  v_window public.registration_windows;
+  v_receipt jsonb;
+  v_result jsonb;
+  v_cortou boolean;
+  v_new_revision integer;
+begin
+  if p_command_id is null or p_window_id is null then
+    raise exception 'command_id and window_id are required' using errcode = '23514';
+  end if;
+
+  select s.* into v_session
+    from public.sessions s
+    join public.registration_windows w on w.session_id = s.id
+   where w.id = p_window_id
+   for update of s;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  select * into v_window from public.registration_windows where id = p_window_id for update;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  perform public.assert_target_session_write_authorized(v_session);
+
+  v_receipt := app_private.find_command_receipt(
+    p_command_id, 'apply_registration_payment_deadline', p_window_id
+  );
+  if v_receipt is not null then
+    return query select (v_receipt ->> 'window_revision')::integer;
+    return;
+  end if;
+
+  v_cortou := app_private.apply_payment_deadline(p_window_id);
+
+  if v_cortou then
+    update public.registration_windows
+       set revision = revision + 1,
+           updated_at = pg_catalog.now()
+     where id = p_window_id
+    returning revision into v_new_revision;
+  else
+    v_new_revision := v_window.revision;
+  end if;
+
+  v_result := pg_catalog.jsonb_build_object('window_revision', v_new_revision);
+  perform app_private.record_command_receipt(
+    p_command_id, (select auth.uid()), 'apply_registration_payment_deadline', p_window_id,
+    v_result, 'REGISTRATION_LIFECYCLE'
+  );
+
+  return query select v_new_revision;
+end;
+$$;
+
+revoke all on function public.apply_registration_payment_deadline(uuid, uuid) from public, anon;
+grant execute on function public.apply_registration_payment_deadline(uuid, uuid) to authenticated;

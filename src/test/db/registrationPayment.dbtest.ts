@@ -324,4 +324,174 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(await cortar(fechada.windowId), false, 'janela fechada');
     assert.equal(await statusDe(fechada.windowId, c.playerId), 'CONFIRMED');
   });
+
+  async function marcar(
+    actorId: string,
+    windowId: string,
+    playerId: string,
+    pago: boolean,
+  ): Promise<number> {
+    const { rows } = await asIdentityCommitting(client, actorId, () =>
+      client.query<{ window_revision: number }>(
+        'select * from public.mark_registration_payment($1,$2,$3,$4)',
+        [randomUUID(), windowId, playerId, pago],
+      ),
+    );
+    return rows[0].window_revision;
+  }
+
+  test('repetir o mesmo comando de pagamento não sobe a revisão de novo', async () => {
+    const f = await fixture(2);
+    const a = await inscrever(f, 'a');
+    const comando = randomUUID();
+
+    const primeira = await asIdentityCommitting(client, f.ownerId, () =>
+      client.query<{ window_revision: number }>(
+        'select * from public.mark_registration_payment($1,$2,$3,true)',
+        [comando, f.windowId, a.playerId],
+      ),
+    );
+    const segunda = await asIdentityCommitting(client, f.ownerId, () =>
+      client.query<{ window_revision: number }>(
+        'select * from public.mark_registration_payment($1,$2,$3,true)',
+        [comando, f.windowId, a.playerId],
+      ),
+    );
+    assert.equal(segunda.rows[0].window_revision, primeira.rows[0].window_revision);
+  });
+
+  test('marcar pagamento aplica o corte pendente e promove quem acabou de pagar', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    await venceuOPrazo(f.windowId);
+
+    await marcar(f.ownerId, f.windowId, b.playerId, true);
+
+    assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED', 'o não pago caiu');
+    assert.equal(await statusDe(f.windowId, b.playerId), 'CONFIRMED', 'o pago ocupou a vaga');
+  });
+
+  test('marcar como pago limpa o atraso e devolve a entrada à faixa dos pagos', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    await venceuOPrazo(f.windowId);
+    await cortar(f.windowId);
+    assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
+
+    await marcar(f.ownerId, f.windowId, a.playerId, true);
+
+    const { rows } = await client.query<{ payment_lapsed_at: string | null }>(
+      `select payment_lapsed_at from public.registration_entries
+        where registration_window_id = $1 and player_id = $2`,
+      [f.windowId, a.playerId],
+    );
+    assert.equal(rows[0].payment_lapsed_at, null, 'o atraso foi limpo');
+    assert.equal(await statusDe(f.windowId, a.playerId), 'CONFIRMED', 'voltou para a vaga vazia');
+    assert.equal(await statusDe(f.windowId, b.playerId), 'WAITLISTED');
+  });
+
+  test('desmarcar não rebaixa ninguém', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    await marcar(f.ownerId, f.windowId, a.playerId, true);
+    await marcar(f.ownerId, f.windowId, a.playerId, false);
+
+    assert.equal(await statusDe(f.windowId, a.playerId), 'CONFIRMED');
+    const { rows } = await client.query<{ paid_at: string | null }>(
+      `select paid_at from public.registration_entries
+        where registration_window_id = $1 and player_id = $2`,
+      [f.windowId, a.playerId],
+    );
+    assert.equal(rows[0].paid_at, null);
+  });
+
+  test('só quem organiza marca pagamento', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+
+    const erro = await asIdentityCommitting(client, a.userId, () =>
+      client.query('select * from public.mark_registration_payment($1,$2,$3,true)', [
+        randomUUID(),
+        f.windowId,
+        a.playerId,
+      ]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((erro as { code?: string }).code, '42501');
+  });
+
+  test('o prazo precisa ser no futuro, e limpar é sempre permitido', async () => {
+    const f = await fixture(1);
+
+    const erro = await asIdentityCommitting(client, f.ownerId, () =>
+      client.query('select * from public.set_registration_payment_due($1,$2,$3)', [
+        randomUUID(),
+        f.windowId,
+        new Date(Date.now() - 60000).toISOString(),
+      ]),
+    ).catch((thrown: Error) => thrown);
+    assert.equal((erro as { code?: string }).code, '23514');
+
+    await asIdentityCommitting(client, f.ownerId, () =>
+      client.query('select * from public.set_registration_payment_due($1,$2,$3)', [
+        randomUUID(),
+        f.windowId,
+        new Date(Date.now() + 86400000).toISOString(),
+      ]),
+    );
+    await asIdentityCommitting(client, f.ownerId, () =>
+      client.query('select * from public.set_registration_payment_due($1,$2,null)', [
+        randomUUID(),
+        f.windowId,
+      ]),
+    );
+    const { rows } = await client.query<{ payment_due_at: string | null }>(
+      'select payment_due_at from public.registration_windows where id = $1',
+      [f.windowId],
+    );
+    assert.equal(rows[0].payment_due_at, null);
+  });
+
+  test('subir ao topo da reserva passa na frente até de quem pagou', async () => {
+    const f = await fixture(1);
+    await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    const c = await inscrever(f, 'c');
+
+    await marcar(f.ownerId, f.windowId, c.playerId, true);
+    assert.deepEqual(await reserva(f.windowId), [c.playerId, b.playerId]);
+
+    await asIdentityCommitting(client, f.ownerId, () =>
+      client.query('select * from public.boost_registration_reserve_entry($1,$2,$3)', [
+        randomUUID(),
+        f.windowId,
+        b.playerId,
+      ]),
+    );
+    assert.deepEqual(await reserva(f.windowId), [b.playerId, c.playerId]);
+  });
+
+  test('o comando de aplicar agora corta e devolve a revisão nova', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    await venceuOPrazo(f.windowId);
+
+    const antes = (
+      await client.query<{ revision: number }>(
+        'select revision from public.registration_windows where id = $1',
+        [f.windowId],
+      )
+    ).rows[0].revision;
+
+    const { rows } = await asIdentityCommitting(client, f.ownerId, () =>
+      client.query<{ window_revision: number }>(
+        'select * from public.apply_registration_payment_deadline($1,$2)',
+        [randomUUID(), f.windowId],
+      ),
+    );
+
+    assert.equal(rows[0].window_revision, antes + 1);
+    assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
+  });
 }

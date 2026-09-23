@@ -14,6 +14,10 @@ export const defaultRegistrationBoardGateway: RegistrationBoardGateway = {
   readBoard: (windowId) => registrationBoardCloudService.readBoard(windowId),
   join: (input) => registrationBoardCloudService.join(input),
   leave: (input) => registrationBoardCloudService.leave(input),
+  markPayment: (input) => registrationBoardCloudService.markPayment(input),
+  setPaymentDue: (input) => registrationBoardCloudService.setPaymentDue(input),
+  boostReserve: (input) => registrationBoardCloudService.boostReserve(input),
+  applyPaymentDeadline: (input) => registrationBoardCloudService.applyPaymentDeadline(input),
   createTargetSession: (input) => sessionCohortCloudService.createTargetSession(input),
   readTargetSession: (sessionId) => sessionCohortCloudService.readTargetSession(sessionId),
   registration: registrationCloudService,
@@ -27,8 +31,29 @@ function codeOf(error: unknown): string | undefined {
   return undefined;
 }
 
+function hintOf(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'hint' in error) {
+    const { hint } = error as { hint?: unknown };
+    return typeof hint === 'string' ? hint : undefined;
+  }
+  return undefined;
+}
+
 function classify(step: string, error: unknown): AppResult<RegistrationBoard> {
   const code = codeOf(error);
+  const hint = hintOf(error);
+  if (hint === 'REGISTRATION_UNPAID') {
+    return productError(
+      'invalid_input',
+      'Ainda falta gente pagar. Marque quem pagou ou tire quem não vai jogar.',
+    );
+  }
+  if (hint === 'PAYMENT_DUE_PAST') {
+    return productError('invalid_input', 'O prazo precisa ser depois de agora.');
+  }
+  if (code === '42501' && step === 'markPayment') {
+    return productError('permission_denied', 'Só quem organiza marca pagamento.');
+  }
   if (code === '42501' && (step === 'join' || step === 'leave')) {
     return productError(
       'permission_denied',
@@ -196,5 +221,54 @@ export function setRegistrationOpen(
     input.open
       ? gateway.registration.reopenWindow(command)
       : gateway.registration.closeWindow(command),
+  );
+}
+
+export function markRegistrationPayment(
+  input: { windowId: string; playerCloudId: string; paid: boolean; commandId: string },
+  gateway: RegistrationBoardGateway = defaultRegistrationBoardGateway,
+): Promise<AppResult<RegistrationBoard>> {
+  return comQuadro('markPayment', input.windowId, gateway, () =>
+    gateway.markPayment({
+      commandId: input.commandId,
+      windowId: input.windowId,
+      playerId: input.playerCloudId,
+      paid: input.paid,
+    }),
+  );
+}
+
+export function setRegistrationPaymentDue(
+  input: { windowId: string; dueAt: string | null; commandId: string },
+  gateway: RegistrationBoardGateway = defaultRegistrationBoardGateway,
+): Promise<AppResult<RegistrationBoard>> {
+  return comQuadro('setPaymentDue', input.windowId, gateway, () =>
+    gateway.setPaymentDue({
+      commandId: input.commandId,
+      windowId: input.windowId,
+      dueAt: input.dueAt,
+    }),
+  );
+}
+
+export function boostRegistrationReserve(
+  input: { windowId: string; playerCloudId: string; commandId: string },
+  gateway: RegistrationBoardGateway = defaultRegistrationBoardGateway,
+): Promise<AppResult<RegistrationBoard>> {
+  return comQuadro('boostReserve', input.windowId, gateway, () =>
+    gateway.boostReserve({
+      commandId: input.commandId,
+      windowId: input.windowId,
+      playerId: input.playerCloudId,
+    }),
+  );
+}
+
+export function applyRegistrationPaymentDeadline(
+  input: { windowId: string; commandId: string },
+  gateway: RegistrationBoardGateway = defaultRegistrationBoardGateway,
+): Promise<AppResult<RegistrationBoard>> {
+  return comQuadro('applyDeadline', input.windowId, gateway, () =>
+    gateway.applyPaymentDeadline({ commandId: input.commandId, windowId: input.windowId }),
   );
 }

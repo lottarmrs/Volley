@@ -5,12 +5,16 @@ import { makeSession } from '../test/fixtures';
 import type { RegistrationBoardGateway } from './registrationBoardGateway';
 import {
   addAthleteToRegistration,
+  applyRegistrationPaymentDeadline,
+  boostRegistrationReserve,
   changeRegistrationCapacity,
   joinRegistration,
   leaveRegistration,
+  markRegistrationPayment,
   openRegistration,
   removeAthleteFromRegistration,
   setRegistrationOpen,
+  setRegistrationPaymentDue,
 } from './registrationUseCases';
 
 const coded = (code: string) => Object.assign(new Error(code), { code });
@@ -59,6 +63,18 @@ function fakeGateway(options: { sessionExists?: boolean; falhas?: unknown[] } = 
     },
     async leave(input) {
       registrar(`leave:${input.commandId}`);
+    },
+    async markPayment(input) {
+      registrar(`markPayment:${input.commandId}`);
+    },
+    async setPaymentDue(input) {
+      registrar(`setPaymentDue:${input.commandId}`);
+    },
+    async boostReserve(input) {
+      registrar(`boostReserve:${input.commandId}`);
+    },
+    async applyPaymentDeadline(input) {
+      registrar(`applyPaymentDeadline:${input.commandId}`);
     },
     async createTargetSession() {
       registrar('createTargetSession');
@@ -260,4 +276,92 @@ test('as recusas do servidor viram frases do produto', async () => {
       'A lista mudou enquanto você olhava. Atualize e tente de novo.',
     );
   }
+});
+
+test('marcar pagamento devolve o quadro relido', async () => {
+  const { gateway, chamadas } = fakeGateway();
+
+  const resultado = await markRegistrationPayment(
+    { windowId: 'w-1', playerCloudId: 'p-9', paid: true, commandId: 'c-1' },
+    gateway,
+  );
+
+  assert.equal(resultado.ok, true);
+  assert.deepEqual(chamadas, ['markPayment:c-1', 'readBoard']);
+});
+
+test('a recusa por pagamento pendente vira uma frase que diz o que fazer', async () => {
+  const { gateway } = fakeGateway({
+    falhas: [
+      Object.assign(new Error('Registration has 3 confirmed entries without payment'), {
+        code: '23514',
+        hint: 'REGISTRATION_UNPAID',
+      }),
+    ],
+  });
+
+  const resultado = await markRegistrationPayment(
+    { windowId: 'w-1', playerCloudId: 'p-9', paid: true, commandId: 'c-1' },
+    gateway,
+  );
+
+  assert.equal(resultado.ok, false);
+  assert.equal(
+    resultado.ok === false ? resultado.error.message : '',
+    'Ainda falta gente pagar. Marque quem pagou ou tire quem não vai jogar.',
+  );
+});
+
+test('marcar pagamento sem ser organizador tem frase própria', async () => {
+  const { gateway } = fakeGateway({
+    falhas: [Object.assign(new Error('permission denied'), { code: '42501' })],
+  });
+
+  const resultado = await markRegistrationPayment(
+    { windowId: 'w-1', playerCloudId: 'p-9', paid: true, commandId: 'c-1' },
+    gateway,
+  );
+
+  assert.equal(
+    resultado.ok === false ? resultado.error.message : '',
+    'Só quem organiza marca pagamento.',
+  );
+});
+
+test('prazo no passado tem frase própria', async () => {
+  const { gateway } = fakeGateway({
+    falhas: [
+      Object.assign(new Error('Payment due date must be in the future'), {
+        code: '23514',
+        hint: 'PAYMENT_DUE_PAST',
+      }),
+    ],
+  });
+
+  const resultado = await setRegistrationPaymentDue(
+    { windowId: 'w-1', dueAt: '2020-01-01T00:00:00.000Z', commandId: 'c-2' },
+    gateway,
+  );
+
+  assert.equal(
+    resultado.ok === false ? resultado.error.message : '',
+    'O prazo precisa ser depois de agora.',
+  );
+});
+
+test('subir ao topo e aplicar o corte chamam o gateway e releem', async () => {
+  const { gateway, chamadas } = fakeGateway();
+
+  await boostRegistrationReserve(
+    { windowId: 'w-1', playerCloudId: 'p-9', commandId: 'c-3' },
+    gateway,
+  );
+  await applyRegistrationPaymentDeadline({ windowId: 'w-1', commandId: 'c-4' }, gateway);
+
+  assert.deepEqual(chamadas, [
+    'boostReserve:c-3',
+    'readBoard',
+    'applyPaymentDeadline:c-4',
+    'readBoard',
+  ]);
 });

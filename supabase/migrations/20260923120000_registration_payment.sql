@@ -384,7 +384,10 @@ begin
   end if;
 
   if p_due_at is not null and p_due_at <= pg_catalog.now() then
-    raise exception 'Payment due date must be in the future' using errcode = '23514';
+    -- Um hint estavel e o que deixa o cliente distinguir esta recusa da de janela fechada, que
+    -- tambem e 23514. Sem ele, as duas cairiam na mesma frase.
+    raise exception 'Payment due date must be in the future'
+      using errcode = '23514', hint = 'PAYMENT_DUE_PAST';
   end if;
 
   update public.registration_windows

@@ -38,6 +38,7 @@ export type {
   RegistrationBoardEntry,
   RegistrationBoardStatus,
   RegistrationEntryStatus,
+  RegistrationPendingCut,
 } from './shared/types/registrationBoard';
 export type {
   CommunitySkillProfile,

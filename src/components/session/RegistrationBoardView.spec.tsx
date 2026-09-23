@@ -21,10 +21,14 @@ function board(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
     capacity: 2,
     confirmedCount: 2,
     waitlistedCount: 1,
+    paymentDueAt: null,
+    paidCount: 0,
     viewerCanManage: false,
     viewerPlayerId: 'cloud-c',
     viewerEntryStatus: 'WAITLISTED',
     viewerQueuePosition: 1,
+    viewerPaidAt: null,
+    pendingDeadlineCut: null,
     entries: [
       {
         entryId: 'e-a',
@@ -33,6 +37,8 @@ function board(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
         queuePosition: null,
         source: 'SELF_JOIN',
         joinedAt: '2026-09-22T12:00:00.000Z',
+        paidAt: null,
+        paymentLapsedAt: null,
       },
       {
         entryId: 'e-b',
@@ -41,6 +47,8 @@ function board(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
         queuePosition: null,
         source: 'SELF_JOIN',
         joinedAt: '2026-09-22T12:01:00.000Z',
+        paidAt: null,
+        paymentLapsedAt: null,
       },
       {
         entryId: 'e-c',
@@ -49,6 +57,8 @@ function board(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
         queuePosition: 1,
         source: 'SELF_JOIN',
         joinedAt: '2026-09-22T12:02:00.000Z',
+        paidAt: null,
+        paymentLapsedAt: null,
       },
     ],
     ...overrides,

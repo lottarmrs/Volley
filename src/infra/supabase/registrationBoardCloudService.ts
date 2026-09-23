@@ -3,6 +3,7 @@ import type {
   RegistrationBoardEntry,
   RegistrationBoardStatus,
   RegistrationEntryStatus,
+  RegistrationPendingCut,
 } from '@shared/types';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 import type { RpcClient } from './sessionCohortCloudService';
@@ -16,6 +17,19 @@ export interface RegistrationBoardService {
     windowId: string;
   }): Promise<RegistrationEntryStatus>;
   leave(input: { commandId: string; windowId: string }): Promise<void>;
+  markPayment(input: {
+    commandId: string;
+    windowId: string;
+    playerId: string;
+    paid: boolean;
+  }): Promise<void>;
+  setPaymentDue(input: {
+    commandId: string;
+    windowId: string;
+    dueAt: string | null;
+  }): Promise<void>;
+  boostReserve(input: { commandId: string; windowId: string; playerId: string }): Promise<void>;
+  applyPaymentDeadline(input: { commandId: string; windowId: string }): Promise<void>;
 }
 
 const WINDOW_STATUSES = new Set<string>(['DRAFT', 'OPEN', 'CLOSED', 'LOCKED']);
@@ -40,6 +54,26 @@ function integer(value: unknown, label: string): number {
   return value;
 }
 
+function optionalText(value: unknown, label: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string' || value.length === 0) throw invalid(label);
+  return value;
+}
+
+function playerIds(value: unknown, label: string): readonly string[] {
+  if (!Array.isArray(value)) throw invalid(label);
+  return value.map((item) => text(item, label));
+}
+
+function pendingCut(value: unknown, label: string): RegistrationPendingCut | null {
+  if (value === null || value === undefined) return null;
+  const row = record(value, label);
+  return {
+    demoted: playerIds(row.demoted, label),
+    promoted: playerIds(row.promoted, label),
+  };
+}
+
 function entry(value: unknown, label: string): RegistrationBoardEntry {
   const row = record(value, label);
   const status = text(row.status, label);
@@ -53,6 +87,8 @@ function entry(value: unknown, label: string): RegistrationBoardEntry {
     queuePosition: position as number | null,
     source: text(row.source, label),
     joinedAt: text(row.joined_at, label),
+    paidAt: optionalText(row.paid_at, label),
+    paymentLapsedAt: optionalText(row.payment_lapsed_at, label),
   };
 }
 
@@ -71,11 +107,15 @@ function board(value: unknown, label: string): RegistrationBoard {
     capacity: integer(row.capacity, label),
     confirmedCount: integer(row.confirmed_count, label),
     waitlistedCount: integer(row.waitlisted_count, label),
+    paymentDueAt: optionalText(row.payment_due_at, label),
+    paidCount: integer(row.paid_count, label),
     viewerCanManage: row.viewer_can_manage === true,
     viewerPlayerId: typeof row.viewer_player_id === 'string' ? row.viewer_player_id : null,
     viewerEntryStatus: (viewerStatus as RegistrationEntryStatus | null) ?? null,
     viewerQueuePosition:
       typeof row.viewer_queue_position === 'number' ? row.viewer_queue_position : null,
+    viewerPaidAt: optionalText(row.viewer_paid_at, label),
+    pendingDeadlineCut: pendingCut(row.pending_deadline_cut, label),
     entries: row.entries.map((item) => entry(item, label)),
   };
 }
@@ -111,6 +151,34 @@ export function createRegistrationBoardCloudService(client: RpcClient): Registra
     },
     async leave(input) {
       await call('leave_registration', {
+        p_command_id: input.commandId,
+        p_window_id: input.windowId,
+      });
+    },
+    async markPayment(input) {
+      await call('mark_registration_payment', {
+        p_command_id: input.commandId,
+        p_window_id: input.windowId,
+        p_player_id: input.playerId,
+        p_paid: input.paid,
+      });
+    },
+    async setPaymentDue(input) {
+      await call('set_registration_payment_due', {
+        p_command_id: input.commandId,
+        p_window_id: input.windowId,
+        p_due_at: input.dueAt,
+      });
+    },
+    async boostReserve(input) {
+      await call('boost_registration_reserve_entry', {
+        p_command_id: input.commandId,
+        p_window_id: input.windowId,
+        p_player_id: input.playerId,
+      });
+    },
+    async applyPaymentDeadline(input) {
+      await call('apply_registration_payment_deadline', {
         p_command_id: input.commandId,
         p_window_id: input.windowId,
       });

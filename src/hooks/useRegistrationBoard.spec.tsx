@@ -33,10 +33,14 @@ const quadro: RegistrationBoard = {
   capacity: 12,
   confirmedCount: 1,
   waitlistedCount: 0,
+  paymentDueAt: null,
+  paidCount: 0,
   viewerCanManage: false,
   viewerPlayerId: 'p-1',
   viewerEntryStatus: null,
   viewerQueuePosition: null,
+  viewerPaidAt: null,
+  pendingDeadlineCut: null,
   entries: [],
 };
 

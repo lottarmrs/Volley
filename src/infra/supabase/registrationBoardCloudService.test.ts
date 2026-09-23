@@ -25,6 +25,10 @@ const RAW = {
   viewer_player_id: 'p-2',
   viewer_entry_status: 'WAITLISTED',
   viewer_queue_position: 1,
+  payment_due_at: '2026-09-24T15:00:00.000Z',
+  paid_count: 1,
+  viewer_paid_at: null,
+  pending_deadline_cut: { demoted: ['p-1'], promoted: ['p-2'] },
   entries: [
     {
       entry_id: 'e-1',
@@ -33,6 +37,8 @@ const RAW = {
       queue_position: null,
       source: 'SELF_JOIN',
       joined_at: '2026-09-22T12:00:00.000Z',
+      paid_at: '2026-09-23T10:00:00.000Z',
+      payment_lapsed_at: null,
     },
     {
       entry_id: 'e-2',
@@ -41,6 +47,8 @@ const RAW = {
       queue_position: 1,
       source: 'SELF_JOIN',
       joined_at: '2026-09-22T12:05:00.000Z',
+      paid_at: null,
+      payment_lapsed_at: null,
     },
   ],
 };
@@ -61,6 +69,8 @@ test('readBoard traduz o quadro para os nomes do app', async () => {
     queuePosition: 1,
     source: 'SELF_JOIN',
     joinedAt: '2026-09-22T12:05:00.000Z',
+    paidAt: null,
+    paymentLapsedAt: null,
   });
 });
 
@@ -93,4 +103,51 @@ test('leave envia comando e janela, e o erro do servidor sobe como veio', async 
 test('resposta fora do formato é recusada', async () => {
   const { service } = recording({ window_id: 'w-1' });
   await assert.rejects(service.readBoard('w-1'), /Invalid read_registration_board response/);
+});
+
+test('o quadro traz pagamento, prazo e corte pendente', async () => {
+  const { service } = recording(RAW);
+  const board = await service.readBoard('w-1');
+
+  assert.equal(board.paymentDueAt, '2026-09-24T15:00:00.000Z');
+  assert.equal(board.paidCount, 1);
+  assert.equal(board.viewerPaidAt, null);
+  assert.deepEqual(board.pendingDeadlineCut, { demoted: ['p-1'], promoted: ['p-2'] });
+  assert.equal(board.entries[0].paidAt, '2026-09-23T10:00:00.000Z');
+  assert.equal(board.entries[1].paymentLapsedAt, null);
+});
+
+test('marcar pagamento manda os argumentos do comando', async () => {
+  const { service, calls } = recording(null);
+  await service.markPayment({ commandId: 'c-1', windowId: 'w-1', playerId: 'p-9', paid: true });
+
+  assert.deepEqual(calls, [
+    [
+      'mark_registration_payment',
+      { p_command_id: 'c-1', p_window_id: 'w-1', p_player_id: 'p-9', p_paid: true },
+    ],
+  ]);
+});
+
+test('limpar o prazo manda nulo', async () => {
+  const { service, calls } = recording(null);
+  await service.setPaymentDue({ commandId: 'c-2', windowId: 'w-1', dueAt: null });
+
+  assert.deepEqual(calls, [
+    ['set_registration_payment_due', { p_command_id: 'c-2', p_window_id: 'w-1', p_due_at: null }],
+  ]);
+});
+
+test('subir ao topo e aplicar o prazo chamam os comandos certos', async () => {
+  const { service, calls } = recording(null);
+  await service.boostReserve({ commandId: 'c-3', windowId: 'w-1', playerId: 'p-9' });
+  await service.applyPaymentDeadline({ commandId: 'c-4', windowId: 'w-1' });
+
+  assert.deepEqual(calls, [
+    [
+      'boost_registration_reserve_entry',
+      { p_command_id: 'c-3', p_window_id: 'w-1', p_player_id: 'p-9' },
+    ],
+    ['apply_registration_payment_deadline', { p_command_id: 'c-4', p_window_id: 'w-1' }],
+  ]);
 });

@@ -95,7 +95,12 @@ const ELENCO: Player[] = [
   }),
 ];
 
-function entrada(indice: number, status: 'CONFIRMED' | 'WAITLISTED', posicao: number | null) {
+function entrada(
+  indice: number,
+  status: 'CONFIRMED' | 'WAITLISTED',
+  posicao: number | null,
+  pagamento: { paidAt?: string | null; paymentLapsedAt?: string | null } = {},
+) {
   const letra = 'abcdefg'[indice];
   return {
     entryId: `e-${letra}`,
@@ -104,6 +109,8 @@ function entrada(indice: number, status: 'CONFIRMED' | 'WAITLISTED', posicao: nu
     queuePosition: posicao,
     source: indice === 3 ? ('ORGANIZER_ADDED' as const) : ('SELF_JOIN' as const),
     joinedAt: `2026-09-22T12:0${indice}:00.000Z`,
+    paidAt: pagamento.paidAt ?? null,
+    paymentLapsedAt: pagamento.paymentLapsedAt ?? null,
   };
 }
 
@@ -116,10 +123,14 @@ function quadro(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
     capacity: 4,
     confirmedCount: 4,
     waitlistedCount: 3,
+    paymentDueAt: null,
+    paidCount: 0,
     viewerCanManage: false,
     viewerPlayerId: 'cloud-e',
     viewerEntryStatus: 'WAITLISTED',
     viewerQueuePosition: 1,
+    viewerPaidAt: null,
+    pendingDeadlineCut: null,
     entries: [
       entrada(0, 'CONFIRMED', null),
       entrada(1, 'CONFIRMED', null),

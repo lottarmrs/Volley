@@ -2,6 +2,11 @@ export type RegistrationEntryStatus = 'CONFIRMED' | 'WAITLISTED';
 
 export type RegistrationBoardStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'LOCKED';
 
+export interface RegistrationPendingCut {
+  readonly demoted: readonly string[];
+  readonly promoted: readonly string[];
+}
+
 export interface RegistrationBoardEntry {
   readonly entryId: string;
   readonly playerId: string;
@@ -9,6 +14,8 @@ export interface RegistrationBoardEntry {
   readonly queuePosition: number | null;
   readonly source: string;
   readonly joinedAt: string;
+  readonly paidAt: string | null;
+  readonly paymentLapsedAt: string | null;
 }
 
 export interface RegistrationBoard {
@@ -19,9 +26,13 @@ export interface RegistrationBoard {
   readonly capacity: number;
   readonly confirmedCount: number;
   readonly waitlistedCount: number;
+  readonly paymentDueAt: string | null;
+  readonly paidCount: number;
   readonly viewerCanManage: boolean;
   readonly viewerPlayerId: string | null;
   readonly viewerEntryStatus: RegistrationEntryStatus | null;
   readonly viewerQueuePosition: number | null;
+  readonly viewerPaidAt: string | null;
+  readonly pendingDeadlineCut: RegistrationPendingCut | null;
   readonly entries: readonly RegistrationBoardEntry[];
 }

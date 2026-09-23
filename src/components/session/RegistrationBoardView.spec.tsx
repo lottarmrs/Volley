@@ -200,4 +200,100 @@ describe('RegistrationBoardView', () => {
     fireEvent.click(screen.getByRole('button', { name: /^incluir$/i }));
     expect(contrato.addAthlete).toHaveBeenCalledWith('cloud-d');
   });
+
+  it('o atleta em dia vê que está quitado', () => {
+    renderView({
+      board: board({
+        viewerEntryStatus: 'CONFIRMED',
+        viewerQueuePosition: null,
+        viewerPaidAt: '2026-09-23T10:00:00.000Z',
+      }),
+    });
+    expect(screen.getByRole('status').textContent).toMatch(/pagamento em dia/i);
+  });
+
+  it('o atleta que falta pagar vê o prazo e a chave PIX', () => {
+    render(
+      <RegistrationBoardView
+        api={api({
+          board: board({
+            viewerEntryStatus: 'CONFIRMED',
+            viewerQueuePosition: null,
+            viewerPaidAt: null,
+            paymentDueAt: '2026-09-24T15:00:00.000Z',
+          }),
+        })}
+        players={players}
+        sessionName="Pelada de quinta"
+        sessionDate="2026-09-24"
+        pixKey="pelada@exemplo.com"
+      />,
+    );
+    expect(screen.getByText(/falta pagar/i)).toBeDefined();
+    expect(screen.getByText('pelada@exemplo.com')).toBeDefined();
+  });
+
+  it('quem perdeu o prazo é avisado do que aconteceu', () => {
+    renderView({
+      board: board({
+        viewerEntryStatus: 'WAITLISTED',
+        viewerQueuePosition: 2,
+        viewerPaidAt: null,
+        entries: [
+          {
+            entryId: 'e-c',
+            playerId: 'cloud-c',
+            status: 'WAITLISTED',
+            queuePosition: 2,
+            source: 'SELF_JOIN',
+            joinedAt: '2026-09-22T12:02:00.000Z',
+            paidAt: null,
+            paymentLapsedAt: '2026-09-23T12:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    expect(screen.getByRole('status').textContent).toMatch(/perdeu o prazo/i);
+  });
+
+  it('quem organiza marca pagamento e vê o contador', () => {
+    const contrato = renderView({
+      board: board({ viewerCanManage: true, paidCount: 1 }),
+    });
+    expect(screen.getByText(/1 de 2 pagos/i)).toBeDefined();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /marcar como pago/i })[0]);
+    expect(contrato.markPaid).toHaveBeenCalledWith('cloud-a', true);
+  });
+
+  it('o aviso de corte pendente diz quem sai, quem entra, e deixa aplicar agora', () => {
+    const contrato = renderView({
+      board: board({
+        viewerCanManage: true,
+        paymentDueAt: '2026-09-23T12:00:00.000Z',
+        pendingDeadlineCut: { demoted: ['cloud-a'], promoted: ['cloud-c'] },
+      }),
+    });
+
+    const aviso = screen.getByRole('status', { name: /corte/i });
+    expect(aviso.textContent).toContain('Ana');
+    expect(aviso.textContent).toContain('Caio');
+
+    fireEvent.click(screen.getByRole('button', { name: /aplicar agora/i }));
+    expect(contrato.applyDeadline).toHaveBeenCalledTimes(1);
+  });
+
+  it('quem organiza sobe alguém ao topo da reserva', () => {
+    const contrato = renderView({ board: board({ viewerCanManage: true }) });
+    fireEvent.click(screen.getAllByRole('button', { name: /subir ao topo/i })[0]);
+    expect(contrato.boostReserve).toHaveBeenCalledWith('cloud-c');
+  });
+
+  it('quem organiza define o prazo', () => {
+    const contrato = renderView({ board: board({ viewerCanManage: true }) });
+    const campo = screen.getByLabelText(/prazo para pagar/i);
+    fireEvent.change(campo, { target: { value: '2026-09-24T15:00' } });
+    fireEvent.blur(campo);
+    expect(contrato.setPaymentDue).toHaveBeenCalledWith('2026-09-24T15:00');
+  });
 });

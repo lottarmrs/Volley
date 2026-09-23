@@ -1,16 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
   Check,
+  ChevronsUp,
   Clock3,
   DoorOpen,
   Lock,
   RefreshCw,
+  Timer,
   UserMinus,
   UserPlus,
 } from 'lucide-react';
-import type { Player, Position, RegistrationBoard, RegistrationBoardEntry } from '../../types';
+import type {
+  Player,
+  Position,
+  RegistrationBoard,
+  RegistrationBoardEntry,
+  RegistrationPendingCut,
+} from '../../types';
 import type { RegistrationBoardApi } from '../../hooks/useRegistrationBoard';
 import { calculateGeneralOverall } from '../../logic/calculations';
 import { EmptyState } from '../../ui/EmptyState';
@@ -30,6 +40,7 @@ interface RegistrationBoardViewProps {
   sessionName: string;
   sessionDate: string;
   canOpen?: boolean;
+  pixKey?: string;
 }
 
 interface SituacaoVisual {
@@ -43,6 +54,38 @@ function formatarData(iso: string): string {
   const data = new Date(`${iso}T12:00:00`);
   if (Number.isNaN(data.getTime())) return iso;
   return data.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function formatarPrazo(iso: string): string {
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return iso;
+  return data.toLocaleString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function nomeDoAtleta(players: Player[], playerId: string): string {
+  return players.find((player) => player.cloudId === playerId)?.nome ?? 'Atleta da comunidade';
+}
+
+function listarNomes(players: Player[], ids: readonly string[]): string {
+  const nomes = ids.map((id) => nomeDoAtleta(players, id));
+  if (nomes.length <= 1) return nomes.join('');
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+}
+
+function situacaoDoPagamento(board: RegistrationBoard): string | null {
+  if (board.viewerEntryStatus === null) return null;
+  const minha = board.entries.find((entry) => entry.playerId === board.viewerPlayerId);
+  if (minha?.paymentLapsedAt) return 'Você perdeu o prazo e caiu para a reserva.';
+  if (board.viewerPaidAt) return 'Pagamento em dia.';
+  return board.paymentDueAt
+    ? `Falta pagar · prazo ${formatarPrazo(board.paymentDueAt)}`
+    : 'Falta pagar.';
 }
 
 function situacaoDoAtleta(board: RegistrationBoard): SituacaoVisual {
@@ -95,6 +138,7 @@ export function RegistrationBoardView({
   sessionName,
   sessionDate,
   canOpen = false,
+  pixKey,
 }: RegistrationBoardViewProps) {
   const { board, busy, error, loading } = api;
 
@@ -178,6 +222,8 @@ export function RegistrationBoardView({
   }
 
   const situacao = situacaoDoAtleta(board);
+  const pagamento = situacaoDoPagamento(board);
+  const corte = board.pendingDeadlineCut;
   const Icone = situacao.icone;
   const livres = Math.max(0, board.capacity - board.confirmedCount);
   const aberta = board.status === 'OPEN';
@@ -195,15 +241,29 @@ export function RegistrationBoardView({
       <div className={`rounded-box border p-5 transition-colors ${situacao.cor}`}>
         <Cabecalho nome={sessionName} data={sessionDate} />
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <p
-              role="status"
-              className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-base-content"
-            >
+          <div role="status" className="min-w-0">
+            <p className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-base-content">
               <Icone className="h-5 w-5 shrink-0" />
               {situacao.titulo}
             </p>
             <p className="mt-1 text-sm text-base-content/70">{situacao.detalhe}</p>
+            {pagamento && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold">
+                {board.viewerPaidAt ? (
+                  <Check className="h-4 w-4 shrink-0 text-success" />
+                ) : (
+                  <Timer className="h-4 w-4 shrink-0 text-warning" />
+                )}
+                <span className={board.viewerPaidAt ? 'text-success' : 'text-warning'}>
+                  {pagamento}
+                </span>
+                {!board.viewerPaidAt && pixKey && (
+                  <span className="text-base-content/60">
+                    PIX <span className="font-mono text-base-content/80">{pixKey}</span>
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
@@ -217,6 +277,13 @@ export function RegistrationBoardView({
                   <span>Lotada · {board.waitlistedCount} na reserva</span>
                 )}
               </p>
+              {board.viewerCanManage && (
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-base-content/60">
+                  <span>
+                    {board.paidCount} de {board.confirmedCount} pagos
+                  </span>
+                </p>
+              )}
             </div>
             {aberta && (
               <button
@@ -249,6 +316,47 @@ export function RegistrationBoardView({
         </div>
       )}
 
+      {corte && (
+        <div
+          role="status"
+          aria-label="Corte do prazo"
+          className="flex flex-col gap-3 rounded-box border border-warning/40 bg-warning/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-warning">
+              <Timer className="h-4 w-4 shrink-0" /> Prazo vencido
+            </p>
+            <p className="mt-1 text-sm font-semibold text-base-content">
+              {corte.demoted.length > 0 && (
+                <span>
+                  {listarNomes(players, corte.demoted)} {corte.demoted.length > 1 ? 'saem' : 'sai'}
+                </span>
+              )}
+              {corte.demoted.length > 0 && corte.promoted.length > 0 && <span> · </span>}
+              {corte.promoted.length > 0 && (
+                <span>
+                  {listarNomes(players, corte.promoted)}{' '}
+                  {corte.promoted.length > 1 ? 'entram' : 'entra'}
+                </span>
+              )}
+            </p>
+            <p className="mt-1 text-xs text-base-content/70">
+              A lista muda na próxima ação. Até lá, ainda dá para marcar quem pagou.
+            </p>
+          </div>
+          {board.viewerCanManage && (
+            <button
+              type="button"
+              className="btn btn-sm btn-warning min-h-[44px] shrink-0 sm:min-h-0"
+              disabled={busy}
+              onClick={() => void api.applyDeadline()}
+            >
+              Aplicar agora
+            </button>
+          )}
+        </div>
+      )}
+
       {board.viewerCanManage && (
         <BarraDoOrganizador api={api} board={board} disponiveis={disponiveis} />
       )}
@@ -263,6 +371,7 @@ export function RegistrationBoardView({
               players={players}
               board={board}
               api={api}
+              corte={corte}
             />
           ))}
           {confirmados.length === 0 && (
@@ -288,6 +397,7 @@ export function RegistrationBoardView({
                   players={players}
                   board={board}
                   api={api}
+                  corte={corte}
                   reserva
                 />
               ))}
@@ -319,20 +429,36 @@ interface LinhaProps {
   players: Player[];
   board: RegistrationBoard;
   api: RegistrationBoardApi;
+  corte: RegistrationPendingCut | null;
   reserva?: boolean;
 }
 
-const Linha: React.FC<LinhaProps> = ({ entry, marcador, players, board, api, reserva = false }) => {
+const Linha: React.FC<LinhaProps> = ({
+  entry,
+  marcador,
+  players,
+  board,
+  api,
+  corte,
+  reserva = false,
+}) => {
   const player = players.find((candidato) => candidato.cloudId === entry.playerId);
+  const nome = player?.nome ?? 'Atleta da comunidade';
   const overall = player ? calculateGeneralOverall(player) : null;
   const posicao = player?.posicaoPrincipal ? POSITION_LABELS[player.posicaoPrincipal] : '--';
   const euMesmo = board.viewerPlayerId === entry.playerId;
+  const pago = entry.paidAt !== null;
+  const sai = corte?.demoted.includes(entry.playerId) ?? false;
+  const entrasSaiTexto = sai
+    ? 'Sai quando o corte for aplicado'
+    : 'Entra quando o corte for aplicado';
+  const entra = corte?.promoted.includes(entry.playerId) ?? false;
 
   return (
     <li
       className={`flex items-center gap-3 px-4 py-3 ${euMesmo ? 'bg-primary/10' : ''} ${
         reserva ? 'opacity-80' : ''
-      }`}
+      } ${sai ? 'opacity-50' : ''}`}
     >
       <span
         className={`w-8 shrink-0 font-mono text-sm font-black ${
@@ -343,9 +469,21 @@ const Linha: React.FC<LinhaProps> = ({ entry, marcador, players, board, api, res
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="truncate font-bold text-base-content">
-            {player?.nome ?? 'Atleta da comunidade'}
-          </p>
+          <p className="truncate font-bold text-base-content">{nome}</p>
+          {pago && !board.viewerCanManage && (
+            <Check className="h-4 w-4 shrink-0 text-success" aria-label={`${nome} pagou`} />
+          )}
+          {(sai || entra) && (
+            <span
+              title={entrasSaiTexto}
+              className={`flex shrink-0 items-center gap-0.5 text-[10px] font-black uppercase ${
+                sai ? 'text-warning' : 'text-success'
+              }`}
+            >
+              {sai ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
+              {sai ? 'sai' : 'entra'}
+            </span>
+          )}
           {euMesmo && (
             <span className="badge badge-primary badge-xs font-bold uppercase">Você</span>
           )}
@@ -367,10 +505,34 @@ const Linha: React.FC<LinhaProps> = ({ entry, marcador, players, board, api, res
           <p className="text-[8px] font-bold uppercase tracking-wider text-base-content/55">Over</p>
         </div>
       )}
+      {board.viewerCanManage && (
+        <button
+          type="button"
+          aria-label={pago ? `Desmarcar pagamento de ${nome}` : `Marcar como pago ${nome}`}
+          className={`btn btn-sm btn-square min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 ${
+            pago ? 'btn-success' : 'btn-ghost text-base-content/60 hover:text-success'
+          }`}
+          disabled={api.busy}
+          onClick={() => void api.markPaid(entry.playerId, !pago)}
+        >
+          <Check className="h-4 w-4" />
+        </button>
+      )}
+      {board.viewerCanManage && reserva && board.status !== 'LOCKED' && (
+        <button
+          type="button"
+          aria-label={`Subir ao topo ${nome}`}
+          className="btn btn-ghost btn-sm btn-square min-h-[44px] min-w-[44px] text-base-content/60 hover:text-primary sm:min-h-0 sm:min-w-0"
+          disabled={api.busy}
+          onClick={() => void api.boostReserve(entry.playerId)}
+        >
+          <ChevronsUp className="h-4 w-4" />
+        </button>
+      )}
       {board.viewerCanManage && board.status !== 'LOCKED' && (
         <button
           type="button"
-          aria-label={`Tirar da lista ${player?.nome ?? 'atleta'}`}
+          aria-label={`Tirar da lista ${nome}`}
           className="btn btn-ghost btn-sm btn-square min-h-[44px] min-w-[44px] text-base-content/60 hover:text-error sm:min-h-0 sm:min-w-0"
           disabled={api.busy}
           onClick={() => void api.removeAthlete(entry.playerId)}
@@ -391,12 +553,18 @@ function BarraDoOrganizador({
   board: RegistrationBoard;
   disponiveis: Player[];
 }) {
+  const prazoAtual = board.paymentDueAt ? board.paymentDueAt.slice(0, 16) : '';
   const [vagas, setVagas] = useState(String(board.capacity));
   const [escolhido, setEscolhido] = useState('');
+  const [prazo, setPrazo] = useState(prazoAtual);
 
   useEffect(() => {
     setVagas(String(board.capacity));
   }, [board.capacity]);
+
+  useEffect(() => {
+    setPrazo(prazoAtual);
+  }, [prazoAtual]);
 
   const confirmarVagas = () => {
     const numero = Number.parseInt(vagas, 10);
@@ -422,6 +590,24 @@ function BarraDoOrganizador({
           disabled={api.busy || board.status === 'LOCKED'}
           onChange={(event) => setVagas(event.target.value)}
           onBlur={confirmarVagas}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">
+          Prazo para pagar
+        </span>
+        <input
+          type="datetime-local"
+          aria-label="Prazo para pagar"
+          className="input input-bordered input-sm min-h-[44px] font-mono sm:min-h-0"
+          value={prazo}
+          disabled={api.busy || board.status === 'LOCKED'}
+          onChange={(event) => setPrazo(event.target.value)}
+          onBlur={() => {
+            if (prazo === prazoAtual) return;
+            void api.setPaymentDue(prazo === '' ? null : prazo);
+          }}
         />
       </label>
 

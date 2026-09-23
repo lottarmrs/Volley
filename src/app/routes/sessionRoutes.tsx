@@ -151,12 +151,15 @@ export function CommunitySessionsRoute() {
 }
 
 export function CommunityRegistrationRoute() {
-  const { community, play, sess, comm } = useCommunityShell();
+  const { community, play, sess, comm, whatsAppLists } = useCommunityShell();
   const { sessionId } = useParams();
   const permissions = useCommunityPermissions(community);
   const session = sess.sessions.find((item) => item.id === sessionId) ?? null;
   const communityCloudId =
     comm.communities.find((item) => item.id === community.id)?.cloudId ?? null;
+  const pixKey = whatsAppLists
+    .getCommunityTemplates(community.id)
+    .find((template) => !!template.pixKey)?.pixKey;
   const api = useRegistrationBoard({
     session,
     communityCloudId,
@@ -174,6 +177,7 @@ export function CommunityRegistrationRoute() {
       sessionName={session.name}
       sessionDate={session.date}
       canOpen={permissions.canCreateSession}
+      pixKey={pixKey}
     />
   );
 }

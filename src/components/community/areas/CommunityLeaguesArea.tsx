@@ -547,7 +547,7 @@ export function CommunityLeaguesArea({
                               ) : (
                                 <input
                                   type="datetime-local"
-                                  className="input input-bordered input-xs"
+                                  className="input input-bordered input-sm"
                                   aria-label={`Data da rodada ${round.round}`}
                                   value={round.scheduledDate.slice(0, 16)}
                                   disabled={!canManage}

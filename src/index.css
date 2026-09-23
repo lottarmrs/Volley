@@ -416,6 +416,9 @@ body,
     /* Campos de digitacao ficavam de fora do piso de 44px e desciam para os 40px
        do user-agent. Nao entram no inline-flex acima: isso quebra o alinhamento
        do texto dentro do campo. */
+    /* Sem atributo `type` o campo e text por padrao, mas nao casa com
+       input[type='text'] -- e ficava sem piso nenhum, com min-height auto. */
+    input:not([type]),
     input[type='text'],
     input[type='email'],
     input[type='password'],
@@ -423,6 +426,12 @@ body,
     input[type='tel'],
     input[type='number'],
     input[type='date'],
+    /* Irmaos de `date` que ficaram de fora e desciam para a altura do
+       user-agent: o app usa os tres, e `datetime-local` chegava a 24px na
+       lista de rodadas da liga. */
+    input[type='time'],
+    input[type='datetime-local'],
+    input[type='file'],
     textarea {
       min-height: 44px;
     }

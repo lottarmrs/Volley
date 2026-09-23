@@ -9,6 +9,7 @@ const casos = vi.hoisted(() => ({
   join: vi.fn(),
   leave: vi.fn(),
   open: vi.fn(),
+  markPayment: vi.fn(),
 }));
 
 vi.mock('../application/registrationUseCases', async (importOriginal) => {
@@ -22,6 +23,7 @@ vi.mock('../application/registrationUseCases', async (importOriginal) => {
     joinRegistration: casos.join,
     leaveRegistration: casos.leave,
     openRegistration: casos.open,
+    markRegistrationPayment: casos.markPayment,
   };
 });
 
@@ -66,6 +68,7 @@ describe('useRegistrationBoard', () => {
     casos.join.mockReset();
     casos.leave.mockReset();
     casos.open.mockReset();
+    casos.markPayment.mockReset();
     casos.readSessionBoard.mockResolvedValue(quadro);
   });
 
@@ -121,5 +124,29 @@ describe('useRegistrationBoard', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(casos.readSessionBoard).not.toHaveBeenCalled();
     expect(result.current.board).toBeNull();
+  });
+
+  it('marcar pagamento troca o quadro e reusa o comando depois de um erro', async () => {
+    casos.markPayment
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: 'technical', message: 'Sem conexão.', recoverable: true },
+      })
+      .mockResolvedValueOnce({ ok: true, value: { ...quadro, paidCount: 1 } });
+    const { result } = render();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.markPaid('cloud-x', true);
+    });
+    expect(result.current.error).toBe('Sem conexão.');
+
+    await act(async () => {
+      await result.current.markPaid('cloud-x', true);
+    });
+    expect(result.current.board?.paidCount).toBe(1);
+    expect(casos.markPayment.mock.calls[0][0].commandId).toBe(
+      casos.markPayment.mock.calls[1][0].commandId,
+    );
   });
 });

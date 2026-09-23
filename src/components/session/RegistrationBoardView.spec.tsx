@@ -79,6 +79,10 @@ function api(overrides: Partial<RegistrationBoardApi> = {}): RegistrationBoardAp
     changeCapacity: vi.fn(),
     setOpen: vi.fn(),
     reload: vi.fn(),
+    markPaid: vi.fn(),
+    setPaymentDue: vi.fn(),
+    boostReserve: vi.fn(),
+    applyDeadline: vi.fn(),
     ...overrides,
   };
 }

@@ -3,13 +3,17 @@ import type { RegistrationBoard, Session } from '../types';
 import type { AppResult } from '../application/appResult';
 import {
   addAthleteToRegistration,
+  applyRegistrationPaymentDeadline,
+  boostRegistrationReserve,
   changeRegistrationCapacity,
   defaultRegistrationBoardGateway,
   joinRegistration,
   leaveRegistration,
+  markRegistrationPayment,
   openRegistration,
   removeAthleteFromRegistration,
   setRegistrationOpen,
+  setRegistrationPaymentDue,
 } from '../application/registrationUseCases';
 import { generateUUID } from '../logic/uuid';
 
@@ -33,6 +37,10 @@ export interface RegistrationBoardApi {
   changeCapacity: (capacity: number) => Promise<void>;
   setOpen: (open: boolean) => Promise<void>;
   reload: () => Promise<void>;
+  markPaid: (playerCloudId: string, paid: boolean) => Promise<void>;
+  setPaymentDue: (dueAt: string | null) => Promise<void>;
+  boostReserve: (playerCloudId: string) => Promise<void>;
+  applyDeadline: () => Promise<void>;
 }
 
 export function useRegistrationBoard(input: UseRegistrationBoardInput): RegistrationBoardApi {
@@ -173,6 +181,35 @@ export function useRegistrationBoard(input: UseRegistrationBoardInput): Registra
           expectedRevision: board.revision,
           commandId: ids.commandId,
         });
+      }),
+    markPaid: (playerCloudId, paid) =>
+      executar(`pay:${playerCloudId}:${paid}`, (ids) => {
+        const windowId = exigirJanela();
+        if (!windowId) throw new Error('Sem janela de inscrição');
+        return markRegistrationPayment({
+          windowId,
+          playerCloudId,
+          paid,
+          commandId: ids.commandId,
+        });
+      }),
+    setPaymentDue: (dueAt) =>
+      executar(`due:${dueAt ?? 'nenhum'}`, (ids) => {
+        const windowId = exigirJanela();
+        if (!windowId) throw new Error('Sem janela de inscrição');
+        return setRegistrationPaymentDue({ windowId, dueAt, commandId: ids.commandId });
+      }),
+    boostReserve: (playerCloudId) =>
+      executar(`boost:${playerCloudId}`, (ids) => {
+        const windowId = exigirJanela();
+        if (!windowId) throw new Error('Sem janela de inscrição');
+        return boostRegistrationReserve({ windowId, playerCloudId, commandId: ids.commandId });
+      }),
+    applyDeadline: () =>
+      executar('applyDeadline', (ids) => {
+        const windowId = exigirJanela();
+        if (!windowId) throw new Error('Sem janela de inscrição');
+        return applyRegistrationPaymentDeadline({ windowId, commandId: ids.commandId });
       }),
     reload: () => ler(() => true),
   };

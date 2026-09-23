@@ -160,6 +160,10 @@ function api(overrides: Partial<RegistrationBoardApi> = {}): RegistrationBoardAp
     changeCapacity: nada,
     setOpen: nada,
     reload: nada,
+    markPaid: nada,
+    setPaymentDue: nada,
+    boostReserve: nada,
+    applyDeadline: nada,
     ...overrides,
   };
 }

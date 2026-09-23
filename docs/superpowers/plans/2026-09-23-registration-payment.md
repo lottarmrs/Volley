@@ -56,10 +56,12 @@
 docker start volley_test_pg2 || docker run -d --name volley_test_pg2 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=volley_test -p 55500:5432 postgres:15
 ```
 
-Um arquivo só:
+O harness recebe **só o nome do arquivo**, não o caminho: ele já procura dentro de `src/test/db`.
+Exporte a URL uma vez na sessão e rode um arquivo assim:
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts
+export DB=postgresql://postgres:postgres@127.0.0.1:55500/volley_test
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts
 ```
 
 - **Unitário (Node):** `node --import tsx --test src/application/registrationUseCases.test.ts`
@@ -334,7 +336,7 @@ if (!isTestDatabaseConfigured()) {
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|error" | head -5
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|error" | head -5
 ```
 
 Esperado: falha, porque a migration não existe e `app_private.registration_reserve_order` não existe.
@@ -500,7 +502,7 @@ revoke all on function app_private.promote_waitlist_to_capacity(uuid)
 - [ ] **Step 5: Rodar até passar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
 ```
 
 Esperado: `ℹ pass 4`, `ℹ fail 0`.
@@ -508,7 +510,7 @@ Esperado: `ℹ pass 4`, `ℹ fail 0`.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /c/Volley && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F - <<'EOF'
 feat: ordem da reserva por pagamento
 
 Colunas de pagamento na janela e na inscricao, a ordem da reserva em uma funcao
@@ -628,7 +630,7 @@ Acrescentar dentro do `else` de `src/test/db/registrationPayment.dbtest.ts`, dep
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|apply_payment_deadline" | head -5
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|apply_payment_deadline" | head -5
 ```
 
 Esperado: erro de função inexistente, `ℹ fail 4`.
@@ -697,7 +699,7 @@ revoke all on function app_private.apply_payment_deadline(uuid)
 - [ ] **Step 4: Rodar até passar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
 ```
 
 Esperado: `ℹ pass 8`, `ℹ fail 0`.
@@ -707,7 +709,7 @@ Esperado: `ℹ pass 8`, `ℹ fail 0`.
 Escreva a mensagem num arquivo para o shell não engasgar com o texto:
 
 ```bash
-cd /c/Volley && printf '%s\n' 'feat: o corte do prazo de pagamento' '' 'Rebaixa quem nao pagou, promove quem pagou, e so age com a janela aberta. Nao' 'toca revision: corte e acao sao uma mutacao logica so. A idempotencia compara' 'com o prazo corrente, entao mover o prazo autoriza um corte novo.' '' 'Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>' > /tmp/msg.txt && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F /tmp/msg.txt
+cd /c/Volley-pagamento && printf '%s\n' 'feat: o corte do prazo de pagamento' '' 'Rebaixa quem nao pagou, promove quem pagou, e so age com a janela aberta. Nao' 'toca revision: corte e acao sao uma mutacao logica so. A idempotencia compara' 'com o prazo corrente, entao mover o prazo autoriza um corte novo.' '' 'Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>' > /tmp/msg.txt && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F /tmp/msg.txt
 ```
 
 ---
@@ -907,7 +909,7 @@ Acrescentar ao fim do `else` em `src/test/db/registrationPayment.dbtest.ts`:
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
 ```
 
 Esperado: `ℹ fail 8`, por funções inexistentes.
@@ -1274,7 +1276,7 @@ grant execute on function public.apply_registration_payment_deadline(uuid, uuid)
 - [ ] **Step 5: Rodar até passar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -10
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -10
 ```
 
 Esperado: `ℹ pass 16`, `ℹ fail 0`.
@@ -1282,7 +1284,7 @@ Esperado: `ℹ pass 16`, `ℹ fail 0`.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /c/Volley && printf '%s\n' 'feat: comandos de pagamento da inscricao' '' 'Marcar e desmarcar pagamento, definir e limpar o prazo, subir ao topo da' 'reserva e aplicar o corte agora. Marcar vale ate com a janela travada, porque' 'reconciliar quem pagou vai ate o ultimo minuto.' '' 'Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>' > /tmp/msg.txt && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F /tmp/msg.txt
+cd /c/Volley-pagamento && printf '%s\n' 'feat: comandos de pagamento da inscricao' '' 'Marcar e desmarcar pagamento, definir e limpar o prazo, subir ao topo da' 'reserva e aplicar o corte agora. Marcar vale ate com a janela travada, porque' 'reconciliar quem pagou vai ate o ultimo minuto.' '' 'Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>' > /tmp/msg.txt && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F /tmp/msg.txt
 ```
 
 ---
@@ -1399,7 +1401,7 @@ Acrescentar ao fim do `else` em `src/test/db/registrationPayment.dbtest.ts`:
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
 ```
 
 Esperado: `ℹ fail 4` — os quatro casos com pagamento em uso; o primeiro teste já passa, porque é o comportamento de hoje.
@@ -1535,7 +1537,7 @@ grant execute on function public.lock_registration(uuid, uuid, integer) to authe
 - [ ] **Step 4: Rodar até passar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -10
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -10
 ```
 
 Esperado: `ℹ pass 21`, `ℹ fail 0`.
@@ -1543,7 +1545,7 @@ Esperado: `ℹ pass 21`, `ℹ fail 0`.
 - [ ] **Step 5: Garantir que a cadeia do sorteio continua inteira**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationFlow.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationFlow.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
 ```
 
 Esperado: `ℹ fail 0`. Se algum caso quebrar aqui, a guarda está valendo onde não devia — revise `v_payment_in_use` antes de seguir.
@@ -1551,7 +1553,7 @@ Esperado: `ℹ fail 0`. Se algum caso quebrar aqui, a guarda está valendo onde 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /c/Volley && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F - <<'EOF'
 feat: travar a inscricao exige pagamento em dia
 
 A guarda mora em lock, nao em finalize: finalize ja exige LOCKED, entao a regra
@@ -1657,7 +1659,7 @@ Acrescentar ao fim do `else` em `src/test/db/registrationPayment.dbtest.ts`:
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
 ```
 
 Esperado: `ℹ fail 3` — os campos novos voltam `undefined`.
@@ -1843,7 +1845,7 @@ revoke all on function app_private.build_registration_board(public.registration_
 - [ ] **Step 4: Rodar até passar**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -10
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationPayment.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -10
 ```
 
 Esperado: `ℹ pass 24`, `ℹ fail 0`.
@@ -1851,7 +1853,7 @@ Esperado: `ℹ pass 24`, `ℹ fail 0`.
 - [ ] **Step 5: Garantir que a leitura antiga continua verdadeira**
 
 ```bash
-cd /c/Volley && node scripts/db-harness.mjs src/test/db/registrationBoard.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=$DB node scripts/db-harness.mjs registrationBoard.dbtest.ts 2>&1 | grep -iE "^ℹ (pass|fail)|✖" | head -8
 ```
 
 Esperado: `ℹ fail 0`. Esses cinco casos são o contrato da fatia anterior; se algum quebrar, a substituição mudou o que não devia.
@@ -1859,7 +1861,7 @@ Esperado: `ℹ fail 0`. Esses cinco casos são o contrato da fatia anterior; se 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /c/Volley && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && git add -- supabase/migrations/20260923120000_registration_payment.sql src/test/db/registrationPayment.dbtest.ts && git commit -q -F - <<'EOF'
 feat: o quadro mostra pagamento e o corte pendente
 
 A posicao na reserva passa a vir da ordem unica, cada entrada carrega pagamento
@@ -1996,7 +1998,7 @@ test('subir ao topo e aplicar o prazo chamam os comandos certos', async () => {
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node --import tsx --test src/infra/supabase/registrationBoardCloudService.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
+cd /c/Volley-pagamento && node --import tsx --test src/infra/supabase/registrationBoardCloudService.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
 ```
 
 Esperado: `ℹ fail 4`.
@@ -2117,7 +2119,7 @@ Na interface `RegistrationBoardService`, acrescentar os quatro métodos declarad
 - [ ] **Step 5: Rodar, tipar, lintar e commitar**
 
 ```bash
-cd /c/Volley && npx prettier --write src/shared/types/registrationBoard.ts src/infra/supabase/registrationBoardCloudService.ts src/infra/supabase/registrationBoardCloudService.test.ts > /dev/null && node --import tsx --test src/infra/supabase/registrationBoardCloudService.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" && npm run typecheck && npx eslint --quiet src/shared/types/registrationBoard.ts src/infra/supabase/registrationBoardCloudService.ts src/infra/supabase/registrationBoardCloudService.test.ts && git add -- src/shared/types/registrationBoard.ts src/infra/supabase/registrationBoardCloudService.ts src/infra/supabase/registrationBoardCloudService.test.ts && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && npx prettier --write src/shared/types/registrationBoard.ts src/infra/supabase/registrationBoardCloudService.ts src/infra/supabase/registrationBoardCloudService.test.ts > /dev/null && node --import tsx --test src/infra/supabase/registrationBoardCloudService.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" && npm run typecheck && npx eslint --quiet src/shared/types/registrationBoard.ts src/infra/supabase/registrationBoardCloudService.ts src/infra/supabase/registrationBoardCloudService.test.ts && git add -- src/shared/types/registrationBoard.ts src/infra/supabase/registrationBoardCloudService.ts src/infra/supabase/registrationBoardCloudService.test.ts && git commit -q -F - <<'EOF'
 feat: tipos e servico de nuvem do pagamento
 
 O quadro passa a carregar prazo, contagem de pagos, o pagamento de quem le e o
@@ -2230,7 +2232,7 @@ Se o `fakeGateway` do arquivo ainda não aceitar `onCall` nem `falha`, acrescent
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && node --import tsx --test src/application/registrationUseCases.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
+cd /c/Volley-pagamento && node --import tsx --test src/application/registrationUseCases.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" | head -3
 ```
 
 Esperado: `ℹ fail 4`.
@@ -2371,7 +2373,7 @@ export function applyRegistrationPaymentDeadline(
 - [ ] **Step 6: Rodar, tipar, lintar e commitar**
 
 ```bash
-cd /c/Volley && npx prettier --write src/application/registrationBoardGateway.ts src/application/registrationUseCases.ts src/application/registrationUseCases.test.ts > /dev/null && node --import tsx --test src/application/registrationUseCases.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" && npm run typecheck && npx eslint --quiet src/application/registrationBoardGateway.ts src/application/registrationUseCases.ts src/application/registrationUseCases.test.ts && git add -- src/application/registrationBoardGateway.ts src/application/registrationUseCases.ts src/application/registrationUseCases.test.ts supabase/migrations/20260923120000_registration_payment.sql && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && npx prettier --write src/application/registrationBoardGateway.ts src/application/registrationUseCases.ts src/application/registrationUseCases.test.ts > /dev/null && node --import tsx --test src/application/registrationUseCases.test.ts 2>&1 | grep -iE "^ℹ (pass|fail)" && npm run typecheck && npx eslint --quiet src/application/registrationBoardGateway.ts src/application/registrationUseCases.ts src/application/registrationUseCases.test.ts && git add -- src/application/registrationBoardGateway.ts src/application/registrationUseCases.ts src/application/registrationUseCases.test.ts supabase/migrations/20260923120000_registration_payment.sql && git commit -q -F - <<'EOF'
 feat: casos de uso do pagamento
 
 Marcar, definir prazo, subir ao topo e aplicar o corte, cada um devolvendo o
@@ -2440,7 +2442,7 @@ No bloco `vi.hoisted` do arquivo, acrescentar `markPayment: vi.fn()`, e no `vi.m
 - [ ] **Step 2: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && npx vitest run src/hooks/useRegistrationBoard.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" | head -5
+cd /c/Volley-pagamento && npx vitest run src/hooks/useRegistrationBoard.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" | head -5
 ```
 
 Esperado: falha em `result.current.markPaid is not a function`.
@@ -2486,7 +2488,7 @@ A chave de `markPaid` inclui o `paid`, porque marcar e desmarcar o mesmo atleta 
 - [ ] **Step 4: Rodar, tipar, lintar e commitar**
 
 ```bash
-cd /c/Volley && npx prettier --write src/hooks/useRegistrationBoard.ts src/hooks/useRegistrationBoard.spec.tsx > /dev/null && npx vitest run src/hooks/useRegistrationBoard.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" && npm run typecheck && npx eslint --quiet src/hooks/useRegistrationBoard.ts src/hooks/useRegistrationBoard.spec.tsx && git add -- src/hooks/useRegistrationBoard.ts src/hooks/useRegistrationBoard.spec.tsx && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && npx prettier --write src/hooks/useRegistrationBoard.ts src/hooks/useRegistrationBoard.spec.tsx > /dev/null && npx vitest run src/hooks/useRegistrationBoard.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" && npm run typecheck && npx eslint --quiet src/hooks/useRegistrationBoard.ts src/hooks/useRegistrationBoard.spec.tsx && git add -- src/hooks/useRegistrationBoard.ts src/hooks/useRegistrationBoard.spec.tsx && git commit -q -F - <<'EOF'
 feat: acoes de pagamento no hook do quadro
 
 Marcar, prazo, subir ao topo e aplicar o corte. A chave do comando de marcar
@@ -2637,7 +2639,7 @@ O quadro do fixture tem `capacity: 2` e dois confirmados, então "1 de 2 pagos" 
 - [ ] **Step 3: Rodar e ver falhar**
 
 ```bash
-cd /c/Volley && npx vitest run src/components/session/RegistrationBoardView.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" | head -10
+cd /c/Volley-pagamento && npx vitest run src/components/session/RegistrationBoardView.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" | head -10
 ```
 
 Esperado: 7 falhas novas.
@@ -2671,7 +2673,7 @@ Em `src/app/routes/sessionRoutes.tsx`, dentro de `CommunityRegistrationRoute`, r
 - [ ] **Step 6: Rodar, tipar, lintar e commitar**
 
 ```bash
-cd /c/Volley && npx prettier --write src/components/session/RegistrationBoardView.tsx src/components/session/RegistrationBoardView.spec.tsx src/app/routes/sessionRoutes.tsx > /dev/null && npx vitest run src/components/session/RegistrationBoardView.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" && npm run typecheck && npx eslint --quiet src/components/session/RegistrationBoardView.tsx src/components/session/RegistrationBoardView.spec.tsx src/app/routes/sessionRoutes.tsx && node "C:/Users/mathe/.claude/skills/impeccable/scripts/detect.mjs" --json src/components/session/RegistrationBoardView.tsx && git add -- src/components/session/RegistrationBoardView.tsx src/components/session/RegistrationBoardView.spec.tsx src/app/routes/sessionRoutes.tsx && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && npx prettier --write src/components/session/RegistrationBoardView.tsx src/components/session/RegistrationBoardView.spec.tsx src/app/routes/sessionRoutes.tsx > /dev/null && npx vitest run src/components/session/RegistrationBoardView.spec.tsx 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Tests |×" && npm run typecheck && npx eslint --quiet src/components/session/RegistrationBoardView.tsx src/components/session/RegistrationBoardView.spec.tsx src/app/routes/sessionRoutes.tsx && node "C:/Users/mathe/.claude/skills/impeccable/scripts/detect.mjs" --json src/components/session/RegistrationBoardView.tsx && git add -- src/components/session/RegistrationBoardView.tsx src/components/session/RegistrationBoardView.spec.tsx src/app/routes/sessionRoutes.tsx && git commit -q -F - <<'EOF'
 feat: pagamento na tela da inscricao
 
 O atleta ve a propria situacao de pagamento e a chave PIX quando falta pagar;
@@ -2762,7 +2764,7 @@ Nos estados que usam `paidCount`, marque as entradas correspondentes com `paid_a
 - [ ] **Step 2: Olhar a tela, uma rodada só**
 
 ```bash
-cd /c/Volley && echo "abra http://localhost:3100/preview/inscricao.html com preview_start no dev-3100"
+cd /c/Volley-pagamento && echo "abra http://localhost:3100/preview/inscricao.html com preview_start no dev-3100"
 ```
 
 Subir o servidor de desenvolvimento pelo `preview_start` (configuração `dev-3100`), abrir a bancada, e inspecionar **desktop e celular na mesma rodada**. No painel do navegador, mantenha a largura emulada **abaixo de 760px**, senão a captura corta o lado direito. Corrigir tudo o que a rodada mostrar de uma vez, confirmar com no máximo mais uma rodada, e parar.
@@ -2833,7 +2835,7 @@ formalizou. A tela lê a chave PIX de lá. Unificar os dois é assunto de uma fa
 - [ ] **Step 6: Todos os gates**
 
 ```bash
-cd /c/Volley && npm run typecheck \
+cd /c/Volley-pagamento && npm run typecheck \
 && git ls-files -z -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' | xargs -0 -n 100 npx eslint --quiet --no-warn-ignored \
 && npx prettier --write HANDOFF.md docs/architecture/catalogs/OPEN-DECISIONS.md docs/architecture/execution/C6-REACHABILITY-MAP.md docs/architecture/execution/C6.02-W3-W6-SESSION-REGISTRATION-RATING-TEAM.md preview/inscricao.tsx > /dev/null \
 && git ls-files -z | xargs -0 -n 150 npx prettier --check --ignore-unknown 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^\[warn\]' | grep -v 'Code style issues'; \
@@ -2844,7 +2846,7 @@ npm run check:architecture > /dev/null && echo ARCH ok && npm run build > /dev/n
 Depois a suíte de banco completa:
 
 ```bash
-cd /c/Volley && VOLLEY_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55500/volley_test npm run test:db 2>&1 | grep -E "^ℹ (tests|pass|fail)"
+cd /c/Volley-pagamento && VOLLEY_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55500/volley_test npm run test:db 2>&1 | grep -E "^ℹ (tests|pass|fail)"
 ```
 
 Esperado: tudo verde; `ℹ fail 0`, com os 741 de antes mais os 24 desta fatia.
@@ -2852,7 +2854,7 @@ Esperado: tudo verde; `ℹ fail 0`, com os 741 de antes mais os 24 desta fatia.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /c/Volley && git add -- preview/inscricao.tsx HANDOFF.md docs/architecture && git commit -q -F - <<'EOF'
+cd /c/Volley-pagamento && git add -- preview/inscricao.tsx HANDOFF.md docs/architecture && git commit -q -F - <<'EOF'
 docs: registra o pagamento na inscricao
 
 Bancada com os estados de pagamento, OPEN-REG-004 decidida e OPEN-REG-005

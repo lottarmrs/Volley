@@ -314,9 +314,9 @@ export const SessionActiveView = ({
   if (!currentGame) {
     return (
       <div className="space-y-6 pb-32">
-        <div className="navbar bg-base-200 border border-base-300 rounded-xl sticky top-0 z-20 justify-between px-4">
-          <div className="flex flex-col items-start gap-1">
-            <h2 className="text-base font-bold uppercase tracking-tight text-base-content">
+        <div className="navbar bg-base-200 border border-base-300 rounded-xl sticky top-0 z-20 flex-wrap gap-2 justify-between px-3 sm:px-4 py-2">
+          <div className="flex flex-col items-start gap-1 min-w-0 flex-1">
+            <h2 className="text-sm sm:text-base font-bold uppercase tracking-tight text-base-content truncate max-w-full">
               {activeSession.name}
             </h2>
             <div className="flex gap-3 items-center">
@@ -328,16 +328,16 @@ export const SessionActiveView = ({
               </span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2">
             <button
               onClick={() => dispatch({ kind: 'exit' })}
-              className="btn btn-sm btn-error btn-soft font-bold uppercase tracking-wider"
+              className="btn btn-xs sm:btn-sm btn-error btn-soft font-bold uppercase tracking-wider"
             >
               Voltar
             </button>
             <button
               onClick={() => setShowFinishModal(true)}
-              className="btn btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
+              className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
             >
               Encerrar Sessão
             </button>
@@ -454,13 +454,13 @@ export const SessionActiveView = ({
         <div className="flex gap-2 shrink-0">
           <button
             onClick={() => dispatch({ kind: 'exit' })}
-            className="btn btn-sm btn-error btn-soft font-bold uppercase tracking-wider"
+            className="btn btn-xs sm:btn-sm btn-error btn-soft font-bold uppercase tracking-wider"
           >
             Voltar
           </button>
           <button
             onClick={() => setShowFinishModal(true)}
-            className="btn btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
+            className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
           >
             Encerrar Sessão
           </button>

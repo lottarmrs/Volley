@@ -269,7 +269,7 @@ export const TournamentActiveView = ({
             <button
               type="button"
               onClick={onFinishSession}
-              className="btn btn-accent btn-sm font-bold uppercase shrink-0"
+              className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase shrink-0"
             >
               Encerrar
             </button>
@@ -279,7 +279,7 @@ export const TournamentActiveView = ({
             <button
               type="button"
               onClick={editTournamentInfo}
-              className="btn btn-outline btn-sm font-bold uppercase"
+              className="btn btn-outline btn-xs sm:btn-sm font-bold uppercase"
             >
               Editar
             </button>
@@ -287,7 +287,7 @@ export const TournamentActiveView = ({
               <button
                 type="button"
                 onClick={() => setTournamentPaused(true)}
-                className="btn btn-sm font-bold uppercase btn-outline"
+                className="btn btn-xs sm:btn-sm font-bold uppercase btn-outline"
               >
                 <Pause className="w-3 h-3 mr-1" />
                 Pausar
@@ -297,7 +297,7 @@ export const TournamentActiveView = ({
               <button
                 type="button"
                 onClick={() => setTournamentPaused(false)}
-                className="btn btn-sm font-bold uppercase btn-success btn-soft"
+                className="btn btn-xs sm:btn-sm font-bold uppercase btn-success btn-soft"
               >
                 <Play className="w-3 h-3 mr-1" />
                 Retomar
@@ -315,7 +315,7 @@ export const TournamentActiveView = ({
                     onFinishSession();
                   }
                 }}
-                className="btn btn-accent btn-sm font-bold uppercase"
+                className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase"
               >
                 Encerrar
               </button>

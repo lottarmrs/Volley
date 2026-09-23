@@ -195,7 +195,7 @@ perdeu o prazo.
 
 Em pt-BR, somando aos três da fatia anterior:
 
-- finalizar com pendência: "Ainda faltam 3 pagamentos. Marque quem pagou ou tire quem não vai jogar."
+- travar com pendência: "Ainda falta gente pagar. Marque quem pagou ou tire quem não vai jogar." A contagem não entra na frase porque o quadro já mostra "11 de 12 pagos" ao lado; repetir o número no erro só criaria duas fontes para o mesmo fato.
 - marcar pagamento sem ser organizador (`42501`): "Só quem organiza marca pagamento."
 - prazo no passado ao definir (`23514`): "O prazo precisa ser depois de agora."
 

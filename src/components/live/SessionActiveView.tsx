@@ -331,13 +331,13 @@ export const SessionActiveView = ({
           <div className="flex gap-2">
             <button
               onClick={() => dispatch({ kind: 'exit' })}
-              className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-error btn-soft font-bold uppercase tracking-wider"
+              className="btn btn-sm btn-error btn-soft font-bold uppercase tracking-wider"
             >
               Voltar
             </button>
             <button
               onClick={() => setShowFinishModal(true)}
-              className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-accent btn-soft font-bold uppercase tracking-wider"
+              className="btn btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
             >
               Encerrar Sessão
             </button>
@@ -454,13 +454,13 @@ export const SessionActiveView = ({
         <div className="flex gap-2 shrink-0">
           <button
             onClick={() => dispatch({ kind: 'exit' })}
-            className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-error btn-soft font-bold uppercase tracking-wider"
+            className="btn btn-sm btn-error btn-soft font-bold uppercase tracking-wider"
           >
             Voltar
           </button>
           <button
             onClick={() => setShowFinishModal(true)}
-            className="btn btn-xs sm:btn-sm min-h-[36px] sm:min-h-[44px] btn-accent btn-soft font-bold uppercase tracking-wider"
+            className="btn btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
           >
             Encerrar Sessão
           </button>

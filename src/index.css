@@ -436,13 +436,18 @@ body,
       min-height: 44px;
     }
 
+    /* As variantes pequenas seguiam abaixo do piso -- 36px e 40px -- e eram a
+       unica coisa no app que contrariava o "min-height: 44px em dispositivos
+       sensiveis ao toque" do DESIGN.md. Decisao de 2026-09-23: o piso vale
+       para todas. A largura continua vindo do conteudo e do padding, entao um
+       botao pequeno segue estreito; o que muda e a altura de toque. */
     .btn-xs {
-      min-height: 36px;
+      min-height: 44px;
       padding: 0 12px;
     }
 
     .btn-sm {
-      min-height: 40px;
+      min-height: 44px;
       padding: 0 16px;
     }
   }

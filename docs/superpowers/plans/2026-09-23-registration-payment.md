@@ -658,6 +658,7 @@ set search_path = ''
 as $$
 declare
   v_window public.registration_windows;
+  v_sem_ordem bigint;
 begin
   select * into v_window from public.registration_windows where id = p_window_id;
   if not found then
@@ -672,6 +673,31 @@ begin
     return false;
   end if;
 
+  -- registration_entries_waitlisted_has_sequence_check: quem entrou direto na vaga tem
+  -- queue_sequence nulo, e a reserva exige um. Cada rebaixado ganha o proximo da janela, na
+  -- ordem em que chegou -- e quem ja tinha o seu guarda o que tinha, porque queue_sequence e o
+  -- fato de quando a pessoa chegou e nao se reescreve.
+  select pg_catalog.count(*) into v_sem_ordem
+    from public.registration_entries e
+   where e.registration_window_id = p_window_id
+     and e.status = 'CONFIRMED'
+     and e.paid_at is null
+     and e.queue_sequence is null;
+
+  with alvos as (
+    select e.id,
+           pg_catalog.row_number() over (order by e.joined_at, e.id) as ordem
+      from public.registration_entries e
+     where e.registration_window_id = p_window_id
+       and e.status = 'CONFIRMED'
+       and e.paid_at is null
+       and e.queue_sequence is null
+  )
+  update public.registration_entries e
+     set queue_sequence = v_window.next_queue_sequence + a.ordem - 1
+    from alvos a
+   where e.id = a.id;
+
   update public.registration_entries
      set status = 'WAITLISTED',
          status_changed_at = pg_catalog.now(),
@@ -682,6 +708,7 @@ begin
 
   update public.registration_windows
      set payment_deadline_applied_at = pg_catalog.now(),
+         next_queue_sequence = next_queue_sequence + v_sem_ordem,
          updated_at = pg_catalog.now()
    where id = p_window_id;
 

@@ -143,3 +143,85 @@ $$;
 
 revoke all on function app_private.promote_waitlist_to_capacity(uuid)
   from public, anon, authenticated;
+
+-- O corte do prazo.
+--
+-- Só age com a janela OPEN: depois de fechada ou travada, quem cura a lista é o organizador, e o
+-- prazo já fez o que tinha para fazer.
+--
+-- Não toca `revision` -- quem chama bumpa uma vez, porque corte e ação são uma mutação lógica só
+-- (REG-INV-013). Devolve se cortou, para o comando saber se precisa bumpar.
+--
+-- A idempotência compara com o prazo corrente, não com um booleano: mover o prazo para frente
+-- autoriza um corte novo sem precisar limpar nada.
+create function app_private.apply_payment_deadline(p_window_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_window public.registration_windows;
+  v_sem_ordem bigint;
+begin
+  select * into v_window from public.registration_windows where id = p_window_id;
+  if not found then
+    raise exception 'Registration Window not found' using errcode = 'P0002';
+  end if;
+
+  if v_window.status <> 'OPEN'
+     or v_window.payment_due_at is null
+     or pg_catalog.now() < v_window.payment_due_at
+     or (v_window.payment_deadline_applied_at is not null
+         and v_window.payment_deadline_applied_at >= v_window.payment_due_at) then
+    return false;
+  end if;
+
+  -- registration_entries_waitlisted_has_sequence_check: quem entrou direto na vaga tem
+  -- queue_sequence nulo, e a reserva exige um. Cada rebaixado ganha o proximo da janela, na
+  -- ordem em que chegou -- e quem ja tinha o seu guarda o que tinha, porque queue_sequence e o
+  -- fato de quando a pessoa chegou e nao se reescreve.
+  select pg_catalog.count(*) into v_sem_ordem
+    from public.registration_entries e
+   where e.registration_window_id = p_window_id
+     and e.status = 'CONFIRMED'
+     and e.paid_at is null
+     and e.queue_sequence is null;
+
+  with alvos as (
+    select e.id,
+           pg_catalog.row_number() over (order by e.joined_at, e.id) as ordem
+      from public.registration_entries e
+     where e.registration_window_id = p_window_id
+       and e.status = 'CONFIRMED'
+       and e.paid_at is null
+       and e.queue_sequence is null
+  )
+  update public.registration_entries e
+     set queue_sequence = v_window.next_queue_sequence + a.ordem - 1
+    from alvos a
+   where e.id = a.id;
+
+  update public.registration_entries
+     set status = 'WAITLISTED',
+         status_changed_at = pg_catalog.now(),
+         payment_lapsed_at = pg_catalog.now()
+   where registration_window_id = p_window_id
+     and status = 'CONFIRMED'
+     and paid_at is null;
+
+  update public.registration_windows
+     set payment_deadline_applied_at = pg_catalog.now(),
+         next_queue_sequence = next_queue_sequence + v_sem_ordem,
+         updated_at = pg_catalog.now()
+   where id = p_window_id;
+
+  -- Depois do rebaixamento: a promoção lê capacidade e confirmados do estado já cortado, e o
+  -- portão de pagamento dela garante que só quem pagou ocupe as vagas que acabaram de abrir.
+  perform app_private.promote_waitlist_to_capacity(p_window_id);
+  return true;
+end;
+$$;
+
+revoke all on function app_private.apply_payment_deadline(uuid)
+  from public, anon, authenticated;

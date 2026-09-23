@@ -238,4 +238,90 @@ if (!isTestDatabaseConfigured()) {
 
     assert.equal(await statusDe(f.windowId, b.playerId), 'CONFIRMED');
   });
+
+  async function venceuOPrazo(windowId: string): Promise<void> {
+    await client.query(
+      `update public.registration_windows set payment_due_at = now() - interval '1 hour'
+        where id = $1`,
+      [windowId],
+    );
+  }
+
+  async function cortar(windowId: string): Promise<boolean> {
+    const { rows } = await client.query<{ cortou: boolean }>(
+      'select app_private.apply_payment_deadline($1) as cortou',
+      [windowId],
+    );
+    return rows[0].cortou;
+  }
+
+  test('o corte rebaixa quem não pagou e sobe quem pagou', async () => {
+    const f = await fixture(2);
+    const a = await inscrever(f, 'a');
+    const b = await inscrever(f, 'b');
+    const c = await inscrever(f, 'c');
+
+    await marcarPagoDireto(f.windowId, a.playerId);
+    await marcarPagoDireto(f.windowId, c.playerId);
+    await venceuOPrazo(f.windowId);
+
+    assert.equal(await cortar(f.windowId), true);
+    assert.equal(await statusDe(f.windowId, a.playerId), 'CONFIRMED', 'pago segue dentro');
+    assert.equal(await statusDe(f.windowId, c.playerId), 'CONFIRMED', 'pago da reserva sobe');
+    assert.equal(await statusDe(f.windowId, b.playerId), 'WAITLISTED', 'não pago cai');
+
+    const { rows } = await client.query<{ payment_lapsed_at: string | null }>(
+      `select payment_lapsed_at from public.registration_entries
+        where registration_window_id = $1 and player_id = $2`,
+      [f.windowId, b.playerId],
+    );
+    assert.notEqual(rows[0].payment_lapsed_at, null);
+  });
+
+  test('o corte não roda duas vezes para o mesmo prazo', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    await venceuOPrazo(f.windowId);
+
+    assert.equal(await cortar(f.windowId), true);
+    assert.equal(await cortar(f.windowId), false, 'segunda chamada não faz nada');
+    assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
+  });
+
+  test('marcar como pago depois do corte devolve a vaga que ficou vazia', async () => {
+    const f = await fixture(1);
+    const a = await inscrever(f, 'a');
+    await venceuOPrazo(f.windowId);
+    await cortar(f.windowId);
+    assert.equal(await statusDe(f.windowId, a.playerId), 'WAITLISTED');
+
+    await marcarPagoDireto(f.windowId, a.playerId);
+    await client.query('select app_private.promote_waitlist_to_capacity($1)', [f.windowId]);
+
+    assert.equal(await statusDe(f.windowId, a.playerId), 'CONFIRMED');
+  });
+
+  test('sem prazo, no futuro, ou com a janela fechada, nada é cortado', async () => {
+    const semPrazo = await fixture(1);
+    await inscrever(semPrazo, 'a');
+    assert.equal(await cortar(semPrazo.windowId), false, 'sem prazo');
+
+    const futuro = await fixture(1);
+    await inscrever(futuro, 'b');
+    await client.query(
+      `update public.registration_windows set payment_due_at = now() + interval '1 day'
+        where id = $1`,
+      [futuro.windowId],
+    );
+    assert.equal(await cortar(futuro.windowId), false, 'prazo no futuro');
+
+    const fechada = await fixture(1);
+    const c = await inscrever(fechada, 'c');
+    await venceuOPrazo(fechada.windowId);
+    await client.query(`update public.registration_windows set status = 'CLOSED' where id = $1`, [
+      fechada.windowId,
+    ]);
+    assert.equal(await cortar(fechada.windowId), false, 'janela fechada');
+    assert.equal(await statusDe(fechada.windowId, c.playerId), 'CONFIRMED');
+  });
 }

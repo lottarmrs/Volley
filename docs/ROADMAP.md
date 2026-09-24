@@ -151,18 +151,19 @@ provado em `registrationCoherence.dbtest.ts`.
 
 | #   | Achado                                                                                                              | Evidência                          | Situação |
 | --- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------- |
-| 1   | A inscrição só é alcançável **depois** do sorteio                                                                    | `useSessionWizard.ts:508`, `agendaViewModel.ts:33` | aberto |
-| 2   | Não existe marcar pelada futura: nasce com a data de hoje                                                            | `sessionLifecycleUseCases.ts:112`  | aberto |
+| 1   | A inscrição só é alcançável **depois** do sorteio                                                                    | `useSessionWizard.ts:508`, `agendaViewModel.ts:33` | **corrigido** |
+| 2   | Não existe marcar pelada futura: nasce com a data de hoje                                                            | `sessionLifecycleUseCases.ts:112`  | **corrigido** |
 | 3   | Entrar na lista tem três recusas distintas e o produto dava uma frase só                                             | `registrationCoherence.dbtest.ts`  | **corrigido** |
 | 4   | Tirar a organização não parava de pé: o espelho do cargo legado a devolvia                                           | idem                               | **corrigido** |
-| 5   | Tirar a responsabilidade tranca a lista aberta, sem aviso                                                            | idem                               | aberto |
-| 6   | Sessão `IN_PROGRESS` recusa quem entra, mas a janela continua anunciando `OPEN`                                      | idem                               | aberto |
-| 7   | Sessão target nunca desce para outro aparelho                                                                        | `operationalCloudService.ts:72`    | contornado na tela da inscrição; aberto no resto |
+| 5   | Tirar a responsabilidade tranca a lista aberta, sem aviso                                                            | idem                               | **corrigido** (confirmação diz a consequência) |
+| 6   | Sessão `IN_PROGRESS` recusa quem entra, mas a janela continua anunciando `OPEN`                                      | idem                               | **corrigido** |
+| 7   | Sessão target nunca desce para outro aparelho                                                                        | `operationalCloudService.ts:72`, `targetSessionVisibility.dbtest.ts` | aberto — **dois portões**, ver abaixo |
 | 8   | O muro de conta perdia o destino                                                                                     | `AccountRequiredView.tsx`          | **corrigido** |
 | 9   | O convite da inscrição era inalcançável: `CommunityShell` corre antes do `AccountGate`                                | `communityRoutes.tsx:61`           | **corrigido para quem não tem conta** |
-| 10  | Quem tem conta e não é da comunidade perde o link                                                                    | `appRoutes.ts:71`                  | aberto |
-| 11  | O código de convite não tem URL                                                                                      | `CommunitiesView.tsx:315`          | aberto |
-| 12  | Quem chega pelo link não vê a data da pelada                                                                         | `registrationBoard.ts:21-38`       | aberto |
+| 10  | Quem tem conta e não é da comunidade perde o link                                                                    | `appRoutes.ts:71`                  | **corrigido** (rota `/convite/:codigo`) |
+| 11  | O código de convite não tem URL                                                                                      | `CommunitiesView.tsx:315`          | **corrigido** |
+| 12  | Quem chega pelo link não vê a data da pelada                                                                         | `registrationBoard.ts:21-38`       | **corrigido** |
+| 15  | **Membro comum não lê sessão nenhuma da própria comunidade** — a policy chama `current_user_has_community_role` sem papéis, e o padrão exclui `member` | `targetSessionVisibility.dbtest.ts` | aberto |
 | 13  | `read_team_candidate_set` continua sem consumidor                                                                    | mapa de alcançabilidade            | aberto |
 | 14  | Dez travas explícitas abaixo de 44px sobraram                                                                        | varredura de 2026-09-23            | aberto |
 
@@ -216,9 +217,24 @@ dependem.
 
 ### Fatia 6 — Sessão target visível em outro aparelho
 
-O download em lote filtra `sessions` por `legacy` (**7**). A tela da inscrição
-contorna pelo id da URL; agenda, histórico e estatísticas não contornam. É uma
-fatia de sync, não de tela.
+Tentada em 2026-09-24 e **devolvida ao roadmap com o diagnóstico completo**. São
+dois portões, não um:
+
+1. **O filtro do cliente.** `scopeOperationalFetch` restringe `sessions` a
+   `authority_model = 'legacy'`. Tirá-lo é uma linha, mas quebra o invariante
+   `AF-TARGET-005` — "sessão target nunca entra na autoridade nem no merge por
+   timestamp do sync genérico" —, cujo gatilho de remoção exige **fronteira
+   equivalente ou mais forte**. Baixar a sessão target sem construir essa
+   fronteira a joga no merge genérico, que é exatamente o que a regra proíbe.
+2. **A política de leitura.** Medido em `targetSessionVisibility.dbtest.ts`: a
+   policy de `sessions` chama `current_user_has_community_role(community_id)`
+   sem passar papéis, e o padrão da função é `['owner','admin','moderator']`.
+   Um `member` comum **não lê sessão nenhuma** da própria comunidade — legada ou
+   target. Então, mesmo removendo o filtro, o atleta continuaria sem ver a
+   pelada. Alargar isso é decisão de permissão, não de sync.
+
+A fatia precisa das duas coisas: uma fronteira de leitura que não passe pelo
+merge genérico, e a decisão sobre o que um `member` pode ler.
 
 ### Fatia 7 — Varredura de acabamento
 

@@ -338,10 +338,16 @@ if (!isTestDatabaseConfigured()) {
         'membro suspenso': 'negado',
         'membro de outra comunidade': 'negado',
         // Sao membros ativos, mas sem Player ligado a conta nem assento no
-        // elenco: join_registration exige os dois.
+        // elenco: join_registration exige os dois. A recusa vem dai, nao de
+        // regra de organizacao -- entrar na lista e acao de atleta.
         'organizador de outra sessão': 'negado',
         'admin sem atribuição': 'negado',
-        'dono sem atribuição na sessão': 'negado',
+        // O dono CRIOU esta comunidade, e desde 2026-09-24 criar uma comunidade
+        // ja poe quem criou no elenco dela com vinculo de conta. Entao ele tem
+        // as duas coisas e entra na lista, sem precisar organizar a sessao.
+        // Antes era negado, e a recusa era acidente: ele simplesmente nao tinha
+        // como virar atleta em lugar nenhum.
+        'dono sem atribuição na sessão': 'permitido',
         'organizador da sessão': 'permitido',
       },
       'select * from public.join_registration($1,$2,$3)',

@@ -69,7 +69,7 @@ Uma pessoa só joga quando tem **três**, e elas são independentes:
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
-| 2.1 | Criar a comunidade dá quais dessas? | Medido (ETAPA 2): ficha ✅, elenco ❌, vínculo ❌. |
+| 2.1 | Criar a comunidade dá quais dessas? | ✅ **As três**, desde 2026-09-24. Até então dava só a ficha, e quem criava a pelada não jogava nela. |
 | 2.2 | Entrar por convite dá quais? | ✅ As três, desde 2026-09-24. |
 | 2.3 | E se a comunidade não tiver nuvem? | Funciona local, mas **a lista nunca abre**: `openRegistration` exige `cloudId`. |
 | 2.4 | E se a pessoa já tinha ficha de outra comunidade? | ✅ O vínculo dela não é reescrito pela aprovação. |
@@ -78,21 +78,18 @@ Uma pessoa só joga quando tem **três**, e elas são independentes:
 
 ## Etapa 3 — Conseguir entrar numa lista
 
-> 🔴 **A jornada trava aqui para quem passou por 2a.** As etapas seguintes só
-> valem para quem entrou por convite.
-
 **De onde veio:** do painel, da agenda, ou do link compartilhado.
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
 | 3.1 | O que o servidor exige para entrar? | Três coisas, com frase própria para cada: participação, vínculo, elenco. |
 | 3.2 | Quem pode criar um vínculo de conta? | Medido (ETAPA 4): **duas funções no banco inteiro**, e as duas só rodam quando alguém **aprova um pedido de entrada**. |
-| 3.3 | Então quem cria a própria comunidade recebe vínculo? | 🔴 **Nunca.** Não há pedido de entrada para aprovar. |
-| 3.4 | Ela consegue entrar na pelada que ela mesma abriu? | 🔴 **Não.** `42501`, e a mensagem diz "peça a quem administra" — sendo que ela *é* quem administra. |
-| 3.5 | O reparo de hoje a alcança? | 🔴 **Não.** Ele exige estar no elenco, e criar a comunidade não põe ninguém nele. |
-| 3.6 | Quantas pessoas isso afeta em produção? | Agora, zero: os 6 donos existiam antes do backfill de agosto. **Toda comunidade nova nasce com o dono travado.** |
-| 3.7 | E se a comunidade não tem outros membros? | 🔴 Pior caso: não há quem aprove ninguém, e a lista fica vazia para sempre. |
-| 3.8 | **É a hora certa de exigir vínculo?** | Sim — mas a hora certa de **conceder** é ao criar a comunidade, não só ao aprovar terceiros. |
+| 3.3 | Então quem cria a própria comunidade recebe vínculo? | ✅ **Sim, desde 2026-09-24.** `create_community_with_owner` passou a chamar `enroll_approved_member`, que é onde mora "esta pessoa é atleta desta comunidade". |
+| 3.4 | Ela consegue entrar na pelada que ela mesma abriu? | ✅ Sim. Era o bloqueio nº 1 da jornada. |
+| 3.5 | Criar duas comunidades duplica ficha ou vínculo? | ✅ Não: uma ficha e um vínculo por conta, e um assento de elenco por comunidade. |
+| 3.6 | Quantas pessoas estavam presas em produção? | Zero, por acidente histórico — os 6 donos vieram do backfill de agosto. O buraco era das comunidades **novas**. |
+| 3.7 | E se a comunidade não tem outros membros? | ✅ Quem criou já é atleta dela, então a lista nunca nasce vazia de gente elegível. |
+| 3.8 | **É a hora certa de exigir vínculo?** | Sim — e a hora de **conceder** passou a ser quando a pessoa entra no grupo, por qualquer das duas portas. |
 
 ---
 
@@ -204,11 +201,11 @@ publicado não tem leitor.
 
 ## O que bloqueia, em ordem
 
-1. 🔴 **Etapa 3 — quem cria a comunidade não vira atleta.** Trava o caso mais
-   comum: alguém baixa o app e monta a própria pelada. Cada comunidade nova
-   nasce com o organizador impedido de jogar. **Nada depois disso importa para
-   essa pessoa.**
-2. 🔴 **Etapa 4/8 — a inversão do wizard.** Spec escrita, duas decisões abertas.
+1. ✅ ~~**Etapa 3 — quem cria a comunidade não vira atleta.**~~ Corrigido em
+   2026-09-24. Era o bloqueio que tornava tudo o resto irrelevante para quem
+   monta a própria pelada.
+2. 🔴 **Etapa 4/8 — a inversão do wizard.** Spec fechada e
+   [plano escrito](superpowers/plans/2026-09-24-dividir-o-wizard.md).
 3. 🔴 **Etapa 5 — a pelada invisível em outro aparelho.** Dois portões.
 4. ⚠️ **Etapa 6 — sem fila offline.**
 5. ❓ **Etapas 9 e 10 — não verificadas.**

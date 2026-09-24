@@ -78,12 +78,12 @@ if (!isTestDatabaseConfigured()) {
       [comunidade, dono],
     );
 
-    // Medido, nao suposto: a ficha nasce (ha gatilho na conta), mas nem o
-    // elenco nem o vinculo. Sao tres coisas, e criar a comunidade da uma.
+    // Ate 2026-09-24 criar a comunidade dava so a ficha. Agora da as tres:
+    // sem elas quem cria a pelada nao joga nela.
     assert.deepEqual(
       { temFicha: temFicha ?? 0, noElenco: noElenco ?? 0, vinculo: await temVinculoAtivo(dono) },
-      { temFicha: 1, noElenco: 0, vinculo: false },
-      'criar a comunidade da a ficha e para ai',
+      { temFicha: 1, noElenco: 1, vinculo: true },
+      'criar a comunidade faz de quem criou um atleta dela',
     );
   });
 
@@ -124,23 +124,19 @@ if (!isTestDatabaseConfigured()) {
       client.query('select * from public.open_registration($1,$2,$3)', [randomUUID(), janela, 1]),
     );
 
-    const recusa = await asIdentityCommitting(client, dono, () =>
-      client.query('select * from public.join_registration($1,$2,$3)', [
+    const { rows: entrou } = await asIdentityCommitting(client, dono, () =>
+      client.query<{ entry_status: string }>('select * from public.join_registration($1,$2,$3)', [
         randomUUID(),
         randomUUID(),
         janela,
       ]),
-    ).then(
-      () => null,
-      (erro: Error & { code?: string }) => erro,
     );
 
     assert.equal(
-      recusa?.code,
-      '42501',
-      'quem abriu a pelada nao entra na propria lista: falta o vinculo de atleta',
+      entrou[0].entry_status,
+      'CONFIRMED',
+      'quem abriu a pelada entra na propria lista -- era o bloqueio 1 da jornada',
     );
-    assert.match(String(recusa?.message), /Player account link/i);
   });
 
   test('ETAPA 3 — e `ensure_account_ready` resolve isso sozinho?', async () => {
@@ -181,21 +177,46 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
-  test('ETAPA 4 — e o reparo nao alcanca quem criou a comunidade', async () => {
-    const dono = await conta('dono-reparo');
-    await asIdentityCommitting(client, dono, () =>
-      client.query('select public.create_community_with_owner($1)', [`Pelada ${randomUUID()}`]),
+  test('ETAPA 4 — criar a comunidade duas vezes nao duplica nada', async () => {
+    const dono = await conta('dono-duplo');
+    for (const nome of ['Primeira', 'Segunda']) {
+      await asIdentityCommitting(client, dono, () =>
+        client.query('select public.create_community_with_owner($1)', [`${nome} ${randomUUID()}`]),
+      );
+    }
+
+    const { rowCount: vinculos } = await client.query(
+      `select 1 from public.player_account_links where user_id = $1 and status = 'ACTIVE'`,
+      [dono],
     );
-    await asIdentityCommitting(client, dono, () =>
-      client.query('select * from public.ensure_account_ready()'),
+    const { rowCount: fichas } = await client.query(
+      'select 1 from public.players where user_id = $1 and deleted_at is null',
+      [dono],
     );
 
-    await client.query('select app_private.backfill_approved_member_account_links()');
+    assert.deepEqual({ vinculos, fichas }, { vinculos: 1, fichas: 1 }, 'uma ficha, um vinculo');
+  });
 
-    assert.equal(
-      await temVinculoAtivo(dono),
-      false,
-      'o reparo exige estar no elenco, e criar a comunidade nao poe ninguem nele',
-    );
+  test('ETAPA 4 — a pessoa entra no elenco de CADA comunidade que cria', async () => {
+    const dono = await conta('dono-duas');
+    const comunidades: string[] = [];
+    for (const nome of ['Terca', 'Quinta']) {
+      const { rows } = await asIdentityCommitting(client, dono, () =>
+        client.query<{ id: string }>('select public.create_community_with_owner($1) as id', [
+          `${nome} ${randomUUID()}`,
+        ]),
+      );
+      comunidades.push(rows[0].id);
+    }
+
+    for (const comunidade of comunidades) {
+      const { rowCount } = await client.query(
+        `select 1 from public.community_players cp
+           join public.players p on p.id = cp.player_id
+          where cp.community_id = $1 and p.user_id = $2 and cp.active`,
+        [comunidade, dono],
+      );
+      assert.equal(rowCount, 1, 'o elenco e por comunidade, o vinculo e por conta');
+    }
   });
 }

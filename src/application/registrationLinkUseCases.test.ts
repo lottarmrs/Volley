@@ -103,3 +103,30 @@ test('o link e absoluto, para sobreviver ao WhatsApp', () => {
 
   assert.ok(texto.includes('https://'), 'um caminho relativo nao vira link no aplicativo');
 });
+
+test('a mensagem oferece o convite para quem ainda nao e do grupo', () => {
+  const texto = buildRegistrationShareMessage({
+    sessionName: 'Pelada de quinta',
+    sessionDate: '2026-10-01',
+    capacity: 12,
+    confirmedCount: 5,
+    url: 'https://exemplo.test/comunidades/c1/sessoes/s1/inscricao',
+    inviteUrl: 'https://exemplo.test/convite/AB12CD?pelada=s1',
+  });
+
+  assert.match(texto, /ainda n[ãa]o é do grupo/i);
+  assert.match(texto, /https:\/\/exemplo\.test\/convite\/AB12CD\?pelada=s1/);
+});
+
+test('sem codigo de convite a mensagem nao promete um caminho que nao existe', () => {
+  const texto = buildRegistrationShareMessage({
+    sessionName: 'Pelada de quinta',
+    sessionDate: '2026-10-01',
+    capacity: 12,
+    confirmedCount: 5,
+    url: 'https://exemplo.test/comunidades/c1/sessoes/s1/inscricao',
+  });
+
+  assert.doesNotMatch(texto, /grupo/i);
+  assert.doesNotMatch(texto, /convite/i);
+});

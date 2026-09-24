@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { AppShell } from './AppShell';
 import { AccountGate, SessionGate } from './auth/AuthGuard';
+import { CommunityInviteRoute } from './routes/CommunityInviteRoute';
 import { QuickStartRoute, SessionRecapRoute } from './routes/onboardingRoutes';
 import {
   AuthTransitionPage,
@@ -95,6 +96,9 @@ export function AppRouter() {
 
           {/* Tudo que atravessa dispositivos ou pessoas mora na conta. */}
           <Route element={<AccountGate />}>
+            {/* Fora do CommunityShell: quem chega pelo link nao tem a
+                comunidade neste aparelho, e o shell o mandaria embora. */}
+            <Route path="/convite/:codigo" element={<CommunityInviteRoute />} />
             <Route path="/agenda" element={<AgendaRoute />} />
             <Route path="/ligas" element={<LigasHubRoute />} />
             <Route path="/ligas/nova" element={<LigaNovaRoute />} />

@@ -22,6 +22,7 @@ import {
   buildRegistrationShareUrl,
   resolveRegistrationTarget,
 } from '@app/registrationLinkUseCases';
+import { buildInviteShareUrl } from '@app/communityInviteUseCases';
 import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
@@ -218,6 +219,11 @@ export function CommunityRegistrationRoute() {
       shareUrl={buildRegistrationShareUrl({
         origin: window.location.origin,
         communityId: community.id,
+        sessionId: alvo.sessionCloudId,
+      })}
+      inviteUrl={buildInviteShareUrl({
+        origin: window.location.origin,
+        code: community.joinCode,
         sessionId: alvo.sessionCloudId,
       })}
       organizerHandover={

@@ -40,6 +40,9 @@ export function buildRegistrationShareMessage(input: {
   capacity: number;
   confirmedCount: number;
   url: string;
+  /** Caminho para quem ainda nao e do grupo. Sem codigo de convite nao existe,
+   *  e a mensagem nao pode prometer um caminho que nao ha. */
+  inviteUrl?: string | null;
 }): string {
   const livres = Math.max(0, input.capacity - input.confirmedCount);
   const chamada =
@@ -47,14 +50,20 @@ export function buildRegistrationShareMessage(input: {
       ? `Ainda tem ${livres} ${livres === 1 ? 'vaga' : 'vagas'}.`
       : 'A lista encheu, mas dá para entrar na reserva.';
 
-  return [
+  const linhas = [
     `🏐 *${input.sessionName}*`,
     formatarDia(input.sessionDate),
     '',
     chamada,
     'Garanta a sua pelo link — a ordem de chegada decide quem joga:',
     input.url,
-  ].join('\n');
+  ];
+
+  if (input.inviteUrl) {
+    linhas.push('', 'Ainda não é do grupo? Peça entrada por aqui:', input.inviteUrl);
+  }
+
+  return linhas.join('\n');
 }
 
 export function buildRegistrationShareUrl(input: {

@@ -708,4 +708,19 @@ describe('AppRouter — wizard e sessão ativa', () => {
       'proxima=%2Fcomunidades%2Fc-desconhecida%2Fsessoes%2Fs1%2Finscricao',
     );
   });
+
+  it('a rota do convite existe e vive fora do shell da comunidade', async () => {
+    renderApp('/convite/AB12CD');
+
+    // Sem o preview a tela decide "convite fora do ar"; o que importa aqui e
+    // que a rota nao redirecionou para /comunidades como fazia antes.
+    expect(await screen.findByRole('status')).toBeTruthy();
+  });
+
+  it('sem conta, o convite tambem leva o destino para o cadastro', async () => {
+    renderApp('/convite/AB12CD?pelada=s1', { kind: 'anonymous' });
+
+    const criar = await screen.findByRole('link', { name: /criar conta/i });
+    expect(criar.getAttribute('href')).toContain('proxima=%2Fconvite%2FAB12CD');
+  });
 });

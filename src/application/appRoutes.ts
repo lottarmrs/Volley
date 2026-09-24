@@ -25,6 +25,7 @@ export const paths = {
   sessaoAtivaSemComunidade: '/sessao/ativa',
   comunidade: (communityId: string) => `/comunidades/${communityId}`,
   sessoes: (communityId: string) => `/comunidades/${communityId}/sessoes`,
+  convite: (codigo: string) => `/convite/${codigo.toUpperCase()}`,
   inscricao: (communityId: string, sessionId: string) =>
     `/comunidades/${communityId}/sessoes/${sessionId}/inscricao`,
   sessaoNova: (communityId: string, type?: 'tournament' | 'free_play') =>

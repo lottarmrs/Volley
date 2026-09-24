@@ -49,6 +49,8 @@ interface RegistrationBoardViewProps {
   canOpen?: boolean;
   /** Link absoluto da inscricao. Sem ele nao ha o que compartilhar. */
   shareUrl?: string;
+  /** Link do convite, para quem recebe a mensagem e ainda nao e do grupo. */
+  inviteUrl?: string | null;
   /** Ponto de injecao para o teste; por padrao abre o WhatsApp. */
   onShare?: (texto: string) => void;
   pixKey?: string;
@@ -157,6 +159,7 @@ export function RegistrationBoardView({
   canOpen = false,
   pixKey,
   shareUrl,
+  inviteUrl,
   onShare,
   organizerHandover,
 }: RegistrationBoardViewProps) {
@@ -393,6 +396,7 @@ export function RegistrationBoardView({
               capacity: board.capacity,
               confirmedCount: board.confirmedCount,
               url: shareUrl,
+              inviteUrl,
             });
             (onShare ?? openWhatsAppShare)(texto);
           }}

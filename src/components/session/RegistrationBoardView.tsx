@@ -11,6 +11,7 @@ import {
   DoorOpen,
   Lock,
   RefreshCw,
+  ShieldCheck,
   Timer,
   UserMinus,
   UserPlus,
@@ -25,6 +26,8 @@ import type {
 import type { RegistrationBoardApi } from '../../hooks/useRegistrationBoard';
 import { calculateGeneralOverall } from '../../logic/calculations';
 import { EmptyState } from '../../ui/EmptyState';
+import { SessionOrganizerPanel, type SessionOrganizerMember } from './SessionOrganizerPanel';
+import type { AppResult } from '@app/appResult';
 
 const POSITION_LABELS: Record<Position, string> = {
   levantador: 'Levantador',
@@ -42,6 +45,12 @@ interface RegistrationBoardViewProps {
   sessionDate: string;
   canOpen?: boolean;
   pixKey?: string;
+  organizerHandover?: {
+    podeTransferir: boolean;
+    currentUserId: string | null;
+    membros: SessionOrganizerMember[];
+    onTransfer: (organizerUserId: string) => Promise<AppResult<void>>;
+  };
 }
 
 interface SituacaoVisual {
@@ -140,8 +149,10 @@ export function RegistrationBoardView({
   sessionDate,
   canOpen = false,
   pixKey,
+  organizerHandover,
 }: RegistrationBoardViewProps) {
   const { board, busy, error, loading } = api;
+  const [mostrarOrganizador, setMostrarOrganizador] = useState(false);
 
   if (!board && loading) {
     return (
@@ -360,6 +371,29 @@ export function RegistrationBoardView({
 
       {board.viewerCanManage && (
         <BarraDoOrganizador api={api} board={board} disponiveis={disponiveis} />
+      )}
+
+      {organizerHandover && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm min-h-[44px] border-base-content/20 sm:min-h-0"
+            aria-expanded={mostrarOrganizador}
+            onClick={() => setMostrarOrganizador((atual) => !atual)}
+          >
+            <ShieldCheck className="h-4 w-4" /> Quem organiza
+          </button>
+          {mostrarOrganizador && (
+            <SessionOrganizerPanel
+              membros={organizerHandover.membros}
+              currentUserId={organizerHandover.currentUserId}
+              organizadorAtual={null}
+              podeTransferir={organizerHandover.podeTransferir}
+              onTransfer={organizerHandover.onTransfer}
+              onClose={() => setMostrarOrganizador(false)}
+            />
+          )}
+        </div>
       )}
 
       <div className="overflow-hidden rounded-box border border-base-300 bg-base-200">

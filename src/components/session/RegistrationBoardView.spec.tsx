@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { RegistrationBoard } from '../../types';
 import { makePlayer } from '../../test/fixtures';
@@ -295,5 +295,33 @@ describe('RegistrationBoardView', () => {
     fireEvent.change(campo, { target: { value: '2026-09-24T15:00' } });
     fireEvent.blur(campo);
     expect(contrato.setPaymentDue).toHaveBeenCalledWith('2026-09-24T15:00');
+  });
+
+  it('quem administra alcança o painel de quem organiza pela tela da inscrição', async () => {
+    const onTransfer = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+    render(
+      <RegistrationBoardView
+        api={api({ board: board({ viewerCanManage: true }) })}
+        players={players}
+        sessionName="Pelada de quinta"
+        sessionDate="2026-09-24"
+        organizerHandover={{
+          podeTransferir: true,
+          currentUserId: 'u-dono',
+          membros: [{ userId: 'u-bia', nome: 'Bianca Ferraz' }],
+          onTransfer,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /quem organiza/i }));
+    fireEvent.click(screen.getByRole('button', { name: /assumir esta pelada/i }));
+
+    await waitFor(() => expect(onTransfer).toHaveBeenCalledWith('u-dono'));
+  });
+
+  it('sem o repasse disponível, a tela não oferece o botão', () => {
+    renderView({ board: board({ viewerCanManage: true }) });
+    expect(screen.queryByRole('button', { name: /quem organiza/i })).toBeNull();
   });
 });

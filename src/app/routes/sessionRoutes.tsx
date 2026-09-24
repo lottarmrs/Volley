@@ -15,7 +15,9 @@ import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionL
 import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { generateUUID } from '@logic/uuid';
 import { SessionCreationBlocked } from '../../components/session/SessionCreationBlocked';
+import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
+import { transferSessionOrganizer } from '@app/sessionOrganizerUseCases';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -151,9 +153,15 @@ export function CommunitySessionsRoute() {
 }
 
 export function CommunityRegistrationRoute() {
-  const { community, play, sess, comm, whatsAppLists } = useCommunityShell();
+  const { community, play, sess, comm, whatsAppLists, auth } = useCommunityShell();
   const { sessionId } = useParams();
   const permissions = useCommunityPermissions(community);
+  const { members } = useCommunityMembers({
+    communityCloudId: community.cloudId,
+    communityLocalId: community.id,
+    currentUserId: auth.user?.id ?? null,
+    enabled: !!community.cloudId,
+  });
   const session = sess.sessions.find((item) => item.id === sessionId) ?? null;
   const communityCloudId =
     comm.communities.find((item) => item.id === community.id)?.cloudId ?? null;
@@ -170,6 +178,8 @@ export function CommunityRegistrationRoute() {
 
   if (!session) return <Navigate to={paths.sessoes(community.id)} replace />;
 
+  const sessionCloudId = session.authorityModel === 'target' ? (session.cloudId ?? null) : null;
+
   return (
     <RegistrationBoardView
       api={api}
@@ -178,6 +188,29 @@ export function CommunityRegistrationRoute() {
       sessionDate={session.date}
       canOpen={permissions.canCreateSession}
       pixKey={pixKey}
+      organizerHandover={
+        sessionCloudId
+          ? {
+              podeTransferir: permissions.canManageMembers,
+              currentUserId: auth.user?.id ?? null,
+              membros: members
+                .filter((membro) => membro.status !== 'suspended')
+                .map((membro) => ({
+                  userId: membro.userId,
+                  nome: membro.name || membro.email || 'Membro',
+                })),
+              onTransfer: (organizerUserId: string) =>
+                transferSessionOrganizer({
+                  sessionCloudId,
+                  communityCloudId,
+                  organizerUserId,
+                  commandId: generateUUID(),
+                  assignmentId: generateUUID(),
+                  granterUserId: auth.user?.id ?? undefined,
+                }),
+            }
+          : undefined
+      }
     />
   );
 }

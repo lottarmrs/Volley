@@ -15,6 +15,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../src/index.css';
 import { RegistrationBoardView } from '../src/components/session/RegistrationBoardView';
+import { appOk } from '../src/application/appResult';
 import type { RegistrationBoardApi } from '../src/hooks/useRegistrationBoard';
 import { makePlayer } from '../src/test/fixtures';
 import type { Player, RegistrationBoard } from '../src/types';
@@ -168,7 +169,23 @@ function api(overrides: Partial<RegistrationBoardApi> = {}): RegistrationBoardAp
   };
 }
 
-const ESTADOS: { nome: string; api: RegistrationBoardApi; canOpen?: boolean }[] = [
+const REPASSE = {
+  podeTransferir: true,
+  currentUserId: 'u-dono',
+  membros: [
+    { userId: 'u-bia', nome: 'Bianca Ferraz' },
+    { userId: 'u-caio', nome: 'Caio Medeiros' },
+    { userId: 'u-dani', nome: 'Daniela Rocha' },
+  ],
+  onTransfer: async () => appOk(undefined),
+};
+
+const ESTADOS: {
+  nome: string;
+  api: RegistrationBoardApi;
+  canOpen?: boolean;
+  repasse?: typeof REPASSE;
+}[] = [
   {
     nome: 'Atleta fora, com vaga sobrando',
     api: api({
@@ -235,6 +252,11 @@ const ESTADOS: { nome: string; api: RegistrationBoardApi; canOpen?: boolean }[] 
   },
   { nome: 'Sem janela — o atleta espera', api: api({ board: null }) },
   { nome: 'Sem janela — quem organiza abre', api: api({ board: null }), canOpen: true },
+  {
+    nome: 'Quem administra pode assumir ou passar a organização',
+    api: api({ board: quadro({ viewerCanManage: true }) }),
+    repasse: REPASSE,
+  },
   {
     nome: 'Prazo definido, faltando gente pagar',
     api: api({
@@ -339,6 +361,7 @@ export function Bancada() {
               sessionDate="2026-09-24"
               canOpen={estado.canOpen}
               pixKey="pelada@panelinha.com.br"
+              organizerHandover={estado.repasse}
             />
           </section>
         ))}

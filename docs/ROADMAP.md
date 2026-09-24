@@ -199,12 +199,28 @@ quando quem recebe ainda não é do grupo.
 
 Fecha **10** e **11**. Depende da 1 para ter o que anunciar.
 
-### Fatia 3 — A pessoa nova vira atleta sem pedir ajuda
+### Fatia 3 — A pessoa nova vira atleta sem pedir ajuda ✅
 
-Aprovada na comunidade, ela ainda precisa de ficha de atleta e de entrar no
-elenco. Hoje isso é trabalho de quem administra, e ninguém avisa a pessoa. A
-tela da inscrição já sabe qual das três coisas falta (achado 3): falta oferecer
-o passo seguinte ali mesmo, em vez de só explicar.
+**Feita em 2026-09-24, e o diagnóstico mudou a solução.** Eu ia construir uma
+tela que oferecesse o passo seguinte. Investigando, o problema era outro:
+existiam **duas** formas de dizer "esta conta é este atleta", e a aprovação só
+preenchia uma.
+
+- `players.user_id` — o que `build_registration_board` devolve como
+  `viewer_player_id`, ou seja, o que a **tela** mostra;
+- `player_account_links` com status `ACTIVE` — o que
+  `current_user_active_player_id()` lê, ou seja, o que `join_registration`
+  **exige**.
+
+`enroll_approved_member` já criava a ficha e punha a pessoa no elenco, mas não
+criava o vínculo. Ela se via como atleta na tela e levava `42501` ao tocar
+"Quero jogar", com uma mensagem que não tinha como resolver sozinha.
+
+A migration `approved_member_account_link` faz a aprovação criar também o
+vínculo, com provenance `ORGANIZER_ASSIGNED`. Idempotente, respeitando as duas
+unicidades parciais, e sem reescrever vínculo que a pessoa já tivesse.
+**Nenhuma tela foi necessária** — `approvedMemberCanJoin.dbtest.ts` prova a
+jornada inteira, do pedido de entrada até a vaga.
 
 ### Fatia 4 — A janela para de mentir
 

@@ -251,4 +251,84 @@ if (!isTestDatabaseConfigured()) {
 
     assert.equal(rows[0].entry_status, 'CONFIRMED');
   });
+
+  // -- O reparo do que ficou para tras -------------------------------------
+  //
+  // `enroll_approved_member` so age em aprovacoes futuras. Quem foi aprovado
+  // antes ficou sem vinculo, e e a funcao de backfill que resolve.
+
+  const semVinculo = async (pessoa: string) => {
+    await client.query('delete from public.player_account_links where user_id = $1', [pessoa]);
+  };
+
+  const repara = async () =>
+    (
+      await client.query<{ backfill_approved_member_account_links: number }>(
+        'select app_private.backfill_approved_member_account_links()',
+      )
+    ).rows[0].backfill_approved_member_account_links;
+
+  test('o reparo alcanca quem foi aprovado antes da correcao', async () => {
+    const { comunidade, dono, janela } = await cena();
+    const pessoa = await entraEAprovada(comunidade, dono);
+    await semVinculo(pessoa);
+
+    const recusa = await asIdentityCommitting(client, pessoa, () =>
+      client.query('select * from public.join_registration($1,$2,$3)', [
+        randomUUID(),
+        randomUUID(),
+        janela,
+      ]),
+    ).then(
+      () => null,
+      (erro: Error & { code?: string }) => erro,
+    );
+    assert.equal(recusa?.code, '42501', 'este era o estado de quem ficou para tras');
+
+    assert.ok((await repara()) >= 1);
+
+    const { rows } = await asIdentityCommitting(client, pessoa, () =>
+      client.query<{ entry_status: string }>('select * from public.join_registration($1,$2,$3)', [
+        randomUUID(),
+        randomUUID(),
+        janela,
+      ]),
+    );
+    assert.equal(rows[0].entry_status, 'CONFIRMED');
+  });
+
+  test('o reparo NAO ressuscita vinculo que alguem revogou ou recusou', async () => {
+    for (const estado of ['REVOKED', 'REJECTED']) {
+      const { comunidade, dono } = await cena();
+      const pessoa = await entraEAprovada(comunidade, dono);
+      const { rows: atleta } = await client.query<{ id: string }>(
+        'select id from public.players where user_id = $1',
+        [pessoa],
+      );
+      await client.query('delete from public.player_account_links where user_id = $1', [pessoa]);
+      await client.query(
+        `insert into public.player_account_links
+           (player_id, user_id, status, provenance, reviewed_at, review_reason)
+         values ($1, $2, $3, 'ORGANIZER_ASSIGNED', now(), 'decisao de quem revisou')`,
+        [atleta[0].id, pessoa, estado],
+      );
+
+      await repara();
+
+      const { rowCount } = await client.query(
+        `select 1 from public.player_account_links where user_id = $1 and status = 'ACTIVE'`,
+        [pessoa],
+      );
+      assert.equal(rowCount, 0, `${estado} precisa continuar valendo depois do reparo`);
+    }
+  });
+
+  test('rodar o reparo de novo nao cria nada: ele e idempotente', async () => {
+    const { comunidade, dono } = await cena();
+    const pessoa = await entraEAprovada(comunidade, dono);
+    await semVinculo(pessoa);
+
+    assert.ok((await repara()) >= 1);
+    assert.equal(await repara(), 0, 'a segunda passada nao tem o que fazer');
+  });
 }

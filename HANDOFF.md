@@ -43,7 +43,14 @@
 >
 > **Aberto, e conhecido:** o repasse grava direto em `community_responsibilities`, e o espelho de
 > `20260914120000` só vai na direção contrária. Depois de passar a organização, o painel de membros,
-> que lê `community_members`, continua mostrando quem passou a organizar como "Membro".
+> que lê `community_members`, continua mostrando quem passou a organizar como "Membro". Corrigido
+> no mesmo dia: o painel derruba o cargo legado junto.
+>
+> **2026-09-24, auditoria de fluxo:** o [roadmap de fluxos e telas](docs/ROADMAP.md)
+> mapeia as 30 rotas, as cinco jornadas e catorze achados, com evidencia. O que
+> destrava o resto: **nao existe marcar pelada para depois** -- a sessao so entra
+> em `sess.sessions` no sorteio e nasce com a data de hoje, entao a tela da
+> inscricao so fica alcancavel depois do sorteio que ela deveria preceder.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 

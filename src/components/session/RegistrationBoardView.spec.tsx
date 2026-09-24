@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { RegistrationBoard } from '../../types';
 import { makePlayer } from '../../test/fixtures';
@@ -151,7 +151,12 @@ describe('RegistrationBoardView', () => {
     fireEvent.blur(screen.getByLabelText(/vagas/i));
     expect(contrato.changeCapacity).toHaveBeenCalledWith(6);
 
+    // Fechar passa por confirmacao desde 2026-09-24: congela as vagas na
+    // frente do grupo, entao nao acontece num toque so.
     fireEvent.click(screen.getByRole('button', { name: /fechar inscri/i }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /fechar a inscrição/i }),
+    );
     expect(contrato.setOpen).toHaveBeenCalledWith(false);
 
     fireEvent.click(screen.getAllByRole('button', { name: /tirar da lista/i })[0]);
@@ -389,5 +394,42 @@ describe('RegistrationBoardView', () => {
   it('pelada em rascunho não mostra esse aviso', () => {
     renderView({ board: board({ status: 'OPEN', sessionLifecycleStatus: 'DRAFT' }) });
     expect(screen.queryByText(/já começou/i)).toBeNull();
+  });
+
+  it('fechar a inscrição diz quem fica e quem sai, antes de congelar as vagas', async () => {
+    const contrato = renderView({
+      board: board({ viewerCanManage: true, confirmedCount: 12, waitlistedCount: 5 }),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /fechar inscrição/i }));
+
+    expect(contrato.setOpen).not.toHaveBeenCalled();
+    const dialogo = screen.getByRole('dialog');
+    expect(dialogo.textContent).toMatch(/12/);
+    expect(dialogo.textContent).toMatch(/5/);
+
+    fireEvent.click(within(dialogo).getByRole('button', { name: /fechar/i }));
+    await waitFor(() => expect(contrato.setOpen).toHaveBeenCalledWith(false));
+  });
+
+  it('desistir do fechamento não mexe na lista', () => {
+    const contrato = renderView({ board: board({ viewerCanManage: true }) });
+
+    fireEvent.click(screen.getByRole('button', { name: /fechar inscrição/i }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /voltar/i }));
+
+    expect(contrato.setOpen).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('reabrir não pede confirmação: não congela nada', async () => {
+    const contrato = renderView({
+      board: board({ viewerCanManage: true, status: 'CLOSED' }),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /reabrir inscrição/i }));
+
+    await waitFor(() => expect(contrato.setOpen).toHaveBeenCalledWith(true));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

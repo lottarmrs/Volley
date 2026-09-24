@@ -63,29 +63,35 @@ Amarra a lista a uma decisão que acontece depois.
 
 ---
 
-## Tarefa 3 — Fechar a lista é ação de tela
+## Tarefa 3 — Fechar a lista é ação de tela ✅ (replanejada durante a execução)
 
-**Por quê:** decisão da spec. Hoje `prepareAuthorizedTeamFormation` fecha e trava
-a janela sozinho (`authorizedTeamFormationUseCases.ts:192`), escondendo de quem
-organiza o momento em que as vagas congelam.
+**O plano original estava errado, e os testes disseram.** Eu ia fazer
+`prepareAuthorizedTeamFormation` recusar quando a janela estivesse `OPEN`. Dois
+testes que já existiam quebraram, e os dois protegem comportamento deliberado:
 
-**Arquivos**
+- *"com inscrição aberta, o elenco sai dos confirmados e a seleção local não
+  manda"* — a XS-W6-08c decidiu que o sorteio **funciona** com inscrição aberta,
+  tirando o elenco dos confirmados;
+- *"a failure keeps the pending command id, and the retry reuses it"* — na
+  retentativa a janela já existe e está `OPEN`, criada pelo próprio sorteio. A
+  recusa atingia o retry dele mesmo.
 
-- `src/application/authorizedTeamFormationUseCases.ts` + teste
-- `src/components/session/RegistrationBoardView.tsx` + spec
-- `src/hooks/useRegistrationBoard.ts`
+Revertido. A conclusão: **a política não pertence ao motor.** O caso de uso é o
+mesmo para os dois caminhos — com lista e sem lista —, e é na tela que eles
+diferem. Fechar a lista é decisão de quem organiza; o motor continua sendo o
+motor.
 
-- [ ] **3.1** Teste: com a janela `OPEN`, `prepareAuthorizedTeamFormation`
-      recusa com frase própria em vez de fechar sozinho.
-- [ ] **3.2** Rodar: falha.
-- [ ] **3.3** Tirar o `inscricaoAberta` do caminho automático.
-- [ ] **3.4** Spec: a tela da inscrição ganha **"Fechar a lista"** para quem
-      organiza, com a confirmação dizendo quantas pessoas ficam e quantas saem.
-- [ ] **3.5** Implementar. Rodar tudo. Commit.
+- [x] **3.1** "Fechar inscrição" já existia na tela. O que faltava da decisão
+      era a confirmação.
+- [x] **3.2** Spec: o diálogo diz quantas pessoas ficam e quantas vão para a
+      reserva, e desistir não mexe em nada.
+- [x] **3.3** Reabrir **não** pede confirmação: não tira nada de ninguém.
+- [x] **3.4** Um teste antigo assertava o fechamento num toque só. Atualizado
+      para passar pelo diálogo — é exatamente a mudança que a decisão pediu.
+- [x] **3.5** Rodar tudo. Commit.
 
-**Risco nomeado:** este é o caminho que a XS-W6-08c abriu para
-`create_target_session` por tela. Os testes de `authorizedTeamFormationUseCases`
-são a rede; se algum ficar vermelho, parar e reavaliar em vez de ajustar o teste.
+**O gate de "não sortear com a lista aberta" vai para a tarefa 4**, onde ele
+pertence: na rota do sorteio.
 
 ---
 

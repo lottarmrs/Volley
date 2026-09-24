@@ -651,6 +651,7 @@ function BarraDoOrganizador({
 }) {
   const prazoAtual = board.paymentDueAt ? board.paymentDueAt.slice(0, 16) : '';
   const [vagas, setVagas] = useState(String(board.capacity));
+  const [confirmandoFechar, setConfirmandoFechar] = useState(false);
   const [escolhido, setEscolhido] = useState('');
   const [prazo, setPrazo] = useState(prazoAtual);
 
@@ -752,7 +753,11 @@ function BarraDoOrganizador({
           type="button"
           className="btn btn-sm btn-ghost border-base-content/20"
           disabled={api.busy}
-          onClick={() => void api.setOpen(board.status !== 'OPEN')}
+          onClick={() =>
+            // Fechar congela as vagas na frente do grupo. Reabrir nao tira nada
+            // de ninguem, entao segue direto.
+            board.status === 'OPEN' ? setConfirmandoFechar(true) : void api.setOpen(true)
+          }
         >
           {board.status === 'OPEN' ? (
             <>
@@ -764,6 +769,42 @@ function BarraDoOrganizador({
             </>
           )}
         </button>
+      )}
+
+      {confirmandoFechar && (
+        <div className="modal modal-open" role="dialog" aria-labelledby="fechar-inscricao-titulo">
+          <div className="modal-box max-w-md space-y-5">
+            <h3 id="fechar-inscricao-titulo" className="text-lg font-black text-base-content">
+              Fechar a inscrição?
+            </h3>
+            <p className="text-sm leading-relaxed text-base-content/70">
+              As vagas congelam agora: <strong>{board.confirmedCount}</strong>{' '}
+              {board.confirmedCount === 1 ? 'pessoa fica' : 'pessoas ficam'} na lista e{' '}
+              <strong>{board.waitlistedCount}</strong>{' '}
+              {board.waitlistedCount === 1 ? 'fica' : 'ficam'} na reserva. Ninguém entra nem sai até
+              você reabrir.
+            </p>
+            <div className="modal-action">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setConfirmandoFechar(false);
+                  void api.setOpen(false);
+                }}
+              >
+                Fechar a inscrição
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setConfirmandoFechar(false)}
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

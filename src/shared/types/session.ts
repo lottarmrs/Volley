@@ -309,6 +309,9 @@ export interface Session {
   location?: string | null;
   notes?: string | null;
   status: SessionStatus;
+  /** Vagas da lista de presenca. Mora na Session, nao no config: config e
+   *  decisao de sorteio, e a lista acontece antes dele. */
+  registrationCapacity?: number;
   type?: SessionType;
   selectedPlayerIds: string[];
   teamIds: string[];

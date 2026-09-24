@@ -17,7 +17,7 @@
 
 ---
 
-## Tarefa 1 — As vagas viram campo
+## Tarefa 1 — As vagas viram campo ✅
 
 **Por quê:** hoje a capacidade sai de `teamCount × 6`
 (`sessionRoutes.tsx`), e `teamCount` mora no config, que é decisão de sorteio.
@@ -30,15 +30,15 @@ Amarra a lista a uma decisão que acontece depois.
 - `src/components/session/SessionWizard.tsx` — campo no passo 0
 - `src/app/routes/sessionRoutes.tsx` — passa para o quadro
 
-- [ ] **1.1** Teste: `buildScheduledSessionResult` guarda `registrationCapacity`,
+- [x] **1.1** Teste: `buildScheduledSessionResult` guarda `registrationCapacity`,
       recusa valor ≤ 0 e sugere `teamCount × 6` quando ausente.
-- [ ] **1.2** Rodar: falha.
-- [ ] **1.3** `Session.registrationCapacity?: number`. Fica na Session, não no
+- [x] **1.2** Rodar: falha.
+- [x] **1.3** `Session.registrationCapacity?: number`. Fica na Session, não no
       config: é assunto de inscrição, não de sorteio.
-- [ ] **1.4** Campo "Vagas" no passo 0, ao lado da data, já preenchido.
-- [ ] **1.5** `useRegistrationBoard` recebe `session.registrationCapacity` e cai
+- [x] **1.4** Campo "Vagas" no passo 0, ao lado da data, já preenchido.
+- [x] **1.5** `useRegistrationBoard` recebe `session.registrationCapacity` e cai
       no cálculo antigo só quando ele não existe.
-- [ ] **1.6** Rodar tudo. Commit.
+- [x] **1.6** Rodar tudo. Commit.
 
 ---
 

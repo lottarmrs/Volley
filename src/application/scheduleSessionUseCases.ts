@@ -7,6 +7,15 @@ const FORMATO_DE_DATA = /^\d{4}-\d{2}-\d{2}$/;
  *  contradizer o que ja foi decidido. */
 const ANTES_DO_SORTEIO: Session['status'][] = ['draft', 'players_selected', 'configured'];
 
+/** Seis por time: um time em quadra e a rotacao que o produto assume. E
+ *  sugestao, nao regra -- quem organiza muda. */
+export function suggestedRegistrationCapacity(session: {
+  config?: { teamCount?: number } | null;
+}): number {
+  const times = session.config?.teamCount;
+  return times && times > 0 ? times * 6 : 12;
+}
+
 export interface ScheduledSessionResult {
   session: Session;
   sessions: Session[];
@@ -46,9 +55,15 @@ export function buildScheduledSessionResult(input: {
     return productError('invalid_input', 'Essa data já passou. Escolha hoje ou um dia à frente.');
   }
 
+  const vagas = input.activeSession.registrationCapacity;
+  if (vagas !== undefined && (!Number.isInteger(vagas) || vagas < 1)) {
+    return productError('invalid_input', 'A pelada precisa de pelo menos uma vaga inteira.');
+  }
+
   const session: Session = {
     ...input.activeSession,
     date: input.date,
+    registrationCapacity: vagas ?? suggestedRegistrationCapacity(input.activeSession),
     updatedAt: input.now,
   };
 

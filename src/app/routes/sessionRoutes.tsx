@@ -23,6 +23,7 @@ import {
   resolveRegistrationTarget,
 } from '@app/registrationLinkUseCases';
 import { buildInviteShareUrl } from '@app/communityInviteUseCases';
+import { suggestedRegistrationCapacity } from '@app/scheduleSessionUseCases';
 import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
@@ -178,7 +179,8 @@ export function CommunityRegistrationRoute() {
   const api = useRegistrationBoard({
     session,
     communityCloudId,
-    defaultCapacity: session?.config?.teamCount ? session.config.teamCount * 6 : 12,
+    defaultCapacity:
+      session?.registrationCapacity ?? (session ? suggestedRegistrationCapacity(session) : 12),
     sessionCloudId: alvo?.sessionCloudId ?? null,
     onSessionChange: (next) =>
       sess.setSessions((prev) => prev.map((item) => (item.id === next.id ? next : item))),

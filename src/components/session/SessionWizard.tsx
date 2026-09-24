@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ScheduleSessionPanel } from './ScheduleSessionPanel';
+import { suggestedRegistrationCapacity } from '@app/scheduleSessionUseCases';
 import {
   ChevronLeft,
   Search,
@@ -459,6 +460,36 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                         }
                         className={`input input-bordered w-full font-mono ${validationErrors.date ? 'input-error' : ''}`}
                       />
+                    </div>
+                    <div className="fieldset">
+                      <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest">
+                        Vagas
+                      </label>
+                      {/* A vaga e o que o grupo disputa: campo proprio, nao
+                          derivada do numero de times -- que e decisao de
+                          sorteio e acontece depois da lista. */}
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        aria-label="Vagas"
+                        value={
+                          activeSession.registrationCapacity ??
+                          suggestedRegistrationCapacity(activeSession)
+                        }
+                        onChange={(e) =>
+                          dispatch({
+                            kind: 'updateSession',
+                            patch: {
+                              registrationCapacity: Math.max(1, Number(e.target.value) || 1),
+                            },
+                          })
+                        }
+                        className="input input-bordered w-full font-mono"
+                      />
+                      <p className="mt-1 text-[10px] leading-relaxed text-text-muted">
+                        Quantas pessoas entram na lista. Quem chegar depois fica na reserva.
+                      </p>
                     </div>
                     <div className="fieldset">
                       <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest">

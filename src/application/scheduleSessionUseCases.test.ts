@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { makeSession } from '../test/fixtures';
-import { buildScheduledSessionResult } from './scheduleSessionUseCases';
+import { makeFreePlayConfig, makeSession } from '../test/fixtures';
+import {
+  buildScheduledSessionResult,
+  suggestedRegistrationCapacity,
+} from './scheduleSessionUseCases';
 
 /**
  * Marcar a pelada antes do dia.
@@ -138,4 +141,71 @@ test('data invalida e recusada antes de virar NaN na agenda', () => {
     });
     assert.equal(resultado.ok, false, `${ruim} deveria ser recusada`);
   }
+});
+
+test('a pelada marcada guarda as vagas que quem organiza escolheu', () => {
+  const resultado = buildScheduledSessionResult({
+    activeSession: makeSession('s-1', {
+      communityId: 'c-1',
+      date: HOJE,
+      status: 'draft',
+      registrationCapacity: 14,
+    }),
+    sessions: [],
+    date: '2026-10-01',
+    today: HOJE,
+    now: '2026-09-24T10:00:00.000Z',
+  });
+
+  assert.equal(resultado.ok === true ? resultado.value.session.registrationCapacity : null, 14);
+});
+
+test('sem escolha, as vagas saem da sugestao: times x 6', () => {
+  const resultado = buildScheduledSessionResult({
+    activeSession: makeSession('s-1', {
+      communityId: 'c-1',
+      date: HOJE,
+      status: 'draft',
+      config: { ...makeFreePlayConfig(), teamCount: 3 },
+    }),
+    sessions: [],
+    date: '2026-10-01',
+    today: HOJE,
+    now: '2026-09-24T10:00:00.000Z',
+  });
+
+  assert.equal(resultado.ok === true ? resultado.value.session.registrationCapacity : null, 18);
+});
+
+test('vagas invalidas sao recusadas antes de virar lista sem sentido', () => {
+  for (const vagas of [0, -3, 1.5]) {
+    const resultado = buildScheduledSessionResult({
+      activeSession: makeSession('s-1', {
+        communityId: 'c-1',
+        date: HOJE,
+        status: 'draft',
+        registrationCapacity: vagas,
+      }),
+      sessions: [],
+      date: '2026-10-01',
+      today: HOJE,
+      now: '2026-09-24T10:00:00.000Z',
+    });
+    assert.equal(resultado.ok, false, `${vagas} vagas deveria ser recusado`);
+    assert.match(
+      resultado.ok === false ? resultado.error.message : '',
+      /vaga/i,
+      'a frase precisa dizer que o problema e a vaga',
+    );
+  }
+});
+
+test('a sugestao de vagas nao depende de a pelada ter sido marcada', () => {
+  assert.equal(suggestedRegistrationCapacity({ config: { teamCount: 2 } }), 12);
+  assert.equal(suggestedRegistrationCapacity({ config: { teamCount: 4 } }), 24);
+  assert.equal(
+    suggestedRegistrationCapacity({}),
+    12,
+    'sem formato escolhido, doze: a pelada padrao de tres times',
+  );
 });

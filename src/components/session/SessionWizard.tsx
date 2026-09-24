@@ -709,7 +709,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                     <select
                       value={positionFilter}
                       onChange={(e) => setPositionFilter(e.target.value as 'all' | Position)}
-                      className="select select-bordered select-xs uppercase font-bold text-[10px] min-h-[32px] rounded-lg shrink-0"
+                      className="select select-bordered select-xs uppercase font-bold text-[10px] rounded-lg shrink-0"
                     >
                       <option value="all">Todas Posições</option>
                       <option value="levantador">Levantador</option>
@@ -725,7 +725,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                       <select
                         value={communityFilter}
                         onChange={(e) => setCommunityFilter(e.target.value)}
-                        className="select select-bordered select-xs uppercase font-bold text-[10px] min-h-[32px] rounded-lg shrink-0 max-w-[140px]"
+                        className="select select-bordered select-xs uppercase font-bold text-[10px] rounded-lg shrink-0 max-w-[140px]"
                       >
                         <option value="all">Todas Comunidades</option>
                         {communities.map((c) => (

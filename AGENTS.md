@@ -32,7 +32,12 @@ server serves them at `http://localhost:3100/preview/<screen>.html`.
 verified against `dist/`. These files are dev-only scaffolding: no auth bypass, no flag, no
 production code path. Keep them out of `src/`, and add one whenever a new screen lands.
 
-First one: `preview/inscricao.html` (registration board, 12 states).
+Today: `inscricao`, `comunidade`, `aovivo`, `convite`, and `wizard`.
+
+A tall screen with many states gets one state per page instead of a stack, chosen by `?i=<n>` —
+`preview/wizard.html?i=6`. That is not cosmetic: without it a state that throws blanks the whole
+bench and it stops telling you _which_ state broke. The wizard bench found two defects on its first
+run this way — a 32px touch target in the athlete filters, and its own incomplete fake model.
 
 ## Two Test Runners (Do Not Confuse)
 

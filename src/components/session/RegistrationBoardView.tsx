@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Share2,
   ShieldCheck,
+  Shuffle,
   Timer,
   UserMinus,
   UserPlus,
@@ -28,6 +29,7 @@ import type { RegistrationBoardApi } from '../../hooks/useRegistrationBoard';
 import { calculateGeneralOverall } from '../../logic/calculations';
 import { EmptyState } from '../../ui/EmptyState';
 import { SessionOrganizerPanel, type SessionOrganizerMember } from './SessionOrganizerPanel';
+import { Link } from 'react-router';
 import type { AppResult } from '@app/appResult';
 import { buildRegistrationShareMessage } from '@app/registrationLinkUseCases';
 import { openWhatsAppShare } from '@logic/exporters';
@@ -51,6 +53,9 @@ interface RegistrationBoardViewProps {
   shareUrl?: string;
   /** Link do convite, para quem recebe a mensagem e ainda nao e do grupo. */
   inviteUrl?: string | null;
+  /** Caminho do sorteio. So aparece com a lista fechada: sortear congelaria as
+   *  vagas, e congelar e decisao separada. */
+  drawUrl?: string;
   /** Ponto de injecao para o teste; por padrao abre o WhatsApp. */
   onShare?: (texto: string) => void;
   pixKey?: string;
@@ -160,6 +165,7 @@ export function RegistrationBoardView({
   pixKey,
   shareUrl,
   inviteUrl,
+  drawUrl,
   onShare,
   organizerHandover,
 }: RegistrationBoardViewProps) {
@@ -404,6 +410,12 @@ export function RegistrationBoardView({
 
       {board.viewerCanManage && (
         <BarraDoOrganizador api={api} board={board} disponiveis={disponiveis} />
+      )}
+
+      {board.viewerCanManage && drawUrl && board.status !== 'OPEN' && !jaComecou && (
+        <Link to={drawUrl} className="btn btn-primary w-full">
+          <Shuffle className="h-4 w-4" /> Sortear os times
+        </Link>
       )}
 
       {board.viewerCanManage && shareUrl && (

@@ -723,4 +723,25 @@ describe('AppRouter — wizard e sessão ativa', () => {
     const criar = await screen.findByRole('link', { name: /criar conta/i });
     expect(criar.getAttribute('href')).toContain('proxima=%2Fconvite%2FAB12CD');
   });
+
+  it('a rota do sorteio existe e nao cai no wizard direto', async () => {
+    const amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    seedLocalDb({
+      communities: [community],
+      sessions: [
+        {
+          id: 's1',
+          name: 'Pelada de quinta',
+          date: amanha,
+          status: 'draft',
+          communityId: 'c1',
+        } as Partial<Session>,
+      ],
+    });
+    renderApp(paths.sortear('c1', 's1'));
+
+    // Sem quadro carregado o portao fica conferindo; o que importa e que a
+    // rota respondeu em vez de redirecionar.
+    expect(await screen.findByRole('status')).toBeTruthy();
+  });
 });

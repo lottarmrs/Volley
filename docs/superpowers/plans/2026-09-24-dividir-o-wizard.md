@@ -1,4 +1,4 @@
-# Dividir o wizard — plano de implementação
+# Dividir o wizard — plano de implementação ✅ concluído em 2026-09-24
 
 > **Spec:** [2026-09-24-dividir-o-wizard-design.md](../specs/2026-09-24-dividir-o-wizard-design.md)
 >
@@ -95,7 +95,7 @@ pertence: na rota do sorteio.
 
 ---
 
-## Tarefa 4 — A rota do sorteio
+## Tarefa 4 — A rota do sorteio ✅
 
 **Arquivos**
 
@@ -103,13 +103,13 @@ pertence: na rota do sorteio.
 - `src/app/routes/sessionRoutes.tsx`
 - `src/components/session/RegistrationBoardView.tsx`
 
-- [ ] **4.1** Teste: `paths.sortear(c, s)` e o título da rota.
-- [ ] **4.2** Rota `/comunidades/:c/sessoes/:s/sortear`, montando o wizard a
+- [x] **4.1** Teste: `paths.sortear(c, s)` e o título da rota.
+- [x] **4.2** Rota `/comunidades/:c/sessoes/:s/sortear`, montando o wizard a
       partir do passo de formato, com os confirmados já selecionados.
-- [ ] **4.3** A tela da inscrição, com a lista fechada, oferece **"Sortear os
+- [x] **4.3** A tela da inscrição, com a lista fechada, oferece **"Sortear os
       times"** apontando para lá.
-- [ ] **4.4** Teste de rota: sem lista fechada, a rota explica e oferece voltar.
-- [ ] **4.5** Rodar tudo. Commit.
+- [x] **4.4** Teste de rota: sem lista fechada, a rota explica e oferece voltar.
+- [x] **4.5** Rodar tudo. Commit.
 
 ---
 

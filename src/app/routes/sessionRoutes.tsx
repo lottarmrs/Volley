@@ -223,6 +223,7 @@ export function CommunityRegistrationRoute() {
         communityId: community.id,
         sessionId: alvo.sessionCloudId,
       })}
+      drawUrl={paths.sortear(community.id, sessionId ?? alvo.sessionCloudId)}
       inviteUrl={buildInviteShareUrl({
         origin: window.location.origin,
         code: community.joinCode,

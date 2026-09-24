@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { RegistrationBoard } from '../../types';
 import { makePlayer } from '../../test/fixtures';
@@ -93,22 +94,26 @@ function api(overrides: Partial<RegistrationBoardApi> = {}): RegistrationBoardAp
 function renderView(
   overrides: Partial<RegistrationBoardApi> & {
     shareUrl?: string;
+    drawUrl?: string;
     onShare?: (texto: string) => void;
     sessionName?: string | null;
     sessionDate?: string | null;
   } = {},
 ) {
-  const { shareUrl, onShare, sessionName, sessionDate, ...apiOverrides } = overrides;
+  const { shareUrl, drawUrl, onShare, sessionName, sessionDate, ...apiOverrides } = overrides;
   const contrato = api(apiOverrides);
   render(
-    <RegistrationBoardView
-      api={contrato}
-      players={players}
-      sessionName={sessionName === undefined ? 'Pelada de quinta' : sessionName}
-      sessionDate={sessionDate === undefined ? '2026-09-24' : sessionDate}
-      shareUrl={shareUrl}
-      onShare={onShare}
-    />,
+    <MemoryRouter>
+      <RegistrationBoardView
+        api={contrato}
+        players={players}
+        sessionName={sessionName === undefined ? 'Pelada de quinta' : sessionName}
+        sessionDate={sessionDate === undefined ? '2026-09-24' : sessionDate}
+        shareUrl={shareUrl}
+        drawUrl={drawUrl}
+        onShare={onShare}
+      />
+    </MemoryRouter>,
   );
   return contrato;
 }
@@ -431,5 +436,31 @@ describe('RegistrationBoardView', () => {
 
     await waitFor(() => expect(contrato.setOpen).toHaveBeenCalledWith(true));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('com a lista fechada, quem organiza recebe o caminho do sorteio', () => {
+    renderView({
+      board: board({ viewerCanManage: true, status: 'CLOSED' }),
+      drawUrl: '/comunidades/c1/sessoes/s1/sortear',
+    });
+
+    const link = screen.getByRole('link', { name: /sortear os times/i });
+    expect(link.getAttribute('href')).toBe('/comunidades/c1/sessoes/s1/sortear');
+  });
+
+  it('com a lista aberta, sortear ainda nao e oferecido', () => {
+    renderView({
+      board: board({ viewerCanManage: true, status: 'OPEN' }),
+      drawUrl: '/comunidades/c1/sessoes/s1/sortear',
+    });
+    expect(screen.queryByRole('link', { name: /sortear os times/i })).toBeNull();
+  });
+
+  it('quem so joga nao ve o caminho do sorteio', () => {
+    renderView({
+      board: board({ viewerCanManage: false, status: 'CLOSED' }),
+      drawUrl: '/comunidades/c1/sessoes/s1/sortear',
+    });
+    expect(screen.queryByRole('link', { name: /sortear os times/i })).toBeNull();
   });
 });

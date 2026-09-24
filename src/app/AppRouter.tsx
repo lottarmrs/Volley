@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import { AppShell } from './AppShell';
 import { AccountGate, SessionGate } from './auth/AuthGuard';
 import { CommunityInviteRoute } from './routes/CommunityInviteRoute';
+import { CommunityDrawRoute } from './routes/CommunityDrawRoute';
 import { QuickStartRoute, SessionRecapRoute } from './routes/onboardingRoutes';
 import {
   AuthTransitionPage,
@@ -82,6 +83,7 @@ export function AppRouter() {
               <Route path="sessoes/presenca" element={<CommunityPresenceRoute />} />
               <Route path="sessoes/lista-whatsapp" element={<CommunityWhatsAppRoute />} />
               <Route path="sessoes/:sessionId/inscricao" element={<CommunityRegistrationRoute />} />
+              <Route path="sessoes/:sessionId/sortear" element={<CommunityDrawRoute />} />
               <Route path="sessoes/:sessionId" element={<CommunitySessionDetailRoute />} />
               <Route path="ligas" element={<CommunityLeaguesRoute />} />
               <Route path="desempenho" element={<CommunityPerformanceRoute />} />

@@ -538,3 +538,13 @@ test('a plataforma substitui a administracao no menu e no titulo', () => {
   assert.equal(getPageTitleForPath('/comunidades/c1/ligas'), 'Ligas da Comunidade');
   assert.equal(getPageTitleForPath('/comunidades/c1/desempenho/historico'), 'Histórico');
 });
+
+test('o sorteio tem caminho e titulo proprios: e um momento, nao um passo do wizard', () => {
+  assert.equal(paths.sortear('c1', 's9'), '/comunidades/c1/sessoes/s9/sortear');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9/sortear'), 'Sortear os Times');
+  assert.equal(
+    getPageTitleForPath('/comunidades/c1/sessoes/s9'),
+    'Detalhe da Sessão',
+    'a rota irma nao e afetada',
+  );
+});

@@ -362,6 +362,8 @@ export function Bancada() {
               canOpen={estado.canOpen}
               pixKey="pelada@panelinha.com.br"
               organizerHandover={estado.repasse}
+              shareUrl="https://panelinhahub.vercel.app/comunidades/c1/sessoes/s1/inscricao"
+              onShare={(texto) => window.alert(texto)}
             />
           </section>
         ))}

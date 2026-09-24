@@ -450,6 +450,14 @@ body,
       min-height: 44px;
       padding: 0 16px;
     }
+
+    /* O piso de altura nao arrastava a largura, e o botao quadrado nasce com
+       largura igual a altura declarada pela variante -- 32px no `btn-sm`. Um
+       alvo de 44x32 e tao ruim quanto um de 32x44, entao a largura tem piso
+       proprio aqui, em vez de `min-w-[44px]` repetido em cada chamada. */
+    .btn-square {
+      min-width: 44px;
+    }
   }
 }
 

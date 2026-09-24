@@ -80,7 +80,7 @@ export function SessionOrganizerPanel({
               </span>
               <select
                 aria-label="Quem vai organizar"
-                className="select select-bordered select-sm w-full min-h-[44px] sm:min-h-0"
+                className="select select-bordered select-sm w-full"
                 value={escolhido}
                 disabled={ocupado || outros.length === 0}
                 onChange={(event) => setEscolhido(event.target.value)}
@@ -97,7 +97,7 @@ export function SessionOrganizerPanel({
             </label>
             <button
               type="button"
-              className="btn btn-sm btn-outline min-h-[44px] shrink-0 sm:min-h-0"
+              className="btn btn-sm btn-outline shrink-0"
               disabled={ocupado || !escolhido}
               onClick={() => void transferir(escolhido)}
             >

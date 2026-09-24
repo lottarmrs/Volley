@@ -153,7 +153,7 @@ export function AccountSyncView({
               {model.googleEnabled && (
                 <button
                   type="button"
-                  className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold min-h-[44px] sm:min-h-0"
+                  className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold"
                   onClick={() =>
                     handleAction('Vincular Google', () => dispatch({ kind: 'linkGoogleIdentity' }))
                   }
@@ -164,14 +164,14 @@ export function AccountSyncView({
               )}
               <Link
                 to="/configurar-mfa"
-                className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold min-h-[44px] sm:min-h-0"
+                className="btn btn-outline btn-xs sm:btn-sm text-[11px] font-bold"
               >
                 Autenticação em Duas Etapas (MFA)
               </Link>
               <button
                 onClick={() => handleAction('Sair da Conta', () => dispatch({ kind: 'signOut' }))}
                 disabled={actionLoading}
-                className="btn btn-ghost btn-square btn-xs sm:btn-sm text-error min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+                className="btn btn-ghost btn-square btn-xs sm:btn-sm text-error"
                 title="Sair da Conta"
               >
                 <LogOut className="w-4 h-4" />
@@ -265,7 +265,7 @@ export function AccountSyncView({
                     )
                   }
                   disabled={actionLoading || model.syncLoading}
-                  className="btn btn-warning btn-sm uppercase text-[10px] font-black tracking-wider shrink-0 min-h-[44px] sm:min-h-0"
+                  className="btn btn-warning btn-sm uppercase text-[10px] font-black tracking-wider shrink-0"
                 >
                   {actionLoading || model.syncLoading ? (
                     <span className="loading loading-spinner loading-xs"></span>

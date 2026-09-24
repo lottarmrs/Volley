@@ -319,7 +319,7 @@ export function RegistrationBoardView({
           <span>{error}</span>
           <button
             type="button"
-            className="btn btn-ghost btn-sm min-h-[44px] shrink-0 border-error/30 sm:min-h-0"
+            className="btn btn-ghost btn-sm shrink-0 border-error/30"
             disabled={loading || busy}
             onClick={() => void api.reload()}
           >
@@ -359,7 +359,7 @@ export function RegistrationBoardView({
           {board.viewerCanManage && (
             <button
               type="button"
-              className="btn btn-sm btn-warning min-h-[44px] shrink-0 sm:min-h-0"
+              className="btn btn-sm btn-warning shrink-0"
               disabled={busy}
               onClick={() => void api.applyDeadline()}
             >
@@ -377,7 +377,7 @@ export function RegistrationBoardView({
         <div className="space-y-3">
           <button
             type="button"
-            className="btn btn-ghost btn-sm min-h-[44px] border-base-content/20 sm:min-h-0"
+            className="btn btn-ghost btn-sm border-base-content/20"
             aria-expanded={mostrarOrganizador}
             onClick={() => setMostrarOrganizador((atual) => !atual)}
           >
@@ -550,7 +550,7 @@ const Linha: React.FC<LinhaProps> = ({
         <button
           type="button"
           aria-label={pago ? `Desmarcar pagamento de ${nome}` : `Marcar como pago ${nome}`}
-          className={`btn btn-sm btn-square min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 ${
+          className={`btn btn-sm btn-square ${
             pago ? 'btn-success' : 'btn-ghost text-base-content/60 hover:text-success'
           }`}
           disabled={api.busy}
@@ -563,7 +563,7 @@ const Linha: React.FC<LinhaProps> = ({
         <button
           type="button"
           aria-label={`Subir ao topo ${nome}`}
-          className="btn btn-ghost btn-sm btn-square min-h-[44px] min-w-[44px] text-base-content/60 hover:text-primary sm:min-h-0 sm:min-w-0"
+          className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-primary"
           disabled={api.busy}
           onClick={() => void api.boostReserve(entry.playerId)}
         >
@@ -574,7 +574,7 @@ const Linha: React.FC<LinhaProps> = ({
         <button
           type="button"
           aria-label={`Tirar da lista ${nome}`}
-          className="btn btn-ghost btn-sm btn-square min-h-[44px] min-w-[44px] text-base-content/60 hover:text-error sm:min-h-0 sm:min-w-0"
+          className="btn btn-ghost btn-sm btn-square text-base-content/60 hover:text-error"
           disabled={api.busy}
           onClick={() => void api.removeAthlete(entry.playerId)}
         >
@@ -626,7 +626,7 @@ function BarraDoOrganizador({
           type="number"
           min={1}
           aria-label="Vagas"
-          className="input input-bordered input-sm w-24 font-mono min-h-[44px] sm:min-h-0"
+          className="input input-bordered input-sm w-24 font-mono"
           value={vagas}
           disabled={api.busy || board.status === 'LOCKED'}
           onChange={(event) => setVagas(event.target.value)}
@@ -641,7 +641,7 @@ function BarraDoOrganizador({
         <input
           type="datetime-local"
           aria-label="Prazo para pagar"
-          className="input input-bordered input-sm min-h-[44px] font-mono sm:min-h-0"
+          className="input input-bordered input-sm font-mono"
           value={prazo}
           disabled={api.busy || board.status === 'LOCKED'}
           onChange={(event) => setPrazo(event.target.value)}
@@ -662,7 +662,7 @@ function BarraDoOrganizador({
               organizador apenas atravessou com o teclado. */}
           <select
             aria-label="Incluir atleta"
-            className="select select-bordered select-sm w-full min-h-[44px] sm:min-h-0"
+            className="select select-bordered select-sm w-full"
             value={escolhido}
             disabled={api.busy || disponiveis.length === 0 || board.status === 'LOCKED'}
             onChange={(event) => setEscolhido(event.target.value)}
@@ -679,7 +679,7 @@ function BarraDoOrganizador({
         </label>
         <button
           type="button"
-          className="btn btn-sm btn-primary min-h-[44px] shrink-0 sm:min-h-0"
+          className="btn btn-sm btn-primary shrink-0"
           disabled={api.busy || !escolhido || board.status === 'LOCKED'}
           onClick={() => {
             if (!escolhido) return;
@@ -695,7 +695,7 @@ function BarraDoOrganizador({
       {board.status !== 'LOCKED' && (
         <button
           type="button"
-          className="btn btn-sm btn-ghost border-base-content/20 min-h-[44px] sm:min-h-0"
+          className="btn btn-sm btn-ghost border-base-content/20"
           disabled={api.busy}
           onClick={() => void api.setOpen(board.status !== 'OPEN')}
         >

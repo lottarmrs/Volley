@@ -30,6 +30,20 @@
 > XS-W6-08b (importar atributos) foi **cancelada**: os atributos de produção são padrões de criação em
 > lote, não avaliações. A XS-W6-08c (wizard sorteia pelo snapshot autorizado) foi publicada em `main` (`6af7daa`) e a migration `reopen_registration` aplicada no Panelinha em 2026-09-17; ver a seção dela. O domínio de
 > produção agora é `panelinhahub.vercel.app`.
+>
+> **2026-09-24:** a onda W4 ganhou tela. Foram publicadas em `main` e estão em produção: a tela da
+> inscrição (`RegistrationBoardView`, rota `sessoes/:sessionId/inscricao`), a fatia do pagamento —
+> migration `registration_payment`, **aplicada no Panelinha** — e o repasse de organizador
+> (`0008c52`), que não trouxe migration porque usa RPCs já existentes. Junto foram a adaptação de
+> toque de 44px nas áreas da comunidade e as bancadas de design em `preview/`. O
+> [mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md) foi **recontado do
+> zero** nessa data: 32 comandos alcançáveis, contra 28 herdados por incremento. Duas afirmações
+> dele estavam velhas e foram corrigidas — `set_community_organizer` tem chamador, e a captura de
+> snapshot é alcançável desde a XS-W6-08c.
+>
+> **Aberto, e conhecido:** o repasse grava direto em `community_responsibilities`, e o espelho de
+> `20260914120000` só vai na direção contrária. Depois de passar a organização, o painel de membros,
+> que lê `community_members`, continua mostrando quem passou a organizar como "Membro".
 
 ## 0. Trabalho corrente — execução arquitetural C6
 
@@ -47,15 +61,21 @@ As seções 1–15 deste arquivo **não** descrevem a ordem de trabalho atual.
 Em 2026-09-10, depois de três dead ends seguidos, levantei o que do C6 é realmente alcançável por um
 usuário: [mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md).
 
-Resumo, re-derivado em 2026-09-13 no fim da XS-W3-08 e ajustado em 2026-09-14 pela XS-W3-09: das
-~46 funções públicas da era C6 destinadas ao cliente, **8 são alcançáveis** — 5 por tela (editor de
-avaliação e perfil de comunidade, W5-03 e seu complemento), 1 por tela e por sync
-(`community_evaluation_target_ids`) e 2 **só por sync**, ambas da XS-W3-08: `create_target_session`
-e `read_target_session`. Com a XS-W3-09 elas disparam para quem tem o cargo
-Organizador numa comunidade legada ativada, porque o cargo passa a conceder `ORGANIZER`; dono e admin
-continuam sem. `set_community_organizer` segue sem chamador. O restante de W3 e W4, mais W5-01, W5-02, W6-01 e W6-02 — captura de snapshot incluída —
-continua sem caminho. A tabela abaixo diz que essas fatias estão concluídas, e elas estão: o código
-existe, é testado e faz o que promete. **Concluída não quer dizer alcançável.**
+Resumo, **recontado do zero em 2026-09-24** (as contagens anteriores vinham sendo incrementadas fatia
+a fatia e não fechavam): das 79 funções públicas da era C6, **32 são alcançáveis**. As grandes
+famílias são o editor e o perfil de avaliação (5, por tela), a Session target (3, por sync e por
+tela), a janela de inscrição pelo wizard e pela tela (10), o quadro da inscrição com pagamento (8), a
+captura de snapshot (2), publicar candidatos (1) e o repasse de organizador (2).
+
+O que **continua sem caminho**: o resto de W3 (rascunho, publicação e ciclo de vida da Session
+target, quadras, snapshot de regras, prontidão, cutover), as duas RPCs de introdução da inscrição a
+partir do elenco legado, W5-01 e W5-02, o adaptador autorizado de W6-01/W6-02,
+`read_team_candidate_set` e os comandos de W2 que o app substitui por `upsert` genérico.
+
+A tabela abaixo diz que essas fatias estão concluídas, e elas estão: o código existe, é testado e faz
+o que promete. **Concluída não quer dizer alcançável.** E o inverso também morde: duas afirmações de
+inalcançabilidade sobreviveram três fatias depois de deixarem de ser verdade. Recontar é barato;
+herdar contagem, não.
 
 ### Estado das fatias
 

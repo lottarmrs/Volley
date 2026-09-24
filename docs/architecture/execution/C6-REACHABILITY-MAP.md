@@ -4,7 +4,7 @@
 >
 > Owner: `Migration + Architecture Governance`
 >
-> Last reviewed: `2026-09-15`
+> Last reviewed: `2026-09-24`
 
 > Levantado em **2026-09-10**, depois de três dead ends consecutivos descobertos durante a
 > execução da W6-03 e da W3-08. **Re-derivado em 2026-09-13**, no fim da XS-W3-08
@@ -13,6 +13,12 @@
 > editado à mão sem uma busca que o sustente; as referências `arquivo:linha` são dessa base.
 > **Ajustado em 2026-09-14** pela XS-W3-09 (branch `exec/c6-w3-09-organizer-from-member-role`):
 > `create_target_session`, `set_community_organizer` e a terceira parede.
+> **Re-derivado em 2026-09-24**, depois da tela da inscrição, da fatia do pagamento e do repasse de
+> organizador (`0008c52`), rodando de novo os dois comandos do fim deste documento e refazendo os
+> três níveis para tudo que o nível 1 encontra. A re-derivação corrigiu duas afirmações que tinham
+> envelhecido sem serem revistas: `set_community_organizer` **tem** chamador, e a captura de snapshot
+> **é** alcançável desde a XS-W6-08c. As referências `arquivo:linha` anteriores a esta data são das
+> bases citadas acima.
 
 ## O que "alcançável" quer dizer aqui
 
@@ -43,8 +49,9 @@ que ninguém abre, ou de uma permissão que ninguém tem — é o caso de `creat
 
 ## Resultado
 
-O comando do fim deste documento lista hoje **66** funções públicas nas migrations da era C6 (eram 65
-em 2026-09-10; a diferença é `set_community_organizer`, criada pela XS-W3-08). Cerca de 20 são
+O comando do fim deste documento lista hoje **79** funções públicas nas migrations da era C6 (eram 66
+em 2026-09-14; as 13 a mais vêm da inscrição, da reabertura, do conjunto de candidatos e dos quatro
+comandos de pagamento). Cerca de 20 são
 helpers internos, gatilhos ou redefinições de funções anteriores ao C6 — `assert_*`, `guard_*`,
 `log_table_changes`, `current_user_*`, `target_session_compatibility_*`, `check_*`, `prevent_*`, e
 também `claim_session_ownership`, `transfer_session_ownership`, `find_player_by_username` e
@@ -52,9 +59,25 @@ também `claim_session_ownership`, `transfer_session_ownership`, `find_player_by
 lista porque `20260827210000_target_session_root.sql` e `20260908160000_security_audit_remediation.sql`
 as recriam. Elas não contam como capacidade C6.
 
-Das ~46 restantes, que são comandos semânticos destinados ao cliente, **28 são alcançáveis**: 5 por
-tela, 1 por tela e por sync, e 2 **só por sync** — os dois novos, ambos da XS-W3-08, e ambos
-condicionados a uma responsabilidade que, até a XS-W3-09, a interface não concedia (ver abaixo). A XS-W6-08c somou 13 pelo sorteio do wizard, incluindo as duas RPCs novas da reabertura e da leitura da janela, e tornou `create_target_session` alcançável também por tela; as contagens por tipo acima são as de antes dela. A XS-W6-03 somou `publish_team_candidate_set`, pelo botão Publicar. A tela de inscrição somou as duas leituras novas e trouxe `join_registration` e `leave_registration` para o alcance do atleta, que até aqui não tinha comando nenhum. A fatia do pagamento somou os quatro comandos de pagamento, todos de organizador.
+Das restantes, que são comandos semânticos destinados ao cliente, **32 são alcançáveis** — contagem
+re-derivada em 2026-09-24, não herdada. A soma, por origem:
+
+| Origem                                                  | Quantos | Tipo             |
+| ------------------------------------------------------- | ------- | ---------------- |
+| Editor e perfil de avaliação da comunidade              | 5       | tela             |
+| `community_evaluation_target_ids`                       | 1       | tela e sync      |
+| Session target (`create`, `read`, `read_roster_revision`) | 3     | sync e tela      |
+| Janela de inscrição, pelo wizard e pela tela             | 10      | tela             |
+| Quadro da inscrição e pagamento                          | 8       | tela             |
+| Captura e leitura do snapshot de balanceamento           | 2       | tela             |
+| `publish_team_candidate_set`                             | 1       | tela             |
+| Repasse de organizador                                   | 2       | tela             |
+
+Duas correções em relação à contagem anterior, ambas de afirmações que envelheceram sem revisão:
+`capture_balance_input_snapshot` e `read_balance_input_snapshot` passaram a ser alcançáveis pela
+XS-W6-08c e a seção que os declarava mortos não foi atualizada; e `set_community_organizer` ganhou
+chamador em 2026-09-24. A contagem anterior de 28 não é reconciliável linha a linha com esta — ela
+vinha sendo incrementada por fatia, e esta foi recontada do zero.
 
 ### Alcançável
 
@@ -64,11 +87,12 @@ condicionados a uma responsabilidade que, até a XS-W3-09, a interface não conc
 | Perfil de habilidade da comunidade  | tela            | `PlayerEditView` → `CommunitySkillProfilePanel` → `communitySkillProfileUseCases` → `get_community_player_skill_profile`                                                                       |
 | Ativação por comunidade             | tela e sync     | `PlayerEditView` → `isCommunityEvaluationActivated`; e `syncService` → `playerEvaluationCloudService` / `communityEvaluationCloudService.activatedCommunityIds` → `community_evaluation_target_ids` |
 | Criar Session no modelo target      | **só sync**     | `uploadLocalDataToCloud` → `sessionCohortCloudService.createTargetSession` → `create_target_session`                                                                                          |
-| Ler Session target por id           | **só sync**     | `syncNow` → `mergeTargetCohortSessionReads` → `sessionCohortCloudService.readTargetSession` → `read_target_session`                                                                           |
+| Ler Session target por id           | sync e tela     | `syncNow` → `mergeTargetCohortSessionReads` → `sessionCohortCloudService.readTargetSession` → `read_target_session`; e `RegistrationBoardView` → `SessionOrganizerPanel` → `transferSessionOrganizer` → o mesmo comando, para ler a revisão antes de atribuir |
 | Sorteio autorizado | tela | `SessionWizard` → `useSessionWizard.generateDivisions` → `prepareAuthorizedTeamFormation` → `create_target_session`, `create_registration_window`, `open_registration`, `reopen_registration`, `add_registration_entry`, `remove_registration_entry`, `change_registration_capacity`, `close_registration`, `lock_registration`, `finalize_session_roster`, `read_registration_window`, `read_target_roster_revision`, `capture_balance_input_snapshot`, `read_balance_input_snapshot` |
 | Publicar candidatos | tela | `SessionWizard` → `CandidateSetPublication` → `useSessionWizard.publishCandidateSet` → `publishTeamCandidateSet` → `read_target_roster_revision`, `publish_team_candidate_set` |
 | Inscrição da pelada | tela | `RegistrationBoardView` → `useRegistrationBoard` → `registrationUseCases` → `create_registration_window`, `open_registration`, `close_registration`, `reopen_registration`, `join_registration`, `leave_registration`, `add_registration_entry`, `remove_registration_entry`, `change_registration_capacity`, `read_registration_board`, `read_session_registration` |
 | Pagamento da inscrição | tela | `RegistrationBoardView` → `useRegistrationBoard` → `registrationUseCases` → `mark_registration_payment`, `set_registration_payment_due`, `boost_registration_reserve_entry`, `apply_registration_payment_deadline` |
+| Repasse de organizador | tela | `CommunityRegistrationRoute` → `RegistrationBoardView` → `SessionOrganizerPanel` → `transferSessionOrganizer` → `set_community_organizer`, `assign_target_session_organizer` |
 
 ### Os comandos que a XS-W3-08 tocou, nível por nível
 
@@ -117,28 +141,45 @@ filtro e chegam sem a Session-pai; a exclusão não se propaga — o upload não
 Session target (a policy de update o filtraria em silêncio, com sucesso falso) e reporta um problema
 naquela rodada, a Session local é removida e a linha continua viva no servidor.
 
-**`set_community_organizer` — capacidade de banco sem caminho, e já não é a peça que falta.**
+**`set_community_organizer` e `assign_target_session_organizer` — alcançáveis por tela desde
+2026-09-24.**
 
-1. **Falha.** Nenhuma ocorrência em `src/` fora de `src/test/db/setCommunityOrganizer.dbtest.ts` e
-   `src/test/db/communityMembershipMirror.dbtest.ts`.
+1. `src/infra/supabase/sessionOrganizerCloudService.ts:30` e `:38`.
+2. `sessionOrganizerUseCases.ts:2` importa o serviço, e `transferSessionOrganizer` invoca os dois
+   métodos — `setCommunityOrganizer` para conceder a responsabilidade, `assignSessionOrganizer` para
+   amarrar a pessoa à sessão.
+3. `sessionRoutes.tsx` importa `transferSessionOrganizer` e o invoca no `onTransfer` que
+   `CommunityRegistrationRoute` passa a `RegistrationBoardView`; a rota está montada em
+   `AppRouter.tsx:83` (`sessoes/:sessionId/inscricao`).
 
-A migration existe, é testada contra o `create_target_session` real e faz o que promete. Nenhuma tela
-a chama. Até a XS-W3-09 isso significava que quem fosse promovido a organizador pela interface não
-criava Session target; agora o cargo concede `ORGANIZER` pelo espelho de `community_members`, e este
-comando fica como o caminho para conceder a responsabilidade sem o cargo — o que nenhuma tela pede.
+A ordem importa e é a razão de a fatia existir: `assign_target_session_organizer` exige
+`session.manage`, que vem **só** da responsabilidade `ORGANIZER`, e nem o dono da comunidade a tem
+por padrão. Por isso o caso de uso concede a responsabilidade a quem delega, além de a quem recebe.
 
-**`capture_balance_input_snapshot` e `read_balance_input_snapshot` — continuam inalcançáveis.**
+**Portão acima deste:** a tela só oferece o repasse quando a Session é target
+(`authorityModel === 'target'` com `cloudId`), e isso hoje acontece por duas portas — o sorteio do
+wizard e a criação por sync. Numa comunidade que nunca passou por nenhuma das duas, o comando
+continua sem caminho de usuário, por falta de Session target, não por falta de fiação.
+
+**Assimetria conhecida, aberta:** `set_community_organizer` grava direto em
+`community_responsibilities`. O espelho de `20260914120000` vai só na direção contrária
+(`community_members` → membership e `ORGANIZER`), então depois do repasse o painel de membros, que lê
+`community_members`, continua mostrando quem passou a organizar como "Membro". O detector
+`app_private.community_membership_drift()` não acusa isso: `ORPHAN_RESPONSIBILITY` só dispara quando
+não existe linha legada nenhuma para a pessoa.
+
+**`capture_balance_input_snapshot` e `read_balance_input_snapshot` — alcançáveis desde a XS-W6-08c.**
 
 1. `src/infra/supabase/balanceInputSnapshotCloudService.ts:20` e `:33`.
-2. `src/application/balanceInputSnapshotUseCases.ts:2` importa o gateway.
-3. **Falha.** `balanceInputSnapshotUseCases` só é importado por
-   `balanceInputSnapshotUseCases.test.ts:8`.
+2. `authorizedTeamFormationUseCases.ts:54-55` monta o gateway sobre o serviço, e
+   `prepareAuthorizedTeamFormation` invoca `captureSnapshot` (`:276`) ou `readSnapshot` (`:274`),
+   conforme haja progresso guardado para a mesma revisão de elenco.
+3. `useSessionWizard.ts` importa `prepareAuthorizedTeamFormation` e o chama em
+   `generateDivisions` — o sorteio do wizard.
 
-A XS-W3-08 faz Session target existirem e expõe a revisão corrente de elenco na leitura — mas nada
-chama a captura. E mesmo que chamasse, uma Session criada pelo sync nasce **sem** revisão de elenco
-(`targetSessionCurrentRosterRevision.dbtest.ts:180` afirma `null` logo depois de
-`create_target_session`), e os comandos que materializam uma (`replace_target_quick_session_roster`,
-`finalize_session_roster`) não aparecem em `src/`. **Esta fatia abre a estrada; não anda por ela.**
+O texto anterior deste bloco dizia que a XS-W3-08 "abre a estrada; não anda por ela". Era verdade em
+2026-09-13 e deixou de ser com a XS-W6-08c, que fez o wizard materializar a revisão de elenco por
+`finalize_session_roster` antes de capturar. A afirmação ficou no documento por três fatias.
 
 **Cutover (`inspect_legacy_session_cutover`, `transition_legacy_session_to_target`,
 `executeSessionCohortTransition`) — mortos, e agora sabidamente mortos.**
@@ -157,8 +198,7 @@ Não é só fiação faltando: não existe Session legada elegível para ligar (
 
 | Onda                              | Comandos sem caminho                                                                                                                                                                                                                         |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **W3**                            | `update_target_session_draft`, `publish/schedule/start/finish/cancel_target_session`, `assign/revoke_target_session_organizer`, `add/configure_target_session_court`, `freeze_target_session_rules_snapshot`, `replace_target_quick_session_roster`, `read_target_roster_revision`, `read_target_session_readiness`, `transition_legacy_session_to_target`, `inspect_legacy_session_cutover` |
-| **W3-08 (governança)**            | `set_community_organizer`                                                                                                                                                                                                                    |
+| **W3**                            | `update_target_session_draft`, `publish/schedule/start/finish/cancel_target_session`, `revoke_target_session_organizer`, `add/configure_target_session_court`, `freeze_target_session_rules_snapshot`, `replace_target_quick_session_roster`, `read_target_session_readiness`, `transition_legacy_session_to_target`, `inspect_legacy_session_cutover` |
 | **W4 (restante)** | `inspect_registration_introduction`, `introduce_registration_from_legacy_roster` |
 | **W5-01, W5-02**                  | `record_player_evaluation` (o editor usa o próprio comando), `skill_rubric_dimensions_for`                                                                                                                                                  |
 | **W6-01, W6-02**                  | o adaptador autorizado                                                                                                                                                  |
@@ -188,15 +228,21 @@ XS-W3-09:
    concede `ORGANIZER` a quem recebe o cargo pelo painel. **Derrubada também para dono, admin e
    moderador** pela XS-W6-08a, em comunidades legadas: o espelho traduz o `manage_sessions` que esses
    cargos já têm. Continua de pé em comunidades target (`GINV-CAP-002`), que o app não cria;
-   `set_community_organizer` segue sem chamador. A mesma fatia ativa o modelo de avaliação em toda
+   **Derrubada por tela em
+   2026-09-24**, pelo repasse de organizador: `set_community_organizer` ganhou chamador, e quem
+   administra a comunidade concede a responsabilidade a si mesmo ou a outro membro sem passar pelo
+   cargo legado. A mesma fatia ativa o modelo de avaliação em toda
    comunidade, então a ativação deixa de ser parede para captura e editor.
 
 ## O que isto significa para o produto
 
 O app que os usuários usam é o modelo legado, e ele funciona. O C6 é uma refundação construída
-ao lado, e hoje ela sustenta uma funcionalidade viva por tela — a avaliação por comunidade — e, desde a
-XS-W3-08, a criação por sync de Session target; com a XS-W3-09, para quem tem o cargo Organizador numa
-comunidade legada ativada.
+ao lado, e hoje ela sustenta três funcionalidades vivas por tela — a avaliação por comunidade, o
+sorteio autorizado do wizard e a inscrição da pelada, com pagamento e repasse de organizador — além
+da criação por sync de Session target, desde a XS-W3-08.
+
+A inscrição é a primeira delas que o **atleta** alcança: até ela, todo comando C6 com caminho de
+usuário era de organizador ou de quem administra.
 
 **Terminar o C6 não é pré-requisito para usar o app.** As duas coisas devem ser planejadas
 separadamente.
@@ -210,7 +256,7 @@ repositório já tem seis ondas disso.
 O comando que gera a primeira coluna:
 
 ```bash
-for f in supabase/migrations/2026082[7-9]*.sql supabase/migrations/20260[89]*.sql; do
+for f in supabase/migrations/2026082[7-9]*.sql supabase/migrations/2026{09,1[0-2]}*.sql; do
   grep -oE "^create (or replace )?function public\.[a-z_]+" "$f"
 done | sed -E 's/^create (or replace )?function public\.//' | sort -u
 ```

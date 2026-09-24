@@ -693,4 +693,19 @@ describe('AppRouter — wizard e sessão ativa', () => {
     renderApp(paths.inscricao('c1', 's1'));
     expect(await screen.findByRole('heading', { name: /inscri/i })).toBeTruthy();
   });
+
+  it('sem conta, o link da pelada mostra o convite em vez de jogar para /comunidades', async () => {
+    renderApp('/comunidades/c-desconhecida/sessoes/s1/inscricao', { kind: 'anonymous' });
+
+    expect(await screen.findByRole('heading', { name: /garantir sua vaga/i })).toBeTruthy();
+  });
+
+  it('o convite leva o destino para o cadastro, senao a pessoa volta para o painel', async () => {
+    renderApp('/comunidades/c-desconhecida/sessoes/s1/inscricao', { kind: 'anonymous' });
+
+    const criar = await screen.findByRole('link', { name: /criar conta/i });
+    expect(criar.getAttribute('href')).toContain(
+      'proxima=%2Fcomunidades%2Fc-desconhecida%2Fsessoes%2Fs1%2Finscricao',
+    );
+  });
 });

@@ -22,6 +22,9 @@ import { buildPlayerEditViewContract } from '@app/screens/playerEditView/playerE
 import { buildHistoryViewContract } from '@app/screens/historyView/historyViewContract';
 import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { useShell, useCommunityShell } from '../shellContext';
+import { useAuthSession } from '../auth/useAuthSession';
+import { isGuestAccess } from '@app/guestAccess';
+import { AccountRequiredView } from '../../components/onboarding/AccountRequiredView';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
@@ -60,12 +63,22 @@ const HistoryView = lazy(() =>
 
 export function CommunityShell() {
   const shell = useShell();
+  const location = useLocation();
+  const { state: authState } = useAuthSession();
   const { communityId } = useParams();
   const resolution = resolveCommunityRoute({
     communityId,
     communityIds: shell.comm.communities.map((community) => community.id),
   });
-  if (resolution.kind === 'redirect') return <Navigate to={resolution.to} replace />;
+  if (resolution.kind === 'redirect') {
+    // Quem nao tem conta nunca vai ter a comunidade neste aparelho. Mandar para
+    // /comunidades so troca um muro por outro e apaga de que pelada se tratava
+    // -- exatamente o que um link compartilhado carrega.
+    if (isGuestAccess(authState)) {
+      return <AccountRequiredView pathname={location.pathname} />;
+    }
+    return <Navigate to={resolution.to} replace />;
+  }
 
   const community = shell.comm.communities.find((item) => item.id === communityId) as Community;
 

@@ -147,12 +147,7 @@ test('owner can manage others but cannot edit owner or self', () => {
   assert.equal(vm.activeMembers[0].canChangeRole, false);
   assert.equal(vm.activeMembers[0].canRemove, false);
   assert.equal(vm.activeMembers[1].canChangeRole, true);
-  assert.deepEqual(vm.activeMembers[1].assignableRoles, [
-    'admin',
-    'moderator',
-    'organizador',
-    'member',
-  ]);
+  assert.deepEqual(vm.activeMembers[1].assignableRoles, ['admin', 'moderator', 'member']);
 });
 
 test('moderator can leave but cannot manage members', () => {
@@ -170,18 +165,26 @@ test('moderator can leave but cannot manage members', () => {
   assert.equal(vm.activeMembers[0].roleLabel, 'Moderador');
 });
 
-test('organizador member row gets the Organizador label and role stays assignable', () => {
+test('organizador deixou de ser atribuivel, mas quem o tem continua legivel e removivel', () => {
+  assert.ok(!ASSIGNABLE_COMMUNITY_MEMBER_ROLES.includes('organizador'));
+
   const vm = buildCommunityMembersViewModel({
     community,
-    members: [member({ userId: 'organizador-1', role: 'organizador' })],
+    members: [
+      member({ userId: 'owner-1', role: 'owner' }),
+      member({ id: 'antiga', userId: 'organizador-1', role: 'organizador' }),
+    ],
     players: [],
-    currentUserId: 'organizador-1',
+    currentUserId: 'owner-1',
     isSupabaseConfigured: true,
     globalRole: 'user',
   });
 
-  assert.equal(vm.activeMembers[0].roleLabel, 'Organizador');
-  assert.ok(ASSIGNABLE_COMMUNITY_MEMBER_ROLES.includes('organizador'));
+  const linha = vm.activeMembers.find((row) => row.member.userId === 'organizador-1');
+  assert.equal(linha?.roleLabel, 'Organizador');
+  // Sem o cargo atual na lista, o seletor dessa pessoa apareceria em branco e
+  // ela ficaria presa no cargo legado.
+  assert.deepEqual(linha?.assignableRoles, ['organizador', 'admin', 'moderator', 'member']);
 });
 
 test('programmer sees read-only support state even if membership says owner', () => {

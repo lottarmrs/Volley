@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Community, CommunityMember } from '../../types';
 import { CommunityMembersPanel } from './CommunityMembersPanel';
 import { playerCloudService } from '@infra/supabase/playerCloudService';
@@ -14,6 +14,16 @@ const { useCommunityMembersMock } = vi.hoisted(() => ({
 
 vi.mock('../../hooks/useCommunityMembers', () => ({
   useCommunityMembers: useCommunityMembersMock,
+}));
+
+const { listOrganizersMock, setDutyMock } = vi.hoisted(() => ({
+  listOrganizersMock: vi.fn(),
+  setDutyMock: vi.fn(),
+}));
+
+vi.mock('@app/sessionOrganizerUseCases', () => ({
+  listCommunityOrganizers: listOrganizersMock,
+  setCommunityOrganizerDuty: setDutyMock,
 }));
 
 const community: Community = {
@@ -54,6 +64,11 @@ function mockUseCommunityMembers(members: CommunityMember[]) {
   });
 }
 
+beforeEach(() => {
+  listOrganizersMock.mockResolvedValue({ ok: true, value: [] });
+  setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+});
+
 describe('CommunityMembersPanel', () => {
   it('atualiza o elenco local após aprovar o membro', async () => {
     mockUseCommunityMembers([
@@ -79,7 +94,7 @@ describe('CommunityMembersPanel', () => {
       ),
     );
   });
-  it('offers Organizador as a role option when the viewer can manage members', () => {
+  it('o seletor de cargo não oferece mais Organizador: organizar virou selo, não cargo', () => {
     mockUseCommunityMembers([
       member({ id: 'owner-row', userId: 'owner-1', role: 'owner', name: 'Ana' }),
       member({ id: 'member-row', userId: 'user-2', role: 'member', name: 'Bruno' }),
@@ -95,8 +110,22 @@ describe('CommunityMembersPanel', () => {
     );
 
     const roleSelect = screen.getByLabelText('Papel do membro');
-    const option = within(roleSelect).getByText('Organizador') as HTMLOptionElement;
-    expect(option.value).toBe('organizador');
+    expect(within(roleSelect).queryByText('Organizador')).toBeNull();
+    expect(within(roleSelect).getByText('Membro')).toBeDefined();
+  });
+
+  it('quem já tem o cargo legado Organizador continua sendo exibido como tal', () => {
+    mockUseCommunityMembers([
+      member({ id: 'owner-row', userId: 'owner-1', role: 'owner', name: 'Ana' }),
+      member({ id: 'antiga', userId: 'user-2', role: 'organizador', name: 'Bruno' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="owner-1" isSupabaseConfigured />,
+    );
+
+    const roleSelect = screen.getByLabelText('Papel do membro') as HTMLSelectElement;
+    expect(roleSelect.value).toBe('organizador');
   });
 
   it('does not render an email line for a member whose email was hidden by RLS (email: null)', () => {
@@ -204,5 +233,111 @@ describe('CommunityMembersPanel', () => {
     );
 
     expect(screen.queryByText(/pedidos para entrar/i)).toBeNull();
+  });
+});
+
+describe('CommunityMembersPanel — quem organiza', () => {
+  it('o selo de organizar é separado do cargo: mostra quem organiza sem mexer no crachá', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    expect(within(linha).getByText(/organiza as peladas/i)).toBeDefined();
+    expect(within(linha).getByLabelText(/papel do membro/i)).toHaveProperty('value', 'member');
+  });
+
+  it('tirar a organização chama o servidor com enabled falso', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+
+    await waitFor(() =>
+      expect(setDutyMock).toHaveBeenCalledWith({
+        communityCloudId: 'community-cloud',
+        userId: 'bia',
+        enabled: false,
+      }),
+    );
+  });
+
+  it('quem não organiza recebe o convite para passar a organizar', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: [] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    expect(within(linha).queryByText(/organiza as peladas/i)).toBeNull();
+    fireEvent.click(within(linha).getByRole('button', { name: /deixar organizar/i }));
+
+    await waitFor(() =>
+      expect(setDutyMock).toHaveBeenCalledWith({
+        communityCloudId: 'community-cloud',
+        userId: 'bia',
+        enabled: true,
+      }),
+    );
+  });
+
+  it('quem não administra não vê o botão, só o selo', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="bia" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    expect(within(linha).getByText(/organiza as peladas/i)).toBeDefined();
+    expect(within(linha).queryByRole('button', { name: /tirar a organização/i })).toBeNull();
+  });
+
+  it('a recusa do servidor aparece e o selo não muda', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    setDutyMock.mockResolvedValue({
+      ok: false,
+      error: { kind: 'permission_denied', message: 'Esta ação pede verificação em duas etapas.' },
+    });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+
+    await waitFor(() => expect(screen.getByText(/duas etapas/i)).toBeDefined());
+    expect(within(linha).getByText(/organiza as peladas/i)).toBeDefined();
   });
 });

@@ -105,11 +105,13 @@ export function SessionOrganizerPanel({
             </button>
           </div>
 
-          {/* Consequencia que nao pode ficar escondida: a responsabilidade nao e
-              desta pelada, e da comunidade, e dura ate alguem revogar. */}
+          {/* O que a responsabilidade concede de verdade: escrever numa pelada exige
+              atribuicao naquela pelada, entao as outras nao mudam de mao. O que sobra
+              e poder criar pelada nova, e isso dura ate alguem tirar. */}
           <p className="text-xs text-base-content/60">
-            Quem organiza passa a poder organizar qualquer pelada desta comunidade, não só esta, até
-            alguém tirar. Esta ação pede verificação em duas etapas.
+            Além desta pelada, a pessoa passa a poder criar peladas novas na comunidade, e continua
+            podendo até alguém tirar. As peladas que já existem seguem com quem organiza cada uma.
+            Esta ação pede verificação em duas etapas.
           </p>
         </>
       )}

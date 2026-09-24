@@ -24,6 +24,20 @@ export const defaultSessionOrganizerGateway: SessionOrganizerGateway = {
   assignSessionOrganizer: (input) => sessionOrganizerCloudService.assignSessionOrganizer(input),
 };
 
+export interface CommunityOrganizerDutyGateway {
+  setCommunityOrganizer(input: {
+    communityId: string;
+    userId: string;
+    enabled: boolean;
+  }): Promise<void>;
+  listOrganizers(communityId: string): Promise<string[]>;
+}
+
+export const defaultCommunityOrganizerDutyGateway: CommunityOrganizerDutyGateway = {
+  setCommunityOrganizer: (input) => sessionOrganizerCloudService.setCommunityOrganizer(input),
+  listOrganizers: (communityId) => sessionOrganizerCloudService.listOrganizers(communityId),
+};
+
 function codeOf(error: unknown): string | undefined {
   if (error && typeof error === 'object' && 'code' in error) {
     const { code } = error as { code?: unknown };
@@ -121,5 +135,49 @@ export async function transferSessionOrganizer(
     return appOk(undefined);
   } catch (error) {
     return classify(error);
+  }
+}
+
+/**
+ * Liga ou desliga a responsabilidade de organizar peladas da comunidade.
+ *
+ * Nao e cargo: quem tem a responsabilidade pode criar pelada nova e pode ser
+ * designado para uma existente, mas escrever numa pelada ainda exige a
+ * atribuicao daquela pelada. Por isso o painel mostra isso separado do cargo.
+ */
+export async function setCommunityOrganizerDuty(
+  input: { communityCloudId: string | null; userId: string; enabled: boolean },
+  gateway: CommunityOrganizerDutyGateway = defaultCommunityOrganizerDutyGateway,
+): Promise<AppResult<void>> {
+  if (!input.communityCloudId) {
+    return productError(
+      'invalid_input',
+      'Esta comunidade ainda não está na nuvem. Sincronize antes de mudar quem organiza.',
+    );
+  }
+
+  try {
+    await gateway.setCommunityOrganizer({
+      communityId: input.communityCloudId,
+      userId: input.userId,
+      enabled: input.enabled,
+    });
+    return appOk(undefined);
+  } catch (error) {
+    return classify(error);
+  }
+}
+
+export async function listCommunityOrganizers(
+  communityCloudId: string | null,
+  gateway: CommunityOrganizerDutyGateway = defaultCommunityOrganizerDutyGateway,
+): Promise<AppResult<string[]>> {
+  if (!communityCloudId) return appOk([]);
+
+  try {
+    return appOk(await gateway.listOrganizers(communityCloudId));
+  } catch (error) {
+    const recusa = classify(error);
+    return recusa.ok ? appOk([]) : recusa;
   }
 }

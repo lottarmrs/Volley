@@ -57,9 +57,17 @@ describe('SessionOrganizerPanel', () => {
     expect(screen.getByRole('button', { name: /assumir esta pelada/i })).toBeDefined();
   });
 
-  it('avisa que a responsabilidade vale para a comunidade inteira', () => {
+  it('avisa o que a pessoa passa a poder, sem exagerar o alcance', () => {
     renderPanel();
-    expect(screen.getByText(/qualquer pelada desta comunidade/i)).toBeDefined();
+    const aviso = screen.getByText(/criar peladas novas/i).textContent ?? '';
+    expect(aviso).toMatch(/at[ée] algu[ée]m tirar/i);
+    expect(aviso).toMatch(/duas etapas/i);
+    expect(aviso).not.toMatch(/qualquer pelada/i);
+  });
+
+  it('diz que as peladas que já existem não mudam de mão', () => {
+    renderPanel();
+    expect(screen.getByText(/seguem com quem organiza cada uma/i)).toBeDefined();
   });
 
   it('quem não pode transferir só vê quem organiza', () => {

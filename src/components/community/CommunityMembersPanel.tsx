@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import {
   Cloud,
   RefreshCw,
@@ -12,10 +12,12 @@ import {
   LogOut,
   Clock,
   Volleyball,
+  CalendarCheck,
 } from 'lucide-react';
 import { AuthRole, Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { fetchApprovedMemberPlayerQuery } from '@app/communityPlayerSearchUseCases';
+import { listCommunityOrganizers, setCommunityOrganizerDuty } from '@app/sessionOrganizerUseCases';
 import {
   buildCommunityMembersViewModel,
   COMMUNITY_ROLE_LABELS,
@@ -47,6 +49,20 @@ export function CommunityMembersPanel({
   onLinkedPlayer,
 }: CommunityMembersPanelProps) {
   const enabled = isSupabaseConfigured && !!community.cloudId;
+  const [organizadores, setOrganizadores] = useState<string[]>([]);
+  const [organizadorEmCurso, setOrganizadorEmCurso] = useState<string | null>(null);
+  const [erroDaOrganizacao, setErroDaOrganizacao] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let vivo = true;
+    void listCommunityOrganizers(community.cloudId ?? null).then((resultado) => {
+      if (vivo && resultado.ok) setOrganizadores(resultado.value);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [enabled, community.cloudId]);
   const {
     members,
     loading,
@@ -209,6 +225,28 @@ export function CommunityMembersPanel({
   const handleLeave = () => {
     if (!window.confirm('Tem certeza que deseja sair desta comunidade?')) return;
     return runAction(() => leave(), 'Não foi possível sair da comunidade.');
+  };
+
+  // Responsabilidade, nao cargo: quem organiza pode criar pelada nova e ser
+  // designado para uma existente. O cargo ao lado continua sendo governanca.
+  const alternarOrganizacao = async (member: CommunityMember, passaAOrganizar: boolean) => {
+    setOrganizadorEmCurso(member.userId);
+    setErroDaOrganizacao(null);
+    const resultado = await setCommunityOrganizerDuty({
+      communityCloudId: community.cloudId ?? null,
+      userId: member.userId,
+      enabled: passaAOrganizar,
+    });
+    setOrganizadorEmCurso(null);
+    if (!resultado.ok) {
+      setErroDaOrganizacao(resultado.error.message);
+      return;
+    }
+    setOrganizadores((atuais) =>
+      passaAOrganizar
+        ? [...atuais.filter((id) => id !== member.userId), member.userId]
+        : atuais.filter((id) => id !== member.userId),
+    );
   };
 
   const sortedMembers = activeMembers;
@@ -430,6 +468,12 @@ export function CommunityMembersPanel({
         </form>
       )}
 
+      {erroDaOrganizacao && (
+        <div role="alert" className="alert alert-error alert-soft text-sm font-semibold">
+          {erroDaOrganizacao}
+        </div>
+      )}
+
       {/* ── Diretório de membros ───────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-bold text-text-muted uppercase px-1">
@@ -452,6 +496,7 @@ export function CommunityMembersPanel({
               return (
                 <li
                   key={member.id}
+                  aria-label={row.displayName}
                   className="bg-surface p-3 rounded-xl border border-border flex items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -471,6 +516,26 @@ export function CommunityMembersPanel({
                           <Volleyball className="w-3 h-3" />
                           {row.athleteLabel}
                         </span>
+                      )}
+                      {organizadores.includes(member.userId) && (
+                        <span className="badge badge-sm badge-primary badge-outline gap-1 mt-1">
+                          <CalendarCheck className="w-3 h-3" />
+                          Organiza as peladas
+                        </span>
+                      )}
+                      {editable && enabled && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs mt-1 px-1 text-primary"
+                          disabled={busy || organizadorEmCurso === member.userId}
+                          onClick={() =>
+                            void alternarOrganizacao(member, !organizadores.includes(member.userId))
+                          }
+                        >
+                          {organizadores.includes(member.userId)
+                            ? 'Tirar a organização'
+                            : 'Deixar organizar'}
+                        </button>
                       )}
                     </div>
                   </div>

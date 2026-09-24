@@ -73,10 +73,12 @@ export const COMMUNITY_ROLE_BADGE_CLASSES: Record<CommunityMemberRole, string> =
   member: 'badge-ghost',
 };
 
+/** `organizador` saiu daqui em 2026-09-24: organizar deixou de ser cargo e virou
+ *  responsabilidade, com controle proprio no card do membro. O papel continua no
+ *  tipo e nos rotulos porque quem ja o tem precisa ser exibido e poder sair dele. */
 export const ASSIGNABLE_COMMUNITY_MEMBER_ROLES: readonly CommunityMemberRole[] = [
   'admin',
   'moderator',
-  'organizador',
   'member',
 ];
 
@@ -158,7 +160,13 @@ export function buildCommunityMembersViewModel(
       isSelf,
       canChangeRole: editable,
       canRemove: editable,
-      assignableRoles: editable ? ASSIGNABLE_COMMUNITY_MEMBER_ROLES : [],
+      // O cargo atual entra na lista mesmo quando nao e mais atribuivel: sem ele o
+      // seletor de quem tem `organizador` ou `owner` apareceria em branco.
+      assignableRoles: editable
+        ? ASSIGNABLE_COMMUNITY_MEMBER_ROLES.includes(member.role)
+          ? ASSIGNABLE_COMMUNITY_MEMBER_ROLES
+          : [member.role, ...ASSIGNABLE_COMMUNITY_MEMBER_ROLES]
+        : [],
     };
   };
 

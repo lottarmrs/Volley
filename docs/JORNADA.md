@@ -83,7 +83,7 @@ Uma pessoa só joga quando tem **três**, e elas são independentes:
 | # | Pergunta | Resposta |
 |---|----------|----------|
 | 3.1 | O que o servidor exige para entrar? | Três coisas, com frase própria para cada: participação, vínculo, elenco. |
-| 3.2 | Quem pode criar um vínculo de conta? | Medido (ETAPA 4): **duas funções no banco inteiro**, e as duas só rodam quando alguém **aprova um pedido de entrada**. |
+| 3.2 | Quem pode criar um vínculo de conta? | Medido (ETAPA 4): **duas funções no banco inteiro**, `enroll_approved_member` e o reparo. A primeira roda por **duas portas**: aprovar um pedido de entrada e criar uma comunidade. O teste guarda essa lista fechada — se alguém abrir uma terceira porta, ele quebra. |
 | 3.3 | Então quem cria a própria comunidade recebe vínculo? | ✅ **Sim, desde 2026-09-24.** `create_community_with_owner` passou a chamar `enroll_approved_member`, que é onde mora "esta pessoa é atleta desta comunidade". |
 | 3.4 | Ela consegue entrar na pelada que ela mesma abriu? | ✅ Sim. Era o bloqueio nº 1 da jornada. |
 | 3.5 | Criar duas comunidades duplica ficha ou vínculo? | ✅ Não: uma ficha e um vínculo por conta, e um assento de elenco por comunidade. |
@@ -106,7 +106,7 @@ AppShell, ranking da comunidade, cartão de rascunho, `resolveNewSessionPath`,
 | 4.1 | Em que passo a pessoa cai? | Passo 0 (`Sessão`). |
 | 4.2 | Quais passos exigem atleta? | 1 (≥4) e 3 (`teamCount × 3`). O passo 0 não. |
 | 4.3 | **É a hora certa de escolher atletas?** | 🔴 **Não.** Com a inscrição decidindo quem joga, escolher atletas no ato de marcar é pedir a resposta antes da pergunta. |
-| 4.4 | Se não é a hora, qual é? | Depois que a lista fecha. Rota própria, na [spec da divisão](superpowers/specs/2026-09-24-dividir-o-wizard-design.md). |
+| 4.4 | Se não é a hora, qual é? | Depois que a lista fecha — e fechar é passo separado do sorteio. [Spec](superpowers/specs/2026-09-24-dividir-o-wizard-design.md) fechada, [plano](superpowers/plans/2026-09-24-dividir-o-wizard.md) escrito. |
 | 4.5 | E se a comunidade não tem elenco nenhum? | 🔴 Era beco sem saída até `048455d`. Hoje a saída "Marcar pelada" aparece ao lado do erro. |
 
 ### Campo a campo — passo 0 (`Sessão`)
@@ -122,7 +122,7 @@ AppShell, ranking da comunidade, cartão de rascunho, `resolveNewSessionPath`,
 
 | Campo | Perguntas |
 |---|---|
-| **Quantidade de Times** | Define a exigência de atletas (`× 3`) e a capacidade padrão da lista (`× 6`). ❓ **Aberta na spec:** a capacidade deve sair daqui ou virar campo próprio ao marcar? |
+| **Quantidade de Times** | Define a exigência de atletas (`× 3`) e hoje também a capacidade da lista (`× 6`). ✅ **Decidido:** a capacidade vira campo próprio ao marcar, com `× 6` como sugestão — a vaga é o que o grupo disputa e não pode depender de uma decisão de sorteio. |
 | **Formato do Torneio** / **Fases do Mata-Mata** / **Playoffs** | Só para torneio. ❓ Uma pelada marcada com lista pode virar torneio depois? **Não verificado.** |
 | **Pontos por Jogo**, **Formato de Vitória** | ❓ É a hora certa? São regras de jogo — poderiam esperar o sorteio, que é quando importam. |
 | **Sistema de Rotação em Fila**, **Vitórias máximas consecutivas** | ❓ Idem. |

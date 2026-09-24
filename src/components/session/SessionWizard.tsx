@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { paths } from '@app/appRoutes';
+import { ScheduleSessionPanel } from './ScheduleSessionPanel';
 import {
   ChevronLeft,
   Search,
@@ -477,44 +476,14 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                     </div>
                   </div>
 
-                  {/* Marcar guarda a pelada na lista do grupo antes do sorteio.
-                      Sem isso ela vive so aqui dentro, some da agenda e a
-                      inscricao -- que acontece antes do sorteio -- nunca fica
-                      alcancavel. */}
                   {model.canSchedule && (
-                    <div className="rounded-box border border-primary/30 bg-primary/5 p-4 space-y-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-base-content">
-                          {model.isScheduled ? 'Pelada marcada' : 'Marcar esta pelada'}
-                        </p>
-                        <p className="text-xs leading-relaxed text-base-content/70">
-                          {model.isScheduled
-                            ? 'Ela já aparece na agenda do grupo. Abra a lista para o pessoal garantir a vaga antes do sorteio.'
-                            : 'Guarde a data agora e o grupo já vê a pelada na agenda — dá para abrir a lista de presença sem sortear ainda.'}
-                        </p>
-                      </div>
-                      {model.scheduleError && (
-                        <div role="alert" className="alert alert-error alert-soft text-sm">
-                          {model.scheduleError}
-                        </div>
-                      )}
-                      {model.isScheduled && activeSession.communityId ? (
-                        <Link
-                          to={paths.inscricao(activeSession.communityId, activeSession.id)}
-                          className="btn btn-primary btn-sm w-full sm:w-auto"
-                        >
-                          Abrir a lista de presença
-                        </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm w-full sm:w-auto"
-                          onClick={() => dispatch({ kind: 'scheduleSession' })}
-                        >
-                          Marcar pelada
-                        </button>
-                      )}
-                    </div>
+                    <ScheduleSessionPanel
+                      communityId={activeSession.communityId ?? null}
+                      sessionId={activeSession.id}
+                      isScheduled={model.isScheduled}
+                      error={model.scheduleError}
+                      onSchedule={() => dispatch({ kind: 'scheduleSession' })}
+                    />
                   )}
 
                   <div className="fieldset">
@@ -784,6 +753,16 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                 <AlertTriangle className="w-5 h-5 shrink-0" />
                 <span className="text-xs font-bold uppercase">{validationErrors.players}</span>
               </div>
+            )}
+            {validationErrors.players && model.canSchedule && (
+              <ScheduleSessionPanel
+                compact
+                communityId={activeSession.communityId ?? null}
+                sessionId={activeSession.id}
+                isScheduled={model.isScheduled}
+                error={model.scheduleError}
+                onSchedule={() => dispatch({ kind: 'scheduleSession' })}
+              />
             )}
 
             <div className="flex gap-4 pt-4 border-t border-base-300">
@@ -1363,6 +1342,19 @@ export function SessionWizard({ contract }: SessionWizardProps) {
                     <span className="text-[10px] font-bold uppercase tracking-tight">
                       {validationErrors.config ?? validationErrors.teamCount}
                     </span>
+                  </div>
+                )}
+
+                {validationErrors.teamCount && model.canSchedule && (
+                  <div className="mt-4">
+                    <ScheduleSessionPanel
+                      compact
+                      communityId={activeSession.communityId ?? null}
+                      sessionId={activeSession.id}
+                      isScheduled={model.isScheduled}
+                      error={model.scheduleError}
+                      onSchedule={() => dispatch({ kind: 'scheduleSession' })}
+                    />
                   </div>
                 )}
               </div>

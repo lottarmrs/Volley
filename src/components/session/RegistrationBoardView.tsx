@@ -44,7 +44,7 @@ const POSITION_LABELS: Record<Position, string> = {
 interface RegistrationBoardViewProps {
   api: RegistrationBoardApi;
   players: Player[];
-  sessionName: string;
+  sessionName: string | null;
   sessionDate: string | null;
   canOpen?: boolean;
   /** Link absoluto da inscricao. Sem ele nao ha o que compartilhar. */
@@ -169,7 +169,7 @@ export function RegistrationBoardView({
   if (!board && loading) {
     return (
       <section className="space-y-4" aria-busy>
-        <Cabecalho nome={sessionName} data={sessionDate} />
+        <Cabecalho nome={sessionName ?? 'Pelada da comunidade'} data={sessionDate} />
         <p className="sr-only" role="status">
           Carregando a inscrição.
         </p>
@@ -195,7 +195,7 @@ export function RegistrationBoardView({
   if (!board && error) {
     return (
       <section className="space-y-4">
-        <Cabecalho nome={sessionName} data={sessionDate} />
+        <Cabecalho nome={sessionName ?? 'Pelada da comunidade'} data={sessionDate} />
         <div
           role="alert"
           className="rounded-box border border-error/30 bg-error/10 p-6 text-center"
@@ -219,7 +219,7 @@ export function RegistrationBoardView({
   if (!board) {
     return (
       <section className="space-y-4">
-        <Cabecalho nome={sessionName} data={sessionDate} />
+        <Cabecalho nome={sessionName ?? 'Pelada da comunidade'} data={sessionDate} />
         <EmptyState
           icon={DoorOpen}
           size="compact"
@@ -245,12 +245,19 @@ export function RegistrationBoardView({
     );
   }
 
+  const nome = sessionName ?? board.sessionName ?? 'Pelada da comunidade';
+  const data = sessionDate ?? board.sessionDate ?? null;
+  const jaComecou =
+    board.sessionLifecycleStatus === 'IN_PROGRESS' || board.sessionLifecycleStatus === 'COMPLETED';
+
   const situacao = situacaoDoAtleta(board);
   const pagamento = situacaoDoPagamento(board);
   const corte = board.pendingDeadlineCut;
   const Icone = situacao.icone;
   const livres = Math.max(0, board.capacity - board.confirmedCount);
-  const aberta = board.status === 'OPEN';
+  // Comecada, a janela continua OPEN mas o servidor ja recusa: oferecer o
+  // botao so produziria uma recusa.
+  const aberta = board.status === 'OPEN' && !jaComecou;
   const dentro =
     board.viewerEntryStatus === 'CONFIRMED' || board.viewerEntryStatus === 'WAITLISTED';
   const confirmados = board.entries.filter((entry) => entry.status === 'CONFIRMED');
@@ -262,8 +269,22 @@ export function RegistrationBoardView({
 
   return (
     <section className="space-y-4" aria-busy={busy || loading}>
+      {/* A janela continua em OPEN depois que a pelada comeca -- o servidor ja
+          recusa quem tenta entrar, mas so o status dela nao denuncia isso. */}
+      {jaComecou && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-box border border-warning/40 bg-warning/10 p-4"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <p className="text-sm font-semibold leading-relaxed text-base-content/85">
+            A pelada já começou. A lista fica aqui para consulta, mas ninguém entra nem sai.
+          </p>
+        </div>
+      )}
+
       <div className={`rounded-box border p-5 transition-colors ${situacao.cor}`}>
-        <Cabecalho nome={sessionName} data={sessionDate} />
+        <Cabecalho nome={nome} data={data} />
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div role="status" className="min-w-0">
             <p className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-base-content">
@@ -391,8 +412,8 @@ export function RegistrationBoardView({
           className="btn btn-outline btn-sm w-full border-success/40 text-success"
           onClick={() => {
             const texto = buildRegistrationShareMessage({
-              sessionName,
-              sessionDate: sessionDate ?? '',
+              sessionName: nome,
+              sessionDate: data ?? '',
               capacity: board.capacity,
               confirmedCount: board.confirmedCount,
               url: shareUrl,

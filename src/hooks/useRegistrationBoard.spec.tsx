@@ -30,6 +30,9 @@ vi.mock('../application/registrationUseCases', async (importOriginal) => {
 const quadro: RegistrationBoard = {
   windowId: 'w-1',
   sessionId: 'cloud-session',
+  sessionName: 'Pelada de quinta',
+  sessionDate: '2026-09-24',
+  sessionLifecycleStatus: 'DRAFT',
   status: 'OPEN',
   revision: 2,
   capacity: 12,

@@ -212,7 +212,7 @@ export function CommunityRegistrationRoute() {
     <RegistrationBoardView
       api={api}
       players={getCommunityPlayers(community.id, play.players)}
-      sessionName={alvo.name ?? nomeDaNuvem ?? 'Pelada da comunidade'}
+      sessionName={alvo.name ?? nomeDaNuvem}
       sessionDate={alvo.date}
       canOpen={!!session && permissions.canCreateSession}
       pixKey={pixKey}

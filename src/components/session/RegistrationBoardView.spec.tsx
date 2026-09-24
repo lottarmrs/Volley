@@ -16,6 +16,9 @@ function board(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
   return {
     windowId: 'w-1',
     sessionId: 'cloud-session',
+    sessionName: 'Pelada de quinta',
+    sessionDate: '2026-09-24',
+    sessionLifecycleStatus: 'DRAFT',
     status: 'OPEN',
     revision: 2,
     capacity: 2,
@@ -91,16 +94,17 @@ function renderView(
   overrides: Partial<RegistrationBoardApi> & {
     shareUrl?: string;
     onShare?: (texto: string) => void;
+    sessionName?: string | null;
     sessionDate?: string | null;
   } = {},
 ) {
-  const { shareUrl, onShare, sessionDate, ...apiOverrides } = overrides;
+  const { shareUrl, onShare, sessionName, sessionDate, ...apiOverrides } = overrides;
   const contrato = api(apiOverrides);
   render(
     <RegistrationBoardView
       api={contrato}
       players={players}
-      sessionName="Pelada de quinta"
+      sessionName={sessionName === undefined ? 'Pelada de quinta' : sessionName}
       sessionDate={sessionDate === undefined ? '2026-09-24' : sessionDate}
       shareUrl={shareUrl}
       onShare={onShare}
@@ -362,5 +366,28 @@ describe('RegistrationBoardView', () => {
     renderView({ board: board({}), sessionDate: null });
     expect(screen.queryByText(/invalid date/i)).toBeNull();
     expect(screen.getByText(/pelada de quinta/i)).toBeDefined();
+  });
+
+  it('sem nome local, o cabeçalho usa o que a nuvem devolveu', () => {
+    renderView({
+      board: board({ sessionName: 'Quinta na Arena', sessionDate: '2026-10-01' }),
+      sessionName: null,
+      sessionDate: null,
+    });
+    expect(screen.getByText(/quinta na arena/i)).toBeDefined();
+    expect(screen.getByText(/quinta-feira/i)).toBeDefined();
+  });
+
+  it('pelada já começada avisa, mesmo com a janela ainda OPEN', () => {
+    renderView({
+      board: board({ status: 'OPEN', sessionLifecycleStatus: 'IN_PROGRESS' }),
+    });
+    expect(screen.getByRole('alert').textContent).toMatch(/começou/i);
+    expect(screen.queryByRole('button', { name: /quero jogar/i })).toBeNull();
+  });
+
+  it('pelada em rascunho não mostra esse aviso', () => {
+    renderView({ board: board({ status: 'OPEN', sessionLifecycleStatus: 'DRAFT' }) });
+    expect(screen.queryByText(/já começou/i)).toBeNull();
   });
 });

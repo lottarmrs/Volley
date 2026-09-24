@@ -21,6 +21,10 @@ export interface RegistrationBoardEntry {
 export interface RegistrationBoard {
   readonly windowId: string;
   readonly sessionId: string;
+  /** Fatos da sessao, para quem abre a inscricao sem ter a pelada no aparelho. */
+  readonly sessionName: string | null;
+  readonly sessionDate: string | null;
+  readonly sessionLifecycleStatus: string | null;
   readonly status: RegistrationBoardStatus;
   readonly revision: number;
   readonly capacity: number;

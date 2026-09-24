@@ -68,9 +68,19 @@ function mockUseCommunityMembers(members: CommunityMember[]) {
 }
 
 beforeEach(() => {
+  // Os mocks vivem no modulo: sem limpar, uma chamada de outro teste passa por
+  // chamada deste.
+  listOrganizersMock.mockReset();
+  setDutyMock.mockReset();
   listOrganizersMock.mockResolvedValue({ ok: true, value: [] });
   setDutyMock.mockResolvedValue({ ok: true, value: undefined });
 });
+
+/** Tirar passa por confirmacao; dar, nao. */
+async function confirmarNoDialogo(nome: RegExp) {
+  const dialogo = await screen.findByRole('dialog');
+  fireEvent.click(within(dialogo).getByRole('button', { name: nome }));
+}
 
 describe('CommunityMembersPanel', () => {
   it('atualiza o elenco local após aprovar o membro', async () => {
@@ -271,6 +281,7 @@ describe('CommunityMembersPanel — quem organiza', () => {
 
     const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
     fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+    await confirmarNoDialogo(/tirar a organização/i);
 
     await waitFor(() =>
       expect(setDutyMock).toHaveBeenCalledWith({
@@ -339,6 +350,7 @@ describe('CommunityMembersPanel — quem organiza', () => {
 
     const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
     fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+    await confirmarNoDialogo(/tirar a organização/i);
 
     await waitFor(() => expect(screen.getByText(/duas etapas/i)).toBeDefined());
     expect(within(linha).getByText(/organiza as peladas/i)).toBeDefined();
@@ -358,6 +370,7 @@ describe('CommunityMembersPanel — quem organiza', () => {
 
     const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
     fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+    await confirmarNoDialogo(/tirar a organização/i);
 
     // Sem isto o espelho de community_members devolve a responsabilidade no
     // proximo toque no cargo, e a remocao nao se sustenta.
@@ -386,5 +399,48 @@ describe('CommunityMembersPanel — quem organiza', () => {
 
     await waitFor(() => expect(setDutyMock).toHaveBeenCalled());
     expect(changeRoleSpy).not.toHaveBeenCalled();
+  });
+
+  it('tirar a organização avisa que isso tranca lista aberta, antes de agir', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia-row', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+
+    // Nada acontece até a pessoa confirmar.
+    expect(setDutyMock).not.toHaveBeenCalled();
+    const dialogo = screen.getByRole('dialog');
+    expect(dialogo.textContent).toMatch(/lista aberta|inscrição aberta/i);
+
+    fireEvent.click(within(dialogo).getByRole('button', { name: /tirar a organização/i }));
+    await waitFor(() => expect(setDutyMock).toHaveBeenCalled());
+  });
+
+  it('dar a organização não pede confirmação: não tira nada de ninguém', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: [] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia-row', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /deixar organizar/i }));
+
+    await waitFor(() => expect(setDutyMock).toHaveBeenCalled());
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

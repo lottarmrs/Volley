@@ -119,6 +119,9 @@ function quadro(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
   return {
     windowId: 'w-1',
     sessionId: 'cloud-session',
+    sessionName: 'Pelada de quinta',
+    sessionDate: '2026-09-24',
+    sessionLifecycleStatus: 'DRAFT',
     status: 'OPEN',
     revision: 4,
     capacity: 4,

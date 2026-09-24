@@ -102,6 +102,9 @@ function board(value: unknown, label: string): RegistrationBoard {
   return {
     windowId: text(row.window_id, label),
     sessionId: text(row.session_id, label),
+    sessionName: optionalText(row.session_name, label),
+    sessionDate: optionalText(row.session_date, label),
+    sessionLifecycleStatus: optionalText(row.session_lifecycle_status, label),
     status: status as RegistrationBoardStatus,
     revision: integer(row.revision, label),
     capacity: integer(row.capacity, label),

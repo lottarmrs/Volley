@@ -263,6 +263,26 @@ export function CommunityMembersPanel({
     );
   };
 
+  // Tirar a responsabilidade tranca no meio do caminho qualquer lista que a
+  // pessoa esteja organizando: o portao de escrita da sessao exige ORGANIZER,
+  // e a recusa chega como 42501 sem explicacao. Provado em
+  // registrationCoherence.dbtest.ts.
+  const pedirOuTirarOrganizacao = (member: CommunityMember) => {
+    const organiza = organizadores.includes(member.userId);
+    if (!organiza) {
+      void alternarOrganizacao(member, true);
+      return;
+    }
+    const nome = member.name || member.email || 'esta pessoa';
+    setConfirmacao({
+      titulo: `Tirar a organização de ${nome}?`,
+      descricao:
+        'Se ela estiver organizando alguma pelada com lista aberta, a lista trava na hora: ela deixa de conseguir marcar pagamento, mudar vagas ou fechar a inscrição. Passe a pelada para outra pessoa antes, se for o caso.',
+      rotuloAcao: 'Tirar a organização',
+      acao: () => alternarOrganizacao(member, false),
+    });
+  };
+
   const sortedMembers = activeMembers;
 
   return (
@@ -542,9 +562,7 @@ export function CommunityMembersPanel({
                           type="button"
                           className="btn btn-ghost btn-xs mt-1 px-1 text-primary"
                           disabled={busy || organizadorEmCurso === member.userId}
-                          onClick={() =>
-                            void alternarOrganizacao(member, !organizadores.includes(member.userId))
-                          }
+                          onClick={() => pedirOuTirarOrganizacao(member)}
                         >
                           {organizadores.includes(member.userId)
                             ? 'Tirar a organização'

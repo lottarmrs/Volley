@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { rememberReturnTo, withReturnTo } from '@app/authReturnTo';
 import { Link } from 'react-router';
 import { ArrowLeft, HardDrive, Lock } from 'lucide-react';
 import { describeAccountOnlyArea } from '@app/guestAccess';
@@ -9,6 +11,12 @@ interface AccountRequiredViewProps {
 
 export function AccountRequiredView({ pathname }: AccountRequiredViewProps) {
   const area = describeAccountOnlyArea(pathname);
+
+  // O `state` do react-router nao sobrevive ao recarregamento, e a confirmacao
+  // por e-mail sempre recarrega. Entao o destino vai na URL e no armazenamento.
+  useEffect(() => {
+    rememberReturnTo(pathname);
+  }, [pathname]);
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8 py-10">
@@ -32,13 +40,13 @@ export function AccountRequiredView({ pathname }: AccountRequiredViewProps) {
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Link
-          to="/cadastro"
+          to={withReturnTo('/cadastro', pathname)}
           className="btn btn-primary min-h-[48px] flex-1 gap-2 px-6 font-black uppercase tracking-wider"
         >
           Criar conta grátis
         </Link>
         <Link
-          to="/entrar"
+          to={withReturnTo('/entrar', pathname)}
           className="btn btn-outline min-h-[48px] flex-1 px-6 font-bold uppercase tracking-wider"
         >
           Já tenho conta

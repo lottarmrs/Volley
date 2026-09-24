@@ -11,6 +11,7 @@ import {
   DoorOpen,
   Lock,
   RefreshCw,
+  Share2,
   ShieldCheck,
   Timer,
   UserMinus,
@@ -28,6 +29,8 @@ import { calculateGeneralOverall } from '../../logic/calculations';
 import { EmptyState } from '../../ui/EmptyState';
 import { SessionOrganizerPanel, type SessionOrganizerMember } from './SessionOrganizerPanel';
 import type { AppResult } from '@app/appResult';
+import { buildRegistrationShareMessage } from '@app/registrationLinkUseCases';
+import { openWhatsAppShare } from '@logic/exporters';
 
 const POSITION_LABELS: Record<Position, string> = {
   levantador: 'Levantador',
@@ -42,8 +45,12 @@ interface RegistrationBoardViewProps {
   api: RegistrationBoardApi;
   players: Player[];
   sessionName: string;
-  sessionDate: string;
+  sessionDate: string | null;
   canOpen?: boolean;
+  /** Link absoluto da inscricao. Sem ele nao ha o que compartilhar. */
+  shareUrl?: string;
+  /** Ponto de injecao para o teste; por padrao abre o WhatsApp. */
+  onShare?: (texto: string) => void;
   pixKey?: string;
   organizerHandover?: {
     podeTransferir: boolean;
@@ -149,6 +156,8 @@ export function RegistrationBoardView({
   sessionDate,
   canOpen = false,
   pixKey,
+  shareUrl,
+  onShare,
   organizerHandover,
 }: RegistrationBoardViewProps) {
   const { board, busy, error, loading } = api;
@@ -373,6 +382,25 @@ export function RegistrationBoardView({
         <BarraDoOrganizador api={api} board={board} disponiveis={disponiveis} />
       )}
 
+      {board.viewerCanManage && shareUrl && (
+        <button
+          type="button"
+          className="btn btn-outline btn-sm w-full border-success/40 text-success"
+          onClick={() => {
+            const texto = buildRegistrationShareMessage({
+              sessionName,
+              sessionDate: sessionDate ?? '',
+              capacity: board.capacity,
+              confirmedCount: board.confirmedCount,
+              url: shareUrl,
+            });
+            (onShare ?? openWhatsAppShare)(texto);
+          }}
+        >
+          <Share2 className="h-4 w-4" /> Chamar o grupo no WhatsApp
+        </button>
+      )}
+
       {organizerHandover && (
         <div className="space-y-3">
           <button
@@ -444,16 +472,18 @@ export function RegistrationBoardView({
   );
 }
 
-function Cabecalho({ nome, data }: { nome: string; data: string }) {
+function Cabecalho({ nome, data }: { nome: string; data: string | null }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-base-content/60">
       <CalendarDays className="h-4 w-4 shrink-0" />
       <span className="min-w-0 truncate font-semibold text-base-content/80">{nome}</span>
       {/* O separador pertence a data: quando ela cai para a linha de baixo, no
           celular, o ponto iria junto e ficaria pendurado no fim da linha. */}
-      <span className="w-full sm:w-auto sm:before:mr-2 sm:before:content-['·']">
-        {formatarData(data)}
-      </span>
+      {data && (
+        <span className="w-full sm:w-auto sm:before:mr-2 sm:before:content-['·']">
+          {formatarData(data)}
+        </span>
+      )}
     </div>
   );
 }

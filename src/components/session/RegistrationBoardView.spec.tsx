@@ -87,14 +87,23 @@ function api(overrides: Partial<RegistrationBoardApi> = {}): RegistrationBoardAp
   };
 }
 
-function renderView(overrides: Partial<RegistrationBoardApi> = {}) {
-  const contrato = api(overrides);
+function renderView(
+  overrides: Partial<RegistrationBoardApi> & {
+    shareUrl?: string;
+    onShare?: (texto: string) => void;
+    sessionDate?: string | null;
+  } = {},
+) {
+  const { shareUrl, onShare, sessionDate, ...apiOverrides } = overrides;
+  const contrato = api(apiOverrides);
   render(
     <RegistrationBoardView
       api={contrato}
       players={players}
       sessionName="Pelada de quinta"
-      sessionDate="2026-09-24"
+      sessionDate={sessionDate === undefined ? '2026-09-24' : sessionDate}
+      shareUrl={shareUrl}
+      onShare={onShare}
     />,
   );
   return contrato;
@@ -323,5 +332,35 @@ describe('RegistrationBoardView', () => {
   it('sem o repasse disponível, a tela não oferece o botão', () => {
     renderView({ board: board({ viewerCanManage: true }) });
     expect(screen.queryByRole('button', { name: /quem organiza/i })).toBeNull();
+  });
+
+  it('quem organiza recebe o botao de chamar o grupo, com o link da pelada', () => {
+    const abrir = vi.fn();
+    renderView({
+      board: board({ viewerCanManage: true, capacity: 12, confirmedCount: 5 }),
+      shareUrl: 'https://exemplo.test/comunidades/c1/sessoes/s1/inscricao',
+      onShare: abrir,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /chamar o grupo/i }));
+
+    expect(abrir).toHaveBeenCalledTimes(1);
+    const texto = abrir.mock.calls[0][0] as string;
+    expect(texto).toContain('https://exemplo.test/comunidades/c1/sessoes/s1/inscricao');
+    expect(texto).toMatch(/7 vagas/);
+  });
+
+  it('quem so joga nao ve o botao de chamar o grupo', () => {
+    renderView({
+      board: board({ viewerCanManage: false }),
+      shareUrl: 'https://exemplo.test/x',
+    });
+    expect(screen.queryByRole('button', { name: /chamar o grupo/i })).toBeNull();
+  });
+
+  it('sem data conhecida, o cabecalho nao inventa um dia', () => {
+    renderView({ board: board({}), sessionDate: null });
+    expect(screen.queryByText(/invalid date/i)).toBeNull();
+    expect(screen.getByText(/pelada de quinta/i)).toBeDefined();
   });
 });

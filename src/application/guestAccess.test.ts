@@ -65,3 +65,26 @@ test('uma rota desconhecida cai no texto padrao em vez de quebrar', () => {
 test('prefixo so casa em fronteira de segmento', () => {
   assert.equal(describeAccountOnlyArea('/agendamentos').title, 'Esta área precisa de conta');
 });
+
+test('o link da inscricao tem frase propria: quem chega veio pela pelada, nao pelo conceito', () => {
+  const daInscricao = describeAccountOnlyArea('/comunidades/c1/sessoes/s1/inscricao');
+  const daComunidade = describeAccountOnlyArea('/comunidades/c1');
+
+  assert.match(daInscricao.title, /vaga/i);
+  assert.match(daInscricao.reason, /ordem de chegada/i);
+  assert.match(daInscricao.reason, /volta direto/i);
+  assert.notEqual(daInscricao.title, daComunidade.title);
+});
+
+test('caminhos parecidos com a inscricao nao roubam a frase', () => {
+  for (const caminho of [
+    '/comunidades/c1/sessoes/s1',
+    '/comunidades/c1/sessoes/s1/inscricao/extra',
+    '/comunidades/inscricao',
+  ]) {
+    assert.ok(
+      !/vaga/i.test(describeAccountOnlyArea(caminho).title),
+      `${caminho} nao e a tela da inscricao`,
+    );
+  }
+});

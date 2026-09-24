@@ -26,10 +26,13 @@ import { OtpInput } from '../../ui/OtpInput';
 import { normalizeHandle, validateHandle } from '@logic/handle';
 import { useHandleAvailability } from '@hooks/useHandleAvailability';
 import { useGoogleAuthEnabled } from '@hooks/useGoogleAuthEnabled';
+import { RETURN_TO_PARAM, rememberReturnTo, resolveReturnTo } from '@app/authReturnTo';
 
-function destinationFromLocationState(state: unknown): string {
-  const from = (state as { from?: { pathname?: string } } | null)?.from?.pathname;
-  return from ?? '/painel';
+/** O destino pode chegar por tres caminhos, em ordem de confianca: a URL
+ *  (sobrevive ao recarregamento e ao e-mail de confirmacao), o `state` do
+ *  react-router (so na mesma aba) e o armazenamento local. */
+function destinationFromLocationState(state: unknown, search = ''): string {
+  return resolveReturnTo({ search, locationState: state });
 }
 
 function TotpEnrollmentForm({
@@ -127,12 +130,21 @@ export function LoginPage({ mode }: { mode: 'signin' | 'signup' }) {
   const location = useLocation();
   const { state, authClient } = useAuthSession();
   const googleEnabled = useGoogleAuthEnabled(authClient.isGoogleEnabled);
+
+  // Quem chegou por um link compartilhado passa por aqui antes do e-mail de
+  // confirmacao, que abre outra aba e apaga tudo que estiver so na memoria.
+  useEffect(() => {
+    const daUrl = new URLSearchParams(location.search).get(RETURN_TO_PARAM);
+    rememberReturnTo(daUrl);
+  }, [location.search]);
+
   useEffect(() => {
     if (state.kind === 'initializing' || state.kind === 'anonymous') return;
-    navigate(routeForAuthState(state) ?? destinationFromLocationState(location.state), {
-      replace: true,
-    });
-  }, [state, navigate, location.state]);
+    navigate(
+      routeForAuthState(state) ?? destinationFromLocationState(location.state, location.search),
+      { replace: true },
+    );
+  }, [state, navigate, location.state, location.search]);
   return (
     <div className="min-h-screen bg-base-100 flex flex-col justify-center items-center p-4 relative overflow-hidden">
       {/* Background ambient lighting effects */}
@@ -551,7 +563,7 @@ export function MfaSetupPage() {
     try {
       await authClient.verifyTotp(code, enrollment?.factorId);
       await retry();
-      navigate(destinationFromLocationState(location.state), { replace: true });
+      navigate(destinationFromLocationState(location.state, location.search), { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Código inválido.');
     }
@@ -672,7 +684,7 @@ export function MfaChallengePage() {
       await authClient.verifyTotp(code);
     }
     await retry();
-    navigate(destinationFromLocationState(location.state), { replace: true });
+    navigate(destinationFromLocationState(location.state, location.search), { replace: true });
   };
 
   const handleChallengeSubmit = async (event: FormEvent) => {

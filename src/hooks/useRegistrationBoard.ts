@@ -21,6 +21,10 @@ export interface UseRegistrationBoardInput {
   session: Session | null;
   communityCloudId: string | null;
   defaultCapacity: number;
+  /** Quem chega pelo link nao tem copia local da sessao -- e, sendo target,
+   *  nunca vai ter: o download em lote filtra `sessions` por `legacy`. O id da
+   *  URL e o proprio id de nuvem, entao serve para ler o quadro. */
+  sessionCloudId?: string | null;
   onSessionChange?: (session: Session) => void;
 }
 
@@ -45,7 +49,9 @@ export interface RegistrationBoardApi {
 
 export function useRegistrationBoard(input: UseRegistrationBoardInput): RegistrationBoardApi {
   const sessionCloudId =
-    input.session?.authorityModel === 'target' ? (input.session.cloudId ?? null) : null;
+    (input.session?.authorityModel === 'target' ? (input.session.cloudId ?? null) : null) ??
+    input.sessionCloudId ??
+    null;
   const [board, setBoard] = useState<RegistrationBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -122,16 +128,19 @@ export function useRegistrationBoard(input: UseRegistrationBoardInput): Registra
     busy,
     error,
     open: () =>
-      executar('open', (ids) =>
-        openRegistration({
+      executar('open', (ids) => {
+        if (!input.session) {
+          throw new Error('Abrir a inscrição exige a pelada neste aparelho.');
+        }
+        return openRegistration({
           session: input.session as Session,
           communityCloudId: input.communityCloudId,
           capacity: input.defaultCapacity,
           commandId: ids.commandId,
           windowId: ids.entryId,
           onSessionChange: input.onSessionChange,
-        }),
-      ),
+        });
+      }),
     join: () =>
       executar('join', (ids) => {
         const windowId = exigirJanela();

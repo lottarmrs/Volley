@@ -17,6 +17,14 @@ export interface AccountOnlyArea {
   reason: string;
 }
 
+/** Quem chega por um link compartilhado veio pela pelada, nao pelo conceito de
+ *  comunidade, e a frase generica nao diz o que ele esta perdendo. */
+const CONVITE_DA_INSCRICAO: AccountOnlyArea = {
+  title: 'Entre para garantir sua vaga',
+  reason:
+    'A lista desta pelada é por ordem de chegada, e cada vaga precisa ter dono. Crie a conta para entrar na lista — leva um minuto e você volta direto para cá.',
+};
+
 const ACCOUNT_ONLY_AREAS: { prefix: string; area: AccountOnlyArea }[] = [
   {
     prefix: '/comunidades',
@@ -65,7 +73,14 @@ const DEFAULT_ACCOUNT_ONLY_AREA: AccountOnlyArea = {
     'O modo local guarda a pelada deste navegador. Tudo que atravessa dispositivos ou pessoas mora na conta.',
 };
 
+/** `/comunidades/:id/sessoes/:id/inscricao` nao e um prefixo, entao a rota da
+ *  inscricao e reconhecida pelo formato antes da busca por prefixo. */
+const ROTA_DA_INSCRICAO = /^\/comunidades\/[^/]+\/sessoes\/[^/]+\/inscricao$/;
+
 export function describeAccountOnlyArea(pathname: string): AccountOnlyArea {
+  if (ROTA_DA_INSCRICAO.test(pathname)) {
+    return CONVITE_DA_INSCRICAO;
+  }
   const match = ACCOUNT_ONLY_AREAS.find(
     (entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`),
   );

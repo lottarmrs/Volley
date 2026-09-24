@@ -18,6 +18,11 @@ import { SessionCreationBlocked } from '../../components/session/SessionCreation
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { transferSessionOrganizer } from '@app/sessionOrganizerUseCases';
+import {
+  buildRegistrationShareUrl,
+  resolveRegistrationTarget,
+} from '@app/registrationLinkUseCases';
+import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -163,6 +168,7 @@ export function CommunityRegistrationRoute() {
     enabled: !!community.cloudId,
   });
   const session = sess.sessions.find((item) => item.id === sessionId) ?? null;
+  const alvo = resolveRegistrationTarget({ routeSessionId: sessionId, session });
   const communityCloudId =
     comm.communities.find((item) => item.id === community.id)?.cloudId ?? null;
   const pixKey = whatsAppLists
@@ -172,22 +178,48 @@ export function CommunityRegistrationRoute() {
     session,
     communityCloudId,
     defaultCapacity: session?.config?.teamCount ? session.config.teamCount * 6 : 12,
+    sessionCloudId: alvo?.sessionCloudId ?? null,
     onSessionChange: (next) =>
       sess.setSessions((prev) => prev.map((item) => (item.id === next.id ? next : item))),
   });
 
-  if (!session) return <Navigate to={paths.sessoes(community.id)} replace />;
+  // Quem abre pelo link nao tem a sessao aqui; o nome vem da nuvem.
+  const [nomeDaNuvem, setNomeDaNuvem] = useState<string | null>(null);
+  const precisaDoNome = !!alvo?.fromLink;
+  const alvoCloudId = alvo?.sessionCloudId ?? null;
+  useEffect(() => {
+    if (!precisaDoNome || !alvoCloudId) return;
+    let vivo = true;
+    void sessionCohortCloudService
+      .readTargetSession(alvoCloudId)
+      .then((lida) => {
+        if (vivo) setNomeDaNuvem(lida.name ?? null);
+      })
+      .catch(() => {
+        /* o cabecalho fica neutro; o quadro ja reporta a propria falha */
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [precisaDoNome, alvoCloudId]);
 
-  const sessionCloudId = session.authorityModel === 'target' ? (session.cloudId ?? null) : null;
+  if (!alvo) return <Navigate to={paths.sessoes(community.id)} replace />;
+
+  const sessionCloudId = alvo.sessionCloudId;
 
   return (
     <RegistrationBoardView
       api={api}
       players={getCommunityPlayers(community.id, play.players)}
-      sessionName={session.name}
-      sessionDate={session.date}
-      canOpen={permissions.canCreateSession}
+      sessionName={alvo.name ?? nomeDaNuvem ?? 'Pelada da comunidade'}
+      sessionDate={alvo.date}
+      canOpen={!!session && permissions.canCreateSession}
       pixKey={pixKey}
+      shareUrl={buildRegistrationShareUrl({
+        origin: window.location.origin,
+        communityId: community.id,
+        sessionId: alvo.sessionCloudId,
+      })}
       organizerHandover={
         sessionCloudId
           ? {

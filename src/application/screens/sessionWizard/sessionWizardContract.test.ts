@@ -332,3 +332,43 @@ test('a recusa de marcar chega a tela pelo modelo, nao por excecao', () => {
 
   assert.match(contract.model.scheduleError ?? '', /ja passou|já passou/i);
 });
+
+test('com comunidade na nuvem, marcar a pelada e a acao primaria do passo 0', () => {
+  const contract = buildSessionWizardContract({
+    activeSession: { id: 's-1', communityId: 'c-1', status: 'draft' } as never,
+    players: [],
+    communities: [{ id: 'c-1', name: 'Terça', cloudId: 'cloud-1' }] as never,
+    hookApi: makeHookApi({ canSchedule: true, isScheduled: false, scheduleError: null }),
+    applyGuestPlayer: () => {},
+  });
+
+  assert.equal(contract.model.primaryAction, 'schedule');
+});
+
+test('sem nuvem, o primario vira o caminho manual: a lista nao tem como abrir', () => {
+  const contract = buildSessionWizardContract({
+    activeSession: { id: 's-1', communityId: 'c-1', status: 'draft' } as never,
+    players: [],
+    communities: [{ id: 'c-1', name: 'Terça', cloudId: null }] as never,
+    hookApi: makeHookApi({ canSchedule: true, isScheduled: false, scheduleError: null }),
+    applyGuestPlayer: () => {},
+  });
+
+  assert.equal(
+    contract.model.primaryAction,
+    'manual',
+    'esconder o manual aqui reproduziria o beco para quem esta offline',
+  );
+});
+
+test('sem comunidade nenhuma, o wizard segue como sempre foi', () => {
+  const contract = buildSessionWizardContract({
+    activeSession: { id: 's-1', communityId: null, status: 'draft' } as never,
+    players: [],
+    communities: [],
+    hookApi: makeHookApi({ canSchedule: false, isScheduled: false, scheduleError: null }),
+    applyGuestPlayer: () => {},
+  });
+
+  assert.equal(contract.model.primaryAction, 'next');
+});

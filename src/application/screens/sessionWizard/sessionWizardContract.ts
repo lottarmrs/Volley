@@ -58,6 +58,23 @@ export interface SessionWizardContractInput {
   applyGuestPlayer: (player: Player, editDetails: boolean) => void;
 }
 
+/**
+ * O que o botao grande do passo 0 faz.
+ *
+ * `schedule` -- marcar a pelada e deixar a lista decidir quem joga.
+ * `manual`   -- sem nuvem a lista nao abre, entao escolher na mao deixa de ser
+ *               escape e vira o caminho. Escondelo aqui reproduziria, para quem
+ *               esta offline, o mesmo beco que esta fatia corrige.
+ * `next`     -- sem comunidade, o wizard segue como sempre foi.
+ */
+export type WizardPrimaryAction = 'schedule' | 'manual' | 'next';
+
+function resolvePrimaryAction(input: SessionWizardContractInput): WizardPrimaryAction {
+  if (!input.hookApi.canSchedule) return 'next';
+  const comunidade = input.communities.find((item) => item.id === input.activeSession?.communityId);
+  return comunidade?.cloudId ? 'schedule' : 'manual';
+}
+
 function buildModel(input: SessionWizardContractInput): SessionWizardModel {
   const h = input.hookApi;
   return {
@@ -76,6 +93,7 @@ function buildModel(input: SessionWizardContractInput): SessionWizardModel {
     publicationError: h.publicationError,
     partnershipMatrix: h.partnershipMatrix,
     canSchedule: h.canSchedule,
+    primaryAction: resolvePrimaryAction(input),
     isScheduled: h.isScheduled,
     scheduleError: h.scheduleError,
     stepLabels: ['Sessão', 'Atletas', 'Formato', 'Regras', 'Revisão', 'Times', 'Tabela'],

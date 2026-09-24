@@ -543,14 +543,45 @@ export function SessionWizard({ contract }: SessionWizardProps) {
               >
                 Cancelar
               </button>
+              {/* Com a lista decidindo quem joga, escolher atletas aqui e
+                  pedir a resposta antes da pergunta. O primario passa a ser
+                  marcar -- exceto sem nuvem, onde a lista nao abre e o manual
+                  volta a ser o caminho. */}
+              {model.primaryAction === 'schedule' ? (
+                <button
+                  type="button"
+                  onClick={() => dispatch({ kind: 'scheduleSession' })}
+                  className="btn btn-primary flex-[3]"
+                >
+                  Marcar pelada
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => dispatch({ kind: 'next' })}
+                  className="btn btn-primary flex-[3]"
+                >
+                  Escolher Atletas
+                </button>
+              )}
+            </div>
+
+            {model.primaryAction === 'schedule' && (
               <button
                 type="button"
                 onClick={() => dispatch({ kind: 'next' })}
-                className="btn btn-primary flex-[3]"
+                className="btn btn-ghost btn-sm w-full text-base-content/60"
               >
-                Escolher Atletas
+                Prefiro escolher os atletas na mão
               </button>
-            </div>
+            )}
+
+            {model.primaryAction === 'manual' && (
+              <p className="text-xs leading-relaxed text-base-content/60">
+                Esta comunidade ainda não está na nuvem, então a lista de presença não abre. Escolha
+                os atletas na mão — ou sincronize a comunidade antes, e a lista passa a valer.
+              </p>
+            )}
           </div>
         );
 

@@ -24,6 +24,7 @@ export interface SessionWizardModel {
   publicationError: string | null;
   partnershipMatrix?: PartnershipMatrix;
   canSchedule: boolean;
+  primaryAction: 'schedule' | 'manual' | 'next';
   isScheduled: boolean;
   scheduleError: string | null;
   stepLabels: string[];

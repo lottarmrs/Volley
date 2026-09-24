@@ -42,7 +42,7 @@ Amarra a lista a uma decisão que acontece depois.
 
 ---
 
-## Tarefa 2 — Marcar não pede atleta
+## Tarefa 2 — Marcar não pede atleta ✅
 
 **Por quê:** é o defeito que o usuário encontrou. O botão primário do passo 0 é
 "Próximo", e ele caminha para a exigência de atletas.
@@ -52,14 +52,14 @@ Amarra a lista a uma decisão que acontece depois.
 - `src/components/session/SessionWizard.tsx`
 - `src/application/screens/sessionWizard/sessionWizardContract.ts`
 
-- [ ] **2.1** Teste de contrato: com `canSchedule`, o modelo expõe
+- [x] **2.1** Teste de contrato: com `canSchedule`, o modelo expõe
       `primaryAction: 'schedule'`; sem comunidade, `'next'`.
-- [ ] **2.2** Rodar: falha.
-- [ ] **2.3** No passo 0, **"Marcar pelada"** vira o botão primário e
+- [x] **2.2** Rodar: falha.
+- [x] **2.3** No passo 0, **"Marcar pelada"** vira o botão primário e
       "Escolher atletas na mão" vira o secundário, que leva ao passo 1.
-- [ ] **2.4** Sem `cloudId`, o primário passa a ser o manual, com a frase:
+- [x] **2.4** Sem `cloudId`, o primário passa a ser o manual, com a frase:
       esta comunidade ainda não está na nuvem, então a lista não abre.
-- [ ] **2.5** Rodar tudo. Commit.
+- [x] **2.5** Rodar tudo. Commit.
 
 ---
 
@@ -113,6 +113,6 @@ são a rede; se algum ficar vermelho, parar e reavaliar em vez de ajustar o test
 - A inversão completa de `prepareAuthorizedTeamFormation` (partir dos
   confirmados em vez de reconciliar). A tarefa 4 encosta nisso ao pré-selecionar
   os confirmados; a inversão de verdade é fatia própria.
-- O bloqueio nº 1 da [jornada](../../JORNADA.md): quem cria a comunidade não
-  vira atleta. É **pré-requisito de produto** para este plano fazer sentido —
-  sem ele, quem marca a pelada não consegue entrar na própria lista.
+- ~~O bloqueio nº 1 da [jornada](../../JORNADA.md)~~ — **feito antes deste
+  plano começar**, porque sem ele quem marca a pelada não entraria na própria
+  lista e a divisão não faria sentido.

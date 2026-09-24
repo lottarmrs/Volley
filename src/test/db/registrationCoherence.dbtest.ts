@@ -301,6 +301,37 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
+  test('derrubar o cargo junto faz a remocao parar de pe', async () => {
+    const dono = await usuario('dono5b');
+    const comunidade = await comunidadeLegada(dono);
+    const pessoa = await usuario('removida-de-vez');
+
+    await client.query(
+      `insert into public.community_members (community_id, user_id, role, status)
+       values ($1, $2, 'organizador', 'active')`,
+      [comunidade, pessoa],
+    );
+
+    // A ordem que o painel usa: derruba o cargo e so entao tira a
+    // responsabilidade. O espelho ja revoga no primeiro passo.
+    await client.query(
+      `update public.community_members set role = 'member' where community_id = $1 and user_id = $2`,
+      [comunidade, pessoa],
+    );
+    await comoAal2(dono, 'select public.set_community_organizer($1,$2,$3)', [
+      comunidade,
+      pessoa,
+      false,
+    ]);
+
+    assert.equal(await temOrganizer(comunidade, pessoa), 0);
+    const { rows: desvio } = await client.query<{ issue: string }>(
+      'select issue from app_private.community_membership_drift() where user_id = $1',
+      [pessoa],
+    );
+    assert.deepEqual(desvio, [], 'sem cargo e sem responsabilidade, os dois modelos concordam');
+  });
+
   // -- 3. Repasse contra lista ja aberta --------------------------------------
   test('depois do repasse, quem recebeu mexe na lista que a outra pessoa abriu', async () => {
     const dono = await usuario('dono6');

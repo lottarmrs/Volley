@@ -47,14 +47,17 @@ function member(overrides: Partial<CommunityMember>): CommunityMember {
   };
 }
 
+let changeRoleSpy = vi.fn();
+
 function mockUseCommunityMembers(members: CommunityMember[]) {
+  changeRoleSpy = vi.fn().mockResolvedValue(undefined);
   useCommunityMembersMock.mockReturnValue({
     members,
     loading: false,
     error: null,
     reload: vi.fn(),
     invite: vi.fn(),
-    changeRole: vi.fn(),
+    changeRole: changeRoleSpy,
     remove: vi.fn(),
     approveRequest: vi.fn(),
     rejectRequest: vi.fn(),
@@ -339,5 +342,49 @@ describe('CommunityMembersPanel — quem organiza', () => {
 
     await waitFor(() => expect(screen.getByText(/duas etapas/i)).toBeDefined());
     expect(within(linha).getByText(/organiza as peladas/i)).toBeDefined();
+  });
+
+  it('tirar a organizacao de quem tem o cargo legado tambem derruba o cargo', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia-row', userId: 'bia', role: 'organizador', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /tirar a organização/i }));
+
+    // Sem isto o espelho de community_members devolve a responsabilidade no
+    // proximo toque no cargo, e a remocao nao se sustenta.
+    await waitFor(() => expect(changeRoleSpy).toHaveBeenCalledWith('bia-row', 'member'));
+    expect(setDutyMock).toHaveBeenCalledWith({
+      communityCloudId: 'community-cloud',
+      userId: 'bia',
+      enabled: false,
+    });
+  });
+
+  it('dar a organizacao nao mexe no cargo de ninguem', async () => {
+    listOrganizersMock.mockResolvedValue({ ok: true, value: [] });
+    setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia-row', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /deixar organizar/i }));
+
+    await waitFor(() => expect(setDutyMock).toHaveBeenCalled());
+    expect(changeRoleSpy).not.toHaveBeenCalled();
   });
 });

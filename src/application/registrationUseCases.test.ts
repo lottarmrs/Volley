@@ -19,6 +19,10 @@ import {
 
 const coded = (code: string) => Object.assign(new Error(code), { code });
 
+/** O servidor recusa com a mesma SQLSTATE e mensagens diferentes; o produto
+ *  precisa da mensagem para dizer a pessoa o que resolver. */
+const recusa = (code: string, message: string) => Object.assign(new Error(message), { code });
+
 function quadro(overrides: Partial<RegistrationBoard> = {}): RegistrationBoard {
   return {
     windowId: 'w-1',
@@ -364,4 +368,42 @@ test('subir ao topo e aplicar o corte chamam o gateway e releem', async () => {
     'applyPaymentDeadline:c-4',
     'readBoard',
   ]);
+});
+
+test('as tres recusas de entrar viram tres frases, porque tres coisas diferentes faltam', async () => {
+  const casos: { servidor: string; produto: string }[] = [
+    {
+      servidor: "Not an active member of this Registration Window's Community",
+      produto: 'Você precisa ser membro ativo desta comunidade para se inscrever.',
+    },
+    {
+      servidor: 'Caller has no ACTIVE Player account link',
+      produto: 'Falta ligar a sua conta a uma ficha de atleta. Peça isso a quem administra.',
+    },
+    {
+      servidor: "Player 0f4 is not on this Community's roster",
+      produto: 'Você ainda não está no elenco desta comunidade. Peça para te incluírem.',
+    },
+  ];
+
+  for (const caso of casos) {
+    const { gateway } = fakeGateway({ falhas: [recusa('42501', caso.servidor)] });
+    const resultado = await joinRegistration(
+      { windowId: 'w-1', commandId: `c-${caso.servidor.length}`, entryId: 'e-1' },
+      gateway,
+    );
+    assert.equal(resultado.ok, false);
+    assert.equal(resultado.ok === false ? resultado.error.message : '', caso.produto);
+  }
+});
+
+test('sair da lista sem permissao continua falando de participacao, nao de elenco', async () => {
+  const { gateway } = fakeGateway({
+    falhas: [recusa('42501', "Not an active member of this Registration Window's Community")],
+  });
+  const resultado = await leaveRegistration({ windowId: 'w-1', commandId: 'c-sair' }, gateway);
+  assert.equal(
+    resultado.ok === false ? resultado.error.message : '',
+    'Você precisa ser membro ativo desta comunidade para se inscrever.',
+  );
 });

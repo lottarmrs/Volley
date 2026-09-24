@@ -232,6 +232,20 @@ export function CommunityMembersPanel({
   const alternarOrganizacao = async (member: CommunityMember, passaAOrganizar: boolean) => {
     setOrganizadorEmCurso(member.userId);
     setErroDaOrganizacao(null);
+
+    // Em comunidade legada a responsabilidade e espelhada do cargo `organizador`.
+    // Tirar so a responsabilidade nao para de pe: o proximo toque no cargo a
+    // reconcede. Provado em registrationCoherence.dbtest.ts.
+    if (!passaAOrganizar && member.role === 'organizador') {
+      try {
+        await changeRole(member.id, 'member');
+      } catch (erro) {
+        setOrganizadorEmCurso(null);
+        setErroDaOrganizacao(messageOf(erro, 'Não foi possível tirar a organização.'));
+        return;
+      }
+    }
+
     const resultado = await setCommunityOrganizerDuty({
       communityCloudId: community.cloudId ?? null,
       userId: member.userId,

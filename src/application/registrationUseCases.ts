@@ -39,6 +39,10 @@ function hintOf(error: unknown): string | undefined {
   return undefined;
 }
 
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function classify(step: string, error: unknown): AppResult<RegistrationBoard> {
   const code = codeOf(error);
   const hint = hintOf(error);
@@ -55,6 +59,22 @@ function classify(step: string, error: unknown): AppResult<RegistrationBoard> {
     return productError('permission_denied', 'Só quem organiza marca pagamento.');
   }
   if (code === '42501' && (step === 'join' || step === 'leave')) {
+    // Tres faltas diferentes chegam com a mesma SQLSTATE, e cada uma se resolve
+    // de um jeito. Sem olhar a mensagem, o produto manda a pessoa conferir algo
+    // que ja esta certo.
+    const servidor = messageOf(error);
+    if (/Player account link/i.test(servidor)) {
+      return productError(
+        'permission_denied',
+        'Falta ligar a sua conta a uma ficha de atleta. Peça isso a quem administra.',
+      );
+    }
+    if (/roster/i.test(servidor)) {
+      return productError(
+        'permission_denied',
+        'Você ainda não está no elenco desta comunidade. Peça para te incluírem.',
+      );
+    }
     return productError(
       'permission_denied',
       'Você precisa ser membro ativo desta comunidade para se inscrever.',

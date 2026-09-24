@@ -12,6 +12,12 @@ import type { SessionWizardModel } from './sessionWizardModel';
 import type { SessionWizardIntent } from './sessionWizardIntents';
 
 export type SessionWizardHookApi = {
+  /** Guarda a pelada na lista do grupo antes do sorteio, para a inscricao
+   *  ter onde acontecer. */
+  scheduleSession: () => void;
+  canSchedule: boolean;
+  isScheduled: boolean;
+  scheduleError: string | null;
   wizardStep: number;
   validationErrors: Record<string, string>;
   bestDivisions: Division[];
@@ -69,6 +75,9 @@ function buildModel(input: SessionWizardContractInput): SessionWizardModel {
     publicationState: h.publicationState,
     publicationError: h.publicationError,
     partnershipMatrix: h.partnershipMatrix,
+    canSchedule: h.canSchedule,
+    isScheduled: h.isScheduled,
+    scheduleError: h.scheduleError,
     stepLabels: ['Sessão', 'Atletas', 'Formato', 'Regras', 'Revisão', 'Times', 'Tabela'],
     positionLabels: {
       levantador: 'Levantador',
@@ -97,6 +106,9 @@ export function buildSessionWizardContract(
         return;
       case 'cancel':
         h.cancelWizard();
+        return;
+      case 'scheduleSession':
+        h.scheduleSession();
         return;
       case 'updateSession':
         h.updateSession(intent.patch);

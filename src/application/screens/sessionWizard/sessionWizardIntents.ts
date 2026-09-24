@@ -4,6 +4,7 @@ export type SessionWizardIntent =
   | { kind: 'next' }
   | { kind: 'prev' }
   | { kind: 'cancel' }
+  | { kind: 'scheduleSession' }
   | { kind: 'updateSession'; patch: Partial<Session> }
   | { kind: 'togglePlayer'; id: string }
   | { kind: 'selectAllActive' }

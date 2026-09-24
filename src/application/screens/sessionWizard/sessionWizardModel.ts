@@ -23,6 +23,9 @@ export interface SessionWizardModel {
   publicationState: CandidateSetPublicationState;
   publicationError: string | null;
   partnershipMatrix?: PartnershipMatrix;
+  canSchedule: boolean;
+  isScheduled: boolean;
+  scheduleError: string | null;
   stepLabels: string[];
   positionLabels: Record<string, string>;
   positionOrder: string[];

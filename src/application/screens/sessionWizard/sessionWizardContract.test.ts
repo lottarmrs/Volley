@@ -293,3 +293,42 @@ test('publicar repassa ao hook e o modelo expoe o estado da publicacao', async (
   await c.dispatch({ kind: 'publishCandidateSet' });
   assert.equal(published, 1);
 });
+
+test('marcar a pelada chega ao hook pela intencao, e o modelo diz se ja foi marcada', async () => {
+  const chamadas: string[] = [];
+  const hookApi = makeHookApi({
+    scheduleSession: () => chamadas.push('scheduleSession'),
+    canSchedule: true,
+    isScheduled: false,
+    scheduleError: null,
+  });
+  const contract = buildSessionWizardContract({
+    activeSession: null,
+    players: [],
+    communities: [],
+    hookApi,
+    applyGuestPlayer: () => {},
+  });
+
+  assert.equal(contract.model.canSchedule, true);
+  assert.equal(contract.model.isScheduled, false);
+
+  await contract.dispatch({ kind: 'scheduleSession' });
+  assert.deepEqual(chamadas, ['scheduleSession']);
+});
+
+test('a recusa de marcar chega a tela pelo modelo, nao por excecao', () => {
+  const contract = buildSessionWizardContract({
+    activeSession: null,
+    players: [],
+    communities: [],
+    hookApi: makeHookApi({
+      canSchedule: true,
+      isScheduled: false,
+      scheduleError: 'Essa data já passou. Escolha hoje ou um dia à frente.',
+    }),
+    applyGuestPlayer: () => {},
+  });
+
+  assert.match(contract.model.scheduleError ?? '', /ja passou|já passou/i);
+});

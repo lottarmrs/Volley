@@ -20,6 +20,8 @@ import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { generateUUID } from '../logic/uuid';
+import { buildScheduledSessionResult } from '@app/scheduleSessionUseCases';
+import { formatLocalDateInput } from '../logic/date';
 import { STORAGE_KEYS } from '../storage/localStorageRepository';
 import {
   buildDivisionConfirmationApplicationResult,
@@ -79,6 +81,7 @@ export function useSessionWizard({
   teamCandidateSetGateway,
 }: UseSessionWizardProps) {
   const [wizardStep, setWizardStep] = useState(0);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [bestDivisions, setBestDivisions] = useState<Division[]>([]);
   const [selectedDivisionIndex, setSelectedDivisionIndex] = useState(0);
@@ -536,6 +539,33 @@ export function useSessionWizard({
     setPage(result.nextPage);
   };
 
+  /** Guarda a pelada na lista do grupo ANTES do sorteio. Sem isso ela vive so
+   *  em `activeSession`, some da agenda e do painel, e a inscricao -- que
+   *  acontece antes do sorteio -- nunca fica alcancavel. */
+  const scheduleSession = () => {
+    const agora = new Date();
+    const resultado = buildScheduledSessionResult({
+      activeSession,
+      sessions,
+      date: activeSession?.date ?? '',
+      today: formatLocalDateInput(agora),
+      now: agora.toISOString(),
+    });
+    if (!resultado.ok) {
+      setScheduleError(resultado.error.message);
+      return;
+    }
+    setScheduleError(null);
+    setSessions(resultado.value.sessions);
+    setActiveSession(resultado.value.session);
+  };
+
+  const canSchedule =
+    !!activeSession?.communityId &&
+    ['draft', 'players_selected', 'configured'].includes(activeSession.status);
+
+  const isScheduled = !!activeSession && sessions.some((atual) => atual.id === activeSession.id);
+
   const cancelWizard = () => {
     preparationRef.current += 1;
     const request = buildWizardCancelRequestResult();
@@ -555,6 +585,10 @@ export function useSessionWizard({
   };
 
   return {
+    scheduleSession,
+    canSchedule,
+    isScheduled,
+    scheduleError,
     wizardStep,
     setWizardStep,
     validationErrors,

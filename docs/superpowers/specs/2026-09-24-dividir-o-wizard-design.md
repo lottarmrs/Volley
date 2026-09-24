@@ -110,9 +110,20 @@ cada uma muda é só o destino, não a navegação.
   tela.** Mexer na ordem dos comandos ali arrisca o caminho que a XS-W6-08c
   abriu. Os testes de `authorizedTeamFormationUseCases` são a rede.
 
-## Aberto, para decidir no plano
+## Decidido em 2026-09-24, fechando a spec
 
-- O número de vagas da lista sai do `teamCount × 6` (padrão de hoje) ou vira
-  campo próprio ao marcar?
-- A rota 2 exige lista `LOCKED`, ou aceita sortear com a lista ainda aberta
-  (fechando-a no caminho, como hoje)?
+**As vagas viram campo próprio, com sugestão.** Ao marcar, o campo já vem
+preenchido com `teamCount × 6` e quem organiza muda se quiser. A vaga é o que o
+grupo vê e disputa — merece ser explícita, não derivada de uma conta escondida.
+E desamarra a lista do número de times, que é decisão de sorteio e acontece
+depois.
+
+**Fechar a lista é um passo separado do sorteio.** Quem organiza fecha, confere
+quem ficou, e só então sorteia. Custa um toque a mais num momento de pressa, e o
+desenho precisa cobrir isso: a tela de sorteio, com a lista ainda aberta, não
+pode simplesmente recusar — tem que oferecer o fechamento ali, com a conferência
+à vista. Esquecer de fechar não pode virar a nova reclamação.
+
+Consequência no código: `prepareAuthorizedTeamFormation` hoje fecha e trava a
+janela sozinho quando a encontra `OPEN` (`authorizedTeamFormationUseCases.ts:192`).
+Esse trecho sai do caminho automático e vira ação de tela.

@@ -75,14 +75,16 @@ painel → comunidade → "marcar pelada" → SessionWizard
        → escolhe elenco → sorteia → confirma → sessão ao vivo
 ```
 
-**Quebra:** a pelada só existe em `sess.sessions` depois de `confirmDivision`
-(`useSessionWizard.ts:508`). Antes disso ela vive só em `activeSession` e não
-aparece em lugar nenhum — nem na agenda, nem no painel. E ela nasce com a data
-de **hoje** (`sessionLifecycleUseCases.ts:112`).
+**Corrigido em 2026-09-24.** Até então a pelada só existia em `sess.sessions`
+depois de `confirmDivision`: antes disso vivia só em `activeSession`, não
+aparecia na agenda nem no painel, e nascia com a data de hoje. Não existia
+marcar pelada para depois, e tudo que depende de antecedência — inscrição,
+pagamento, convite — estava em cima de um alicerce que não existia.
 
-**Consequência:** *não existe marcar uma pelada para depois*. O produto assume
-que você sorteia no dia. Tudo que depende de antecedência — inscrição,
-pagamento, convite — está construído sobre um alicerce que não existe.
+O primeiro passo do wizard agora tem **"Marcar pelada"**: guarda a data
+escolhida na lista do grupo, sem sortear, e oferece o atalho para abrir a lista.
+O caso de uso recusa o que produziria pelada inalcançável — data no passado,
+data inválida, pelada sem comunidade e pelada já sorteada.
 
 ### 2.2 O atleta entra na lista
 
@@ -90,11 +92,10 @@ pagamento, convite — está construído sobre um alicerce que não existe.
 painel → cartão "próxima pelada" → inscrição → "Quero jogar"
 ```
 
-**Quebra 1:** o cartão e a agenda só listam sessões que estão em
-`sess.sessions` com data `>= hoje` (`agendaViewModel.ts:33-37`). Como a sessão
-só entra lá no sorteio, **a tela da inscrição só fica alcançável depois do
-sorteio** — e o sorteio autorizado já fecha e tranca a janela. A inscrição
-existe para acontecer antes; o caminho até ela só existe depois.
+**Corrigido.** O cartão e a agenda listam sessões em `sess.sessions` com data
+`>= hoje` (`agendaViewModel.ts:33-37`). Como a pelada agora entra lá ao ser
+marcada, a inscrição ficou alcançável antes do sorteio — que é quando ela
+serve.
 
 **Quebra 2:** entrar na lista exige **três** coisas no servidor, provadas em
 `registrationCoherence.dbtest.ts`: participação ativa na comunidade, uma ficha
@@ -112,16 +113,16 @@ WhatsApp → /comunidades/:c/sessoes/:s/inscricao
 mesmo sem a pelada neste aparelho, abre a lista. A tela se vira com o id da
 URL, que para sessão target é o próprio id de nuvem.
 
-**O que ainda não funciona:**
+**Quem não é do grupo** segue para `/convite/:codigo?pelada=:id`, que vive fora
+do `CommunityShell` justamente porque a comunidade não está no aparelho dela.
+Pede entrada em um toque e, depois de aprovada, cai na pelada que motivou o
+link. A mensagem de compartilhar carrega os dois endereços.
 
-- **Quem tem conta e não é da comunidade** cai em `/comunidades`.
-  `CommunityShell` (`communityRoutes.tsx:61`) redireciona antes de qualquer
-  outra coisa quando a comunidade não está neste aparelho. Esta pessoa perde o
-  contexto da pelada e não recebe convite nenhum.
-- **A data não aparece** para quem chega pelo link: `read_registration_board`
-  não devolve nome nem data, e `read_target_session` devolve só o nome.
-- **Quem não tem conta** agora vê o convite certo e volta para a pelada depois
-  do cadastro — mas chega lá como não-membro, e cai no caso acima.
+**Nome e data** vêm do quadro desde a migration `registration_board_session_facts`:
+quem chega pelo link vê a pelada inteira, não um cabeçalho vazio.
+
+**O que ainda não funciona:** o atleta aprovado ainda precisa de ficha de atleta
+e de entrar no elenco (fatia 3), e ninguém o avisa disso na hora.
 
 ### 2.4 Entrar na comunidade
 
@@ -129,11 +130,15 @@ URL, que para sessão target é o próprio id de nuvem.
 /comunidades → "entrar com código" (modal) → digita o código → pedido → aprovação
 ```
 
-**Quebra:** o código de convite **não tem URL**. `JoinCommunityByCode` só existe
-como modal dentro de `CommunitiesView` (`CommunitiesView.tsx:315`). Não dá para
-mandar um link que faça a pessoa entrar; é preciso dizer o código e torcer para
-ela achar o modal. E depois de aprovada ela ainda precisa ser ligada a uma ficha
-de atleta e entrar no elenco — dois passos que ninguém lhe explica.
+**Corrigido em 2026-09-24.** O código de convite não tinha URL: `JoinCommunityByCode`
+só existia como modal dentro de `CommunitiesView`, então era preciso dizer o
+código e torcer para a pessoa achar o modal. Agora há a rota `/convite/:codigo`,
+e qualquer membro pode compartilhá-la — a policy de `communities` já deixa quem
+tem papel ler o `join_code`. Criar o código e aprovar a entrada continuam sendo
+de quem administra.
+
+**Segue aberto:** depois de aprovada, a pessoa ainda precisa de ficha de atleta e
+de entrar no elenco, e ninguém lhe explica isso (fatia 3).
 
 ### 2.5 Quem organiza passa a pelada adiante
 
@@ -141,9 +146,10 @@ de atleta e entrar no elenco — dois passos que ninguém lhe explica.
 inscrição → "Quem organiza" → assumir, ou escolher a pessoa
 ```
 
-Funciona (2026-09-24). Mas **tirar a responsabilidade de quem está organizando
-tranca a lista aberta no meio do caminho**, com `42501` e sem aviso nenhum —
-provado em `registrationCoherence.dbtest.ts`.
+Funciona (2026-09-24). Tirar a responsabilidade de quem está organizando **trava
+a lista aberta no meio do caminho**, com `42501` e sem explicação — provado em
+`registrationCoherence.dbtest.ts`. A ação passou a pedir confirmação dizendo
+exatamente isso; o comportamento do servidor não mudou.
 
 ---
 

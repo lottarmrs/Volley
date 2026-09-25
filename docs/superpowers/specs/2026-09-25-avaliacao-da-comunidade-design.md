@@ -97,11 +97,14 @@ Nova `public.list_community_evaluation_roster(p_community_id uuid) returns jsonb
 - Quem pede **só aparece** quando pode se autoavaliar (1.3), com `is_self = true`.
 - Não devolve nota de ninguém, nem quem mais avaliou.
 
-### 1.6 Atleta sem conta numa comunidade só
+### 1.6 Atleta sem conta numa comunidade só — movido para a parte 2
 
-Gatilho `before insert or update` em `public.community_players`: recusa com `23514` e
-`A Player without an account belongs to one Community` quando o atleta não tem `user_id` nem
-vínculo `ACTIVE` e já tem vínculo vivo com outra comunidade.
+Decidido com o usuário em 2026-09-25, ao escrever o plano. O gatilho em `community_players`
+quebraria dois fluxos que existem hoje: **duplicar com atletas** põe os mesmos atletas na comunidade
+nova, e o **modal de convidado** reaproveita um atleta de outra comunidade
+(`findDuplicatePlayerByProfile`). A parte 2 redesenha como nasce e quem edita o atleta sem conta, e
+o gatilho entra lá junto com a correção desses dois fluxos. Em produção a regra já vale nos dados
+(0 casos).
 
 ### Testes — `src/test/db/avaliacaoDaComunidade.dbtest.ts`
 
@@ -115,7 +118,6 @@ vínculo `ACTIVE` e já tem vínculo vivo com outra comunidade.
   valendo até alguém avaliar;
 - a autoavaliação de uma conta apagada continua marcada e continua saindo da conta;
 - a lista recusa quem não avalia, não traz notas, e só inclui quem pede quando é autoavaliação;
-- atleta sem conta não entra numa segunda comunidade; atleta com conta entra.
 
 Antes de escrever, ler o que protegem `communityEvaluationEditor`, `communitySkillProfile`,
 `governanceCapabilities` e `playerEvaluationContributions`. Pelo menos uma afirma que o cargo não dá
@@ -202,6 +204,8 @@ a nota (número, passos ou deslizante) é decidida ali.
 
 - Carta do atleta em Pessoas, remoção da edição de terceiros e edição de atleta sem conta na
   Gestão → parte 2.
+- Gatilho "atleta sem conta numa comunidade só", com a correção de duplicar e do convidado → parte 2
+  (ver 1.6).
 - Ficha preenchida pelo próprio atleta → parte 3.
 - O que o atleta vê da própria avaliação → parte 2.
 - Destino da autoavaliação antiga (`self_evaluations`), que não entra no sorteio → aberto na

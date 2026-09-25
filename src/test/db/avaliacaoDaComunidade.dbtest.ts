@@ -254,4 +254,61 @@ if (!isTestDatabaseConfigured()) {
     const reenvio = await como(c.dono, RECORD, args);
     assert.deepEqual(reenvio.rows, primeiro.rows);
   });
+
+  const ROSTER = 'select public.list_community_evaluation_roster($1) as roster';
+
+  type Linha = {
+    player_id: string;
+    has_account: boolean;
+    my_last_evaluated_at: string | null;
+    is_self: boolean;
+  };
+
+  async function lista(actor: string, comunidade: string): Promise<Linha[]> {
+    const { rows } = await como<{ roster: Linha[] }>(actor, ROSTER, [comunidade]);
+    return rows[0].roster;
+  }
+
+  test('a lista recusa quem nao avalia', async () => {
+    const c = await cena();
+    const membro = await entra(c.comunidade, 'member');
+    await recusa(membro, ROSTER, [c.comunidade], /Not authorized to evaluate Players/);
+  });
+
+  test('a lista traz o elenco, marca quem eu avaliei, e nao traz nota', async () => {
+    const c = await cena();
+    const admin = await entra(c.comunidade, 'admin');
+    const avaliada = await atleta(c.comunidade, c.dono);
+    const pendente = await atleta(c.comunidade, c.dono);
+    await avalia(admin, c.comunidade, avaliada);
+
+    const linhas = await lista(admin, c.comunidade);
+    const porId = new Map(linhas.map((l) => [l.player_id, l]));
+
+    assert.notEqual(porId.get(avaliada)?.my_last_evaluated_at, null);
+    assert.equal(porId.get(pendente)?.my_last_evaluated_at, null);
+    assert.equal(porId.get(avaliada)?.has_account, false);
+    assert.ok(linhas.every((l) => !('dimensions' in l) && !('value' in l)));
+  });
+
+  test('quem pede so aparece na lista quando pode se autoavaliar', async () => {
+    const c = await cena();
+
+    const sozinho = await lista(c.dono, c.comunidade);
+    assert.deepEqual(
+      sozinho.filter((l) => l.is_self).map((l) => l.player_id),
+      [c.fichaDoDono],
+    );
+
+    const admin = await entra(c.comunidade, 'admin');
+    const acompanhado = await lista(c.dono, c.comunidade);
+    assert.equal(
+      acompanhado.some((l) => l.player_id === c.fichaDoDono),
+      false,
+    );
+    assert.equal(
+      (await lista(admin, c.comunidade)).some((l) => l.player_id === c.fichaDoDono),
+      true,
+    );
+  });
 }

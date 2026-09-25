@@ -426,3 +426,63 @@ as $$
     ), '[]'::jsonb)
   );
 $$;
+
+-- A lista da tela de avaliacao. Nao devolve nota de ninguem nem quem mais avaliou; quem pede
+-- so aparece quando pode se autoavaliar (o unico avaliador da comunidade).
+create or replace function public.list_community_evaluation_roster(p_community_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_pode_se_avaliar boolean;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+  if p_community_id is null
+     or not public.current_user_has_community_capability(p_community_id, 'player.evaluate')
+  then
+    raise exception 'Not authorized to evaluate Players in this Community' using errcode = '42501';
+  end if;
+
+  v_pode_se_avaliar := not app_private.community_has_other_evaluator(p_community_id, v_uid);
+
+  return coalesce((
+    select pg_catalog.jsonb_agg(x.linha order by x.linha->>'sort_key')
+      from (
+        select pg_catalog.jsonb_build_object(
+                 'player_id', p.id,
+                 'name', p.name,
+                 'nickname', p.nickname,
+                 'position', p.primary_position,
+                 'has_account', p.user_id is not null or exists (
+                   select 1 from public.player_account_links l
+                    where l.player_id = p.id and l.status = 'ACTIVE'
+                 ),
+                 'my_last_evaluated_at', (
+                   select pg_catalog.max(c.recorded_at)
+                     from public.player_evaluation_contributions c
+                    where c.community_id = p_community_id
+                      and c.player_id = p.id
+                      and c.evaluator_user_id = v_uid
+                      and c.superseded_at is null
+                 ),
+                 'is_self', public.player_is_linked_to_current_user(p.id),
+                 'sort_key', pg_catalog.lower(coalesce(nullif(p.nickname, ''), p.name))
+               ) as linha
+          from public.community_players cp
+          join public.players p on p.id = cp.player_id
+         where cp.community_id = p_community_id
+           and app_private.registration_player_standing_alive(p_community_id, p.id)
+           and (v_pode_se_avaliar or not public.player_is_linked_to_current_user(p.id))
+      ) x
+  ), '[]'::jsonb);
+end;
+$$;
+
+revoke all on function public.list_community_evaluation_roster(uuid) from public, anon;
+grant execute on function public.list_community_evaluation_roster(uuid) to authenticated;

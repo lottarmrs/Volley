@@ -286,7 +286,7 @@ as $$
 $$;
 ```
 
-Antes de salvar, conferir com `grep -ln "function public.community_capabilities" supabase/migrations/2*` que `20260905185744` continua sendo o último arquivo e que o corpo acima difere dele **só** nos dois `'player.evaluate'` dos arrays e no comentário do terceiro ramo.
+Antes de salvar, conferir com `grep -ln "create or replace function public.community_capabilities" supabase/migrations/*.sql` que `20260905185744` continua sendo o último arquivo e que o corpo acima difere dele **só** nos dois `'player.evaluate'` dos arrays e no comentário do terceiro ramo. **Não** acrescentar `grant`: a auditoria A7 (`20260908160000`) tirou o `execute` de `authenticated`, e o `create or replace` preserva essa revogação.
 
 - [ ] **Step 4: Rodar e ver passar**
 
@@ -805,6 +805,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/app/AppShell.tsx` (mapa de ícones ~linha 86; chamada de `getShellNavigationItems` ~linha 633)
 
 **Interfaces:**
+- Por que não `community_capabilities`: a auditoria de 2026-09-08 (A7, `20260908160000`) tirou dela o `execute` de `authenticated`, porque revelava os papéis de qualquer usuário. O caminho do cliente é `current_user_has_community_capability`, que só responde sobre a própria conta.
 - Produces:
   - `paths.avaliacao(communityId: string): string` → `/comunidades/${communityId}/avaliacao`
   - `paths.avaliacaoAtleta(communityId: string, playerCloudId: string): string` → `/comunidades/${communityId}/avaliacao/${playerCloudId}`
@@ -824,9 +825,9 @@ import { loadCommunityCapabilities } from './communityCapabilitiesUseCases';
 test('sem comunidade na nuvem ou sem conta, nao ha capacidade e nao chama o servidor', async () => {
   let chamou = false;
   const gateway = {
-    list: async () => {
+    has: async () => {
       chamou = true;
-      return ['player.evaluate'];
+      return true;
     },
   };
   assert.deepEqual(await loadCommunityCapabilities(null, 'u1', gateway), { ok: true, value: [] });
@@ -834,17 +835,27 @@ test('sem comunidade na nuvem ou sem conta, nao ha capacidade e nao chama o serv
   assert.equal(chamou, false);
 });
 
-test('devolve o que o servidor diz', async () => {
-  const gateway = { list: async () => ['community.members.manage', 'player.evaluate'] };
+test('devolve as capacidades que o servidor confirma, uma a uma', async () => {
+  const perguntadas: string[] = [];
+  const gateway = {
+    has: async (_community: string, capability: string) => {
+      perguntadas.push(capability);
+      return capability === 'player.evaluate';
+    },
+  };
   assert.deepEqual(await loadCommunityCapabilities('c1', 'u1', gateway), {
     ok: true,
-    value: ['community.members.manage', 'player.evaluate'],
+    value: ['player.evaluate'],
   });
+  assert.deepEqual(perguntadas, ['player.evaluate']);
+
+  const nega = { has: async () => false };
+  assert.deepEqual(await loadCommunityCapabilities('c1', 'u1', nega), { ok: true, value: [] });
 });
 
 test('falha do servidor vira erro tecnico, nunca capacidade', async () => {
   const gateway = {
-    list: async () => {
+    has: async () => {
       throw new Error('rede');
     },
   };
@@ -900,15 +911,15 @@ Expected: FAIL — módulo `./communityCapabilitiesUseCases` não existe; `paths
 import { isSupabaseConfigured, supabase as client } from '../../lib/supabaseClient';
 
 export const communityCapabilitiesCloudService = {
-  async list(communityCloudId: string, userId: string): Promise<string[]> {
+  async has(communityCloudId: string, capability: string): Promise<boolean> {
     if (!isSupabaseConfigured)
       throw Object.assign(new Error('Cloud unavailable'), { code: 'CLOUD_UNAVAILABLE' });
-    const { data, error } = await client.rpc('community_capabilities', {
+    const { data, error } = await client.rpc('current_user_has_community_capability', {
       target_community_id: communityCloudId,
-      target_user_id: userId,
+      target_capability: capability,
     });
     if (error) throw error;
-    return ((data as string[] | null) ?? []).filter((value) => typeof value === 'string');
+    return data === true;
   },
 };
 ```
@@ -920,8 +931,10 @@ import { communityCapabilitiesCloudService } from '@infra/supabase/communityCapa
 import { appOk, technicalError, type AppResult } from './appResult';
 
 export interface CommunityCapabilitiesGateway {
-  list(communityCloudId: string, userId: string): Promise<string[]>;
+  has(communityCloudId: string, capability: string): Promise<boolean>;
 }
+
+export const CAPABILITIES_OF_INTEREST = ['player.evaluate'] as const;
 
 export async function loadCommunityCapabilities(
   communityCloudId: string | null | undefined,
@@ -932,7 +945,12 @@ export async function loadCommunityCapabilities(
   const user = userId?.trim();
   if (!community || !user) return appOk([]);
   try {
-    return appOk(await gateway.list(community, user));
+    const granted = await Promise.all(
+      CAPABILITIES_OF_INTEREST.map(async (capability) =>
+        (await gateway.has(community, capability)) ? capability : null,
+      ),
+    );
+    return appOk(granted.filter((capability): capability is string => capability !== null));
   } catch (error) {
     return technicalError('Não foi possível conferir suas permissões nesta comunidade.', error);
   }

@@ -314,19 +314,19 @@ if (!isTestDatabaseConfigured()) {
     assert.equal((await read(c)).source_revision, added.source_revision);
   });
 
-  test('denies anonymous, rank-only, member and cross-Community callers before existence disclosure', async () => {
+  test('denies anonymous, member and cross-Community callers before existence disclosure', async () => {
     const c = await context();
     const other = await context();
     await rejects(null, [c.communityId, c.playerId, VERSION], '42501');
-    for (const role of ['owner', 'admin', 'member']) {
-      const actor = role === 'owner' ? c.ownerId : await user();
-      if (role !== 'owner') {
-        await client.query(
-          `insert into public.community_memberships (community_id, user_id, role, status)
-           values ($1, $2, $3, 'active')`,
-          [c.communityId, actor, role],
-        );
-      }
+    // Until 2026-09-25 owner and admin were in this loop too (rank-only). Since then they
+    // evaluate by rank, and so they read the profile; that side is asserted below.
+    for (const role of ['member']) {
+      const actor = await user();
+      await client.query(
+        `insert into public.community_memberships (community_id, user_id, role, status)
+         values ($1, $2, $3, 'active')`,
+        [c.communityId, actor, role],
+      );
       await rejects(
         actor,
         [c.communityId, c.playerId, VERSION],
@@ -338,6 +338,23 @@ if (!isTestDatabaseConfigured()) {
         [c.communityId, randomUUID(), 'unknown'],
         '42501',
         'Not authorized to read skill profiles in this Community',
+      );
+    }
+    for (const role of ['owner', 'admin']) {
+      const actor = role === 'owner' ? c.ownerId : await user();
+      if (role !== 'owner') {
+        await client.query(
+          `insert into public.community_memberships (community_id, user_id, role, status)
+           values ($1, $2, $3, 'active')`,
+          [c.communityId, actor, role],
+        );
+      }
+      await asIdentityCommitting(client, actor, () =>
+        client.query('select public.get_community_player_skill_profile($1,$2,$3)', [
+          c.communityId,
+          c.playerId,
+          VERSION,
+        ]),
       );
     }
     await rejects(other.evaluatorId, [c.communityId, c.playerId, VERSION], '42501');

@@ -328,7 +328,7 @@ if (!isTestDatabaseConfigured()) {
     return playerId;
   }
 
-  test('an EVALUATOR responsibility grants player.evaluate and a governance rank does not', async () => {
+  test('an EVALUATOR responsibility grants player.evaluate, and so do owner and admin rank', async () => {
     const ownerId = await newUser('w501-cap-owner@example.com');
     const communityId = await targetCommunity(ownerId, 'W501 Capability');
 
@@ -344,15 +344,17 @@ if (!isTestDatabaseConfigured()) {
       true,
       'an explicit EVALUATOR responsibility grants it',
     );
+    // GINV-CAP-002 held here until 2026-09-25, when the user decided that owner and admin
+    // evaluate by rank (spec 2026-09-25-avaliacao-da-comunidade-design.md).
     assert.equal(
       await hasCapability(adminId, communityId, 'player.evaluate'),
-      false,
-      'GINV-CAP-002: an admin rank never confers it',
+      true,
+      'admin evaluates by rank since 2026-09-25',
     );
     assert.equal(
       await hasCapability(ownerId, communityId, 'player.evaluate'),
-      false,
-      'GINV-CAP-002: an owner rank never confers it',
+      true,
+      'owner evaluates by rank since 2026-09-25',
     );
 
     await client.query(
@@ -713,22 +715,22 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(secondContributions[0].superseded_at, null);
   });
 
-  test('evaluating requires the capability, and rank alone never grants it', async () => {
+  test('evaluating requires the capability; a plain member does not hold it', async () => {
     const ownerId = await newUser('w501-auth-owner@example.com');
     const communityId = await targetCommunity(ownerId, 'W501 Auth');
     const playerId = await evaluablePlayer(communityId, ownerId, 'Alvo');
 
-    const adminId = await newUser('w501-auth-admin@example.com');
-    await activeMembership(communityId, adminId, 'admin');
+    // Until 2026-09-25 this loop refused owner and admin too (GINV-CAP-002). Since then they
+    // evaluate by rank, so the rank without the capability is a plain member.
+    const memberId = await newUser('w501-auth-member@example.com');
+    await activeMembership(communityId, memberId);
 
-    for (const actorId of [ownerId, adminId]) {
-      const attempt = await recordEvaluation(actorId, {
-        communityId,
-        playerId,
-        dimensions: { saque: 5 },
-      }).catch((error: Error) => error);
-      assertSqlState(attempt, '42501');
-    }
+    const attempt = await recordEvaluation(memberId, {
+      communityId,
+      playerId,
+      dimensions: { saque: 5 },
+    }).catch((error: Error) => error);
+    assertSqlState(attempt, '42501');
 
     const anonymous = await recordEvaluation(null, {
       communityId,

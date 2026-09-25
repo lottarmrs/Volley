@@ -133,36 +133,21 @@ if (!isTestDatabaseConfigured()) {
     assert.equal(held.includes('community.ownership.transfer'), false);
   });
 
-  // ── EXIT GATE 2 ──────────────────────────────────────────────────────────
-  test('EXIT GATE: an Admin cannot evaluate a Player without an operational capability', async () => {
-    // The legacy model maps admin -> manage_evaluations directly. GINV-CAP-002 forbids a
-    // governance rank silently conferring an operational capability, so the target resolver
-    // must not hand player.evaluate to an Admin.
+  // ── EXIT GATE 2 — trocado em 2026-09-25 ──────────────────────────────────
+  test('an Admin evaluates by rank since 2026-09-25, and still holds no Owner capability', async () => {
+    // GINV-CAP-002 blocked this until the user decided, on 2026-09-25, that owner and admin
+    // evaluate by rank (spec 2026-09-25-avaliacao-da-comunidade-design.md). In production
+    // nobody held EVALUATOR, so no Community could evaluate at all.
     const owner = await newUser('adm-owner@test.local');
     const admin = await newUser('adm-admin@test.local');
     const community = await newCommunity('AdminEval', owner);
     await governance(community, admin, 'admin');
 
-    const held = await capabilities(community, admin);
-
-    // XS-W2-06 added profile.update to the ADMIN set. The point of this test is the
-    // ABSENCE below, which is unchanged.
-    assert.deepEqual(held, ['community.members.manage', 'community.profile.update']);
-    assert.equal(
-      held.includes('player.evaluate'),
-      false,
-      'evaluation is operational; governance rank must not confer it',
-    );
-
-    // And the legacy table still says otherwise, which is exactly why the resolver exists.
-    const legacy = await client.query(
-      "select 1 from public.community_role_capabilities where role = 'admin' and capability = 'manage_evaluations'",
-    );
-    assert.equal(
-      legacy.rowCount,
-      1,
-      'the legacy mapping still grants it; the target resolver deliberately does not',
-    );
+    assert.deepEqual(await capabilities(community, admin), [
+      'community.members.manage',
+      'community.profile.update',
+      'player.evaluate',
+    ]);
   });
 
   // ── EXIT GATE 3 ──────────────────────────────────────────────────────────
@@ -210,6 +195,7 @@ if (!isTestDatabaseConfigured()) {
       'community.members.manage',
       'community.ownership.transfer',
       'community.profile.update',
+      'player.evaluate',
     ]);
   });
 
@@ -238,6 +224,7 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(await capabilities(community, person), [
       'community.members.manage',
       'community.profile.update',
+      'player.evaluate',
       'session.manage',
     ]);
 
@@ -249,6 +236,7 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(await capabilities(community, person), [
       'community.members.manage',
       'community.profile.update',
+      'player.evaluate',
     ]);
   });
 

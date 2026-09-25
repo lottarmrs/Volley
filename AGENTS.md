@@ -117,6 +117,40 @@ Two config files exist: `eslint.config.js` (active) and `eslint.config.mjs` (stu
 - `DISABLE_HMR=true` disables HMR — use during AI agent edits when file watching causes issues.
 - Manual chunks separate react, supabase, motion, and recharts for bundle optimization.
 
+## Working Practices
+
+These are how the work gets done here, not suggestions. Each exists because skipping it produced a
+defect that reached production or a document that started lying.
+
+**A new screen goes through `/impeccable shape` first.** Before writing the component, not after.
+The skill forces the questions that decide the screen — who arrives, in what state, what the empty
+and failure cases say — and a screen designed backwards from its markup gets those wrong. It also
+loads this project's `PRODUCT.md` and `DESIGN.md`, so the result stays inside the existing visual
+world instead of inventing a second one.
+
+**A new screen gets a design bench in the same slice.** See the Design Bench section above. A screen
+you have never seen rendered is not finished, and community routes cannot be opened in a browser
+without an account.
+
+**Database work is TDD against a real Postgres.** Write the `.dbtest.ts` that fails first, then the
+migration. Two payoffs that keep recurring: the test states the intent in the repo's own language,
+and a test that goes red on someone else's migration is how a behavioural change announces itself.
+Never adjust a failing pre-existing test to make room for a new rule — read what it protects first.
+Twice in one day that reading reversed the plan.
+
+**Auditing a flow means writing the questions before the answers.** `docs/JORNADA.md` is the format:
+per stage, four families of question — _where did the person come from, what if it is empty, is this
+the right moment to ask for this, what happens when it fails_ — each answered with evidence or
+marked ❓ unverified. The rule at the top is the whole point: **do not advance past a stage with a
+red question open.** Ad-hoc auditing finds what you already suspected; the question bank found that
+whoever creates a community could never play in it.
+
+**Verify in production after applying a migration, with a read query.** Applying returns success
+long before the data is what you expected. Two of this repo's fixes needed a backfill that only a
+count revealed.
+
+**When you fix something, fix the sentence that describes it.** Same commit, not later.
+
 ## Traps That Cost Real Time
 
 Each of these was discovered the hard way, with the cost noted so you can judge whether to trust

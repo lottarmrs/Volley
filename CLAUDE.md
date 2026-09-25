@@ -10,6 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`README.md`** — setup, Supabase migration list, schema overview.
 - **`docs/JORNADA.md`** — the journey as a question bank. Read before planning anything a user
   touches: it says which stages are proven, which are open, and what was never verified.
+- **`AGENTS.md` → "Working Practices"** — how work gets done here: `/impeccable shape` before a new
+  screen, a design bench in the same slice, TDD against a real Postgres, and the question-bank
+  format for auditing a flow.
 - **`AGENTS.md` → "Traps That Cost Real Time"** — the handful of things in this repo that behave
   contrary to reasonable expectation. `tsc` not catching unknown React props is one of them.
 
@@ -42,6 +45,17 @@ Glob patterns enforce naming:
 - `.dbtest.ts` → PostgreSQL/RLS/concurrency suites under `src/test/db/`, run by `npm run test:db` against a **real** database. The distinct suffix keeps them out of the `test:unit` glob; naming one `.test.ts` would drag it into every unit run and fail it.
 
 `test:db` needs a database and never mocks one (QA-INV-003/004). It resolves `VOLLEY_TEST_DATABASE_URL`, falling back to a running `supabase start` stack, and exits non-zero with instructions when neither exists — a green run without a database would be a false pass. CI orchestration is deliberately undecided (`OPEN-QA-002`), so the runner accepts any Postgres you point it at.
+
+**Use a throwaway Postgres, not `npm run db:start`.** The `supabase start` fallback the runner
+advertises cannot build this schema — the migration chain fails partway on that stack. A plain
+container works:
+
+```bash
+docker run -d --name volley_test_pg -e POSTGRES_PASSWORD=postgres -p 55500:5432 postgres:16
+```
+
+Then `VOLLEY_TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55500/volley_test npm run test:db`.
+One file: `node scripts/db-harness.mjs <filename>` — **filename only, not a path**.
 
 ## Environment
 

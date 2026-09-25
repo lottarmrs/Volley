@@ -1,44 +1,122 @@
 import { useEffect, useRef, useState, type FC } from 'react';
+import { Eraser } from 'lucide-react';
 import type { CommunityEvaluationCommand, CommunityEvaluationEditorContext } from '@shared/types';
 import {
   loadCommunityEvaluationEditor,
   parseScores,
-  setCommunityEvaluator,
   submitCommunityEvaluation,
 } from '@app/communityEvaluationUseCases';
 import { generateUUID } from '@logic/uuid';
 import type { AppError } from '@app/appResult';
 
-const FIELDS = [
-  ['saque', 'Saque'],
-  ['recepcao', 'Recepção'],
-  ['levantamento', 'Levantamento'],
-  ['ataque', 'Ataque'],
-  ['bloqueio', 'Bloqueio'],
-  ['defesa', 'Defesa'],
-  ['velocidade', 'Velocidade'],
-  ['resistencia', 'Resistência'],
-  ['leituraDeJogo', 'Leitura de jogo'],
-  ['regularidade', 'Regularidade'],
-  ['controleEmocional', 'Controle emocional'],
+const GROUPS = [
+  {
+    title: 'Técnica',
+    fields: [
+      ['saque', 'Saque'],
+      ['recepcao', 'Recepção'],
+      ['levantamento', 'Levantamento'],
+      ['ataque', 'Ataque'],
+      ['bloqueio', 'Bloqueio'],
+      ['defesa', 'Defesa'],
+    ],
+  },
+  {
+    title: 'Físico',
+    fields: [
+      ['velocidade', 'Velocidade'],
+      ['resistencia', 'Resistência'],
+    ],
+  },
+  {
+    title: 'Mental',
+    fields: [
+      ['leituraDeJogo', 'Leitura de jogo'],
+      ['regularidade', 'Regularidade'],
+      ['controleEmocional', 'Controle emocional'],
+    ],
+  },
 ] as const;
+
+const TOTAL_FIELDS = GROUPS.reduce((total, group) => total + group.fields.length, 0);
+
+const formatScore = (raw: string) => raw.replace('.', ',');
+
+const Nota: FC<{
+  field: string;
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}> = ({ field, label, value, disabled, onChange }) => {
+  const blank = value === '';
+  const commitIfBlank = (event: { currentTarget: HTMLInputElement }) => {
+    if (blank) onChange(event.currentTarget.value);
+  };
+  return (
+    <div className="space-y-2 py-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={`nota-${field}`} className="text-sm font-semibold text-base-content">
+          {label}
+        </label>
+        <span className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className={
+              blank
+                ? 'text-xs font-semibold uppercase tracking-wider text-base-content/45'
+                : 'font-mono text-2xl font-bold tabular-nums leading-none text-base-content'
+            }
+          >
+            {blank ? 'sem nota' : formatScore(value)}
+          </span>
+          {!blank && (
+            <button
+              type="button"
+              aria-label={`Limpar ${label}`}
+              className="btn btn-ghost btn-square btn-sm min-h-[44px] min-w-[44px] text-base-content/50"
+              disabled={disabled}
+              onClick={() => onChange('')}
+            >
+              <Eraser className="h-4 w-4" aria-hidden />
+            </button>
+          )}
+        </span>
+      </div>
+      <input
+        id={`nota-${field}`}
+        aria-label={label}
+        aria-valuetext={blank ? 'sem nota' : formatScore(value)}
+        type="range"
+        min="0"
+        max="10"
+        step="0.5"
+        value={blank ? '5' : value}
+        disabled={disabled}
+        className={`range range-primary range-lg w-full ${blank ? 'opacity-35 [&::-moz-range-thumb]:opacity-0 [&::-webkit-slider-thumb]:opacity-0' : ''}`}
+        onChange={(event) => onChange(event.target.value)}
+        onPointerUp={commitIfBlank}
+        onKeyUp={commitIfBlank}
+      />
+    </div>
+  );
+};
 
 const Editor: FC<{
   communityId: string;
   playerId: string;
+  saveLabel?: string;
   onSaved: () => void;
-}> = ({ communityId, playerId, onSaved }) => {
+}> = ({ communityId, playerId, saveLabel = 'Salvar', onSaved }) => {
   const [context, setContext] = useState<CommunityEvaluationEditorContext | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<CommunityEvaluationCommand | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<AppError>();
-  const [selectedEvaluator, setSelectedEvaluator] = useState('');
   const [reload, setReload] = useState(0);
   const [loadedKey, setLoadedKey] = useState('');
   const mounted = useRef(true);
   const busy = useRef(false);
-  const [managing, setManaging] = useState(false);
   const requestKey = `${communityId}:${playerId}:${reload}`;
 
   useEffect(() => {
@@ -49,7 +127,6 @@ const Editor: FC<{
       setPending(null);
       setError(undefined);
       setMessage('');
-      setSelectedEvaluator('');
       if (result.ok) {
         setContext(result.value);
         setLoadedKey(requestKey);
@@ -96,7 +173,7 @@ const Editor: FC<{
           : current,
       );
       setPending(null);
-      setMessage('Avaliação salva. Atualizando o perfil.');
+      setMessage('Avaliação salva.');
       onSaved();
       return;
     }
@@ -116,155 +193,113 @@ const Editor: FC<{
         </p>
       );
     return (
-      <p role="status" className="text-sm">
+      <p role="status" className="py-10 text-center text-sm text-base-content/60">
         Carregando avaliação…
       </p>
     );
   }
 
-  async function manage(action: () => ReturnType<typeof setCommunityEvaluator>) {
-    if (busy.current || pending) return;
-    busy.current = true;
-    setManaging(true);
-    setError(undefined);
-    const result = await action();
-    if (!mounted.current) return;
-    busy.current = false;
-    setManaging(false);
-    if (result.ok) setReload((value) => value + 1);
-    else setError(result.error);
-  }
-  const management = context.can_manage_evaluators && context.authority_model === 'target' && (
-    <fieldset disabled={managing || !!pending} className="space-y-3">
-      <label className="text-sm">
-        Avaliador
-        <select
-          aria-label="Avaliador"
-          className="select select-bordered select-sm w-full"
-          value={selectedEvaluator}
-          onChange={(event) => setSelectedEvaluator(event.target.value)}
-        >
-          <option value="">Selecione</option>
-          {context.members.map((member) => (
-            <option key={member.user_id} value={member.user_id}>
-              {member.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        className="btn btn-outline btn-sm"
-        disabled={!selectedEvaluator || managing}
-        onClick={() =>
-          void manage(() =>
-            setCommunityEvaluator(
-              communityId,
-              selectedEvaluator,
-              !context.members.find((member) => member.user_id === selectedEvaluator)?.is_evaluator,
-            ),
-          )
-        }
-      >
-        {context.members.find((member) => member.user_id === selectedEvaluator)?.is_evaluator
-          ? 'Revogar avaliador'
-          : 'Autorizar avaliador'}
-      </button>
-    </fieldset>
-  );
   const mismatch =
     context.own_evaluation && context.own_evaluation.rubric_version !== context.rubric_version;
   if (context.authority_model === 'legacy' || !context.can_evaluate || mismatch)
     return (
-      <section className="rounded-xl border border-base-300 bg-base-200 p-4 space-y-3">
-        <h3 className="font-semibold">Avaliação comunitária</h3>
+      <section className="space-y-3 rounded-box border border-base-300 bg-base-200 p-4">
         <p>
           {context.authority_model === 'legacy'
             ? 'Este modelo ainda não foi ativado nesta comunidade.'
             : mismatch
               ? 'Sua avaliação usa outra versão de critérios e não pode ser editada neste modelo.'
-              : 'Você ainda não está autorizado a avaliar nesta comunidade.'}
+              : 'Você não avalia nesta comunidade. Quem administra pode deixar você avaliar em Gestão → Membros.'}
         </p>
-        {management}
         {error && <p role="alert">{error.message}</p>}
       </section>
     );
-  const retry = pending;
+
+  const locked = !!pending || error?.code === 'conflict';
+  const filled = Object.values(values).filter((value) => value !== '').length;
+
   return (
-    <section className="rounded-xl border border-base-300 bg-base-200 p-4 sm:p-6 space-y-4">
-      <div>
-        <h3 className="font-semibold">Avaliar atleta nesta comunidade</h3>
-        <p className="text-sm text-base-content/75">
-          Informe apenas os fundamentos observados. Campos vazios continuam sem avaliação.
-        </p>
-      </div>
-      {management}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {FIELDS.map(([key, label]) => (
-          <label key={key} className="text-sm space-y-1">
-            <span>{label}</span>
-            <input
-              aria-label={label}
-              type="number"
-              min="0"
-              max="10"
-              step="0.5"
-              className="input input-bordered input-sm w-full"
-              value={values[key] ?? ''}
-              disabled={!!pending || managing || error?.code === 'conflict'}
-              onChange={(event) =>
-                setValues((current) => ({ ...current, [key]: event.target.value }))
-              }
-            />
-          </label>
-        ))}
-      </div>
-      {error && (
-        <p role="alert" className="text-sm text-error">
-          {error.message}
-        </p>
-      )}
-      {message && (
-        <p role="status" className="text-sm text-success">
-          {message}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={managing || error?.code === 'conflict' || (!!pending && !error?.recoverable)}
-          onClick={() => {
-            const parsed = pending ?? parseScores(values);
-            if (!('commandId' in parsed)) {
-              if (!parsed.ok) {
-                setError(parsed.error);
-                return;
-              }
-              const command = {
-                commandId: generateUUID(),
-                contributionId: generateUUID(),
-                communityId,
-                playerId,
-                rubricVersion: context.rubric_version,
-                dimensions: parsed.value,
-                expectedContributionId: context.own_evaluation?.contribution_id ?? null,
-              };
-              void save(command);
-            } else void save(parsed);
-          }}
-        >
-          {pending && error?.recoverable ? 'Tentar novamente' : 'Enviar avaliação'}
-        </button>
-        {'code' in (error ?? {}) && error?.code === 'conflict' && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setReload((value) => value + 1)}>
-            Recarregar avaliação
+    <section className="space-y-2">
+      <p className="text-sm text-base-content/70">
+        <span className="font-mono font-semibold tabular-nums text-base-content">
+          {filled} de {TOTAL_FIELDS}
+        </span>{' '}
+        fundamentos com nota. Deixe sem nota o que você não viu.
+      </p>
+
+      {GROUPS.map((group) => (
+        <fieldset key={group.title} className="border-t border-base-300 pt-4">
+          <legend className="pr-2 text-xs font-bold uppercase tracking-wider text-base-content/60">
+            {group.title}
+          </legend>
+          <div className="divide-y divide-base-300/60">
+            {group.fields.map(([key, label]) => (
+              <Nota
+                key={key}
+                field={key}
+                label={label}
+                value={values[key] ?? ''}
+                disabled={locked}
+                onChange={(value) => setValues((current) => ({ ...current, [key]: value }))}
+              />
+            ))}
+          </div>
+        </fieldset>
+      ))}
+
+      <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-base-300 bg-base-100/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+        {error && (
+          <p role="alert" className="text-sm text-error">
+            {error.message}
+          </p>
+        )}
+        {message && (
+          <p role="status" className="text-sm text-success">
+            {message}
+          </p>
+        )}
+        <div className="flex gap-2">
+          {error?.code === 'conflict' && (
+            <button
+              type="button"
+              className="btn btn-outline min-h-[48px]"
+              onClick={() => setReload((value) => value + 1)}
+            >
+              Recarregar avaliação
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary min-h-[48px] flex-1"
+            disabled={error?.code === 'conflict' || (!!pending && !error?.recoverable)}
+            onClick={() => {
+              const parsed = pending ?? parseScores(values);
+              if (!('commandId' in parsed)) {
+                if (!parsed.ok) {
+                  setError(parsed.error);
+                  return;
+                }
+                void save({
+                  commandId: generateUUID(),
+                  contributionId: generateUUID(),
+                  communityId,
+                  playerId,
+                  rubricVersion: context.rubric_version,
+                  dimensions: parsed.value,
+                  expectedContributionId: context.own_evaluation?.contribution_id ?? null,
+                });
+              } else void save(parsed);
+            }}
+          >
+            {pending && error?.recoverable ? 'Tentar novamente' : saveLabel}
           </button>
+        </div>
+        {pending && error?.recoverable && (
+          <p className="text-xs text-base-content/60">
+            A mesma operação será repetida com o mesmo identificador.
+          </p>
         )}
       </div>
-      {retry && error?.recoverable && (
-        <p className="text-xs text-base-content/60">
-          A mesma operação será repetida com o mesmo identificador.
-        </p>
-      )}
     </section>
   );
 };
@@ -273,6 +308,7 @@ export function CommunityEvaluationEditor(props: {
   communityId: string;
   playerId: string;
   currentUserId?: string | null;
+  saveLabel?: string;
   onSaved: () => void;
 }) {
   return (

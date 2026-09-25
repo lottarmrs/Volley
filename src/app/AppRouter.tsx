@@ -16,6 +16,10 @@ import {
 } from './auth/AuthPages';
 import { LigasHubRoute, LigaNovaRoute, LigaDetalheRoute } from './routes/championshipRoutes';
 import {
+  CommunityEvaluationPlayerRoute,
+  CommunityEvaluationRoute,
+} from './routes/evaluationRoutes';
+import {
   AdminRoute,
   AgendaRoute,
   ComunidadesRoute,
@@ -89,6 +93,8 @@ export function AppRouter() {
               <Route path="desempenho" element={<CommunityPerformanceRoute />} />
               <Route path="desempenho/estatisticas" element={<CommunityStatsRoute />} />
               <Route path="desempenho/historico" element={<CommunityHistoryRoute />} />
+              <Route path="avaliacao" element={<CommunityEvaluationRoute />} />
+              <Route path="avaliacao/:playerId" element={<CommunityEvaluationPlayerRoute />} />
               <Route path="gestao" element={<CommunityGestaoRoute />} />
               <Route path="gestao/regras" element={<CommunityRulesRoute />} />
               <Route path="gestao/dados" element={<CommunityDataRoute />} />

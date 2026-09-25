@@ -4,14 +4,12 @@ import { CommunityEvaluationEditor } from './CommunityEvaluationEditor';
 import {
   loadCommunityEvaluationEditor,
   submitCommunityEvaluation,
-  setCommunityEvaluator,
 } from '@app/communityEvaluationUseCases';
 
 vi.mock('@app/communityEvaluationUseCases', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@app/communityEvaluationUseCases')>()),
   loadCommunityEvaluationEditor: vi.fn(),
   submitCommunityEvaluation: vi.fn(),
-  setCommunityEvaluator: vi.fn(),
 }));
 const context = {
   community_id: 'community',
@@ -30,15 +28,16 @@ describe('versioned Community evaluation editor', () => {
     vi.clearAllMocks();
     vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({ ok: true, value: context });
     vi.mocked(submitCommunityEvaluation).mockResolvedValue({ ok: true, value: undefined });
-    vi.mocked(setCommunityEvaluator).mockResolvedValue({ ok: true, value: undefined });
   });
 
-  it('starts blank and sends only actual scores including zero, then refreshes the profile', async () => {
+  it('starts every fundamento without a score and sends only actual scores including zero', async () => {
     render(<CommunityEvaluationEditor {...props} />);
     const saque = await screen.findByLabelText('Saque');
-    expect((saque as HTMLInputElement).value).toBe('');
+    expect(saque.getAttribute('aria-valuetext')).toBe('sem nota');
+    expect(screen.getByText('0 de 11')).toBeTruthy();
     fireEvent.change(saque, { target: { value: '0' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }));
+    expect(saque.getAttribute('aria-valuetext')).toBe('0');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(props.onSaved).toHaveBeenCalledTimes(1));
     expect(submitCommunityEvaluation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -49,7 +48,24 @@ describe('versioned Community evaluation editor', () => {
         expectedContributionId: null,
       }),
     );
-    expect(await screen.findByText('Avaliação salva. Atualizando o perfil.')).toBeTruthy();
+    expect(await screen.findByText('Avaliação salva.')).toBeTruthy();
+  });
+
+  it('shows half points with a comma and clears a score back to no score', async () => {
+    render(<CommunityEvaluationEditor {...props} />);
+    const saque = await screen.findByLabelText('Saque');
+    fireEvent.change(saque, { target: { value: '7.5' } });
+    expect(saque.getAttribute('aria-valuetext')).toBe('7,5');
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar Saque' }));
+    expect(saque.getAttribute('aria-valuetext')).toBe('sem nota');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect(await screen.findByText('Informe pelo menos uma nota.')).toBeTruthy();
+    expect(submitCommunityEvaluation).not.toHaveBeenCalled();
+  });
+
+  it('uses the save label the caller gives, naming the next athlete', async () => {
+    render(<CommunityEvaluationEditor {...props} saveLabel="Salvar · próximo: Bia" />);
+    expect(await screen.findByRole('button', { name: 'Salvar · próximo: Bia' })).toBeTruthy();
   });
 
   it('preserves command UUIDs and payload across uncertain retry and blocks edits meanwhile', async () => {
@@ -64,7 +80,7 @@ describe('versioned Community evaluation editor', () => {
     });
     render(<CommunityEvaluationEditor {...props} />);
     fireEvent.change(await screen.findByLabelText('Saque'), { target: { value: '6' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await screen.findByText('Falha de rede.');
     expect((screen.getByLabelText('Saque') as HTMLInputElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
@@ -86,50 +102,34 @@ describe('versioned Community evaluation editor', () => {
     });
     render(<CommunityEvaluationEditor {...props} />);
     fireEvent.change(await screen.findByLabelText('Saque'), { target: { value: '6' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await screen.findByText('Avaliação alterada. Recarregue.');
-    expect(
-      (screen.getByRole('button', { name: 'Enviar avaliação' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    expect((screen.getByRole('button', { name: 'Salvar' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
     expect(props.onSaved).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Recarregar avaliação' }));
     await waitFor(() => expect(loadCommunityEvaluationEditor).toHaveBeenCalledTimes(2));
   });
 
-  it('offers managers no activation and assigns evaluators in the target model', async () => {
+  it('explains an unactivated model and a person who does not evaluate', async () => {
     vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
       ok: true,
-      value: {
-        ...context,
-        authority_model: 'legacy',
-        can_evaluate: false,
-        can_manage_evaluators: true,
-        members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
-      },
+      value: { ...context, authority_model: 'legacy', can_evaluate: false },
     });
     const legacy = render(<CommunityEvaluationEditor {...props} />);
     expect(
       await screen.findByText('Este modelo ainda não foi ativado nesta comunidade.'),
     ).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Ativar novo modelo' })).toBeNull();
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByLabelText('Saque')).toBeNull();
     legacy.unmount();
 
     vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
       ok: true,
-      value: {
-        ...context,
-        can_evaluate: false,
-        can_manage_evaluators: true,
-        members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
-      },
+      value: { ...context, can_evaluate: false },
     });
     render(<CommunityEvaluationEditor {...props} />);
-    fireEvent.change(await screen.findByLabelText('Avaliador'), { target: { value: 'member' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Autorizar avaliador' }));
-    await waitFor(() =>
-      expect(setCommunityEvaluator).toHaveBeenCalledWith('community', 'member', true),
-    );
+    expect(await screen.findByText(/Você não avalia nesta comunidade/)).toBeTruthy();
   });
 
   it('ignores a successful response after leaving the editor', async () => {
@@ -141,29 +141,12 @@ describe('versioned Community evaluation editor', () => {
     );
     const view = render(<CommunityEvaluationEditor {...props} />);
     fireEvent.change(await screen.findByLabelText('Saque'), { target: { value: '6' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     view.unmount();
     await act(async () => {
       finish({ ok: true, value: undefined });
     });
     expect(props.onSaved).not.toHaveBeenCalled();
-  });
-  it('keeps evaluator management available after activation without evaluation capability', async () => {
-    vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
-      ok: true,
-      value: {
-        ...context,
-        can_evaluate: false,
-        can_manage_evaluators: true,
-        members: [{ user_id: 'member', label: 'Bia', is_evaluator: true }],
-      },
-    });
-    render(<CommunityEvaluationEditor {...props} />);
-    fireEvent.change(await screen.findByLabelText('Avaliador'), { target: { value: 'member' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Revogar avaliador' }));
-    await waitFor(() =>
-      expect(setCommunityEvaluator).toHaveBeenCalledWith('community', 'member', false),
-    );
   });
 
   it('does not reinterpret another rubric', async () => {
@@ -194,7 +177,7 @@ describe('versioned Community evaluation editor', () => {
       );
       const view = render(<CommunityEvaluationEditor {...props} />);
       fireEvent.change(await screen.findByLabelText('Saque'), { target: { value: '6' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
       view.rerender(<CommunityEvaluationEditor {...props} playerId="other" />);
       await screen.findByLabelText('Saque');
       await act(async () =>
@@ -214,84 +197,6 @@ describe('versioned Community evaluation editor', () => {
       );
       expect(props.onSaved).not.toHaveBeenCalled();
       expect(screen.queryByText('Old error')).toBeNull();
-    },
-  );
-
-  it('shows management failures and blocks duplicate pending clicks', async () => {
-    let finish!: (value: Awaited<ReturnType<typeof setCommunityEvaluator>>) => void;
-    vi.mocked(setCommunityEvaluator).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
-    vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
-      ok: true,
-      value: {
-        ...context,
-        can_evaluate: false,
-        can_manage_evaluators: true,
-        members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
-      },
-    });
-    render(<CommunityEvaluationEditor {...props} />);
-    fireEvent.change(await screen.findByLabelText('Avaliador'), { target: { value: 'member' } });
-    const button = screen.getByRole('button', { name: 'Autorizar avaliador' });
-    fireEvent.click(button);
-    fireEvent.click(button);
-    expect(setCommunityEvaluator).toHaveBeenCalledTimes(1);
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-    await act(async () =>
-      finish({
-        ok: false,
-        error: {
-          kind: 'product',
-          code: 'permission_denied',
-          recoverable: false,
-          message: 'Sem acesso',
-        },
-      }),
-    );
-    expect(screen.getByRole('alert').textContent).toBe('Sem acesso');
-    expect((button as HTMLButtonElement).disabled).toBe(false);
-  });
-
-  it.each(['community', 'account', 'unmount'])(
-    'ignores late management success after %s change',
-    async (change) => {
-      let finish!: (value: Awaited<ReturnType<typeof setCommunityEvaluator>>) => void;
-      vi.mocked(setCommunityEvaluator).mockReturnValueOnce(
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-      );
-      vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
-        ok: true,
-        value: {
-          ...context,
-          can_evaluate: false,
-          can_manage_evaluators: true,
-          members: [{ user_id: 'member', label: 'Bia', is_evaluator: false }],
-        },
-      });
-      const view = render(<CommunityEvaluationEditor {...props} currentUserId="a" />);
-      fireEvent.change(await screen.findByLabelText('Avaliador'), {
-        target: { value: 'member' },
-      });
-      fireEvent.click(screen.getByRole('button', { name: 'Autorizar avaliador' }));
-      if (change === 'unmount') view.unmount();
-      else {
-        view.rerender(
-          <CommunityEvaluationEditor
-            {...props}
-            communityId={change === 'community' ? 'other' : props.communityId}
-            currentUserId={change === 'account' ? 'b' : 'a'}
-          />,
-        );
-        await screen.findByLabelText('Avaliador');
-      }
-      const loads = vi.mocked(loadCommunityEvaluationEditor).mock.calls.length;
-      await act(async () => finish({ ok: true, value: undefined }));
-      expect(loadCommunityEvaluationEditor).toHaveBeenCalledTimes(loads);
     },
   );
 });

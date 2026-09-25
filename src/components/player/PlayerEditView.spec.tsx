@@ -128,10 +128,11 @@ describe('PlayerEditView evaluation community gate', () => {
       target: { value: 'cloud-community' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Avaliar atleta' }));
-    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Saque' }), {
+    await screen.findByText('0 de 11');
+    fireEvent.change(document.getElementById('nota-saque') as HTMLInputElement, {
       target: { value: '6' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar avaliação' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() =>
       expect(loadCommunitySkillProfile).toHaveBeenCalledWith({
         communityId: 'cloud-community',
@@ -142,7 +143,7 @@ describe('PlayerEditView evaluation community gate', () => {
     expect((screen.getByLabelText('Comunidade do perfil') as HTMLSelectElement).value).toBe(
       'cloud-community',
     );
-    expect(screen.queryByRole('spinbutton', { name: 'Saque' })).toBeNull();
+    expect(document.getElementById('nota-saque')).toBeNull();
   });
 
   it('mantem o formulario legado numa comunidade em nuvem que ainda nao migrou', async () => {
@@ -196,7 +197,7 @@ describe('PlayerEditView evaluation community gate', () => {
       target: { value: 'cloud-community' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Avaliar atleta' }));
-    expect(await screen.findByText('Avaliar atleta nesta comunidade')).toBeTruthy();
+    expect(await screen.findByText('0 de 11')).toBeTruthy();
 
     const updatedContract = buildPlayerEditViewContract({
       editingPlayer: player,
@@ -217,7 +218,7 @@ describe('PlayerEditView evaluation community gate', () => {
       currentUserId: 'user',
     });
     view.rerender(<PlayerEditView contract={updatedContract} />);
-    expect(screen.queryByText('Avaliar atleta nesta comunidade')).toBeNull();
+    expect(screen.queryByText('0 de 11')).toBeNull();
   });
 
   it('keeps cloud technical attributes read-only', () => {

@@ -21,6 +21,8 @@ export interface CommunityPermissions {
   canEditPlayerProfile: boolean;
   canEvaluatePlayer: boolean;
   canCreateSession: boolean;
+  canExportCommunity: boolean;
+  canSeeManagement: boolean;
 }
 
 function permissionsForRole(
@@ -50,6 +52,8 @@ function permissionsForRole(
     // liberar moderator aqui so mostraria uma acao que o banco recusa depois.
     canEvaluatePlayer: isOwner || isAdmin,
     canCreateSession: isOwner || isAdmin || isModerator || isOrganizador,
+    canExportCommunity: isOwner || isAdmin,
+    canSeeManagement: isOwner || isAdmin || isModerator,
   };
 }
 
@@ -81,6 +85,8 @@ export function deriveCommunityPermissions(input: CommunityPermissionInput): Com
       canEditPlayerProfile: false,
       canEvaluatePlayer: false,
       canCreateSession: false,
+      canExportCommunity: false,
+      canSeeManagement: false,
     };
   }
 

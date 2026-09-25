@@ -247,3 +247,45 @@ test('memberships without status are treated as active legacy rows', () => {
   assert.equal(permissions.role, 'moderator');
   assert.equal(permissions.canCreateSession, true);
 });
+
+test('membro nao exporta nem ve Gestao; moderador ve Gestao para aprovar pedidos', () => {
+  const para = (role: CommunityMember['role']) =>
+    deriveCommunityPermissions({
+      isSupabaseConfigured: true,
+      userId: 'user-1',
+      community,
+      members: [member({ role })],
+    });
+
+  const esperado: Record<CommunityMember['role'], { exporta: boolean; gestao: boolean }> = {
+    owner: { exporta: true, gestao: true },
+    admin: { exporta: true, gestao: true },
+    moderator: { exporta: false, gestao: true },
+    organizador: { exporta: false, gestao: false },
+    member: { exporta: false, gestao: false },
+  };
+
+  for (const [role, { exporta, gestao }] of Object.entries(esperado)) {
+    const permissions = para(role as CommunityMember['role']);
+    assert.equal(permissions.canExportCommunity, exporta, `${role} exporta`);
+    assert.equal(permissions.canSeeManagement, gestao, `${role} ve Gestao`);
+  }
+
+  const semCargo = deriveCommunityPermissions({
+    isSupabaseConfigured: true,
+    userId: 'user-1',
+    community,
+    members: [],
+  });
+  assert.equal(semCargo.canExportCommunity, false);
+  assert.equal(semCargo.canSeeManagement, false);
+
+  const local = deriveCommunityPermissions({
+    isSupabaseConfigured: false,
+    userId: null,
+    community,
+    members: [],
+  });
+  assert.equal(local.canExportCommunity, true);
+  assert.equal(local.canSeeManagement, true);
+});

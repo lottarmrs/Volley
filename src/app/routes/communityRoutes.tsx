@@ -26,6 +26,7 @@ import { useAuthSession } from '../auth/useAuthSession';
 import { isGuestAccess } from '@app/guestAccess';
 import { AccountRequiredView } from '../../components/onboarding/AccountRequiredView';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
+import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
 import { LegacyQueryRedirect } from './LegacyQueryRedirect';
@@ -87,28 +88,63 @@ export function CommunityShell() {
 
 export function CommunityOverviewRoute() {
   const shell = useCommunityShell();
-  const { community, play, sess, communityRules } = shell;
+  const navigate = useNavigate();
+  const { community, play, sess, communityRules, auth, toasts } = shell;
   const permissions = useCommunityPermissions(community);
+  const { currentMember, leave } = useCommunityMembers({
+    communityCloudId: community.cloudId,
+    communityLocalId: community.id,
+    currentUserId: auth.user?.id ?? null,
+    enabled: auth.isSupabaseConfigured && !!community.cloudId,
+  });
   const communityPlayers = getCommunityPlayers(community.id, play.players);
+  const podeSairAqui =
+    permissions.membersResolved &&
+    !permissions.canSeeManagement &&
+    !!currentMember &&
+    currentMember.role !== 'owner';
+
+  const sair = async () => {
+    if (!window.confirm('Tem certeza que deseja sair desta comunidade?')) return;
+    try {
+      await leave();
+      navigate(paths.comunidades);
+    } catch (erro) {
+      toasts.push((erro as Error).message || 'Não foi possível sair da comunidade.', 'error');
+    }
+  };
 
   return (
-    <CommunityOverviewArea
-      community={community}
-      players={play.players}
-      sessions={sess.sessions}
-      games={sess.games}
-      pointEvents={sess.pointEvents}
-      sessionReports={sess.sessionReports}
-      canCreateSession={permissions.canCreateSession}
-      canManageRoster={permissions.canEditPlayerProfile}
-      onCreateSession={() =>
-        shell.createSessionFromCommunity(
-          community,
-          communityPlayers.filter((player) => player.ativo).map((player) => player.id),
-          communityRules.getRules(community),
-        )
-      }
-    />
+    <div className="space-y-6">
+      <CommunityOverviewArea
+        community={community}
+        players={play.players}
+        sessions={sess.sessions}
+        games={sess.games}
+        pointEvents={sess.pointEvents}
+        sessionReports={sess.sessionReports}
+        canCreateSession={permissions.canCreateSession}
+        canManageRoster={permissions.canEditPlayerProfile}
+        onCreateSession={() =>
+          shell.createSessionFromCommunity(
+            community,
+            communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+            communityRules.getRules(community),
+          )
+        }
+      />
+      {podeSairAqui && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm min-h-[44px] text-error"
+            onClick={() => void sair()}
+          >
+            Sair da comunidade
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -116,11 +152,13 @@ function useGestaoContext() {
   const shell = useCommunityShell();
   const navigate = useNavigate();
   const permissions = useCommunityPermissions(shell.community);
-  const acesso = resolveCommunityAreaAccess({
-    area: 'gestao',
-    hasRole: permissions.role !== null,
-    communityId: shell.community.id,
-  });
+  const acesso = permissions.membersResolved
+    ? resolveCommunityAreaAccess({
+        area: 'gestao',
+        canSeeManagement: permissions.canSeeManagement,
+        communityId: shell.community.id,
+      })
+    : null;
   return { shell, navigate, permissions, acesso };
 }
 
@@ -145,6 +183,7 @@ function GestaoTabs({
 export function CommunityGestaoRoute() {
   const { shell, acesso } = useGestaoContext();
   const { community, play, auth } = shell;
+  if (!acesso) return null;
   if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
 
   return (
@@ -167,6 +206,7 @@ export function CommunityGestaoRoute() {
 export function CommunityRulesRoute() {
   const { shell, permissions, acesso } = useGestaoContext();
   const { community, communityRules } = shell;
+  if (!acesso) return null;
   if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
 
   return (
@@ -192,6 +232,7 @@ export function CommunityRulesRoute() {
 export function CommunityDataRoute() {
   const { shell, navigate, permissions, acesso } = useGestaoContext();
   const { community, play, sess, comm } = shell;
+  if (!acesso) return null;
   if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
 
   return (
@@ -204,6 +245,7 @@ export function CommunityDataRoute() {
         canEditRules={permissions.canEditRules}
         canDeleteCommunity={permissions.canDeleteCommunity}
         canClearHistory={permissions.canClearHistory}
+        canExportCommunity={permissions.canExportCommunity}
         onUpdateCommunity={(id, patch) => {
           try {
             return comm.updateCommunity(id, patch, permissions.canEditRules);
@@ -226,6 +268,7 @@ export function CommunityDataRoute() {
           navigate(paths.comunidades);
         }}
         onDuplicateCommunity={(id, includeAthletes) => {
+          if (!permissions.canExportCommunity) return;
           const result = comm.duplicateCommunity(id, includeAthletes);
           if (result?.includeAthletes) {
             play.setPlayers((prev) =>

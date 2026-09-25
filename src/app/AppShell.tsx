@@ -33,6 +33,7 @@ import { usePlayers } from '../hooks/usePlayers';
 import { useSession } from '../ui/common/useSession';
 import { useSessionWizard } from '../hooks/useSessionWizard';
 import { useCommunities } from '../hooks/useCommunities';
+import { useCommunityPermissions } from '../hooks/useCommunityPermissions';
 import { useCommunityPresence } from '../hooks/useCommunityPresence';
 import { useCommunityRules } from '../hooks/useCommunityRules';
 import { useWhatsAppListTemplates } from '../hooks/useWhatsAppListTemplates';
@@ -121,6 +122,7 @@ export function AppShell() {
     () => comm.communities.find((c) => c.id === currentCommunityId) || null,
     [comm.communities, currentCommunityId],
   );
+  const currentCommunityPermissions = useCommunityPermissions(currentCommunity);
   const returnPath = getReturnRouteForPath(location.pathname);
 
   useEffect(() => {
@@ -635,6 +637,8 @@ export function AppShell() {
     isStaff: auth.isStaff,
     pendingChanges,
     isGuest,
+    showManagement:
+      currentCommunityPermissions.membersResolved && currentCommunityPermissions.canSeeManagement,
   });
   const headerAccount = getAccountDisplay({
     profileName: auth.profile?.name,

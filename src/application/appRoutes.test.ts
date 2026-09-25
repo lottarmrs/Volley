@@ -479,19 +479,30 @@ test('enderecos antigos redirecionam para os novos', () => {
   assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/sessoes/presenca', ''), { kind: 'ok' });
 });
 
-test('gestao exige cargo na comunidade', () => {
+test('gestao exige quem administra ou modera', () => {
   assert.deepEqual(
-    resolveCommunityAreaAccess({ area: 'gestao', hasRole: false, communityId: 'c1' }),
+    resolveCommunityAreaAccess({ area: 'gestao', canSeeManagement: false, communityId: 'c1' }),
     { kind: 'redirect', to: '/comunidades/c1' },
   );
   assert.deepEqual(
-    resolveCommunityAreaAccess({ area: 'gestao', hasRole: true, communityId: 'c1' }),
+    resolveCommunityAreaAccess({ area: 'gestao', canSeeManagement: true, communityId: 'c1' }),
     { kind: 'ok' },
   );
   assert.deepEqual(
-    resolveCommunityAreaAccess({ area: 'pessoas', hasRole: false, communityId: 'c1' }),
+    resolveCommunityAreaAccess({ area: 'pessoas', canSeeManagement: false, communityId: 'c1' }),
     { kind: 'ok' },
   );
+});
+
+test('quem nao administra nao ve Gestao na lateral da comunidade', () => {
+  const items = getShellNavigationItems({
+    pathname: '/comunidades/c1',
+    isStaff: false,
+    pendingChanges: 0,
+    showManagement: false,
+  });
+  assert.ok(!items.some((item) => item.id === 'comunidade-gestao'));
+  assert.ok(items.some((item) => item.id === 'comunidade-pessoas'));
 });
 
 test('a lateral da comunidade lista as seis areas e marca a ativa', () => {

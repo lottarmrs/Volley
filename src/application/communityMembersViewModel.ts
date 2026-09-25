@@ -143,11 +143,16 @@ export function buildCommunityMembersViewModel(
           (member) => member.userId === currentUserId && memberStatus(member) === 'active',
         ) ?? null);
 
+  const viewerIsOwner = permissions.role === 'owner' || permissions.isGlobalAdmin;
+  const rolesViewerAssigns = viewerIsOwner
+    ? ASSIGNABLE_COMMUNITY_MEMBER_ROLES
+    : ASSIGNABLE_COMMUNITY_MEMBER_ROLES.filter((role) => role !== 'admin');
+
   const toRow = (member: CommunityMember): CommunityMemberRowViewModel => {
     const athlete = athleteByUserId.get(member.userId);
     const isSelf = member.userId === currentUserId;
     const isOwner = member.role === 'owner';
-    const editable = canManage && !isSelf && !isOwner;
+    const editable = canManage && !isSelf && !isOwner && (viewerIsOwner || member.role !== 'admin');
     const displayName = displayNameFor(member);
 
     return {
@@ -163,9 +168,9 @@ export function buildCommunityMembersViewModel(
       // O cargo atual entra na lista mesmo quando nao e mais atribuivel: sem ele o
       // seletor de quem tem `organizador` ou `owner` apareceria em branco.
       assignableRoles: editable
-        ? ASSIGNABLE_COMMUNITY_MEMBER_ROLES.includes(member.role)
-          ? ASSIGNABLE_COMMUNITY_MEMBER_ROLES
-          : [member.role, ...ASSIGNABLE_COMMUNITY_MEMBER_ROLES]
+        ? rolesViewerAssigns.includes(member.role)
+          ? rolesViewerAssigns
+          : [member.role, ...rolesViewerAssigns]
         : [],
     };
   };

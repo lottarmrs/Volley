@@ -150,6 +150,32 @@ test('owner can manage others but cannot edit owner or self', () => {
   assert.deepEqual(vm.activeMembers[1].assignableRoles, ['admin', 'moderator', 'member']);
 });
 
+test('admin nao mexe em admin: sem controles sobre outro admin e sem oferecer o cargo de admin', () => {
+  const vm = buildCommunityMembersViewModel({
+    community,
+    members: [
+      member({ id: 'owner-row', userId: 'owner-1', role: 'owner' }),
+      member({ id: 'admin-a', userId: 'admin-a', role: 'admin' }),
+      member({ id: 'admin-b', userId: 'admin-b', role: 'admin' }),
+      member({ id: 'membro', userId: 'membro-1', role: 'member' }),
+    ],
+    players: [],
+    currentUserId: 'admin-a',
+    isSupabaseConfigured: true,
+    globalRole: 'user',
+  });
+
+  const outroAdmin = vm.activeMembers.find((row) => row.member.userId === 'admin-b');
+  assert.equal(outroAdmin?.canChangeRole, false);
+  assert.equal(outroAdmin?.canRemove, false);
+  assert.deepEqual(outroAdmin?.assignableRoles, []);
+
+  const membro = vm.activeMembers.find((row) => row.member.userId === 'membro-1');
+  assert.equal(membro?.canChangeRole, true);
+  assert.equal(membro?.canRemove, true);
+  assert.deepEqual(membro?.assignableRoles, ['moderator', 'member']);
+});
+
 test('moderator can leave but cannot manage members', () => {
   const vm = buildCommunityMembersViewModel({
     community,

@@ -126,10 +126,10 @@ export function resolveLegacyQueryRoute(pathname: string, search: string): Route
 
 export function resolveCommunityAreaAccess(input: {
   area: string | null;
-  hasRole: boolean;
+  canSeeManagement: boolean;
   communityId: string;
 }): RouteResolution {
-  if (input.area === 'gestao' && !input.hasRole) {
+  if (input.area === 'gestao' && !input.canSeeManagement) {
     return { kind: 'redirect', to: paths.comunidade(input.communityId) };
   }
   return { kind: 'ok' };
@@ -332,6 +332,7 @@ export function getShellNavigationItems(input: {
   isStaff: boolean;
   pendingChanges: number;
   isGuest?: boolean;
+  showManagement?: boolean;
 }): ShellNavItem[] {
   const communityId = extractCommunityId(input.pathname);
   const path = input.pathname.split('?')[0];
@@ -352,7 +353,7 @@ export function getShellNavigationItems(input: {
 
   if (communityId) {
     const area = segmentsOf(path)[2] ?? null;
-    return [
+    const items: ShellNavItem[] = [
       {
         id: 'comunidade-visao-geral',
         label: 'Visão geral',
@@ -403,6 +404,9 @@ export function getShellNavigationItems(input: {
         active: false,
       },
     ];
+    return input.showManagement === false
+      ? items.filter((item) => item.id !== 'comunidade-gestao')
+      : items;
   }
 
   const items: ShellNavItem[] = [

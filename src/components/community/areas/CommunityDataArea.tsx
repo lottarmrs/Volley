@@ -16,6 +16,7 @@ export function CommunityDataArea({
   canEditRules = true,
   canDeleteCommunity = true,
   canClearHistory = true,
+  canExportCommunity = false,
 }: {
   community: Community;
   players: Player[];
@@ -27,6 +28,7 @@ export function CommunityDataArea({
   canEditRules?: boolean;
   canDeleteCommunity?: boolean;
   canClearHistory?: boolean;
+  canExportCommunity?: boolean;
 }) {
   const [draft, setDraft] = useState<Community>(community);
   const [confirm, setConfirm] = useState<'delete' | 'history' | null>(null);
@@ -119,20 +121,24 @@ export function CommunityDataArea({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={() => onDuplicateCommunity(community.id, true)}
-        >
-          <Copy className="w-4 h-4" /> Duplicar com atletas
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={() => exportCommunity(community, players, sessions)}
-        >
-          Exportar comunidade
-        </button>
+        {canExportCommunity && (
+          <>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => onDuplicateCommunity(community.id, true)}
+            >
+              <Copy className="w-4 h-4" /> Duplicar com atletas
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => exportCommunity(community, players, sessions)}
+            >
+              Exportar comunidade
+            </button>
+          </>
+        )}
         {canClearHistory && (
           <button type="button" className="btn btn-warning" onClick={() => setConfirm('history')}>
             <ShieldAlert className="w-4 h-4" /> Limpar historico

@@ -471,11 +471,13 @@ function CommunityCard({
                   Editar / abrir
                 </button>
               </li>
-              <li>
-                <button type="button" onClick={() => onDuplicateCommunity(community.id, true)}>
-                  Duplicar com atletas
-                </button>
-              </li>
+              {permissions.canExportCommunity && (
+                <li>
+                  <button type="button" onClick={() => onDuplicateCommunity(community.id, true)}>
+                    Duplicar com atletas
+                  </button>
+                </li>
+              )}
               {permissions.canEditRules && (
                 <li>
                   <button
@@ -488,11 +490,16 @@ function CommunityCard({
                   </button>
                 </li>
               )}
-              <li>
-                <button type="button" onClick={() => exportCommunity(community, players, sessions)}>
-                  Exportar
-                </button>
-              </li>
+              {permissions.canExportCommunity && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => exportCommunity(community, players, sessions)}
+                  >
+                    Exportar
+                  </button>
+                </li>
+              )}
               {permissions.canDeleteCommunity && (
                 <li>
                   <button

@@ -2,6 +2,7 @@ import {
   COMMUNITY_EVALUATION_RUBRIC,
   type CommunityEvaluationCommand,
   type CommunityEvaluationEditorContext,
+  type CommunityEvaluationRosterEntry,
 } from '@shared/types';
 import type { Attributes } from '@shared/types';
 import { supabase } from '@infra/supabase/communityEvaluationCloudService';
@@ -13,6 +14,8 @@ export interface CommunityEvaluationGateway {
   activatedCommunityIds(communityIds: string[]): Promise<string[]>;
   activate(communityId: string): Promise<void>;
   setEvaluator(communityId: string, userId: string, enabled: boolean): Promise<void>;
+  listRoster(communityId: string): Promise<CommunityEvaluationRosterEntry[]>;
+  listEvaluators(communityId: string): Promise<string[]>;
 }
 
 const keys = new Set<string>([
@@ -49,16 +52,24 @@ export function parseScores(
 
 // A frase final depende da operacao: uma falha de rede ao CARREGAR o editor dizia
 // "nao foi possivel salvar a avaliacao", num role="alert", para quem nao tinha salvo nada.
-type EvaluationAction = 'load' | 'save' | 'manage';
+type EvaluationAction = 'load' | 'save' | 'manage' | 'roster';
 
 const FALLBACK: Record<EvaluationAction, string> = {
   load: 'Não foi possível carregar a avaliação. Verifique a conexão.',
   save: 'Não foi possível salvar a avaliação. Verifique a conexão.',
   manage: 'Não foi possível concluir a alteração. Verifique a conexão.',
+  roster: 'Não foi possível carregar os atletas. Verifique a conexão.',
 };
 
 function classify(error: unknown, action: EvaluationAction = 'save'): AppResult<never> {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+  const message =
+    error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
+  if (code === '42501' && message.includes('Only the sole evaluator'))
+    return productError(
+      'permission_denied',
+      'Você só pode se avaliar enquanto for a única pessoa que avalia nesta comunidade.',
+    );
   if (code === '42501')
     return productError(
       'permission_denied',
@@ -154,5 +165,31 @@ export async function isCommunityEvaluationActivated(
     return Array.isArray(activated) && activated.some((value) => value?.trim() === id);
   } catch {
     return false;
+  }
+}
+
+export async function loadCommunityEvaluationRoster(
+  communityCloudId: string | null | undefined,
+  gateway: CommunityEvaluationGateway = supabase,
+): Promise<AppResult<CommunityEvaluationRosterEntry[]>> {
+  const id = communityCloudId?.trim();
+  if (!id) return productError('invalid_input', 'Sincronize esta comunidade antes de avaliar.');
+  try {
+    return appOk(await gateway.listRoster(id));
+  } catch (error) {
+    return classify(error, 'roster');
+  }
+}
+
+export async function listCommunityEvaluators(
+  communityCloudId: string | null | undefined,
+  gateway: CommunityEvaluationGateway = supabase,
+): Promise<AppResult<string[]>> {
+  const id = communityCloudId?.trim();
+  if (!id) return appOk([]);
+  try {
+    return appOk(await gateway.listEvaluators(id));
+  } catch (error) {
+    return classify(error, 'manage');
   }
 }

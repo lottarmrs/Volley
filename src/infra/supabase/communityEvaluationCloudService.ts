@@ -1,4 +1,8 @@
-import type { CommunityEvaluationCommand, CommunityEvaluationEditorContext } from '@shared/types';
+import type {
+  CommunityEvaluationCommand,
+  CommunityEvaluationEditorContext,
+  CommunityEvaluationRosterEntry,
+} from '@shared/types';
 import { isSupabaseConfigured, supabase as client } from '../../lib/supabaseClient';
 
 async function call<T>(name: string, args: Record<string, unknown>): Promise<T> {
@@ -35,4 +39,38 @@ export const supabase = {
       p_user_id: userId,
       p_enabled: enabled,
     }),
+  listRoster: async (communityId: string): Promise<CommunityEvaluationRosterEntry[]> => {
+    const rows = await call<
+      {
+        player_id: string;
+        name: string;
+        nickname: string | null;
+        position: string | null;
+        has_account: boolean;
+        my_last_evaluated_at: string | null;
+        is_self: boolean;
+      }[]
+    >('list_community_evaluation_roster', { p_community_id: communityId });
+    return (rows ?? []).map((row) => ({
+      playerId: row.player_id,
+      name: row.name,
+      nickname: row.nickname,
+      position: row.position,
+      hasAccount: row.has_account,
+      myLastEvaluatedAt: row.my_last_evaluated_at,
+      isSelf: row.is_self,
+    }));
+  },
+  listEvaluators: async (communityId: string): Promise<string[]> => {
+    if (!isSupabaseConfigured)
+      throw Object.assign(new Error('Cloud unavailable'), { code: 'CLOUD_UNAVAILABLE' });
+    const { data, error } = await client
+      .from('community_responsibilities')
+      .select('user_id')
+      .eq('community_id', communityId)
+      .eq('responsibility', 'EVALUATOR')
+      .is('revoked_at', null);
+    if (error) throw error;
+    return ((data as { user_id: string }[] | null) ?? []).map((row) => row.user_id);
+  },
 };

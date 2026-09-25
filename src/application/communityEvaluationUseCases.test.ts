@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  loadCommunityEvaluationRoster,
   parseScores,
   submitCommunityEvaluation,
   type CommunityEvaluationGateway,
@@ -69,4 +70,36 @@ test('semantic submission reports stale revision and permission refusal without 
       assert.equal(result.error.message.includes('private SQL'), false);
     }
   }
+});
+
+test('sem comunidade na nuvem, a lista pede para sincronizar e nao chama o servidor', async () => {
+  let chamou = false;
+  const gateway = {
+    listRoster: async () => {
+      chamou = true;
+      return [];
+    },
+  } as unknown as CommunityEvaluationGateway;
+  const result = await loadCommunityEvaluationRoster(null, gateway);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error.message, /Sincronize esta comunidade antes de avaliar/);
+  assert.equal(chamou, false);
+});
+
+test('a recusa da autoavaliacao chega em portugues, distinta da recusa comum', async () => {
+  const gateway = {
+    record: async () => {
+      throw {
+        code: '42501',
+        message: 'Only the sole evaluator of this Community can assess themselves',
+      };
+    },
+  } as unknown as CommunityEvaluationGateway;
+  const result = await submitCommunityEvaluation(command, gateway);
+  assert.equal(result.ok, false);
+  if (!result.ok)
+    assert.equal(
+      result.error.message,
+      'Você só pode se avaliar enquanto for a única pessoa que avalia nesta comunidade.',
+    );
 });

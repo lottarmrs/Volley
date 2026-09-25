@@ -12,6 +12,16 @@ export interface CommunityEvaluationCommand {
   expectedContributionId: string | null;
 }
 
+export interface CommunityEvaluationRosterEntry {
+  playerId: string;
+  name: string;
+  nickname: string | null;
+  position: string | null;
+  hasAccount: boolean;
+  myLastEvaluatedAt: string | null;
+  isSelf: boolean;
+}
+
 export interface CommunityEvaluationMember {
   user_id: string;
   label: string;

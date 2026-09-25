@@ -48,6 +48,7 @@ export type {
   CommunityEvaluationCommand,
   CommunityEvaluationEditorContext,
   CommunityEvaluationMember,
+  CommunityEvaluationRosterEntry,
 } from './shared/types/communityEvaluation';
 export { COMMUNITY_EVALUATION_RUBRIC } from './shared/types/communityEvaluation';
 export type {

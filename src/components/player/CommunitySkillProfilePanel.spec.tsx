@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunitySkillProfilePanel } from './CommunitySkillProfilePanel';
 import { loadCommunitySkillProfile } from '@app/communitySkillProfileUseCases';
@@ -40,6 +41,30 @@ describe('Community skill profile preview', () => {
   beforeEach(() => {
     vi.mocked(loadCommunitySkillProfile).mockReset();
     vi.mocked(loadCommunitySkillProfile).mockResolvedValue({ ok: true, value: profile });
+  });
+
+  it('avaliar atleta leva a area de Avaliacao pelo caminho que a tela devolve', () => {
+    const evaluationPathFor = vi.fn((communityId: string) =>
+      communityId === 'community-1' ? '/comunidades/local-1/avaliacao/player-1' : null,
+    );
+    render(
+      <MemoryRouter>
+        <CommunitySkillProfilePanel {...props} evaluationPathFor={evaluationPathFor} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('link', { name: 'Avaliar atleta' })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Comunidade do perfil'), {
+      target: { value: 'community-1' },
+    });
+    expect(screen.getByRole('link', { name: 'Avaliar atleta' }).getAttribute('href')).toBe(
+      '/comunidades/local-1/avaliacao/player-1',
+    );
+
+    fireEvent.change(screen.getByLabelText('Comunidade do perfil'), {
+      target: { value: 'community-2' },
+    });
+    expect(screen.queryByRole('link', { name: 'Avaliar atleta' })).toBeNull();
   });
 
   it('waits for explicit Community selection and request, then displays coverage and missing versus zero', async () => {

@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
+import { Link } from 'react-router';
 import type { CommunitySkillProfile } from '@shared/types';
 import type { AppResult } from '@app/appResult';
 import { loadCommunitySkillProfile } from '@app/communitySkillProfileUseCases';
@@ -7,7 +8,7 @@ interface Props {
   currentUserId: string | null;
   playerCloudId?: string;
   communities: Array<{ id: string; name: string }>;
-  onOpenEvaluation?: (communityId: string) => void;
+  evaluationPathFor?: (communityId: string) => string | null;
   onCommunityChange?: () => void;
   refreshVersion?: number;
 }
@@ -106,16 +107,17 @@ const ProfileResult: React.FC<{ communityId: string; playerId: string }> = ({
 const PanelForPlayer: React.FC<{
   playerCloudId: string;
   communities: Props['communities'];
-  onOpenEvaluation?: Props['onOpenEvaluation'];
+  evaluationPathFor?: Props['evaluationPathFor'];
   onCommunityChange?: Props['onCommunityChange'];
   refreshVersion?: number;
-}> = ({ playerCloudId, communities, onOpenEvaluation, onCommunityChange, refreshVersion = 0 }) => {
+}> = ({ playerCloudId, communities, evaluationPathFor, onCommunityChange, refreshVersion = 0 }) => {
   const selectId = useId();
   const titleId = useId();
   const [communityId, setCommunityId] = useState('');
   const [request, setRequest] = useState(0);
   const [seenRefresh, setSeenRefresh] = useState(refreshVersion);
   const selected = communities.some((community) => community.id === communityId);
+  const evaluationPath = selected ? (evaluationPathFor?.(communityId) ?? null) : null;
   if (seenRefresh !== refreshVersion) {
     setSeenRefresh(refreshVersion);
     if (selected) setRequest((value) => value + 1);
@@ -135,7 +137,7 @@ const PanelForPlayer: React.FC<{
         </h2>
         <p className="text-sm text-base-content/75 max-w-3xl">
           Média por fundamento com filtragem de notas extremas. Mostra apenas avaliações do novo
-          modelo; os critérios são experimentais e este perfil ainda não é usado no sorteio.
+          modelo, e é dela que saem as notas do sorteio.
         </p>
       </div>
       <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -169,14 +171,10 @@ const PanelForPlayer: React.FC<{
         >
           {request && selected ? 'Atualizar perfil' : 'Consultar perfil'}
         </button>
-        {onOpenEvaluation && selected && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => onOpenEvaluation(communityId)}
-          >
+        {evaluationPath && (
+          <Link to={evaluationPath} className="btn btn-primary">
             Avaliar atleta
-          </button>
+          </Link>
         )}
       </div>
       {request > 0 && selected && (
@@ -194,7 +192,7 @@ export function CommunitySkillProfilePanel({
   currentUserId,
   playerCloudId,
   communities,
-  onOpenEvaluation,
+  evaluationPathFor,
   onCommunityChange,
   refreshVersion,
 }: Props) {
@@ -204,7 +202,7 @@ export function CommunitySkillProfilePanel({
       key={`${currentUserId}:${playerCloudId}`}
       playerCloudId={playerCloudId}
       communities={communities}
-      onOpenEvaluation={onOpenEvaluation}
+      evaluationPathFor={evaluationPathFor}
       onCommunityChange={onCommunityChange}
       refreshVersion={refreshVersion}
     />

@@ -1,10 +1,7 @@
 import { loadCommunitySkillProfile } from '@app/communitySkillProfileUseCases';
-import {
-  loadCommunityEvaluationEditor,
-  isCommunityEvaluationActivated,
-  submitCommunityEvaluation,
-} from '@app/communityEvaluationUseCases';
+import { isCommunityEvaluationActivated } from '@app/communityEvaluationUseCases';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerEditView } from './PlayerEditView';
 import { buildPlayerEditViewContract } from '../../application/screens/playerEditView/playerEditViewContract';
@@ -61,7 +58,11 @@ function renderPlayerEditView(
     currentUserId: null,
   };
   const contract = buildPlayerEditViewContract({ ...defaults, ...overrides });
-  return render(<PlayerEditView contract={contract} />);
+  return render(
+    <MemoryRouter>
+      <PlayerEditView contract={contract} />
+    </MemoryRouter>,
+  );
 }
 
 describe('PlayerEditView evaluation community gate', () => {
@@ -92,58 +93,18 @@ describe('PlayerEditView evaluation community gate', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('refreshes the exact selected community after saving through the editor', async () => {
-    vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
-      ok: true,
-      value: {
-        community_id: 'cloud-community',
-        player_id: 'cloud-player',
-        authority_model: 'target',
-        can_evaluate: true,
-        can_manage_evaluators: false,
-        rubric_version: 'v0-legacy-11',
-        own_evaluation: null,
-        members: [],
-      },
-    });
-    vi.mocked(submitCommunityEvaluation).mockResolvedValue({ ok: true, value: undefined });
-    vi.mocked(loadCommunitySkillProfile).mockResolvedValue({
-      ok: true,
-      value: {
-        community_id: 'cloud-community',
-        player_id: 'cloud-player',
-        rubric_version: 'v0-legacy-11',
-        aggregation_policy_version: 'v0-legacy-mad-mean',
-        status: 'EXPERIMENTAL',
-        source_revision: 'r1',
-        calculated_at: NOW,
-        contribution_count: 1,
-        dimensions: [],
-      },
-    });
+  it('avaliar atleta leva a area de Avaliacao da comunidade, sem formulario nesta tela', () => {
     const community = makeCommunity({ cloudId: 'cloud-community' });
     const player = makePlayer('p1', { cloudId: 'cloud-player', communityIds: [community.id] });
     renderPlayerEditView({ currentUserId: 'user', communities: [community] }, player);
     fireEvent.change(screen.getByLabelText('Comunidade do perfil'), {
       target: { value: 'cloud-community' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Avaliar atleta' }));
-    await screen.findByText('0 de 11');
-    fireEvent.change(document.getElementById('nota-saque') as HTMLInputElement, {
-      target: { value: '6' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
-    await waitFor(() =>
-      expect(loadCommunitySkillProfile).toHaveBeenCalledWith({
-        communityId: 'cloud-community',
-        playerId: 'cloud-player',
-        rubricVersion: 'v0-legacy-11',
-      }),
+    expect(screen.getByRole('link', { name: 'Avaliar atleta' }).getAttribute('href')).toBe(
+      '/comunidades/community-1/avaliacao/cloud-player',
     );
-    expect((screen.getByLabelText('Comunidade do perfil') as HTMLSelectElement).value).toBe(
-      'cloud-community',
-    );
-    expect(document.getElementById('nota-saque')).toBeNull();
+    expect(screen.queryByText('0 de 11')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Salvar' })).toBeNull();
   });
 
   it('mantem o formulario legado numa comunidade em nuvem que ainda nao migrou', async () => {
@@ -174,51 +135,6 @@ describe('PlayerEditView evaluation community gate', () => {
         screen.getAllByRole('slider').filter((slider) => !(slider as HTMLInputElement).disabled),
       ).toHaveLength(1);
     });
-  });
-
-  it('closes the editor when the selected community is no longer linked to the player', async () => {
-    vi.mocked(loadCommunityEvaluationEditor).mockResolvedValue({
-      ok: true,
-      value: {
-        community_id: 'cloud-community',
-        player_id: 'cloud-player',
-        authority_model: 'target',
-        can_evaluate: true,
-        can_manage_evaluators: false,
-        rubric_version: 'v0-legacy-11',
-        own_evaluation: null,
-        members: [],
-      },
-    });
-    const community = makeCommunity({ cloudId: 'cloud-community' });
-    const player = makePlayer('p1', { cloudId: 'cloud-player', communityIds: [community.id] });
-    const view = renderPlayerEditView({ currentUserId: 'user', communities: [community] }, player);
-    fireEvent.change(screen.getByLabelText('Comunidade do perfil'), {
-      target: { value: 'cloud-community' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Avaliar atleta' }));
-    expect(await screen.findByText('0 de 11')).toBeTruthy();
-
-    const updatedContract = buildPlayerEditViewContract({
-      editingPlayer: player,
-      setEditingPlayer: vi.fn(),
-      players: [player],
-      games: [],
-      pointEvents: [],
-      teams: [],
-      communities: [],
-      sessions: [],
-      onBack: vi.fn(),
-      onSave: vi.fn(),
-      onDelete: vi.fn(),
-      validationErrors: {},
-      showDeleteConfirm: false,
-      setShowDeleteConfirm: vi.fn(),
-      permissions: { canEditPlayerProfile: true, canEvaluatePlayer: true },
-      currentUserId: 'user',
-    });
-    view.rerender(<PlayerEditView contract={updatedContract} />);
-    expect(screen.queryByText('0 de 11')).toBeNull();
   });
 
   it('keeps cloud technical attributes read-only', () => {

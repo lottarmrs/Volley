@@ -44,7 +44,7 @@ import { calculateSessionRecognition, calculatePlayerScoringRanking } from '../.
 import { FutCardModal } from './FutCardModal';
 import { submitSelfEvaluation } from '../../application/selfEvaluationUseCases';
 import { CommunitySkillProfilePanel } from './CommunitySkillProfilePanel';
-import { CommunityEvaluationEditor } from './CommunityEvaluationEditor';
+import { paths } from '@app/appRoutes';
 
 interface PlayerEditViewProps {
   contract: ScreenContract<PlayerEditViewModel, PlayerEditViewIntent>;
@@ -70,28 +70,6 @@ const PlayerEditViewContent: React.FC<PlayerEditViewProps> = ({ contract }) => {
   } = model;
   const [searchQuery, setSearchQuery] = useState('');
   const [showVutCard, setShowVutCard] = useState(false);
-  const [profileRefresh, setProfileRefresh] = useState(0);
-  const [evaluationCommunityId, setEvaluationCommunityId] = useState<string | null>(null);
-
-  const availableEvaluationCommunityIds = useMemo(
-    () =>
-      new Set(
-        communities
-          .filter(
-            (community) =>
-              !!community.cloudId && editingPlayer.communityIds?.includes(community.id),
-          )
-          .map((community) => community.cloudId!),
-      ),
-    [communities, editingPlayer.communityIds],
-  );
-  const selectedEvaluationCommunityId =
-    evaluationCommunityId && availableEvaluationCommunityIds.has(evaluationCommunityId)
-      ? evaluationCommunityId
-      : null;
-  if (evaluationCommunityId && !selectedEvaluationCommunityId) {
-    setEvaluationCommunityId(null);
-  }
 
   const editingPlayerCommunity = useMemo(() => {
     if (!editingPlayer || !editingPlayer.communityIds || editingPlayer.communityIds.length === 0)
@@ -348,14 +326,11 @@ const PlayerEditViewContent: React.FC<PlayerEditViewProps> = ({ contract }) => {
 
       {editingPlayer.cloudId && (
         <p className="text-sm text-base-content/75">
-          Os atributos técnicos antigos são somente leitura. Use Avaliar atleta no perfil
-          experimental da comunidade para registrar novas avaliações. O sorteio ainda usa os valores
-          antigos.
+          Os atributos técnicos antigos são somente leitura. As avaliações da comunidade ficam na
+          área Avaliação.
         </p>
       )}
       <CommunitySkillProfilePanel
-        refreshVersion={profileRefresh}
-        onCommunityChange={() => setEvaluationCommunityId(null)}
         currentUserId={currentUserId}
         playerCloudId={editingPlayer.cloudId}
         communities={communities
@@ -363,19 +338,13 @@ const PlayerEditViewContent: React.FC<PlayerEditViewProps> = ({ contract }) => {
             (community) => community.cloudId && editingPlayer.communityIds?.includes(community.id),
           )
           .map((community) => ({ id: community.cloudId!, name: community.name }))}
-        onOpenEvaluation={setEvaluationCommunityId}
+        evaluationPathFor={(communityCloudId) => {
+          const local = communities.find((community) => community.cloudId === communityCloudId);
+          return local && editingPlayer.cloudId
+            ? paths.avaliacaoAtleta(local.id, editingPlayer.cloudId)
+            : null;
+        }}
       />
-      {selectedEvaluationCommunityId && editingPlayer.cloudId && currentUserId && (
-        <CommunityEvaluationEditor
-          currentUserId={currentUserId}
-          communityId={selectedEvaluationCommunityId}
-          playerId={editingPlayer.cloudId}
-          onSaved={() => {
-            setEvaluationCommunityId(null);
-            setProfileRefresh((value) => value + 1);
-          }}
-        />
-      )}
 
       {/* Main Three-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

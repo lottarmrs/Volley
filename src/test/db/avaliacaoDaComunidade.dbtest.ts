@@ -157,4 +157,101 @@ if (!isTestDatabaseConfigured()) {
       { saque: 5 },
     ]);
   });
+
+  const SOZINHO = /Only the sole evaluator of this Community can assess themselves/;
+
+  test('com dois avaliadores, ninguem grava na propria ficha, por nenhum dos dois caminhos', async () => {
+    const c = await cena();
+    const admin = await entra(c.comunidade, 'admin');
+
+    await recusa(
+      c.dono,
+      RECORD,
+      [randomUUID(), randomUUID(), c.comunidade, c.fichaDoDono, VERSION, { saque: 9 }],
+      SOZINHO,
+    );
+    await recusa(
+      c.dono,
+      RECORD_EDITOR,
+      [randomUUID(), randomUUID(), c.comunidade, c.fichaDoDono, VERSION, { saque: 9 }, null],
+      SOZINHO,
+    );
+    await avalia(admin, c.comunidade, c.fichaDoDono);
+  });
+
+  test('o unico avaliador se avalia, e a nota entra no perfil marcada como autoavaliacao', async () => {
+    const c = await cena();
+
+    await avalia(c.dono, c.comunidade, c.fichaDoDono, 9);
+
+    const { rows } = await client.query<{ is_self_assessment: boolean }>(
+      `select is_self_assessment from public.player_evaluation_contributions
+        where community_id = $1 and player_id = $2 and superseded_at is null`,
+      [c.comunidade, c.fichaDoDono],
+    );
+    assert.deepEqual(rows, [{ is_self_assessment: true }]);
+    assert.equal(await saqueNoPerfil(c.dono, c.comunidade, c.fichaDoDono), 9);
+  });
+
+  test('outra nota tira a autoavaliacao da media sem apaga-la; e o dono nao altera mais a sua', async () => {
+    const c = await cena();
+    await avalia(c.dono, c.comunidade, c.fichaDoDono, 9);
+
+    const avaliador = await entra(c.comunidade, 'member');
+    await como(c.dono, 'select public.set_community_evaluator($1,$2,true)', [
+      c.comunidade,
+      avaliador,
+    ]);
+
+    assert.equal(
+      await saqueNoPerfil(c.dono, c.comunidade, c.fichaDoDono),
+      9,
+      'vale ate alguem avaliar',
+    );
+    await recusa(
+      c.dono,
+      RECORD,
+      [randomUUID(), randomUUID(), c.comunidade, c.fichaDoDono, VERSION, { saque: 10 }],
+      SOZINHO,
+    );
+
+    await avalia(avaliador, c.comunidade, c.fichaDoDono, 4);
+    assert.equal(await saqueNoPerfil(c.dono, c.comunidade, c.fichaDoDono), 4);
+
+    const { rows } = await client.query<{ n: number }>(
+      `select count(*)::int as n from public.player_evaluation_contributions
+        where player_id = $1 and is_self_assessment and superseded_at is null`,
+      [c.fichaDoDono],
+    );
+    assert.equal(rows[0].n, 1, 'a autoavaliacao continua registrada');
+  });
+
+  test('a autoavaliacao de uma conta anonimizada continua marcada e continua saindo da conta', async () => {
+    const c = await cena();
+    await avalia(c.dono, c.comunidade, c.fichaDoDono, 9);
+    await client.query(
+      `update public.player_evaluation_contributions set evaluator_user_id = null
+        where player_id = $1 and is_self_assessment`,
+      [c.fichaDoDono],
+    );
+
+    const avaliador = await entra(c.comunidade, 'member');
+    await como(c.dono, 'select public.set_community_evaluator($1,$2,true)', [
+      c.comunidade,
+      avaliador,
+    ]);
+    await avalia(avaliador, c.comunidade, c.fichaDoDono, 3);
+
+    assert.equal(await saqueNoPerfil(avaliador, c.comunidade, c.fichaDoDono), 3);
+  });
+
+  test('o reenvio de um comando ja registrado devolve o recibo, mesmo depois de surgir outro avaliador', async () => {
+    const c = await cena();
+    const args = [randomUUID(), randomUUID(), c.comunidade, c.fichaDoDono, VERSION, { saque: 8 }];
+    const primeiro = await como(c.dono, RECORD, args);
+
+    await entra(c.comunidade, 'admin');
+    const reenvio = await como(c.dono, RECORD, args);
+    assert.deepEqual(reenvio.rows, primeiro.rows);
+  });
 }

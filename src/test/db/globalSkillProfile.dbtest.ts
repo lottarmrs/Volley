@@ -453,8 +453,16 @@ if (!isTestDatabaseConfigured()) {
       )
     ).rows[0].profile;
     assert.deepEqual({ ...actual, calculated_at: null }, { ...expected, calculated_at: null });
+    // Until 2026-09-25 the owner was the refused caller here. Since then owner and admin
+    // evaluate by rank and read the profile, so the wrapper is proven with a plain member.
+    const memberId = await user();
+    await client.query(
+      `insert into public.community_memberships (community_id, user_id, role, status)
+       values ($1, $2, 'member', 'active')`,
+      [communityId, memberId],
+    );
     await assert.rejects(
-      asIdentity(client, ownerId, () =>
+      asIdentity(client, memberId, () =>
         client.query('select public.get_community_player_skill_profile($1,$2,$3)', [
           communityId,
           playerId,

@@ -63,6 +63,16 @@ describe('versioned Community evaluation editor', () => {
     expect(submitCommunityEvaluation).not.toHaveBeenCalled();
   });
 
+  it('passes a given gateway to load and save, and none when absent', async () => {
+    const gateway = {} as never;
+    render(<CommunityEvaluationEditor {...props} gateway={gateway} />);
+    fireEvent.change(await screen.findByLabelText('Saque'), { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(submitCommunityEvaluation).toHaveBeenCalledTimes(1));
+    expect(loadCommunityEvaluationEditor).toHaveBeenCalledWith('community', 'player', gateway);
+    expect(vi.mocked(submitCommunityEvaluation).mock.calls[0][1]).toBe(gateway);
+  });
+
   it('uses the save label the caller gives, naming the next athlete', async () => {
     render(<CommunityEvaluationEditor {...props} saveLabel="Salvar · próximo: Bia" />);
     expect(await screen.findByRole('button', { name: 'Salvar · próximo: Bia' })).toBeTruthy();

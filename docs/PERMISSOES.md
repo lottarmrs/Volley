@@ -28,7 +28,7 @@ O cliente **nunca consulta responsabilidades**: nem `useCommunityPermissions` ne
 |---|---|---|
 | A1 | Um `member` a quem se deu "Deixar organizar" consegue marcar pelada? | 🔴 **Não, pela interface.** O servidor dá `session.manage`, mas `canCreateSession` é falso para `member`: "Marcar pelada" fica desabilitado, `/sessoes/nova` cai em `SessionCreationBlocked`, e "Abrir inscrição" some (`canOpen`, `sessionRoutes.tsx:219`). O próprio painel promete o contrário: "a pessoa passa a poder criar peladas novas". |
 | A2 | Um admin ou moderador **sem** a responsabilidade vê ações de quem organiza? | 🔴 **Sim.** Marcar pelada (Visão geral, Comunidades), Presença, Lista de WhatsApp e "Abrir inscrição" aparecem habilitados; o servidor recusa na hora de abrir a lista. |
-| A3 | Quem vê "Avaliar atleta"? | ⚠️ owner/admin pelo cliente (`canEvaluatePlayer`); o servidor novo exige `EVALUATOR`. O comentário em `communityPermissions.ts` cita a RLS antiga. ❓ Não verifiquei qual das duas o caminho `legacy` de avaliação ainda usa. |
+| A3 | Quem vê "Avaliar atleta"? | ✅ **Resolvido em 2026-09-25.** Dono e admin avaliam pelo cargo, e quem administra designa outros avaliadores (`EVALUATOR`) em Gestão → Membros. A área Avaliação pergunta ao servidor (`useCommunityCapabilities` → `current_user_has_community_capability`), não ao cargo. Spec `2026-09-25-avaliacao-da-comunidade-design.md`. |
 | A4 | O cargo legado `organizador` ainda aparece? | Não é mais atribuível (`ASSIGNABLE_COMMUNITY_MEMBER_ROLES`), mas quem já o tem continua com `canCreateSession`. |
 
 ---

@@ -5,6 +5,7 @@ import {
   loadCommunityEvaluationEditor,
   parseScores,
   submitCommunityEvaluation,
+  type CommunityEvaluationGateway,
 } from '@app/communityEvaluationUseCases';
 import { generateUUID } from '@logic/uuid';
 import type { AppError } from '@app/appResult';
@@ -93,7 +94,7 @@ const Nota: FC<{
         step="0.5"
         value={blank ? '5' : value}
         disabled={disabled}
-        className={`range range-primary range-lg w-full ${blank ? 'opacity-35 [&::-moz-range-thumb]:opacity-0 [&::-webkit-slider-thumb]:opacity-0' : ''}`}
+        className={`range range-primary range-lg h-11 w-full ${blank ? 'opacity-35 [&::-moz-range-thumb]:opacity-0 [&::-webkit-slider-thumb]:opacity-0' : ''}`}
         onChange={(event) => onChange(event.target.value)}
         onPointerUp={commitIfBlank}
         onKeyUp={commitIfBlank}
@@ -106,8 +107,10 @@ const Editor: FC<{
   communityId: string;
   playerId: string;
   saveLabel?: string;
+  gateway?: CommunityEvaluationGateway;
   onSaved: () => void;
-}> = ({ communityId, playerId, saveLabel = 'Salvar', onSaved }) => {
+}> = ({ communityId, playerId, saveLabel = 'Salvar', gateway, onSaved }) => {
+  const viaGateway = gateway ? [gateway] : [];
   const [context, setContext] = useState<CommunityEvaluationEditorContext | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<CommunityEvaluationCommand | null>(null);
@@ -122,7 +125,7 @@ const Editor: FC<{
   useEffect(() => {
     let current = true;
     mounted.current = true;
-    void loadCommunityEvaluationEditor(communityId, playerId).then((result) => {
+    void loadCommunityEvaluationEditor(communityId, playerId, ...viaGateway).then((result) => {
       if (!current) return;
       setPending(null);
       setError(undefined);
@@ -156,7 +159,7 @@ const Editor: FC<{
     setPending(command);
     setError(undefined);
     setMessage('');
-    const result = await submitCommunityEvaluation(command);
+    const result = await submitCommunityEvaluation(command, ...viaGateway);
     if (!mounted.current) return;
     busy.current = false;
     if (result.ok) {
@@ -309,6 +312,7 @@ export function CommunityEvaluationEditor(props: {
   playerId: string;
   currentUserId?: string | null;
   saveLabel?: string;
+  gateway?: CommunityEvaluationGateway;
   onSaved: () => void;
 }) {
   return (

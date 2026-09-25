@@ -31,15 +31,12 @@ const Linha: FC<{
           <CircleDashed className="h-5 w-5 shrink-0 text-base-content/40" aria-hidden />
         )}
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-bold text-base-content">{nome}</span>
-            {!entry.hasAccount && (
-              <span className="badge badge-ghost badge-sm shrink-0 font-semibold">sem conta</span>
-            )}
+          <span className="line-clamp-2 break-words font-bold leading-snug text-base-content">
+            {nome}
           </span>
-          {entry.position && (
+          {(entry.position || !entry.hasAccount) && (
             <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wider text-base-content/55">
-              {entry.position}
+              {[entry.position, entry.hasAccount ? null : 'sem conta'].filter(Boolean).join(' · ')}
             </span>
           )}
         </span>

@@ -134,6 +134,26 @@ pertence ao sorteio. Se não, pertence ao marcar. É exatamente a costura da spe
 
 ---
 
+## Etapa 4b — Avaliar o elenco
+
+**De onde veio:** o item "Avaliação" do menu da comunidade, que só aparece para
+quem o servidor deixa avaliar; ou "Avaliar atleta" no perfil da comunidade.
+Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-comunidade-design.md).
+
+| # | Pergunta | Resposta |
+|---|----------|----------|
+| 4b.1 | Quem avalia? | ✅ Dono e admin pelo cargo; quem eles designam, pela responsabilidade `EVALUATOR`. `avaliacaoDaComunidade.dbtest.ts`. |
+| 4b.2 | Até 2026-09-25, alguém conseguia avaliar? | 🔴 **Não.** Em produção ninguém tinha `EVALUATOR`, e o cargo não dava a capacidade. |
+| 4b.3 | Alguém avalia a si mesmo? | ✅ Não, salvo o único avaliador da comunidade, em caráter provisório. |
+| 4b.4 | **E se a comunidade tem um avaliador só?** | ✅ Ele se autoavalia; a nota vale até a primeira nota de outra pessoa sobre ele, e então sai da média sem ser apagada. Designar alguém tira dele o direito de alterar a própria nota. |
+| 4b.5 | E se o elenco estiver vazio? | ✅ "Ninguém no elenco ainda." `EvaluationRosterView.spec.tsx`. |
+| 4b.6 | Quem avalia vê a nota dos outros? | ✅ Não, nem a média enquanto avalia: a média puxaria a nota para ela. |
+| 4b.7 | E sem sinal? | ✅ "A avaliação precisa de conexão." Salvar que falha guarda o comando e repete com o mesmo identificador. |
+| 4b.8 | Atleta sem avaliação entra no sorteio? | ✅ Com a média dos avaliados daquela pelada (ou 5), e o resultado avisa quantos foram estimados. |
+| 4b.9 | O toque no trilho do deslizante grava a nota num celular real? | ❓ **Aberta.** Provado por teste de componente e pelo teclado na bancada; o toque com dedo não foi verificado. |
+
+---
+
 ## Etapa 5 — Abrir a lista e compartilhar
 
 | # | Pergunta | Resposta |

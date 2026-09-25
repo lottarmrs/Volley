@@ -1,5 +1,9 @@
 # Community evaluation editor and source authority
 
+> **2026-09-25:** a decisão "do not automatically grant evaluation capability from governance
+> rank" foi trocada pelo usuário: dono e admin avaliam pelo cargo, e o editor saiu da tela do
+> atleta para uma área própria. Ver `2026-09-25-avaliacao-da-comunidade-design.md`.
+
 Continuation approved by the user's “seguir” after the W5-03 recommendation: connect evaluation
 entry to the versioned source with one write authority per Community. This is an integration slice
 between W5-03 and later balance cutover, not completion of XS-W5-04 or XS-W5-05. Earlier local

@@ -26,6 +26,16 @@ vi.mock('@app/sessionOrganizerUseCases', () => ({
   setCommunityOrganizerDuty: setDutyMock,
 }));
 
+const { listEvaluatorsMock, setEvaluatorMock } = vi.hoisted(() => ({
+  listEvaluatorsMock: vi.fn(),
+  setEvaluatorMock: vi.fn(),
+}));
+
+vi.mock('@app/communityEvaluationUseCases', () => ({
+  listCommunityEvaluators: listEvaluatorsMock,
+  setCommunityEvaluator: setEvaluatorMock,
+}));
+
 const community: Community = {
   id: 'community-local',
   cloudId: 'community-cloud',
@@ -74,6 +84,10 @@ beforeEach(() => {
   setDutyMock.mockReset();
   listOrganizersMock.mockResolvedValue({ ok: true, value: [] });
   setDutyMock.mockResolvedValue({ ok: true, value: undefined });
+  listEvaluatorsMock.mockReset();
+  setEvaluatorMock.mockReset();
+  listEvaluatorsMock.mockResolvedValue({ ok: true, value: [] });
+  setEvaluatorMock.mockResolvedValue({ ok: true, value: undefined });
 });
 
 /** Tirar passa por confirmacao; dar, nao. */
@@ -442,5 +456,68 @@ describe('CommunityMembersPanel — quem organiza', () => {
 
     await waitFor(() => expect(setDutyMock).toHaveBeenCalled());
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('dono deixa um membro avaliar, e o servidor recebe enabled verdadeiro', async () => {
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(within(linha).getByRole('button', { name: /deixar avaliar/i }));
+
+    await waitFor(() =>
+      expect(setEvaluatorMock).toHaveBeenCalledWith('community-cloud', 'bia', true),
+    );
+    expect(await within(linha).findByText(/avalia os atletas/i)).toBeTruthy();
+  });
+
+  it('tirar a avaliacao chama o servidor com enabled falso', async () => {
+    listEvaluatorsMock.mockResolvedValue({ ok: true, value: ['bia'] });
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    fireEvent.click(await within(linha).findByRole('button', { name: /tirar a avaliação/i }));
+
+    await waitFor(() =>
+      expect(setEvaluatorMock).toHaveBeenCalledWith('community-cloud', 'bia', false),
+    );
+  });
+
+  it('dono e admin mostram "Avalia pelo cargo", sem botao', async () => {
+    mockUseCommunityMembers([
+      member({ id: 'dono', userId: 'dono', role: 'owner', name: 'Ana Prado' }),
+      member({ id: 'adm', userId: 'adm', role: 'admin', name: 'Caio Admin' }),
+    ]);
+    render(
+      <CommunityMembersPanel community={community} currentUserId="dono" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /caio admin/i });
+    expect(within(linha).getByText(/avalia pelo cargo/i)).toBeTruthy();
+    expect(within(linha).queryByRole('button', { name: /deixar avaliar/i })).toBeNull();
+  });
+
+  it('quem nao administra nao ve o botao de avaliar', async () => {
+    mockUseCommunityMembers([
+      member({ id: 'mod', userId: 'mod', role: 'moderator', name: 'Moderadora' }),
+      member({ id: 'bia', userId: 'bia', role: 'member', name: 'Bianca Ferraz' }),
+    ]);
+    render(
+      <CommunityMembersPanel community={community} currentUserId="mod" isSupabaseConfigured />,
+    );
+
+    const linha = await screen.findByRole('listitem', { name: /bianca ferraz/i });
+    expect(within(linha).queryByRole('button', { name: /deixar avaliar/i })).toBeNull();
   });
 });

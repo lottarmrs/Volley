@@ -13,11 +13,13 @@ import {
   Clock,
   Volleyball,
   CalendarCheck,
+  ClipboardCheck,
 } from 'lucide-react';
 import { AuthRole, Community, CommunityMember, CommunityMemberRole, Player } from '../../types';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { fetchApprovedMemberPlayerQuery } from '@app/communityPlayerSearchUseCases';
 import { listCommunityOrganizers, setCommunityOrganizerDuty } from '@app/sessionOrganizerUseCases';
+import { listCommunityEvaluators, setCommunityEvaluator } from '@app/communityEvaluationUseCases';
 import {
   buildCommunityMembersViewModel,
   COMMUNITY_ROLE_LABELS,
@@ -63,6 +65,42 @@ export function CommunityMembersPanel({
       vivo = false;
     };
   }, [enabled, community.cloudId]);
+
+  const [avaliadores, setAvaliadores] = useState<string[]>([]);
+  const [avaliadorEmCurso, setAvaliadorEmCurso] = useState<string | null>(null);
+  const [erroDaAvaliacao, setErroDaAvaliacao] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let vivo = true;
+    void listCommunityEvaluators(community.cloudId ?? null).then((resultado) => {
+      if (vivo && resultado.ok) setAvaliadores(resultado.value);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [enabled, community.cloudId]);
+
+  const alternarAvaliacao = async (member: CommunityMember) => {
+    const passaAAvaliar = !avaliadores.includes(member.userId);
+    setAvaliadorEmCurso(member.userId);
+    setErroDaAvaliacao(null);
+    const resultado = await setCommunityEvaluator(
+      community.cloudId ?? '',
+      member.userId,
+      passaAAvaliar,
+    );
+    setAvaliadorEmCurso(null);
+    if (!resultado.ok) {
+      setErroDaAvaliacao(resultado.error.message);
+      return;
+    }
+    setAvaliadores((atuais) =>
+      passaAAvaliar
+        ? [...atuais.filter((id) => id !== member.userId), member.userId]
+        : atuais.filter((id) => id !== member.userId),
+    );
+  };
   const {
     members,
     loading,
@@ -508,6 +546,12 @@ export function CommunityMembersPanel({
         </div>
       )}
 
+      {erroDaAvaliacao && (
+        <div role="alert" className="alert alert-error alert-soft text-sm font-semibold">
+          {erroDaAvaliacao}
+        </div>
+      )}
+
       {/* ── Diretório de membros ───────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-bold text-text-muted uppercase px-1">
@@ -567,6 +611,32 @@ export function CommunityMembersPanel({
                           {organizadores.includes(member.userId)
                             ? 'Tirar a organização'
                             : 'Deixar organizar'}
+                        </button>
+                      )}
+                      {(member.role === 'owner' || member.role === 'admin') && (
+                        <span className="badge badge-sm badge-outline gap-1 mt-1">
+                          <ClipboardCheck className="w-3 h-3" />
+                          Avalia pelo cargo
+                        </span>
+                      )}
+                      {member.role !== 'owner' &&
+                        member.role !== 'admin' &&
+                        avaliadores.includes(member.userId) && (
+                          <span className="badge badge-sm badge-secondary badge-outline gap-1 mt-1">
+                            <ClipboardCheck className="w-3 h-3" />
+                            Avalia os atletas
+                          </span>
+                        )}
+                      {editable && enabled && member.role !== 'admin' && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs mt-1 px-1 text-primary"
+                          disabled={busy || avaliadorEmCurso === member.userId}
+                          onClick={() => void alternarAvaliacao(member)}
+                        >
+                          {avaliadores.includes(member.userId)
+                            ? 'Tirar a avaliação'
+                            : 'Deixar avaliar'}
                         </button>
                       )}
                     </div>

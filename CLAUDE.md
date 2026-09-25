@@ -8,6 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`GEMINI.md`** — coding philosophy (think before coding, simplicity first, surgical changes, goal-driven execution). Follow it.
 - **`HANDOFF.md`** — current project status and recommended order of work.
 - **`README.md`** — setup, Supabase migration list, schema overview.
+- **`docs/JORNADA.md`** — the journey as a question bank. Read before planning anything a user
+  touches: it says which stages are proven, which are open, and what was never verified.
+- **`AGENTS.md` → "Traps That Cost Real Time"** — the handful of things in this repo that behave
+  contrary to reasonable expectation. `tsc` not catching unknown React props is one of them.
 
 ## Commands
 

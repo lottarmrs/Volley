@@ -51,6 +51,54 @@
 > destrava o resto: **nao existe marcar pelada para depois** -- a sessao so entra
 > em `sess.sessions` no sorteio e nasce com a data de hoje, entao a tela da
 > inscricao so fica alcancavel depois do sorteio que ela deveria preceder.
+>
+> **2026-09-24, fim do dia — leia esta entrada antes de retomar.** A sessão de
+> 24/09 foi longa e mexeu em fluxo, servidor e documentação. O ponto de retomada
+> é esta lista, nesta ordem:
+>
+> 1. **[docs/JORNADA.md](docs/JORNADA.md)** — banco de perguntas da jornada, do
+>    primeiro acesso ao pós-jogo. Não é um mapa: é a lista que precisa estar
+>    respondida antes de cada etapa contar como pronta, com ❓ onde não foi
+>    verificado. **Comece por aqui**; ele diz o que está aberto e o que já caiu.
+> 2. **[docs/ROADMAP.md](docs/ROADMAP.md)** — as 30 rotas, as jornadas e os
+>    achados numerados com evidência.
+> 3. **[mapa de alcançabilidade](docs/architecture/execution/C6-REACHABILITY-MAP.md)**
+>    — recontado do zero: 79 funções da era C6, 32 alcançáveis.
+>
+> **Migrations aplicadas no Panelinha em 24/09**, nesta ordem:
+> `registration_board_session_facts`, `approved_member_account_link`,
+> `backfill_approved_member_account_link`, `community_owner_becomes_athlete`.
+> Todas verificadas em produção depois de aplicar.
+>
+> **O fluxo mudou de forma.** Marcar a pelada deixou de exigir atletas; a lista
+> decide quem joga; fechar a lista é passo separado; o sorteio ganhou rota
+> própria (`/comunidades/:c/sessoes/:s/sortear`). Spec e plano em
+> `docs/superpowers/`, os dois concluídos.
+>
+> **Três coisas aprendidas que valem mais que o código:**
+>
+> - **Uma pessoa só joga quando tem quatro coisas independentes**: participação
+>   na comunidade, ficha de atleta (`players`), vínculo de conta
+>   (`player_account_links` `ACTIVE`) e assento no elenco (`community_players`).
+>   Confundi-las custou o dia inteiro. Só **duas** funções no banco criam
+>   vínculo, e `jornadaDoZero.dbtest.ts` guarda essa lista fechada — se alguém
+>   abrir uma terceira porta, o teste quebra.
+> - **Política não pertence ao motor.** Tentei pôr "não sortear com a lista
+>   aberta" dentro de `prepareAuthorizedTeamFormation` e quebrei dois testes que
+>   protegiam comportamento deliberado da XS-W6-08c. O caso de uso serve os dois
+>   caminhos — com lista e sem —, e é na tela que eles diferem.
+>   `drawGateUseCases.ts` é onde a política ficou.
+> - **Uma utilitária do Tailwind vence uma regra em `@layer base`.** Medido, não
+>   deduzido: o piso de toque de 44px era cancelado por `sm:min-h-0` e por
+>   `min-h-[32px]` escritos na classe. `AF-TOUCH-001` proíbe o primeiro padrão;
+>   sobram **oito** travas explícitas abaixo de 44px (AppShell, Agenda,
+>   QuickStart, AccountSync) que ninguém pediu para mexer.
+>
+> **Decisões que esperam o usuário**, todas no roadmap com evidência:
+> o achado 15 (a policy de leitura de `sessions` exclui `member`, então o atleta
+> nunca recebe as peladas do grupo pela nuvem), a fatia 6 (sessão target
+> invisível em outro aparelho, barrada pelo invariante `AF-TARGET-005`), e a
+> fila offline da inscrição.
 
 ## 0. Trabalho corrente — execução arquitetural C6
 

@@ -117,6 +117,30 @@ Two config files exist: `eslint.config.js` (active) and `eslint.config.mjs` (stu
 - `DISABLE_HMR=true` disables HMR — use during AI agent edits when file watching causes issues.
 - Manual chunks separate react, supabase, motion, and recharts for bundle optimization.
 
+## Traps That Cost Real Time
+
+Each of these was discovered the hard way, with the cost noted so you can judge whether to trust
+this list over your instincts.
+
+- **`tsc` does not catch unknown props on React components.** The JSX namespace in this repo is
+  degraded, so passing a prop a component does not declare typechecks clean. Specs, not the
+  typechecker, protect component prop contracts. Class components are affected worse: `Component`
+  generics do not resolve, so `this.props` and `this.state` error — write function components.
+- **A Tailwind utility beats a rule in `@layer base`.** The 44px touch floor lives in `@layer base`
+  under `@media (pointer: coarse)`, so `sm:min-h-0` or a literal `min-h-[32px]` in a className
+  silently cancels it. Measured in the browser, not deduced: 44px without the utility, 0px with it.
+  `AF-TOUCH-001` bans the `sm:min-h-*` form; explicit sub-44px pins still exist in four screens.
+- **Four independent things gate whether a person can play.** Community membership, a `players` row,
+  an `ACTIVE` row in `player_account_links`, and a seat in `community_players`. They look like one
+  concept and are not. `join_registration` refuses each with its own message and the same `42501`.
+  `jornadaDoZero.dbtest.ts` pins the closed set of functions that can create an account link.
+- **Policy does not belong in a shared use case.** `prepareAuthorizedTeamFormation` serves two
+  paths — with a registration list and without — so a rule that applies to only one of them breaks
+  the other. Gates like that belong at the route. See `drawGateUseCases.ts`.
+- **A document that stops being true is worse than no document.** Both the reachability map and the
+  roadmap drifted into stating the opposite of reality within days. When you fix something, fix the
+  sentence that describes it in the same commit.
+
 ## Known Tech Debt
 
 - `src/logic/migrations.ts` — large file with many `any` casts (compatibility/import layer).
@@ -136,3 +160,6 @@ Two config files exist: `eslint.config.js` (active) and `eslint.config.mjs` (stu
 - `GEMINI.md` — coding philosophy guidelines (think before coding, simplicity, surgical changes, goal-driven execution).
 - `docs/architecture/domain-model.md` — domain layer definitions and identity model.
 - `docs/operations/schema-drift-check.md` — manual procedure for verifying `schema.sql` against production DB.
+- `docs/JORNADA.md` — the journey as a question bank: what must be answered before each stage counts
+  as done, with ❓ marking what was never verified. Read before planning user-facing work.
+- `docs/ROADMAP.md` — routes, journeys and numbered findings, each with evidence.

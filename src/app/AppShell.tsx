@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BarChart3,
   ChevronRight,
+  ClipboardCheck,
   Cloud,
   LayoutDashboard,
   Medal,
@@ -34,6 +35,7 @@ import { useSession } from '../ui/common/useSession';
 import { useSessionWizard } from '../hooks/useSessionWizard';
 import { useCommunities } from '../hooks/useCommunities';
 import { useCommunityPermissions } from '../hooks/useCommunityPermissions';
+import { useCommunityCapabilities } from '../hooks/useCommunityCapabilities';
 import { useCommunityPresence } from '../hooks/useCommunityPresence';
 import { useCommunityRules } from '../hooks/useCommunityRules';
 import { useWhatsAppListTemplates } from '../hooks/useWhatsAppListTemplates';
@@ -90,6 +92,7 @@ const navigationIconByKey: Record<ShellNavItem['icon'], ReactNode> = {
   history: <BarChart3 className="w-5 h-5" />,
   cloud: <Cloud className="w-5 h-5" />,
   settings: <Settings className="w-5 h-5" />,
+  evaluation: <ClipboardCheck className="w-5 h-5" />,
   admin: <ShieldCheck className="w-5 h-5" />,
 };
 
@@ -123,6 +126,7 @@ export function AppShell() {
     [comm.communities, currentCommunityId],
   );
   const currentCommunityPermissions = useCommunityPermissions(currentCommunity);
+  const currentCommunityCapabilities = useCommunityCapabilities(currentCommunity);
   const returnPath = getReturnRouteForPath(location.pathname);
 
   useEffect(() => {
@@ -639,6 +643,9 @@ export function AppShell() {
     isGuest,
     showManagement:
       currentCommunityPermissions.membersResolved && currentCommunityPermissions.canSeeManagement,
+    showEvaluation:
+      currentCommunityCapabilities.resolved &&
+      currentCommunityCapabilities.capabilities.has('player.evaluate'),
   });
   const headerAccount = getAccountDisplay({
     profileName: auth.profile?.name,

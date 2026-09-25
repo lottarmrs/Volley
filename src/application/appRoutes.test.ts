@@ -559,3 +559,29 @@ test('o sorteio tem caminho e titulo proprios: e um momento, nao um passo do wiz
     'a rota irma nao e afetada',
   );
 });
+
+test('a Avaliacao so aparece na lateral para quem o servidor deixa avaliar', () => {
+  const sem = getShellNavigationItems({
+    pathname: '/comunidades/c1',
+    isStaff: false,
+    pendingChanges: 0,
+  });
+  assert.ok(!sem.some((item) => item.id === 'comunidade-avaliacao'));
+
+  const com = getShellNavigationItems({
+    pathname: '/comunidades/c1/avaliacao/p1',
+    isStaff: false,
+    pendingChanges: 0,
+    showEvaluation: true,
+  });
+  const labels = com.map((item) => item.label);
+  assert.equal(labels.indexOf('Avaliação'), labels.indexOf('Desempenho') + 1);
+  assert.deepEqual(
+    com.filter((item) => item.active).map((item) => item.id),
+    ['comunidade-avaliacao'],
+  );
+  assert.equal(paths.avaliacao('c1'), '/comunidades/c1/avaliacao');
+  assert.equal(paths.avaliacaoAtleta('c1', 'p1'), '/comunidades/c1/avaliacao/p1');
+  assert.equal(getPageTitleForPath('/comunidades/c1/avaliacao'), 'Avaliação');
+  assert.equal(getPageTitleForPath('/comunidades/c1/avaliacao/p1'), 'Avaliar atleta');
+});

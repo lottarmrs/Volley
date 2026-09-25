@@ -53,6 +53,9 @@ export const paths = {
   presenca: (communityId: string) => `/comunidades/${communityId}/sessoes/presenca`,
   listaWhatsapp: (communityId: string) => `/comunidades/${communityId}/sessoes/lista-whatsapp`,
   ligasComunidade: (communityId: string) => `/comunidades/${communityId}/ligas`,
+  avaliacao: (communityId: string) => `/comunidades/${communityId}/avaliacao`,
+  avaliacaoAtleta: (communityId: string, playerCloudId: string) =>
+    `/comunidades/${communityId}/avaliacao/${playerCloudId}`,
 } as const;
 
 export type RouteResolution = { kind: 'ok' } | { kind: 'redirect'; to: string };
@@ -268,6 +271,8 @@ export function getPageTitleForPath(pathname: string): string {
       if (segments[3] === 'historico') return 'Histórico';
       if (segments[3] === 'estatisticas') return 'Estatísticas';
       return 'Desempenho';
+    case 'avaliacao':
+      return segments[3] ? 'Avaliar atleta' : 'Avaliação';
     case 'gestao':
       if (segments[3] === 'regras') return 'Regras da Comunidade';
       if (segments[3] === 'dados') return 'Dados da Comunidade';
@@ -288,6 +293,7 @@ export interface ShellNavItem {
     | 'history'
     | 'cloud'
     | 'settings'
+    | 'evaluation'
     | 'admin';
   to: string;
   active: boolean;
@@ -333,6 +339,7 @@ export function getShellNavigationItems(input: {
   pendingChanges: number;
   isGuest?: boolean;
   showManagement?: boolean;
+  showEvaluation?: boolean;
 }): ShellNavItem[] {
   const communityId = extractCommunityId(input.pathname);
   const path = input.pathname.split('?')[0];
@@ -390,6 +397,13 @@ export function getShellNavigationItems(input: {
         active: area === 'desempenho',
       },
       {
+        id: 'comunidade-avaliacao',
+        label: 'Avaliação',
+        icon: 'evaluation',
+        to: paths.avaliacao(communityId),
+        active: area === 'avaliacao',
+      },
+      {
         id: 'comunidade-gestao',
         label: 'Gestão',
         icon: 'settings',
@@ -404,9 +418,11 @@ export function getShellNavigationItems(input: {
         active: false,
       },
     ];
-    return input.showManagement === false
-      ? items.filter((item) => item.id !== 'comunidade-gestao')
-      : items;
+    return items.filter(
+      (item) =>
+        (item.id !== 'comunidade-gestao' || input.showManagement !== false) &&
+        (item.id !== 'comunidade-avaliacao' || input.showEvaluation === true),
+    );
   }
 
   const items: ShellNavItem[] = [

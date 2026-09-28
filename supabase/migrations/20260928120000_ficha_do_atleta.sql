@@ -142,3 +142,92 @@ $$;
 
 revoke execute on function public.ensure_account_ready(text) from public, anon;
 grant execute on function public.ensure_account_ready(text) to authenticated;
+
+create or replace function public.update_my_athlete_profile(
+  p_gender text,
+  p_primary_position text,
+  p_height_cm numeric,
+  p_dominant_hand text,
+  p_nickname text,
+  p_secondary_positions text[],
+  p_injured boolean,
+  p_physical_limitation text
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+  v_player public.players%rowtype;
+  v_positions constant text[] := array['levantador','oposto','ponteiro','central','libero','all-rounder'];
+  v_secondary text[] := coalesce(p_secondary_positions, array[]::text[]);
+  v_status jsonb;
+begin
+  if v_uid is null then
+    raise exception 'Not authenticated' using errcode = '42501';
+  end if;
+
+  select * into v_player
+    from public.players
+   where user_id = v_uid and deleted_at is null
+   order by created_at
+   limit 1
+   for update;
+  if v_player.id is null then
+    raise exception 'Athlete profile not found for this account' using errcode = 'P0002';
+  end if;
+
+  if p_gender is null or p_gender not in ('M', 'F') then
+    raise exception 'Gender must be M or F' using errcode = '23514';
+  end if;
+  if p_primary_position is null or not (p_primary_position = any (v_positions)) then
+    raise exception 'Primary position is not valid' using errcode = '23514';
+  end if;
+  if p_height_cm is null or p_height_cm < 120 or p_height_cm > 230 then
+    raise exception 'Height must be between 120 and 230 cm' using errcode = '23514';
+  end if;
+  if p_dominant_hand is null or p_dominant_hand not in ('direita', 'esquerda') then
+    raise exception 'Dominant hand must be direita or esquerda' using errcode = '23514';
+  end if;
+  if exists (select 1 from pg_catalog.unnest(v_secondary) s where not (s = any (v_positions)))
+     or pg_catalog.cardinality(v_secondary) <> (select pg_catalog.count(distinct s) from pg_catalog.unnest(v_secondary) s)
+     or p_primary_position = any (v_secondary) then
+    raise exception 'Secondary positions must be valid, distinct and different from the primary'
+      using errcode = '23514';
+  end if;
+
+  v_status := coalesce(v_player.status, '{}'::jsonb);
+  if p_injured is not null then
+    v_status := v_status || pg_catalog.jsonb_build_object('lesionado', p_injured);
+  end if;
+  if p_physical_limitation is not null then
+    v_status := v_status || pg_catalog.jsonb_build_object(
+      'limitacaoFisica', nullif(pg_catalog.btrim(p_physical_limitation), '')
+    );
+  end if;
+
+  update public.players
+     set gender = p_gender,
+         primary_position = p_primary_position,
+         height = p_height_cm,
+         dominant_hand = p_dominant_hand,
+         nickname = nullif(pg_catalog.btrim(coalesce(p_nickname, '')), ''),
+         secondary_positions = v_secondary,
+         status = v_status,
+         updated_at = pg_catalog.now()
+   where id = v_player.id;
+
+  return case
+    when v_player.username is null then 'needs_username'
+    when app_private.athlete_profile_complete(v_player.id) then 'ready'
+    else 'needs_athlete_profile'
+  end;
+end;
+$$;
+
+revoke all on function public.update_my_athlete_profile(text, text, numeric, text, text, text[], boolean, text)
+  from public, anon;
+grant execute on function public.update_my_athlete_profile(text, text, numeric, text, text, text[], boolean, text)
+  to authenticated;

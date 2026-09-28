@@ -37,7 +37,13 @@ if (!isTestDatabaseConfigured()) {
     return asIdentityCommitting(client, actor, () => client.query<T>(sql, args));
   }
 
-  async function recusa(actor: string, sql: string, args: unknown[], codigo: string, mensagem?: RegExp) {
+  async function recusa(
+    actor: string,
+    sql: string,
+    args: unknown[],
+    codigo: string,
+    mensagem?: RegExp,
+  ) {
     await assert.rejects(como(actor, sql, args), (erro: { code?: string; message?: string }) => {
       assert.equal(erro.code, codigo);
       if (mensagem) assert.match(erro.message ?? '', mensagem);
@@ -111,5 +117,88 @@ if (!isTestDatabaseConfigured()) {
     const id = await conta('completa');
     await completa(id);
     assert.equal(await estado(id), 'ready');
+  });
+
+  const GRAVA = 'select public.update_my_athlete_profile($1,$2,$3,$4,$5,$6,$7,$8) as estado';
+  const valido = ['M', 'ponteiro', 182, 'direita', 'Zé', ['oposto'], null, null];
+
+  test('grava a propria ficha e devolve ready', async () => {
+    const id = await conta('grava');
+    const { rows } = await como<{ estado: string }>(id, GRAVA, valido);
+    assert.equal(rows[0].estado, 'ready');
+    const ficha = await fichaDe(id);
+    assert.equal(ficha.gender, 'M');
+    assert.equal(ficha.primary_position, 'ponteiro');
+    assert.equal(Number(ficha.height), 182);
+    assert.equal(ficha.dominant_hand, 'direita');
+    assert.equal(ficha.nickname, 'Zé');
+    assert.deepEqual(ficha.secondary_positions, ['oposto']);
+  });
+
+  test('cada campo invalido e recusado com a propria mensagem', async () => {
+    const id = await conta('invalido');
+    const casos: Array<[number, unknown, RegExp]> = [
+      [0, 'X', /gender/i],
+      [0, null, /gender/i],
+      [1, 'goleiro', /primary position/i],
+      [1, null, /primary position/i],
+      [2, 119, /height/i],
+      [2, 231, /height/i],
+      [2, null, /height/i],
+      [3, 'ambas', /dominant hand/i],
+      [3, null, /dominant hand/i],
+      [5, ['goleiro'], /secondary/i],
+      [5, ['oposto', 'oposto'], /secondary/i],
+      [5, ['ponteiro'], /secondary/i],
+    ];
+    for (const [indice, valor, mensagem] of casos) {
+      const args = [...valido];
+      args[indice] = valor;
+      await recusa(id, GRAVA, args, '23514', mensagem);
+    }
+  });
+
+  test('apelido e limitacao em branco viram null; nulos preservam lesionado e presenca', async () => {
+    const id = await conta('branco');
+    await client.query(
+      `update public.players
+          set status = '{"lesionado": true, "limitacaoFisica": "joelho", "presencaFrequente": true}'
+        where user_id = $1`,
+      [id],
+    );
+    await como(id, GRAVA, ['F', 'central', 175, 'esquerda', '  ', [], null, null]);
+    let ficha = await fichaDe(id);
+    assert.equal(ficha.nickname, null);
+    assert.deepEqual(ficha.status, {
+      lesionado: true,
+      limitacaoFisica: 'joelho',
+      presencaFrequente: true,
+    });
+
+    await como(id, GRAVA, ['F', 'central', 175, 'esquerda', null, [], false, '  ']);
+    ficha = await fichaDe(id);
+    assert.deepEqual(ficha.status, {
+      lesionado: false,
+      limitacaoFisica: null,
+      presencaFrequente: true,
+    });
+  });
+
+  test('a RPC nunca grava em outra ficha', async () => {
+    const a = await conta('a');
+    const b = await conta('b');
+    await como(a, GRAVA, valido);
+    assert.equal((await fichaDe(b)).gender, null);
+  });
+
+  test('sem ficha para a conta, P0002', async () => {
+    const id = await conta('sem-ficha');
+    await client.query('set session_replication_role = replica');
+    try {
+      await client.query('delete from public.players where user_id = $1', [id]);
+    } finally {
+      await client.query('set session_replication_role = origin');
+    }
+    await recusa(id, GRAVA, valido, 'P0002');
   });
 }

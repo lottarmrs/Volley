@@ -47,7 +47,7 @@ export function GuestPlayerModal({
   canEditDetails = false,
 }: GuestPlayerModalProps) {
   const [nome, setNome] = useState('');
-  const [genero, setGenero] = useState<Gender>('M');
+  const [genero, setGenero] = useState<Gender | null>(null);
   const [posicaoPrincipal, setPosicaoPrincipal] = useState<Position>('ponteiro');
   const [atributos, setAtributos] = useState<Attributes>({ ...INITIAL_ATTRIBUTES });
   const [templateSearch, setTemplateSearch] = useState('');
@@ -123,6 +123,10 @@ export function GuestPlayerModal({
       alert('O nome do convidado é obrigatório.');
       return;
     }
+    if (!genero) {
+      alert('Escolha o gênero do convidado.');
+      return;
+    }
 
     const now = new Date().toISOString();
 
@@ -171,7 +175,7 @@ export function GuestPlayerModal({
 
     // Reset state
     setNome('');
-    setGenero('M');
+    setGenero(null);
     setPosicaoPrincipal('ponteiro');
     setAtributos({ ...INITIAL_ATTRIBUTES });
     setSelectedTemplatePlayer(null);
@@ -228,6 +232,7 @@ export function GuestPlayerModal({
                 <button
                   type="button"
                   onClick={() => setGenero('M')}
+                  aria-pressed={genero === 'M'}
                   className={`btn btn-sm text-xs font-bold uppercase ${genero === 'M' ? 'btn-neutral' : 'btn-ghost btn-outline border-base-300'}`}
                 >
                   Masculino
@@ -235,6 +240,7 @@ export function GuestPlayerModal({
                 <button
                   type="button"
                   onClick={() => setGenero('F')}
+                  aria-pressed={genero === 'F'}
                   className={`btn btn-sm text-xs font-bold uppercase ${genero === 'F' ? 'btn-neutral' : 'btn-ghost btn-outline border-base-300'}`}
                 >
                   Feminino

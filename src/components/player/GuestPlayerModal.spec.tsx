@@ -37,6 +37,7 @@ describe('GuestPlayerModal', () => {
 
     const nameInput = screen.getByPlaceholderText(/ex: carlos convidado/i);
     fireEvent.change(nameInput, { target: { value: 'Lucas Convidado' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Masculino' }));
 
     const submitBtn = screen.getByRole('button', { name: /salvar convidado/i });
     fireEvent.click(submitBtn);
@@ -70,9 +71,38 @@ describe('GuestPlayerModal', () => {
     fireEvent.change(screen.getByPlaceholderText(/ex: carlos convidado/i), {
       target: { value: 'Lucas Convidado' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Feminino' }));
     fireEvent.click(screen.getByRole('button', { name: /editar detalhes/i }));
 
     expect(handleAddGuest).toHaveBeenCalledTimes(1);
     expect(handleAddGuest.mock.calls[0][1]).toBe(true);
+  });
+
+  it('comeca sem genero marcado e nao salva sem genero', () => {
+    const handleAddGuest = vi.fn();
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    render(
+      <GuestPlayerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        players={[]}
+        onAddGuestPlayer={handleAddGuest}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Masculino' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+    expect(screen.getByRole('button', { name: 'Feminino' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+    fireEvent.change(screen.getByPlaceholderText(/ex: carlos convidado/i), {
+      target: { value: 'Lucas Convidado' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /salvar convidado/i }));
+
+    expect(handleAddGuest).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledWith('Escolha o gênero do convidado.');
+    alertSpy.mockRestore();
   });
 });

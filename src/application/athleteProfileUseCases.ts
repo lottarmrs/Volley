@@ -1,5 +1,6 @@
 import { validateAthleteProfile, type AthleteProfileDraft } from '@domain/athleteProfile';
 import { athleteProfileCloudService } from '@infra/supabase/athleteProfileCloudService';
+import type { Player } from '@shared/types';
 import type { AccountReadiness } from './accountUseCases';
 import { appOk, productError, technicalError, type AppResult } from './appResult';
 
@@ -36,4 +37,34 @@ export async function updateMyAthleteProfile(
       return productError('cloud_unavailable', 'Precisamos de conexão para salvar sua ficha.');
     return technicalError('Não foi possível salvar sua ficha. Verifique a conexão.', error);
   }
+}
+
+export function applyAthleteDraftToPlayer(player: Player, draft: AthleteProfileDraft): Player {
+  return {
+    ...player,
+    genero: draft.genero,
+    posicaoPrincipal: draft.posicaoPrincipal,
+    posicoesSecundarias: draft.posicoesSecundarias,
+    alturaCm: draft.alturaCm ?? undefined,
+    maoDominante: draft.maoDominante ?? player.maoDominante,
+    apelido: draft.apelido.trim(),
+    status: {
+      ...player.status,
+      lesionado: draft.lesionado ?? false,
+      limitacaoFisica: draft.limitacaoFisica ?? null,
+    },
+    syncStatus: 'synced',
+  };
+}
+
+export function applyAthleteDraftToOwnPlayer(
+  players: Player[],
+  userId: string,
+  draft: AthleteProfileDraft,
+): Player[] {
+  return players.map((player) =>
+    player.userId === userId && !player.deletedAt
+      ? applyAthleteDraftToPlayer(player, draft)
+      : player,
+  );
 }

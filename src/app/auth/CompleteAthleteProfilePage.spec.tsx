@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { updateMyAthleteProfile } from '@app/athleteProfileUseCases';
 import { CompleteAthleteProfilePage } from './CompleteAthleteProfilePage';
 
-vi.mock('@app/athleteProfileUseCases', () => ({ updateMyAthleteProfile: vi.fn() }));
+vi.mock('@app/athleteProfileUseCases', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@app/athleteProfileUseCases')>()),
+  updateMyAthleteProfile: vi.fn(),
+}));
 const retry = vi.fn();
-vi.mock('./useAuthSession', () => ({ useAuthSession: () => ({ retry }) }));
+vi.mock('./useAuthSession', () => ({
+  useAuthSession: () => ({ retry, session: { user: { id: 'conta-1' } } }),
+}));
 
 function preencher() {
   fireEvent.click(screen.getByRole('radio', { name: 'Masculino' }));
@@ -35,6 +40,37 @@ describe('CompleteAthleteProfilePage', () => {
   beforeEach(() => {
     vi.mocked(updateMyAthleteProfile).mockReset();
     retry.mockReset();
+    localStorage.clear();
+  });
+
+  it('depois de salvar, a copia local da propria ficha ja tem a ficha', async () => {
+    localStorage.setItem(
+      'vpg_players',
+      JSON.stringify([
+        { id: 'minha', nome: 'Zé', userId: 'conta-1', genero: null, status: {} },
+        { id: 'dela', nome: 'Ana', userId: 'conta-2', genero: null, status: {} },
+      ]),
+    );
+    vi.mocked(updateMyAthleteProfile).mockResolvedValue({ ok: true, value: 'ready' });
+    renderAt();
+    preencher();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(retry).toHaveBeenCalled());
+    const [minha, dela] = JSON.parse(localStorage.getItem('vpg_players') ?? '[]');
+    expect(minha.genero).toBe('M');
+    expect(minha.posicaoPrincipal).toBe('ponteiro');
+    expect(minha.alturaCm).toBe(182);
+    expect(minha.maoDominante).toBe('direita');
+    expect(dela.genero).toBeNull();
+  });
+
+  it('sem copia local, salvar nao cria uma', async () => {
+    vi.mocked(updateMyAthleteProfile).mockResolvedValue({ ok: true, value: 'ready' });
+    renderAt();
+    preencher();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(retry).toHaveBeenCalled());
+    expect(localStorage.getItem('vpg_players')).toBeNull();
   });
 
   it('continuar fica desabilitado ate os quatro obrigatorios', () => {

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
-import { updateMyAthleteProfile } from '@app/athleteProfileUseCases';
+import { applyAthleteDraftToOwnPlayer, updateMyAthleteProfile } from '@app/athleteProfileUseCases';
 import { validateAthleteProfile, type AthleteProfileDraft } from '@domain/athleteProfile';
+import type { Player } from '@shared/types';
+import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '@storage/localStorageRepository';
 import { AthleteProfileForm } from '../../components/player/AthleteProfileForm';
 import { useAuthSession } from './useAuthSession';
 
@@ -15,8 +17,15 @@ const VAZIO: AthleteProfileDraft = {
   posicoesSecundarias: [],
 };
 
+function aplicarNaCopiaLocal(userId: string | undefined, draft: AthleteProfileDraft) {
+  if (!userId) return;
+  const players = loadFromStorage<Player[] | null>(STORAGE_KEYS.players, null);
+  if (!Array.isArray(players)) return;
+  saveToStorage(STORAGE_KEYS.players, applyAthleteDraftToOwnPlayer(players, userId, draft));
+}
+
 export function CompleteAthleteProfilePage() {
-  const { retry } = useAuthSession();
+  const { retry, session } = useAuthSession();
   const navigate = useNavigate();
   const location = useLocation();
   const [draft, setDraft] = useState(VAZIO);
@@ -62,6 +71,7 @@ export function CompleteAthleteProfilePage() {
               setSalvando(false);
               return;
             }
+            aplicarNaCopiaLocal(session?.user?.id, draft);
             await retry();
             const from = (location.state as { from?: { pathname?: string } } | null)?.from;
             navigate(from ?? '/', { replace: true });

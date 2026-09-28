@@ -1,6 +1,6 @@
 import { lazy, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
-import type { AthleteProfileDraft } from '@domain/athleteProfile';
+import { applyAthleteDraftToPlayer } from '@app/athleteProfileUseCases';
 import { useMyLinkedPlayer } from '@hooks/useMyLinkedPlayer';
 import type { Player } from '@shared/types';
 import {
@@ -168,24 +168,6 @@ export function AgendaRoute() {
 export function ComunidadesRoute() {
   const contract = useCommunitiesContract({ selectedCommunityId: null });
   return <CommunitiesView contract={contract} />;
-}
-
-function applyAthleteDraftToPlayer(player: Player, draft: AthleteProfileDraft): Player {
-  return {
-    ...player,
-    genero: draft.genero,
-    posicaoPrincipal: draft.posicaoPrincipal,
-    posicoesSecundarias: draft.posicoesSecundarias,
-    alturaCm: draft.alturaCm ?? undefined,
-    maoDominante: draft.maoDominante ?? player.maoDominante,
-    apelido: draft.apelido || player.nome,
-    status: {
-      ...player.status,
-      lesionado: draft.lesionado ?? false,
-      limitacaoFisica: draft.limitacaoFisica ?? null,
-    },
-    syncStatus: 'synced',
-  };
 }
 
 export function PerfilRoute() {

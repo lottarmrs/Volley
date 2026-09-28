@@ -1,7 +1,7 @@
-import { lazy, useEffect, useState } from 'react';
+import { lazy, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import type { AthleteProfileDraft } from '@domain/athleteProfile';
-import { playerCloudService } from '@infra/supabase/playerCloudService';
+import { useMyLinkedPlayer } from '@hooks/useMyLinkedPlayer';
 import type { Player } from '@shared/types';
 import {
   paths,
@@ -196,28 +196,14 @@ export function PerfilRoute() {
   const current = account?.username ?? null;
 
   const currentPlayer = play.players.find((p) => p.userId === auth.user?.id) ?? null;
-  const [linkedPlayer, setLinkedPlayer] = useState<Player | null>(null);
-  const [buscado, setBuscado] = useState(false);
-
-  useEffect(() => {
-    if (currentPlayer || !auth.user) {
-      setBuscado(true);
-      return;
-    }
-    setBuscado(false);
-    let cancelado = false;
-    playerCloudService.fetchLinkedToUser(auth.user.id).then((encontrada) => {
-      if (cancelado) return;
-      setLinkedPlayer(encontrada);
-      setBuscado(true);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [auth.user?.id, currentPlayer]);
+  const { linkedPlayer, buscado, erro, tentarDeNovo, setLinkedPlayer } = useMyLinkedPlayer(
+    auth.user?.id,
+    currentPlayer,
+  );
 
   const minhaFicha = currentPlayer ?? linkedPlayer;
-  const mostrarMinhaFicha = !!auth.user && (!!minhaFicha || !buscado);
+  const mostrarErroDaBusca = !!auth.user && !minhaFicha && erro;
+  const mostrarMinhaFicha = !!auth.user && !mostrarErroDaBusca && (!!minhaFicha || !buscado);
 
   function atualizarMinhaFicha(atualizada: Player) {
     if (currentPlayer) {
@@ -243,6 +229,19 @@ export function PerfilRoute() {
         onImportBackup={shell.handleImportBackup}
         onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
       />
+      {mostrarErroDaBusca && (
+        <div className="card card-border bg-base-200">
+          <div className="card-body gap-2">
+            <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
+            <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
+            <div className="card-actions">
+              <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
+                Tentar de novo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {mostrarMinhaFicha && (
         <MyAthleteProfile
           player={minhaFicha}

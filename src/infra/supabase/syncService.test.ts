@@ -2666,7 +2666,7 @@ test('RPC de ativacao ausente (PGRST202) segue no caminho legado sem reportar pr
 test('syncNow: na propria ficha com conta, os campos de ficha vem da nuvem mesmo com a copia local mais nova', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpload = syncService.uploadLocalDataToCloud;
-  const captured: { merged: LocalSyncPayload | null } = { merged: null };
+  const captured: { merged: ReturnType<typeof emptyPayload> | null } = { merged: null };
 
   try {
     syncService.downloadCloudDataToLocal = async () =>
@@ -2686,7 +2686,7 @@ test('syncNow: na propria ficha com conta, os campos de ficha vem da nuvem mesmo
           }),
         ],
       });
-    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+    syncService.uploadLocalDataToCloud = async (payload) => {
       captured.merged = payload;
       return payload;
     };
@@ -2731,7 +2731,7 @@ test('syncNow: na propria ficha com conta, os campos de ficha vem da nuvem mesmo
 test('syncNow: ficha com conta de outra pessoa fica inteira com a nuvem, mesmo com a copia local mais nova', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpload = syncService.uploadLocalDataToCloud;
-  const captured: { merged: LocalSyncPayload | null } = { merged: null };
+  const captured: { merged: ReturnType<typeof emptyPayload> | null } = { merged: null };
 
   try {
     syncService.downloadCloudDataToLocal = async () =>
@@ -2744,7 +2744,7 @@ test('syncNow: ficha com conta de outra pessoa fica inteira com a nuvem, mesmo c
           }),
         ],
       });
-    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+    syncService.uploadLocalDataToCloud = async (payload) => {
       captured.merged = payload;
       return payload;
     };

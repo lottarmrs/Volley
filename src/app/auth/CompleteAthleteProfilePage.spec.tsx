@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { updateMyAthleteProfile } from '@app/athleteProfileUseCases';
+import { STORAGE_KEYS } from '@storage/localStorageRepository';
 import { CompleteAthleteProfilePage } from './CompleteAthleteProfilePage';
 
 vi.mock('@app/athleteProfileUseCases', async (importOriginal) => ({
@@ -55,7 +56,7 @@ describe('CompleteAthleteProfilePage', () => {
 
   it('depois de salvar, a copia local da propria ficha ja tem a ficha', async () => {
     localStorage.setItem(
-      'vpg_players',
+      STORAGE_KEYS.players,
       JSON.stringify([
         { id: 'minha', nome: 'Zé', userId: 'conta-1', genero: null, status: {} },
         { id: 'dela', nome: 'Ana', userId: 'conta-2', genero: null, status: {} },
@@ -66,7 +67,7 @@ describe('CompleteAthleteProfilePage', () => {
     preencher();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     await waitFor(() => expect(retry).toHaveBeenCalled());
-    const [minha, dela] = JSON.parse(localStorage.getItem('vpg_players') ?? '[]');
+    const [minha, dela] = JSON.parse(localStorage.getItem(STORAGE_KEYS.players) ?? '[]');
     expect(minha.genero).toBe('M');
     expect(minha.posicaoPrincipal).toBe('ponteiro');
     expect(minha.alturaCm).toBe(182);
@@ -80,7 +81,7 @@ describe('CompleteAthleteProfilePage', () => {
     preencher();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     await waitFor(() => expect(retry).toHaveBeenCalled());
-    expect(localStorage.getItem('vpg_players')).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEYS.players)).toBeNull();
   });
 
   it('continuar fica desabilitado ate os quatro obrigatorios', () => {

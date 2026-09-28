@@ -4,10 +4,14 @@ import { INITIAL_PLAYERS } from '../constants';
 import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
 import { generateUUID } from '../logic/uuid';
 import {
+  applyGuestProfileSave,
   applyLocalPlayerDeletion,
   applyLocalPlayerSave,
+  isForeignAccountPlayer,
   validateLocalPlayerSave,
 } from '../application/localPlayerUseCases';
+import type { AthleteProfileDraft } from '../domain/athleteProfile';
+import { appOk, productError, type AppResult } from '../application/appResult';
 
 function normalizePlayer(p: any): Player {
   return {
@@ -260,6 +264,77 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     setShowDeleteConfirm(false);
   }, []);
 
+  const saveGuestPlayer = useCallback(
+    (input: {
+      playerId: string | null;
+      nome: string;
+      draft: AthleteProfileDraft;
+      communityId: string;
+      level: 1 | 2 | 3 | 4 | 5 | null;
+      canEdit: boolean;
+      currentUserId: string | null;
+    }): AppResult<Player> => {
+      const existing = input.playerId
+        ? players.find((player) => player.id === input.playerId)
+        : undefined;
+
+      if (existing && isForeignAccountPlayer(existing, input.currentUserId)) {
+        return productError('permission_denied', 'Esta ficha pertence a uma conta.');
+      }
+      if (!input.canEdit) {
+        return productError('permission_denied', 'Voce nao pode editar esta ficha.');
+      }
+
+      const result = applyGuestProfileSave({
+        players,
+        playerId: input.playerId,
+        draft: input.draft,
+        nome: input.nome,
+        communityId: input.communityId,
+        level: input.level,
+        now: new Date().toISOString(),
+        createId: generateUUID,
+      });
+
+      if (!result.ok) return result;
+      setPlayers(result.value.players);
+      return appOk(result.value.savedPlayer);
+    },
+    [players],
+  );
+
+  const removeGuestPlayer = useCallback(
+    (input: {
+      playerId: string;
+      canEdit: boolean;
+      currentUserId: string | null;
+    }): AppResult<'removed' | 'deactivated'> => {
+      const existing = players.find((player) => player.id === input.playerId);
+      if (!existing) return productError('not_found', 'Atleta nao encontrado.');
+      if (existing.userId || isForeignAccountPlayer(existing, input.currentUserId)) {
+        return productError('permission_denied', 'Esta ficha pertence a uma conta.');
+      }
+      if (!input.canEdit) {
+        return productError('permission_denied', 'Voce nao pode remover esta ficha.');
+      }
+
+      const usage = getPlayerHistoryUsage(input.playerId);
+      const now = new Date().toISOString();
+      const updated = applyLocalPlayerDeletion({
+        players,
+        playerId: input.playerId,
+        usage,
+        now,
+      });
+
+      setPlayers(updated);
+      const outcome: 'removed' | 'deactivated' =
+        !existing.cloudId && usage.hasHistory ? 'deactivated' : 'removed';
+      return appOk(outcome);
+    },
+    [players, getPlayerHistoryUsage],
+  );
+
   const handleRestoreDemoPlayers = useCallback(() => {
     if (
       !confirm(
@@ -287,6 +362,8 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     handleDeletePlayer,
     handleEditPlayer,
     handleAddPlayer,
+    saveGuestPlayer,
+    removeGuestPlayer,
     handleRestoreDemoPlayers,
   };
 }

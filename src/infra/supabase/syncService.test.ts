@@ -1484,6 +1484,38 @@ test('uploadLocalDataToCloud repairs legacy unlink intent without rpc or clearin
   }
 });
 
+test('uploadLocalDataToCloud nunca sobe a ficha de um atleta com conta de outra pessoa', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+
+  try {
+    playerCloudService.upsert = async () => {
+      assert.fail('nao deveria subir ficha de atleta com conta de outra pessoa');
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            cloudOwnerId: 'owner-1',
+            userId: 'outra-conta',
+            syncStatus: 'pending',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    assert.equal(result.players[0].syncStatus, 'synced');
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
 test('syncNow restores cloud user id while repairing a newer legacy unlink intent', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;

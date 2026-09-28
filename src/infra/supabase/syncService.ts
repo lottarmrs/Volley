@@ -1060,6 +1060,11 @@ export const syncService = {
           continue;
         }
 
+        if (playerForUpload.userId && playerForUpload.userId !== ownerId) {
+          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
+          continue;
+        }
+
         const isSharedPlayer =
           !!playerForUpload.cloudId &&
           !!playerForUpload.cloudOwnerId &&

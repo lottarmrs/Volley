@@ -161,7 +161,7 @@ function CommunityFirstRun({
       estado: 'agora' as const,
       titulo: 'Chamar o elenco',
       detalhe:
-        'Cadastre quem joga com você. Os fundamentos de cada atleta alimentam o sorteio equilibrado.',
+        'Traga pelo @ quem tem conta, que preenche a própria ficha, e cadastre quem joga sem conta. Os fundamentos de cada atleta alimentam o sorteio equilibrado.',
     },
     {
       estado: 'depois' as const,
@@ -210,12 +210,12 @@ function CommunityFirstRun({
       </ol>
 
       <GuardedLink
-        to={paths.pessoas(community.id)}
+        to={paths.convidados(community.id)}
         className={`btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider ${
           canManageRoster ? '' : 'btn-disabled'
         }`}
       >
-        <Users className="h-5 w-5" /> Cadastrar atletas
+        <Users className="h-5 w-5" /> Montar o elenco
       </GuardedLink>
       {!canManageRoster && (
         <p className="text-xs leading-relaxed text-base-content/60">

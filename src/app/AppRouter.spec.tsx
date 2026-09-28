@@ -381,7 +381,7 @@ describe('AppRouter — primeiro uso das áreas com conta', () => {
     renderApp(paths.comunidade('c1'));
 
     expect(await screen.findByRole('heading', { name: /sua comunidade está de pé/i })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /cadastrar atletas/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /montar o elenco/i })).toBeTruthy();
     // O painel de estatísticas zeradas não pode aparecer no primeiro uso.
     expect(screen.queryByText(/^Pontos$/)).toBeNull();
   });

@@ -152,7 +152,7 @@ if (!isTestDatabaseConfigured()) {
       [5, ['ponteiro'], /secondary/i],
     ];
     for (const [indice, valor, mensagem] of casos) {
-      const args = [...valido];
+      const args: unknown[] = [...valido];
       args[indice] = valor;
       await recusa(id, GRAVA, args, '23514', mensagem);
     }
@@ -229,7 +229,7 @@ if (!isTestDatabaseConfigured()) {
     const c = await comunidadeCom(atleta);
     for (const sql of [
       "update public.players set gender = 'F' where id = $1",
-      "update public.players set status = '{\"lesionado\": true}' where id = $1",
+      'update public.players set status = \'{"lesionado": true}\' where id = $1',
       'update public.players set active = false where id = $1',
     ]) {
       const { rowCount } = await como(c.dono, sql, [c.fichaId]);
@@ -242,7 +242,11 @@ if (!isTestDatabaseConfigured()) {
     const organizador = await conta('organizador');
     const { id } = await fichaDe(atleta);
     await client.query('update public.players set owner_id = $1 where id = $2', [organizador, id]);
-    const { rowCount } = await como(atleta, "update public.players set nickname = 'Eu' where id = $1", [id]);
+    const { rowCount } = await como(
+      atleta,
+      "update public.players set nickname = 'Eu' where id = $1",
+      [id],
+    );
     assert.equal(rowCount, 1);
     const { rowCount: doOrganizador } = await como(
       organizador,
@@ -276,7 +280,15 @@ if (!isTestDatabaseConfigured()) {
        values ($1, $2, 'owner', 'active') on conflict do nothing`,
       [comunidade, dono],
     );
-    assert.equal((await como(criador, "update public.players set gender = 'F' where id = $1", [fichaId])).rowCount, 1);
-    assert.equal((await como(dono, "update public.players set gender = 'M' where id = $1", [fichaId])).rowCount, 1);
+    assert.equal(
+      (await como(criador, "update public.players set gender = 'F' where id = $1", [fichaId]))
+        .rowCount,
+      1,
+    );
+    assert.equal(
+      (await como(dono, "update public.players set gender = 'M' where id = $1", [fichaId]))
+        .rowCount,
+      1,
+    );
   });
 }

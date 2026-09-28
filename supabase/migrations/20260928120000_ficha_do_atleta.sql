@@ -231,3 +231,39 @@ revoke all on function public.update_my_athlete_profile(text, text, numeric, tex
   from public, anon;
 grant execute on function public.update_my_athlete_profile(text, text, numeric, text, text, text[], boolean, text)
   to authenticated;
+
+-- Ficha com conta: so a propria conta altera, em qualquer coluna. Sem conta: a regra de antes.
+-- Fica em public (nao app_private) porque a policy roda com o papel de quem consulta, e
+-- app_private nao tem usage concedido a authenticated (20260827120000_migration_provenance_substrate.sql).
+create or replace function public.player_has_account(p_player_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.players p where p.id = p_player_id and p.user_id is not null)
+      or exists (
+        select 1 from public.player_account_links l
+         where l.player_id = p_player_id and l.status = 'ACTIVE'
+      );
+$$;
+
+revoke all on function public.player_has_account(uuid) from public, anon;
+grant execute on function public.player_has_account(uuid) to authenticated;
+
+drop policy if exists "Player admins can update players" on public.players;
+create policy "Account owner or player admins can update players" on public.players
+  for update to authenticated
+  using (
+    case
+      when public.player_has_account(id) then public.player_is_linked_to_current_user(id)
+      else owner_id = (select auth.uid()) or public.current_user_is_player_admin(id)
+    end
+  )
+  with check (
+    case
+      when public.player_has_account(id) then public.player_is_linked_to_current_user(id)
+      else owner_id = (select auth.uid()) or public.current_user_is_player_admin(id)
+    end
+  );

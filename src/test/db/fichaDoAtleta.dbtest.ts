@@ -201,4 +201,82 @@ if (!isTestDatabaseConfigured()) {
     }
     await recusa(id, GRAVA, valido, 'P0002');
   });
+
+  async function comunidadeCom(atletaUserId: string) {
+    const dono = await conta('dono-com');
+    const { rows } = await asIdentityCommitting(client, dono, () =>
+      client.query<{ id: string }>('select public.create_community_with_owner($1) as id', [
+        `Ficha ${randomUUID()}`,
+      ]),
+    );
+    const comunidade = rows[0].id;
+    const ficha = await fichaDe(atletaUserId);
+    await client.query(
+      `insert into public.community_players (community_id, player_id, owner_id, active, status)
+       values ($1, $2, $3, true, 'active')`,
+      [comunidade, ficha.id, dono],
+    );
+    await client.query(
+      `insert into public.community_members (community_id, user_id, role, status)
+       values ($1, $2, 'owner', 'active') on conflict do nothing`,
+      [comunidade, dono],
+    );
+    return { comunidade, dono, fichaId: ficha.id };
+  }
+
+  test('dono da comunidade nao altera nenhuma coluna de ficha com conta', async () => {
+    const atleta = await conta('atleta-com');
+    const c = await comunidadeCom(atleta);
+    for (const sql of [
+      "update public.players set gender = 'F' where id = $1",
+      "update public.players set status = '{\"lesionado\": true}' where id = $1",
+      'update public.players set active = false where id = $1',
+    ]) {
+      const { rowCount } = await como(c.dono, sql, [c.fichaId]);
+      assert.equal(rowCount, 0, sql);
+    }
+  });
+
+  test('o atleta altera a propria ficha, mesmo quando outra conta e o owner_id', async () => {
+    const atleta = await conta('dono-outro');
+    const organizador = await conta('organizador');
+    const { id } = await fichaDe(atleta);
+    await client.query('update public.players set owner_id = $1 where id = $2', [organizador, id]);
+    const { rowCount } = await como(atleta, "update public.players set nickname = 'Eu' where id = $1", [id]);
+    assert.equal(rowCount, 1);
+    const { rowCount: doOrganizador } = await como(
+      organizador,
+      "update public.players set nickname = 'Outro' where id = $1",
+      [id],
+    );
+    assert.equal(doOrganizador, 0, 'owner_id nao basta quando a ficha tem conta');
+  });
+
+  test('ficha sem conta continua editavel por dono da comunidade e pelo owner_id', async () => {
+    const dono = await conta('dono-sem');
+    const { rows } = await asIdentityCommitting(client, dono, () =>
+      client.query<{ id: string }>('select public.create_community_with_owner($1) as id', [
+        `Sem conta ${randomUUID()}`,
+      ]),
+    );
+    const comunidade = rows[0].id;
+    const criador = await conta('criador');
+    const fichaId = randomUUID();
+    await client.query(
+      `insert into public.players (id, owner_id, name, active) values ($1, $2, 'Convidado', true)`,
+      [fichaId, criador],
+    );
+    await client.query(
+      `insert into public.community_players (community_id, player_id, owner_id, active, status)
+       values ($1, $2, $3, true, 'active')`,
+      [comunidade, fichaId, dono],
+    );
+    await client.query(
+      `insert into public.community_members (community_id, user_id, role, status)
+       values ($1, $2, 'owner', 'active') on conflict do nothing`,
+      [comunidade, dono],
+    );
+    assert.equal((await como(criador, "update public.players set gender = 'F' where id = $1", [fichaId])).rowCount, 1);
+    assert.equal((await como(dono, "update public.players set gender = 'M' where id = $1", [fichaId])).rowCount, 1);
+  });
 }

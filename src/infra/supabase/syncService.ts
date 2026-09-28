@@ -574,6 +574,36 @@ export function mergeEntityLists<T extends Syncable>(
   return merged;
 }
 
+export function applyServerOwnedAthleteFields(
+  players: Player[],
+  cloudPlayers: Player[],
+  ownerId: string,
+): Player[] {
+  const norm = (value: string | undefined) => value?.trim().toLowerCase() || '';
+  return players.map((player) => {
+    if (player.deletedAt) return player;
+    const cloud = cloudPlayers.find(
+      (candidate) =>
+        (!!player.cloudId && norm(candidate.cloudId) === norm(player.cloudId)) ||
+        norm(candidate.id) === norm(player.id),
+    );
+    if (!cloud || cloud.deletedAt || !cloud.userId) return player;
+    if (cloud.userId !== ownerId) {
+      return { ...preserveLocalIdentity(cloud, player), syncStatus: 'synced' };
+    }
+    return {
+      ...player,
+      apelido: cloud.apelido,
+      genero: cloud.genero,
+      posicaoPrincipal: cloud.posicaoPrincipal,
+      posicoesSecundarias: cloud.posicoesSecundarias,
+      alturaCm: cloud.alturaCm,
+      maoDominante: cloud.maoDominante,
+      status: cloud.status,
+    };
+  });
+}
+
 function targetPlayModeForSession(session: Session): TargetSessionPlayMode {
   return session.type === 'tournament' ? 'STRUCTURED_MATCHES' : 'FREE_PLAY';
 }
@@ -1785,11 +1815,15 @@ export const syncService = {
         getId: (item) => item.id,
         getSemanticKey: (community) => communitySemanticKey(community),
       }),
-      players: mergeEntityLists<Player>(playersForMerge, cloud.players, {
-        getId: (item) => item.id,
-        getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
-        getSemanticKey: (player) => playerSemanticKey(player),
-      }),
+      players: applyServerOwnedAthleteFields(
+        mergeEntityLists<Player>(playersForMerge, cloud.players, {
+          getId: (item) => item.id,
+          getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
+          getSemanticKey: (player) => playerSemanticKey(player),
+        }),
+        cloud.players,
+        ownerId,
+      ),
       rules: mergeEntityLists(repairedLocal.rules, cloud.rules, {
         getId: (item) => item.communityId,
       }),

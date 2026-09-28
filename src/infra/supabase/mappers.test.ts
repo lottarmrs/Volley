@@ -616,3 +616,25 @@ test('player evaluation bulk records are deduplicated by owner and cloud player 
     'other-local',
   );
 });
+
+test('player mapper nao envia os campos de ficha de uma ficha com conta, nem o status', () => {
+  const db = mapPlayerToDb({ ...player, userId: 'user-1' }, 'user-1') as Record<string, unknown>;
+  for (const coluna of [
+    'nickname',
+    'gender',
+    'height',
+    'dominant_hand',
+    'primary_position',
+    'secondary_positions',
+    'status',
+  ]) {
+    assert.equal(Object.prototype.hasOwnProperty.call(db, coluna), false, coluna);
+  }
+  assert.deepEqual(db.attributes, player.atributos);
+  assert.deepEqual(db.forma_atual, player.formaAtual);
+  assert.equal(db.name, player.nome);
+
+  const convidado = mapPlayerToDb(player, 'owner-id') as Record<string, unknown>;
+  assert.equal(convidado.gender, player.genero);
+  assert.deepEqual(convidado.status, player.status);
+});

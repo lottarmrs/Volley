@@ -1549,7 +1549,7 @@ test('syncNow restores cloud user id while repairing a newer legacy unlink inten
 
     assert.equal(result.players[0].userId, 'account-user');
     assert.equal(result.players[0].pendingUserLinkAction, undefined);
-    assert.equal(result.players[0].updatedAt, '2026-07-02T00:00:00.000Z');
+    assert.equal(result.players[0].updatedAt, '2026-07-01T00:00:00.000Z');
   } finally {
     syncService.downloadCloudDataToLocal = originalDownload;
     playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
@@ -2660,5 +2660,121 @@ test('RPC de ativacao ausente (PGRST202) segue no caminho legado sem reportar pr
     operationalCloudService.upsertSession = originalUpsertSession;
     sessionCohortCloudService.createTargetSession = originalCreateTargetSession;
     communityEvaluationCloudService.activatedCommunityIds = originalActivatedCommunityIds;
+  }
+});
+
+test('syncNow: na propria ficha com conta, os campos de ficha vem da nuvem mesmo com a copia local mais nova', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const captured: { merged: LocalSyncPayload | null } = { merged: null };
+
+  try {
+    syncService.downloadCloudDataToLocal = async () =>
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            userId: 'owner-1',
+            apelido: 'Aninha',
+            genero: 'F',
+            posicaoPrincipal: 'levantador',
+            posicoesSecundarias: ['oposto'],
+            alturaCm: 168,
+            maoDominante: 'esquerda',
+            status: { lesionado: true, limitacaoFisica: 'joelho', presencaFrequente: true },
+            updatedAt: '2026-09-28T10:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      });
+    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+      captured.merged = payload;
+      return payload;
+    };
+
+    await syncService.syncNow(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            userId: 'owner-1',
+            apelido: '',
+            genero: null as any,
+            posicaoPrincipal: null as any,
+            posicoesSecundarias: [],
+            alturaCm: undefined,
+            maoDominante: null as any,
+            atributos: { ...makeSyncPlayer().atributos, saque: 9 },
+            updatedAt: '2026-09-28T12:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    const merged = captured.merged;
+    assert.ok(merged, 'merged payload was never captured');
+    const ficha = merged.players[0];
+    assert.equal(ficha.apelido, 'Aninha');
+    assert.equal(ficha.genero, 'F');
+    assert.equal(ficha.posicaoPrincipal, 'levantador');
+    assert.deepEqual(ficha.posicoesSecundarias, ['oposto']);
+    assert.equal(ficha.alturaCm, 168);
+    assert.equal(ficha.maoDominante, 'esquerda');
+    assert.equal(ficha.status.lesionado, true);
+    assert.equal(ficha.status.limitacaoFisica, 'joelho');
+    assert.equal(ficha.atributos.saque, 9);
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+  }
+});
+
+test('syncNow: ficha com conta de outra pessoa fica inteira com a nuvem, mesmo com a copia local mais nova', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const captured: { merged: LocalSyncPayload | null } = { merged: null };
+
+  try {
+    syncService.downloadCloudDataToLocal = async () =>
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            userId: 'outra-conta',
+            updatedAt: '2026-09-01T10:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      });
+    syncService.uploadLocalDataToCloud = async (payload: LocalSyncPayload) => {
+      captured.merged = payload;
+      return payload;
+    };
+
+    await syncService.syncNow(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            userId: 'outra-conta',
+            genero: 'M',
+            atributos: { ...makeSyncPlayer().atributos, saque: 9 },
+            formaAtual: { valor: 3, observacao: '', ultimasPartidas: [3] },
+            updatedAt: '2026-09-28T12:00:00.000Z',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    const merged = captured.merged;
+    assert.ok(merged, 'merged payload was never captured');
+    const ficha = merged.players[0];
+    assert.equal(ficha.id, 'player-local');
+    assert.equal(ficha.genero, 'F');
+    assert.equal(ficha.atributos.saque, 5);
+    assert.equal(ficha.formaAtual.valor, 5);
+    assert.equal(ficha.updatedAt, '2026-09-01T10:00:00.000Z');
+    assert.equal(ficha.syncStatus, 'synced');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
   }
 });

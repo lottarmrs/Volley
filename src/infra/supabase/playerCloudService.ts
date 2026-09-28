@@ -10,17 +10,21 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
     // conta e desfaria a migration que soltou esses nomes.
     ...(local.username && local.userId ? { username: local.username } : {}),
     name: local.nome,
-    nickname: local.apelido || null,
-    gender: local.genero,
-    height: local.alturaCm ?? null,
-    dominant_hand: local.maoDominante,
-    primary_position: local.posicaoPrincipal,
-    secondary_positions: local.posicoesSecundarias || [],
+    ...(local.userId
+      ? {}
+      : {
+          nickname: local.apelido || null,
+          gender: local.genero,
+          height: local.alturaCm ?? null,
+          dominant_hand: local.maoDominante,
+          primary_position: local.posicaoPrincipal,
+          secondary_positions: local.posicoesSecundarias || [],
+          status: local.status,
+        }),
     active: !!local.ativo,
     attributes: local.personalAttributes || local.atributos,
     profile: local.perfil,
     forma_atual: local.formaAtual,
-    status: local.status,
     local_id: local.id,
     deleted_at: local.deletedAt || null,
     updated_at: local.updatedAt || local.metadata?.atualizadoEm || new Date().toISOString(),

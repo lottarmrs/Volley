@@ -1,5 +1,8 @@
-import { lazy, useState } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
+import type { AthleteProfileDraft } from '@domain/athleteProfile';
+import { playerCloudService } from '@infra/supabase/playerCloudService';
+import type { Player } from '@shared/types';
 import {
   paths,
   resolveAdminRoute,
@@ -47,6 +50,11 @@ const GestaoView = lazy(() =>
 const UserProfileView = lazy(() =>
   import('../../components/account/UserProfileView').then((module) => ({
     default: module.UserProfileView,
+  })),
+);
+const MyAthleteProfile = lazy(() =>
+  import('../../components/account/MyAthleteProfile').then((module) => ({
+    default: module.MyAthleteProfile,
   })),
 );
 const AgendaView = lazy(() =>
@@ -162,6 +170,24 @@ export function ComunidadesRoute() {
   return <CommunitiesView contract={contract} />;
 }
 
+function applyAthleteDraftToPlayer(player: Player, draft: AthleteProfileDraft): Player {
+  return {
+    ...player,
+    genero: draft.genero,
+    posicaoPrincipal: draft.posicaoPrincipal,
+    posicoesSecundarias: draft.posicoesSecundarias,
+    alturaCm: draft.alturaCm ?? undefined,
+    maoDominante: draft.maoDominante ?? player.maoDominante,
+    apelido: draft.apelido || player.nome,
+    status: {
+      ...player.status,
+      lesionado: draft.lesionado ?? false,
+      limitacaoFisica: draft.limitacaoFisica ?? null,
+    },
+    syncStatus: 'synced',
+  };
+}
+
 export function PerfilRoute() {
   const shell = useShell();
   const { auth, play, cloudSync, comm } = shell;
@@ -169,8 +195,38 @@ export function PerfilRoute() {
   const [editing, setEditing] = useState(false);
   const current = account?.username ?? null;
 
-  const currentPlayer =
-    play.players.find((p) => p.userId === auth.user?.id) || play.players[0] || null;
+  const currentPlayer = play.players.find((p) => p.userId === auth.user?.id) ?? null;
+  const [linkedPlayer, setLinkedPlayer] = useState<Player | null>(null);
+  const [buscado, setBuscado] = useState(false);
+
+  useEffect(() => {
+    if (currentPlayer || !auth.user) {
+      setBuscado(true);
+      return;
+    }
+    setBuscado(false);
+    let cancelado = false;
+    playerCloudService.fetchLinkedToUser(auth.user.id).then((encontrada) => {
+      if (cancelado) return;
+      setLinkedPlayer(encontrada);
+      setBuscado(true);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [auth.user?.id, currentPlayer]);
+
+  const minhaFicha = currentPlayer ?? linkedPlayer;
+  const mostrarMinhaFicha = !!auth.user && (!!minhaFicha || !buscado);
+
+  function atualizarMinhaFicha(atualizada: Player) {
+    if (currentPlayer) {
+      play.setPlayers(play.players.map((p) => (p.id === atualizada.id ? atualizada : p)));
+    } else {
+      setLinkedPlayer(atualizada);
+    }
+  }
+
   const profile = account
     ? { ...account.profile, username: account.username ?? undefined }
     : auth.profile;
@@ -180,13 +236,26 @@ export function PerfilRoute() {
       <UserProfileView
         user={auth.user}
         profile={profile}
-        player={currentPlayer}
+        player={minhaFicha}
         communities={comm.communities}
         lastSyncedAt={cloudSync.lastSyncedAt}
         onExportBackup={shell.handleExportBackup}
         onImportBackup={shell.handleImportBackup}
         onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
       />
+      {mostrarMinhaFicha && (
+        <MyAthleteProfile
+          player={minhaFicha}
+          onSaved={(draft) => {
+            if (!minhaFicha) return;
+            atualizarMinhaFicha(applyAthleteDraftToPlayer(minhaFicha, draft));
+          }}
+          onAvatarApplied={(url) => {
+            if (!minhaFicha) return;
+            atualizarMinhaFicha({ ...minhaFicha, avatarUrl: url });
+          }}
+        />
+      )}
       <div className="card card-border bg-base-200">
         <div className="card-body gap-2">
           <h2 className="text-base font-black uppercase tracking-tight">Nome de usuário</h2>

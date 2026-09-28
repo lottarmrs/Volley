@@ -238,6 +238,20 @@ describe('AppRouter — rotas globais', () => {
     expect(await screen.findByRole('heading', { name: ACCOUNT_SYNC_MARKER })).toBeTruthy();
   });
 
+  it('/perfil nao mostra a ficha de outra conta', async () => {
+    seedLocalDb({
+      players: [
+        { id: 'p-outro-1', nome: 'Bruno Lima', userId: 'outro-1' },
+        { id: 'p-outro-2', nome: 'Carla Dias', userId: 'outro-2' },
+      ],
+    });
+    renderApp('/perfil');
+    await screen.findByRole('button', { name: /Configurações & Dados/i });
+    expect(screen.queryByText(/bruno lima/i)).toBeNull();
+    expect(screen.queryByText(/carla dias/i)).toBeNull();
+    expect(screen.queryByText(/minha ficha/i)).toBeNull();
+  });
+
   it('expulsa não-staff de /admin para /painel', async () => {
     renderApp('/admin');
     expect(await screen.findByRole('heading', { name: /painel de controle/i })).toBeTruthy();

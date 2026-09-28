@@ -87,7 +87,6 @@ function permissionsFor(role: 'owner' | 'admin' | 'moderator' | 'member'): Commu
     canApproveMembers: canManage || role === 'moderator',
     canEditRules: canManage,
     canEditPlayerProfile: canManage,
-    canEvaluatePlayer: canManage,
     canCreateSession: role !== 'member',
     canExportCommunity: canManage,
     canSeeManagement: role !== 'member',

@@ -84,7 +84,6 @@ function makeInput(
     onDeleteCommunity: () => {},
     onDuplicateCommunity: () => {},
     onUpdatePlayerCommunities: () => {},
-    onCreatePlayer: () => {},
     onCreateSession: () => {},
     onViewSession: () => {},
     onClearCommunityHistory: () => {},
@@ -190,13 +189,6 @@ test('updateCommunity repassa communityId, patch e allowed opcional', async () =
   });
   assert.equal(onUpdateCommunity.calls.length, 1);
   assert.deepEqual(onUpdateCommunity.calls[0], ['c1', { archived: true }, true]);
-});
-
-test('createPlayer repassa name e communityId', async () => {
-  const onCreatePlayer = spy() as unknown as Spy;
-  const c = buildCommunitiesViewContract(makeInput({ onCreatePlayer: onCreatePlayer.fn as never }));
-  await c.dispatch({ kind: 'createPlayer', name: 'A', communityId: 'c1' });
-  assert.deepEqual(onCreatePlayer.calls[0], ['A', 'c1']);
 });
 
 test('createChampionship (AppResult) chama callback e ignora retorno', async () => {

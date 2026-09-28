@@ -49,6 +49,7 @@ Inventoried entities: **31**.
 
 # 2. Entities with no remaining reader or writer
 
+- `self evaluations` — Descontinuada em 2026-09-28 (spec ficha-do-atleta); a tabela self_evaluations fica sem escrita.
 - `best divisions cache` — Read only by the migration importer; no production writer. N2.22 lists legacy best-division mirrors as RETIRE. Removal candidate with zero live readers.
 - `selected division index` — Dead key: no reader or writer anywhere in src, including the migration importer. Only the clearLocalDomainCache sweep touches it. Strongest W14 removal candidate.
 - `sync issue ledger` — Diagnostic surface for the generic sync it reports on; retires with syncService.
@@ -93,7 +94,7 @@ Community delete cascades to sessions, games, point_events, reports, championshi
 | Target owner | `N2.02-identity-players` |
 | Target wave | `W2` |
 | Migration class | `MIGRATE_TO_TARGET_MODEL` |
-| Remaining surfaces | `components/player/PlayerEditView.tsx`<br>`components/player/PlayerComponents.tsx` |
+| Remaining surfaces | `components/community/areas/CommunityGuestsArea.tsx`<br>`components/player/PlayerComponents.tsx` |
 
 Player is the sports identity and must stay distinct from User and Participant (GINV-ID-001).
 
@@ -423,7 +424,7 @@ Closest current surface to the target model: already RPC-mediated. JoinRequest i
 | Target owner | `N2.02-player-skill-profile-ownership` |
 | Target wave | `W5` |
 | Migration class | `MIGRATE_TO_TARGET_MODEL` |
-| Remaining surfaces | `components/player/PlayerEditView.tsx` |
+| Remaining surfaces | — |
 
 Feeds the Community then Global skill profile. Aggregation must stay per attribute and missing must never read as zero (GINV-RATING-001/002).
 
@@ -435,16 +436,18 @@ Feeds the Community then Global skill profile. Aggregation must stay per attribu
 | Payload key | — |
 | Local storage key | — |
 | Cloud table / RPC | `self_evaluations` |
-| Legacy writers | `infra/supabase/syncService.ts`<br>`infra/supabase/selfEvaluationCloudService.ts` |
-| Legacy readers | `logic/playerEvaluations.ts` |
+| Legacy writers | — |
+| Legacy readers | — |
 | Current authority | Cloud table. |
 | Current merge | None beyond per-player replacement. |
 | Lifecycle fields | `created_at`<br>`updated_at` |
 | FK / delete | self_evaluations -> players(id) cascade. |
 | Target owner | `N2.02-player-skill-profile-ownership` |
 | Target wave | `W5` |
-| Migration class | `MIGRATE_TO_TARGET_MODEL` |
-| Remaining surfaces | `components/player/PlayerEditView.tsx` |
+| Migration class | `RETIRE` |
+| Remaining surfaces | — |
+
+Descontinuada em 2026-09-28 (spec ficha-do-atleta); a tabela self_evaluations fica sem escrita.
 
 ## career events and totals
 
@@ -476,7 +479,7 @@ Already a derived projection, but must declare an explicit rebuild contract to q
 | Local storage key | — |
 | Cloud table / RPC | `player_avatar_proposals`<br>`rpc:propose_player_avatar`<br>`rpc:approve_player_avatar`<br>`rpc:reject_player_avatar` |
 | Legacy writers | `infra/supabase/avatarStorageService.ts` |
-| Legacy readers | `components/player/PlayerEditView.tsx` |
+| Legacy readers | `components/account/MyAthleteProfile.tsx` |
 | Current authority | Server-authoritative through approval RPCs plus Storage bucket policy. |
 | Current merge | None. |
 | Lifecycle fields | `status`<br>`created_at` |

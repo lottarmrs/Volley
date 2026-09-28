@@ -12,12 +12,6 @@ export interface PlayersViewContractInput {
   teams: Team[];
   sessions: Session[];
   onBack: () => void;
-  onAddPlayer: () => void;
-  onEditPlayer: (player: Player) => void;
-  onRestoreDemoPlayers: () => void;
-  onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
-  onCreatePlayerInCommunity?: (name: string) => void;
-  onLinkedCloudPlayer?: (player: Player, communityId: string) => void;
 }
 
 function buildModel(input: PlayersViewContractInput): PlayersViewModel {
@@ -40,24 +34,6 @@ export function buildPlayersViewContract(
     switch (intent.kind) {
       case 'back':
         input.onBack();
-        return;
-      case 'addPlayer':
-        input.onAddPlayer();
-        return;
-      case 'editPlayer':
-        input.onEditPlayer(intent.player);
-        return;
-      case 'restoreDemoPlayers':
-        input.onRestoreDemoPlayers();
-        return;
-      case 'addGuestPlayer':
-        input.onAddGuestPlayer(intent.player, intent.editDetails);
-        return;
-      case 'createPlayerInCommunity':
-        input.onCreatePlayerInCommunity?.(intent.name);
-        return;
-      case 'linkedCloudPlayer':
-        input.onLinkedCloudPlayer?.(intent.player, intent.communityId);
         return;
     }
   };

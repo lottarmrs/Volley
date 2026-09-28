@@ -19,7 +19,6 @@ export interface CommunityPermissions {
   canApproveMembers: boolean;
   canEditRules: boolean;
   canEditPlayerProfile: boolean;
-  canEvaluatePlayer: boolean;
   canCreateSession: boolean;
   canExportCommunity: boolean;
   canSeeManagement: boolean;
@@ -47,10 +46,6 @@ function permissionsForRole(
     canApproveMembers: isOwner || isAdmin || isModerator,
     canEditRules: isOwner || isAdmin,
     canEditPlayerProfile: isOwner || isAdmin,
-    // Apenas owner/admin: a RLS de player_evaluations exige
-    // current_user_has_community_role(community_id, array['owner','admin']), entao
-    // liberar moderator aqui so mostraria uma acao que o banco recusa depois.
-    canEvaluatePlayer: isOwner || isAdmin,
     canCreateSession: isOwner || isAdmin || isModerator || isOrganizador,
     canExportCommunity: isOwner || isAdmin,
     canSeeManagement: isOwner || isAdmin || isModerator,
@@ -83,7 +78,6 @@ export function deriveCommunityPermissions(input: CommunityPermissionInput): Com
       canApproveMembers: false,
       canEditRules: false,
       canEditPlayerProfile: false,
-      canEvaluatePlayer: false,
       canCreateSession: false,
       canExportCommunity: false,
       canSeeManagement: false,

@@ -1,7 +1,5 @@
 import type { OperationalPhase } from '@domain/sessionPhase';
 
-export const NEW_PLAYER_ID = 'novo';
-
 export const LIVE_SESSION_PHASES: OperationalPhase[] = [
   'times_gerados',
   'pronta',
@@ -39,8 +37,6 @@ export const paths = {
   sessao: (communityId: string, sessionId: string) =>
     `/comunidades/${communityId}/sessoes/${sessionId}`,
   pessoas: (communityId: string) => `/comunidades/${communityId}/pessoas`,
-  atleta: (communityId: string, playerId: string) =>
-    `/comunidades/${communityId}/pessoas/editar-atleta/${playerId}`,
   desempenho: (communityId: string) => `/comunidades/${communityId}/desempenho`,
   estatisticas: (communityId: string) => `/comunidades/${communityId}/desempenho/estatisticas`,
   historico: (communityId: string, options?: { sessao?: string }) => {
@@ -115,6 +111,14 @@ export function resolveLegacyQueryRoute(pathname: string, search: string): Route
   if (pathname === '/admin') return { kind: 'redirect', to: paths.plataforma };
 
   const segments = segmentsOf(pathname);
+  if (
+    segments[0] === 'comunidades' &&
+    !!segments[1] &&
+    segments[2] === 'pessoas' &&
+    segments[3] === 'editar-atleta'
+  ) {
+    return { kind: 'redirect', to: paths.pessoas(segments[1]) };
+  }
   const isDesempenho =
     segments[0] === 'comunidades' && !!segments[1] && segments[2] === 'desempenho' && !segments[3];
   if (!isDesempenho) return { kind: 'ok' };
@@ -158,37 +162,6 @@ export function resolveWizardRoute(input: {
   return { kind: 'redirect', to: paths.sessaoNova(owner) };
 }
 
-export function resolvePlayerRoute(input: {
-  param?: string;
-  players: Array<{ id: string; username?: string }>;
-}): { kind: 'ok'; playerId: string } | { kind: 'new' } | { kind: 'not-found' } {
-  if (!input.param) return { kind: 'not-found' };
-  if (input.param === NEW_PLAYER_ID) return { kind: 'new' };
-  const byId = input.players.find((player) => player.id === input.param);
-  if (byId) return { kind: 'ok', playerId: byId.id };
-  const target = input.param.toLowerCase();
-  const byHandle = input.players.find((player) => player.username?.toLowerCase() === target);
-  if (byHandle) return { kind: 'ok', playerId: byHandle.id };
-  return { kind: 'not-found' };
-}
-
-export type PlayerEditAction = 'none' | 'add-new' | 'edit-existing';
-
-export function resolvePlayerEditAction(input: {
-  playerId?: string;
-  targetPlayerId?: string;
-  editingPlayerId?: string;
-  hasEditingPlayer: boolean;
-}): PlayerEditAction {
-  if (!input.playerId) return 'none';
-  if (input.targetPlayerId && input.editingPlayerId === input.targetPlayerId) return 'none';
-  if (input.playerId === NEW_PLAYER_ID) {
-    return input.hasEditingPlayer ? 'none' : 'add-new';
-  }
-  if (input.targetPlayerId) return 'edit-existing';
-  return 'none';
-}
-
 export function resolveNewSessionPath(input: {
   communityIds: string[];
   type?: 'tournament' | 'free_play';
@@ -221,9 +194,8 @@ export function pathForLegacyPage(page: LegacyPage, communityId: string | null):
     case 'session-active':
       return communityId ? paths.sessaoAtiva(communityId) : paths.sessaoAtivaSemComunidade;
     case 'players':
-      return communityId ? paths.pessoas(communityId) : paths.comunidades;
     case 'player-edit':
-      return communityId ? paths.atleta(communityId, NEW_PLAYER_ID) : paths.comunidades;
+      return communityId ? paths.pessoas(communityId) : paths.comunidades;
     case 'history':
       return communityId ? paths.historico(communityId) : paths.painel;
     case 'communities':
@@ -265,7 +237,7 @@ export function getPageTitleForPath(pathname: string): string {
       if (segments[4] === 'sortear') return 'Sortear os Times';
       return 'Detalhe da Sessão';
     case 'pessoas':
-      return segments[3] === 'editar-atleta' ? 'Perfil do Atleta' : 'Pessoas';
+      return 'Pessoas';
     case 'ligas':
       return 'Ligas da Comunidade';
     case 'desempenho':

@@ -46,4 +46,33 @@ describe('GuestPlayerModal', () => {
     expect(handleAddGuest.mock.calls[0][0].isGuest).toBe(true);
     expect(handleClose).toHaveBeenCalled();
   });
+  it('sem permissao, nao oferece editar os detalhes do convidado', () => {
+    render(
+      <GuestPlayerModal isOpen={true} onClose={vi.fn()} players={[]} onAddGuestPlayer={vi.fn()} />,
+    );
+
+    expect(screen.queryByRole('button', { name: /editar detalhes/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /salvar convidado/i })).toBeDefined();
+  });
+
+  it('com permissao, salvar e editar detalhes pede a edicao do convidado', () => {
+    const handleAddGuest = vi.fn();
+    render(
+      <GuestPlayerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        players={[]}
+        onAddGuestPlayer={handleAddGuest}
+        canEditDetails
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/ex: carlos convidado/i), {
+      target: { value: 'Lucas Convidado' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /editar detalhes/i }));
+
+    expect(handleAddGuest).toHaveBeenCalledTimes(1);
+    expect(handleAddGuest.mock.calls[0][1]).toBe(true);
+  });
 });

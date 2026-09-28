@@ -12,6 +12,7 @@ export interface SessionWizardModel {
   activeSession: Session | null;
   players: Player[];
   communities: Community[];
+  canEditGuestDetails: boolean;
   wizardStep: number;
   validationErrors: Record<string, string>;
   bestDivisions: Division[];

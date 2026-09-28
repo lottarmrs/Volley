@@ -9,7 +9,6 @@ import {
   playerEvaluationCloudService,
   isMissingTargetLookup,
 } from './playerEvaluationCloudService';
-import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
 import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
 import {
@@ -1703,21 +1702,11 @@ export const syncService = {
       }
     }
 
-    // A player's own self-evaluation is only readable by that player's linked
-    // account (RLS on self_evaluations restricts rows to their own player_id),
-    // so at most one cloud player can match the current user.
-    const ownPlayer = ownerId
-      ? cloudPlayers.find((player) => player.userId === ownerId)
-      : undefined;
-    const selfEvaluation = ownPlayer?.cloudId
-      ? await selfEvaluationCloudService.fetch(ownPlayer.cloudId)
-      : null;
-
     const mappedPlayers = cloudPlayers.map((player) => {
       const playerEvaluations = cloudEvaluations.filter(
         (evaluation) => evaluation.playerId?.toLowerCase() === player.id.toLowerCase(),
       );
-      const aggregated = applyEvaluationAggregate(
+      return applyEvaluationAggregate(
         {
           ...player,
           communityIds: playerMemberships[player.id.toLowerCase()] || [],
@@ -1725,9 +1714,6 @@ export const syncService = {
         playerEvaluations,
         ownerId,
       );
-      return player === ownPlayer && selfEvaluation
-        ? { ...aggregated, selfEvaluation }
-        : aggregated;
     });
 
     const communityLocalIds = makeLocalIdLookup(cloudCommunities);

@@ -38,12 +38,10 @@ export interface ShellApi {
     playerIds: string[],
     rules: CommunityRules,
   ) => void;
-  createPlayerForCommunity: (name: string, communityId: string) => void;
   materializeChampionshipRound: (roundId: string) => AppResult<{ sessionId: string }>;
   openChampionshipRoundSession: (roundId: string) => AppResult<void>;
   deleteChampionshipAggregate: (championshipId: string) => void;
   deleteCommunityAggregate: (communityId: string) => void;
-  handlePlayerEditActionError: (error: unknown) => void;
   applyGuestPlayer: (player: Player, editDetails: boolean, communityId: string) => void;
 }
 

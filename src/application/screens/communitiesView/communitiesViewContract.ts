@@ -50,7 +50,6 @@ export interface CommunitiesViewContractInput {
   onDeleteCommunity: (communityId: string) => void;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
-  onCreatePlayer: (name: string, communityId: string) => void;
   onCreateSession: (community: Community, playerIds: string[], rules: CommunityRules) => void;
   onViewSession: (sessionId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;
@@ -119,9 +118,6 @@ export function buildCommunitiesViewContract(
         return;
       case 'updatePlayerCommunities':
         input.onUpdatePlayerCommunities(intent.communityId, intent.playerIds);
-        return;
-      case 'createPlayer':
-        input.onCreatePlayer(intent.name, intent.communityId);
         return;
       case 'createSession':
         input.onCreateSession(intent.community, intent.playerIds, intent.rules);

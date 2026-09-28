@@ -72,7 +72,6 @@ export function useCommunitiesContract(input: {
         applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
       );
     },
-    onCreatePlayer: shell.createPlayerForCommunity,
     onCreateSession: shell.createSessionFromCommunity,
     onViewSession: (sessionId) => {
       const session = sess.sessions.find((item) => item.id === sessionId);

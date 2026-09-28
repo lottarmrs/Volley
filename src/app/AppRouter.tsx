@@ -5,6 +5,7 @@ import { CompleteAthleteProfilePage } from './auth/CompleteAthleteProfilePage';
 import { CommunityInviteRoute } from './routes/CommunityInviteRoute';
 import { CommunityDrawRoute } from './routes/CommunityDrawRoute';
 import { QuickStartRoute, SessionRecapRoute } from './routes/onboardingRoutes';
+import { LegacyQueryRedirect } from './routes/LegacyQueryRedirect';
 import {
   AuthTransitionPage,
   EmailVerificationPage,
@@ -41,7 +42,6 @@ import {
   CommunityPeopleRoute,
   CommunityPerformanceRoute,
   CommunityShell,
-  PlayerEditRoute,
 } from './routes/communityRoutes';
 import {
   CommunitySessionDetailRoute,
@@ -84,7 +84,14 @@ export function AppRouter() {
             <Route element={<AccountGate />}>
               <Route index element={<CommunityOverviewRoute />} />
               <Route path="pessoas" element={<CommunityPeopleRoute />} />
-              <Route path="pessoas/editar-atleta/:playerId" element={<PlayerEditRoute />} />
+              <Route
+                path="pessoas/editar-atleta/*"
+                element={
+                  <LegacyQueryRedirect>
+                    <CommunityPeopleRoute />
+                  </LegacyQueryRedirect>
+                }
+              />
               <Route path="sessoes" element={<CommunitySessionsRoute />} />
               <Route path="sessoes/torneios" element={<CommunityTournamentsRoute />} />
               <Route path="sessoes/presenca" element={<CommunityPresenceRoute />} />

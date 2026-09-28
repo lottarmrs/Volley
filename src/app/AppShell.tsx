@@ -57,10 +57,7 @@ import { isGuestAccess } from '../application/guestAccess';
 import { countPendingChanges } from '../logic/syncStatus';
 import { generateUUID } from '../logic/uuid';
 import { applyCommunityDeletion } from '../application/localCommunityUseCases';
-import {
-  applyGuestPlayerUpsert,
-  applyPlayerCreationForCommunity,
-} from '../application/localPlayerUseCases';
+import { applyGuestPlayerUpsert } from '../application/localPlayerUseCases';
 import {
   buildFinishedSessionResult,
   buildSessionFromCommunity,
@@ -73,7 +70,6 @@ import {
   prepareImportedBackup,
 } from '../application/backupUseCases';
 import { buildVutRevealItems } from '../application/vutRevealUseCases';
-import { getPlayerEditActionErrorMessage } from '../application/playerEditActionUseCases';
 import { planStartupCloudDownload } from '../application/cloudSyncStartupUseCases';
 import {
   detachChampionshipTeamBridges,
@@ -377,33 +373,6 @@ export function AppShell() {
     navigate(paths.sessaoNova(community.id));
   };
 
-  const createPlayerForCommunity = (name: string, communityId: string) => {
-    const now = new Date().toISOString();
-    const result = applyPlayerCreationForCommunity({
-      players: play.rawPlayers,
-      name,
-      communityId,
-      now,
-      createId: generateUUID,
-    });
-
-    play.setPlayers(result.players);
-
-    // A ação mais executada da página era muda nos três desfechos.
-    if (result.outcome === 'empty') {
-      toasts.push('Digite o nome do atleta antes de adicionar.', 'error');
-      return;
-    }
-    if (result.outcome === 'linked') {
-      toasts.push(
-        `${result.name} já estava no seu elenco e foi vinculado a esta comunidade.`,
-        'info',
-      );
-      return;
-    }
-    toasts.push(`${result.name} entrou no elenco.`, 'success');
-  };
-
   const materializeChampionshipRound = (roundId: string) => {
     const round = championships.championshipRounds.find((item) => item.id === roundId);
     if (!round) return productError('not_found', 'Rodada da liga não encontrada.');
@@ -585,11 +554,6 @@ export function AppShell() {
     }
   };
 
-  const handlePlayerEditActionError = (error: unknown) => {
-    const message = getPlayerEditActionErrorMessage(error);
-    if (message) toasts.push(message, 'error');
-  };
-
   const applyGuestPlayer = (newPlayer: Player, editDetails: boolean, communityId: string) => {
     const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer, communityId);
     play.setPlayers(result.players);
@@ -600,8 +564,7 @@ export function AppShell() {
       wizard.updateSession({ selectedPlayerIds: nextSelected });
     }
     if (editDetails) {
-      play.setEditingPlayer(result.selectedPlayer);
-      navigate(paths.atleta(communityId, result.selectedPlayer.id));
+      navigate(`${paths.convidados(communityId)}?editar=${result.selectedPlayer.id}`);
     }
   };
 
@@ -684,12 +647,10 @@ export function AppShell() {
     handleImportBackup,
     handleFinishSession,
     createSessionFromCommunity,
-    createPlayerForCommunity,
     materializeChampionshipRound,
     openChampionshipRoundSession,
     deleteChampionshipAggregate,
     deleteCommunityAggregate,
-    handlePlayerEditActionError,
     applyGuestPlayer,
   };
 

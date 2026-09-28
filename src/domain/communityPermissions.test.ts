@@ -31,7 +31,6 @@ function assertWritePermissions(
     approve?: boolean;
     rules: boolean;
     profile: boolean;
-    evaluate: boolean;
     create: boolean;
   },
 ) {
@@ -44,7 +43,6 @@ function assertWritePermissions(
   }
   assert.equal(permissions.canEditRules, expected.rules);
   assert.equal(permissions.canEditPlayerProfile, expected.profile);
-  assert.equal(permissions.canEvaluatePlayer, expected.evaluate);
   assert.equal(permissions.canCreateSession, expected.create);
 }
 
@@ -66,7 +64,6 @@ test('offline or anonymous local-first mode grants owner permissions', () => {
     manage: true,
     rules: true,
     profile: true,
-    evaluate: true,
     create: true,
   });
 });
@@ -89,7 +86,6 @@ test('master has write access regardless of membership', () => {
     manage: true,
     rules: true,
     profile: true,
-    evaluate: true,
     create: true,
   });
 });
@@ -111,7 +107,6 @@ test('programmer is read-only support in product permissions', () => {
     manage: false,
     rules: false,
     profile: false,
-    evaluate: false,
     create: false,
   });
 });
@@ -133,7 +128,6 @@ test('pending memberships do not grant write permissions', () => {
     manage: false,
     rules: false,
     profile: false,
-    evaluate: false,
     create: false,
   });
 });
@@ -175,7 +169,6 @@ test('active owner admin moderator and member roles map to product permissions',
     manage: true,
     rules: true,
     profile: true,
-    evaluate: true,
     create: true,
   });
   assertWritePermissions(admin, {
@@ -185,7 +178,6 @@ test('active owner admin moderator and member roles map to product permissions',
     manage: true,
     rules: true,
     profile: true,
-    evaluate: true,
     create: true,
   });
   assertWritePermissions(moderator, {
@@ -197,7 +189,6 @@ test('active owner admin moderator and member roles map to product permissions',
     rules: false,
     profile: false,
     // A RLS de player_evaluations so aceita owner/admin, entao moderator nao avalia.
-    evaluate: false,
     create: true,
   });
   assertWritePermissions(regularMember, {
@@ -208,7 +199,6 @@ test('active owner admin moderator and member roles map to product permissions',
     approve: false,
     rules: false,
     profile: false,
-    evaluate: false,
     create: false,
   });
 });
@@ -230,7 +220,6 @@ test('organizador can create sessions but has no other management permissions', 
     approve: false,
     rules: false,
     profile: false,
-    evaluate: false,
     create: true,
   });
 });

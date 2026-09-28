@@ -348,6 +348,7 @@ export function SessionWizardRoute() {
         hookApi: wizard,
         applyGuestPlayer: (player, editDetails) =>
           shell.applyGuestPlayer(player, editDetails, community.id),
+        canEditGuestDetails: permissions.canEditPlayerProfile,
       })}
     />
   );

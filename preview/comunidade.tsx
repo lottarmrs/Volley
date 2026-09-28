@@ -267,11 +267,6 @@ export function Bancada() {
             visiblePlayers={ELENCO}
             filter={filtro}
             onFilterChange={setFiltro}
-            canManageMembers
-            currentUserId="u1"
-            isSupabaseConfigured={false}
-            onCreatePlayer={nada}
-            onLinkedPlayer={nada}
           />
         </Bloco>
 

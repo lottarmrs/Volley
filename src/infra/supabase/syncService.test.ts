@@ -16,7 +16,6 @@ import {
 } from './operationalCloudService';
 import { playerCloudService } from './playerCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
-import { selfEvaluationCloudService } from './selfEvaluationCloudService';
 import { communityCloudService } from './communityCloudService';
 import { communityPlayerCloudService } from './communityPlayerCloudService';
 import { communityRulesCloudService } from './communityRulesCloudService';
@@ -471,7 +470,6 @@ test('downloadCloudDataToLocal restores championship references to local ids', a
   const originalRelations = communityPlayerCloudService.fetchAll;
   const originalEvaluations = playerEvaluationCloudService.fetchAll;
   const originalOperational = operationalCloudService.fetchAll;
-  const originalSelfEvaluation = selfEvaluationCloudService.fetch;
   const originalChampionships = championshipCloudService.fetchAll;
   const originalTeams = championshipCloudService.fetchTeams;
   const originalRounds = championshipCloudService.fetchRounds;
@@ -487,7 +485,6 @@ test('downloadCloudDataToLocal restores championship references to local ids', a
     whatsappTemplateCloudService.fetchAll = async () => [];
     communityPlayerCloudService.fetchAll = async () => [];
     playerEvaluationCloudService.fetchAll = async () => [];
-    selfEvaluationCloudService.fetch = async () => null;
     operationalCloudService.fetchAll = async () => ({
       sessions: [makeSession({ id: 'session-local', cloudId: 'session-cloud' })],
       teams: [
@@ -569,7 +566,6 @@ test('downloadCloudDataToLocal restores championship references to local ids', a
     communityPlayerCloudService.fetchAll = originalRelations;
     playerEvaluationCloudService.fetchAll = originalEvaluations;
     operationalCloudService.fetchAll = originalOperational;
-    selfEvaluationCloudService.fetch = originalSelfEvaluation;
     championshipCloudService.fetchAll = originalChampionships;
     championshipCloudService.fetchTeams = originalTeams;
     championshipCloudService.fetchRounds = originalRounds;
@@ -1706,96 +1702,6 @@ test('mergeEntityLists retains local Sessions when the operational download omit
   });
 
   assert.deepEqual(merged, [localSession]);
-});
-
-test('downloadCloudDataToLocal fetches and merges the current user own self-evaluation only', async () => {
-  const originalCommunities = communityCloudService.fetchAll;
-  const originalPlayers = playerCloudService.fetchAll;
-  const originalRules = communityRulesCloudService.fetchAll;
-  const originalTemplates = whatsappTemplateCloudService.fetchAll;
-  const originalRelations = communityPlayerCloudService.fetchAll;
-  const originalEvaluations = playerEvaluationCloudService.fetchAll;
-  const originalOperational = operationalCloudService.fetchAll;
-  const originalChampionships = championshipCloudService.fetchAll;
-  const originalSelfEvaluationFetch = selfEvaluationCloudService.fetch;
-  const fetchedPlayerIds: string[] = [];
-
-  try {
-    communityCloudService.fetchAll = async () => [];
-    playerCloudService.fetchAll = async () => [
-      makeSyncPlayer({ id: 'player-me', cloudId: 'cloud-me', userId: 'owner-1' }),
-      makeSyncPlayer({ id: 'player-other', cloudId: 'cloud-other', userId: 'owner-2' }),
-    ];
-    communityRulesCloudService.fetchAll = async () => [];
-    whatsappTemplateCloudService.fetchAll = async () => [];
-    communityPlayerCloudService.fetchAll = async () => [];
-    playerEvaluationCloudService.fetchAll = async () => [];
-    operationalCloudService.fetchAll = async () => emptyOperationalPayload();
-    championshipCloudService.fetchAll = async () => [];
-    selfEvaluationCloudService.fetch = async (playerId: string) => {
-      fetchedPlayerIds.push(playerId);
-      return { attributes: { ...baseAttributes, saque: 9 }, updatedAt: '2026-07-24T00:00:00.000Z' };
-    };
-
-    const result = await syncService.downloadCloudDataToLocal('owner-1');
-
-    const me = result.players.find((player) => player.id === 'player-me');
-    const other = result.players.find((player) => player.id === 'player-other');
-
-    assert.deepEqual(fetchedPlayerIds, ['cloud-me']);
-    assert.equal(me?.selfEvaluation?.attributes.saque, 9);
-    assert.equal(other?.selfEvaluation, undefined);
-  } finally {
-    communityCloudService.fetchAll = originalCommunities;
-    playerCloudService.fetchAll = originalPlayers;
-    communityRulesCloudService.fetchAll = originalRules;
-    whatsappTemplateCloudService.fetchAll = originalTemplates;
-    communityPlayerCloudService.fetchAll = originalRelations;
-    playerEvaluationCloudService.fetchAll = originalEvaluations;
-    operationalCloudService.fetchAll = originalOperational;
-    championshipCloudService.fetchAll = originalChampionships;
-    selfEvaluationCloudService.fetch = originalSelfEvaluationFetch;
-  }
-});
-
-test('downloadCloudDataToLocal never fetches a self-evaluation when no owner is authenticated', async () => {
-  const originalCommunities = communityCloudService.fetchAll;
-  const originalPlayers = playerCloudService.fetchAll;
-  const originalRules = communityRulesCloudService.fetchAll;
-  const originalTemplates = whatsappTemplateCloudService.fetchAll;
-  const originalRelations = communityPlayerCloudService.fetchAll;
-  const originalEvaluations = playerEvaluationCloudService.fetchAll;
-  const originalOperational = operationalCloudService.fetchAll;
-  const originalChampionships = championshipCloudService.fetchAll;
-  const originalSelfEvaluationFetch = selfEvaluationCloudService.fetch;
-
-  try {
-    communityCloudService.fetchAll = async () => [];
-    playerCloudService.fetchAll = async () => [
-      makeSyncPlayer({ id: 'player-me', cloudId: 'cloud-me', userId: 'owner-1' }),
-    ];
-    communityRulesCloudService.fetchAll = async () => [];
-    whatsappTemplateCloudService.fetchAll = async () => [];
-    communityPlayerCloudService.fetchAll = async () => [];
-    playerEvaluationCloudService.fetchAll = async () => [];
-    operationalCloudService.fetchAll = async () => emptyOperationalPayload();
-    championshipCloudService.fetchAll = async () => [];
-    selfEvaluationCloudService.fetch = async () => assert.fail('should not fetch without an owner');
-
-    const result = await syncService.downloadCloudDataToLocal(undefined);
-
-    assert.equal(result.players[0].selfEvaluation, undefined);
-  } finally {
-    communityCloudService.fetchAll = originalCommunities;
-    playerCloudService.fetchAll = originalPlayers;
-    communityRulesCloudService.fetchAll = originalRules;
-    whatsappTemplateCloudService.fetchAll = originalTemplates;
-    communityPlayerCloudService.fetchAll = originalRelations;
-    playerEvaluationCloudService.fetchAll = originalEvaluations;
-    operationalCloudService.fetchAll = originalOperational;
-    championshipCloudService.fetchAll = originalChampionships;
-    selfEvaluationCloudService.fetch = originalSelfEvaluationFetch;
-  }
 });
 
 test('uploadLocalDataToCloud only forwards players with a known evaluationCommunityId to bulkUpsertForPlayers', async () => {

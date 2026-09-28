@@ -56,6 +56,7 @@ export interface SessionWizardContractInput {
   communities: Community[];
   hookApi: SessionWizardHookApi;
   applyGuestPlayer: (player: Player, editDetails: boolean) => void;
+  canEditGuestDetails?: boolean;
 }
 
 /**
@@ -81,6 +82,7 @@ function buildModel(input: SessionWizardContractInput): SessionWizardModel {
     activeSession: input.activeSession,
     players: input.players,
     communities: input.communities,
+    canEditGuestDetails: input.canEditGuestDetails ?? false,
     wizardStep: h.wizardStep,
     validationErrors: h.validationErrors,
     bestDivisions: h.bestDivisions,

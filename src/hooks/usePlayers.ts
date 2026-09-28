@@ -6,9 +6,7 @@ import { generateUUID } from '../logic/uuid';
 import {
   applyGuestProfileSave,
   applyLocalPlayerDeletion,
-  applyLocalPlayerSave,
   isForeignAccountPlayer,
-  validateLocalPlayerSave,
 } from '../application/localPlayerUseCases';
 import type { AthleteProfileDraft } from '../domain/athleteProfile';
 import { appOk, productError, type AppResult } from '../application/appResult';
@@ -83,10 +81,6 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     return (INITIAL_PLAYERS as unknown as Player[]).map(normalizePlayer);
   });
 
-  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   useEffect(() => saveToStorage(STORAGE_KEYS.players, players), [players]);
 
   const getPlayerHistoryUsage = useCallback(
@@ -106,163 +100,6 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     },
     [games, pointEvents, teams],
   );
-
-  const handleSavePlayer = useCallback(
-    (
-      permissions?: { canEditPlayerProfile: boolean; canEvaluatePlayer: boolean },
-      communityId?: string,
-      saveEvaluation = true,
-    ) => {
-      if (!editingPlayer) return false;
-
-      const original = players.find((p) => p.id === editingPlayer.id);
-
-      // Impedir edição direta da propriedade userId
-      if (original && original.userId !== editingPlayer.userId) {
-        throw new Error('PERMISSION_DENIED');
-      }
-      if (!original && editingPlayer.userId) {
-        throw new Error('PERMISSION_DENIED');
-      }
-
-      if (permissions) {
-        if (!permissions.canEvaluatePlayer && saveEvaluation) {
-          throw new Error('PERMISSION_DENIED');
-        }
-
-        // Sem avaliação, o save é de perfil e precisa da permissão de perfil. Sem esta
-        // linha, quem não tem nenhuma das duas permissões passava pela porta aberta por
-        // `saveEvaluation = false` e caía na lista de campos abaixo, que não cobre
-        // username, avatarUrl nem o objeto `perfil` — todos copiados de editingPlayer.
-        if (!saveEvaluation && !permissions.canEditPlayerProfile) {
-          throw new Error('PERMISSION_DENIED');
-        }
-
-        if (!permissions.canEditPlayerProfile && original) {
-          const profileFieldsChanged =
-            original.nome !== editingPlayer.nome ||
-            original.apelido !== editingPlayer.apelido ||
-            original.posicaoPrincipal !== editingPlayer.posicaoPrincipal ||
-            JSON.stringify(original.posicoesSecundarias) !==
-              JSON.stringify(editingPlayer.posicoesSecundarias) ||
-            original.genero !== editingPlayer.genero ||
-            original.alturaCm !== editingPlayer.alturaCm ||
-            original.maoDominante !== editingPlayer.maoDominante ||
-            original.ativo !== editingPlayer.ativo ||
-            original.isGuest !== editingPlayer.isGuest ||
-            original.status.lesionado !== editingPlayer.status.lesionado ||
-            original.status.presencaFrequente !== editingPlayer.status.presencaFrequente ||
-            original.status.limitacaoFisica !== editingPlayer.status.limitacaoFisica ||
-            original.formaAtual.valor !== editingPlayer.formaAtual.valor ||
-            original.formaAtual.observacao !== editingPlayer.formaAtual.observacao;
-
-          if (profileFieldsChanged) {
-            throw new Error('PERMISSION_DENIED');
-          }
-        }
-      }
-
-      const errors = validateLocalPlayerSave({ players, player: editingPlayer });
-
-      if (Object.keys(errors).length > 0) {
-        setValidationErrors(errors);
-        return false;
-      }
-
-      // The caller (App.tsx) supplies the community context the player is
-      // actually being edited/evaluated under (its `editingPlayerCommunity`
-      // derivation). Falls back to '' when the player has no community, which
-      // simply means the save carries no evaluation to sync (safe — see
-      // `bulkUpsertForPlayers`'s `evaluationCommunityId` filter).
-      const { players: updated } = applyLocalPlayerSave({
-        players,
-        editingPlayer,
-        communityId: communityId ?? '',
-        now: new Date().toISOString(),
-        saveEvaluation,
-      });
-
-      setPlayers(updated);
-      setEditingPlayer(null);
-      setValidationErrors({});
-      return true;
-    },
-    [editingPlayer, players],
-  );
-
-  const handleDeletePlayer = useCallback(
-    (permissions?: { canEditPlayerProfile: boolean }) => {
-      if (!editingPlayer) return;
-
-      if (permissions && !permissions.canEditPlayerProfile) {
-        throw new Error('PERMISSION_DENIED');
-      }
-
-      const updated = applyLocalPlayerDeletion({
-        players,
-        playerId: editingPlayer.id,
-        usage: getPlayerHistoryUsage(editingPlayer.id),
-        now: new Date().toISOString(),
-      });
-
-      setPlayers(updated);
-      setEditingPlayer(null);
-      setShowDeleteConfirm(false);
-    },
-    [editingPlayer, players, getPlayerHistoryUsage],
-  );
-
-  const handleEditPlayer = useCallback((player: Player) => {
-    setEditingPlayer({
-      ...player,
-      atributos: player.personalAttributes || player.atributos,
-    });
-    setValidationErrors({});
-    setShowDeleteConfirm(false);
-  }, []);
-
-  const handleAddPlayer = useCallback(() => {
-    const now = new Date().toISOString();
-    const newPlayer: Player = {
-      id: generateUUID(),
-      nome: '',
-      apelido: '',
-      genero: 'M',
-      ativo: true,
-      posicaoPrincipal: 'ponteiro',
-      posicoesSecundarias: [],
-      maoDominante: 'direita',
-      atributos: {
-        saque: 5,
-        recepcao: 5,
-        levantamento: 5,
-        ataque: 5,
-        bloqueio: 5,
-        defesa: 5,
-        velocidade: 5,
-        resistencia: 5,
-        leituraDeJogo: 5,
-        regularidade: 5,
-        controleEmocional: 5,
-      },
-      perfil: {
-        nivel: 1,
-        classe: 'Recruta',
-        arquetipo: 'Versátil',
-        especialidade: 'Novato',
-        fraqueza: 'Inexperiência',
-      },
-      formaAtual: { valor: 0, observacao: 'Em treinamento', ultimasPartidas: [] },
-      status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
-      metadata: { criadoEm: now, atualizadoEm: now },
-      communityIds: [],
-      syncStatus: 'local',
-      updatedAt: now,
-    };
-    setEditingPlayer(newPlayer);
-    setValidationErrors({});
-    setShowDeleteConfirm(false);
-  }, []);
 
   const saveGuestPlayer = useCallback(
     (input: {
@@ -351,17 +188,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     players: players.filter((p) => !p.deletedAt),
     rawPlayers: players, // Expose full list (with soft deletes) for syncService
     setPlayers,
-    editingPlayer,
-    setEditingPlayer,
-    validationErrors,
-    setValidationErrors,
-    showDeleteConfirm,
-    setShowDeleteConfirm,
     getPlayerHistoryUsage,
-    handleSavePlayer,
-    handleDeletePlayer,
-    handleEditPlayer,
-    handleAddPlayer,
     saveGuestPlayer,
     removeGuestPlayer,
     handleRestoreDemoPlayers,

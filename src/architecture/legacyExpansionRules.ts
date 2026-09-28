@@ -119,7 +119,6 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
       'src/logic/playerEvaluations.ts': 2,
       // Tests asserting current legacy behaviour; they retire with their subjects.
       'src/infra/supabase/mappers.test.ts': 1,
-      'src/infra/supabase/selfEvaluationCloudService.test.ts': 1,
     },
   },
   {
@@ -134,7 +133,6 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
     baseline: {
       'src/app/AppRouter.spec.tsx': 7,
       'src/hooks/useCloudSync.spec.tsx': 6,
-      'src/hooks/usePlayers.spec.tsx': 1,
       'src/hooks/usePlayers.ts': 4,
       'src/logic/migrations.ts': 1,
     },

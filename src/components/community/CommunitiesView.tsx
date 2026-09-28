@@ -167,7 +167,6 @@ interface CommunitiesViewProps {
   onDeleteCommunity: (communityId: string) => void;
   onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
   onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
-  onCreatePlayer: (name: string, communityId: string) => void;
   onCreateSession: (community: Community, playerIds: string[], rules: CommunityRules) => void;
   onViewSession: (sessionId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;

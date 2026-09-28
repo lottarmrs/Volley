@@ -372,3 +372,14 @@ test('sem comunidade nenhuma, o wizard segue como sempre foi', () => {
 
   assert.equal(contract.model.primaryAction, 'next');
 });
+
+test('editar detalhes do convidado so aparece com a permissao de editar ficha', () => {
+  const semPermissao = buildSessionWizardContract(makeInput(makeHookApi()));
+  assert.equal(semPermissao.model.canEditGuestDetails, false);
+
+  const comPermissao = buildSessionWizardContract({
+    ...makeInput(makeHookApi()),
+    canEditGuestDetails: true,
+  });
+  assert.equal(comPermissao.model.canEditGuestDetails, true);
+});

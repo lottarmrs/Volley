@@ -1,4 +1,4 @@
-import { lazy, useEffect } from 'react';
+import { lazy } from 'react';
 import {
   Navigate,
   Outlet,
@@ -8,17 +8,8 @@ import {
   useSearchParams,
 } from 'react-router';
 import type { Community } from '@shared/types';
-import {
-  NEW_PLAYER_ID,
-  paths,
-  resolveBackTarget,
-  resolveCommunityAreaAccess,
-  resolveCommunityRoute,
-  resolvePlayerEditAction,
-  resolvePlayerRoute,
-} from '@app/appRoutes';
+import { paths, resolveCommunityAreaAccess, resolveCommunityRoute } from '@app/appRoutes';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
-import { buildPlayerEditViewContract } from '@app/screens/playerEditView/playerEditViewContract';
 import { buildHistoryViewContract } from '@app/screens/historyView/historyViewContract';
 import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { useShell, useCommunityShell } from '../shellContext';
@@ -47,11 +38,6 @@ import { CommunityRankingArea } from '../../components/community/areas/Community
 
 const PlayersView = lazy(() =>
   import('../../components/player/PlayersView').then((module) => ({ default: module.PlayersView })),
-);
-const PlayerEditView = lazy(() =>
-  import('../../components/player/PlayerEditView').then((module) => ({
-    default: module.PlayerEditView,
-  })),
 );
 const RankingModule = lazy(() =>
   import('../../components/ranking/RankingModule').then((module) => ({
@@ -384,19 +370,13 @@ export function CommunityDataRoute() {
 export function CommunityPeopleRoute() {
   const shell = useCommunityShell();
   const navigate = useNavigate();
-  const { community, play, sess, comm, auth } = shell;
-  const permissions = useCommunityPermissions(community);
+  const { community, play, sess, comm } = shell;
   const communityPlayers = getCommunityPlayers(community.id, play.players);
 
   return (
     <PlayersView
       contract={buildPlayersViewContract({
-        roster: {
-          community,
-          canManageMembers: permissions.canManageMembers,
-          currentUserId: auth.user?.id ?? null,
-          isSupabaseConfigured: auth.isSupabaseConfigured,
-        },
+        roster: { community },
         players: communityPlayers,
         communities: comm.communities,
         games: sess.games,
@@ -404,95 +384,6 @@ export function CommunityPeopleRoute() {
         teams: sess.teams,
         sessions: getCommunitySessions(community.id, sess.sessions),
         onBack: () => navigate(paths.comunidade(community.id)),
-        onAddPlayer: () => {
-          play.handleAddPlayer();
-          navigate(paths.atleta(community.id, NEW_PLAYER_ID));
-        },
-        onEditPlayer: (player) => {
-          play.handleEditPlayer(player);
-          navigate(paths.atleta(community.id, player.username ?? player.id));
-        },
-        onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
-        onAddGuestPlayer: (newPlayer, editDetails) =>
-          shell.applyGuestPlayer(newPlayer, editDetails, community.id),
-        onCreatePlayerInCommunity: (name) => shell.createPlayerForCommunity(name, community.id),
-        onLinkedCloudPlayer: (player, communityId) =>
-          play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId)),
-      })}
-    />
-  );
-}
-
-export function PlayerEditRoute() {
-  const shell = useCommunityShell();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { playerId } = useParams();
-  const { community, play, sess, comm, auth } = shell;
-  const permissions = useCommunityPermissions(community);
-  const fallbackPath = paths.pessoas(community.id);
-  const communityPlayers = getCommunityPlayers(community.id, play.players);
-  const resolution = resolvePlayerRoute({ param: playerId, players: communityPlayers });
-  const targetPlayer =
-    resolution.kind === 'ok'
-      ? communityPlayers.find((item) => item.id === resolution.playerId)
-      : undefined;
-
-  useEffect(() => {
-    const action = resolvePlayerEditAction({
-      playerId,
-      targetPlayerId: targetPlayer?.id,
-      editingPlayerId: play.editingPlayer?.id,
-      hasEditingPlayer: Boolean(play.editingPlayer),
-    });
-    if (action === 'add-new') play.handleAddPlayer();
-    else if (action === 'edit-existing' && targetPlayer) play.handleEditPlayer(targetPlayer);
-  }, [playerId, play.editingPlayer, targetPlayer]);
-
-  const goBack = () => {
-    const target = resolveBackTarget({ locationKey: location.key, fallbackPath });
-    if (target.kind === 'history') navigate(-1);
-    else navigate(target.to);
-  };
-
-  if (resolution.kind === 'not-found') {
-    return <Navigate to={fallbackPath} replace />;
-  }
-  if (!play.editingPlayer) return null;
-
-  return (
-    <PlayerEditView
-      contract={buildPlayerEditViewContract({
-        editingPlayer: play.editingPlayer,
-        setEditingPlayer: play.setEditingPlayer,
-        players: play.players,
-        games: sess.games,
-        pointEvents: sess.pointEvents,
-        teams: sess.teams,
-        communities: comm.communities,
-        sessions: sess.sessions,
-        validationErrors: play.validationErrors,
-        showDeleteConfirm: play.showDeleteConfirm,
-        setShowDeleteConfirm: play.setShowDeleteConfirm,
-        permissions,
-        currentUserId: auth.user?.id ?? null,
-        onBack: goBack,
-        onSave: () => {
-          try {
-            if (play.handleSavePlayer(permissions, community.id, !play.editingPlayer.cloudId))
-              goBack();
-          } catch (err) {
-            shell.handlePlayerEditActionError(err);
-          }
-        },
-        onDelete: () => {
-          try {
-            play.handleDeletePlayer(permissions);
-            goBack();
-          } catch (err) {
-            shell.handlePlayerEditActionError(err);
-          }
-        },
       })}
     />
   );

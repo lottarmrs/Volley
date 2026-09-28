@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   LIVE_SESSION_PHASES,
-  NEW_PLAYER_ID,
   extractCommunityId,
   getPageTitleForPath,
   getReturnRouteForPath,
@@ -17,8 +16,6 @@ import {
   resolveLegacyLiveSessionRoute,
   resolveLiveSessionRoute,
   resolveNewSessionPath,
-  resolvePlayerEditAction,
-  resolvePlayerRoute,
   resolveWizardRoute,
 } from './appRoutes';
 
@@ -38,8 +35,7 @@ test('paths monta as rotas globais e as aninhadas de comunidade', () => {
   assert.equal(paths.torneios('c1'), '/comunidades/c1/sessoes/torneios');
   assert.equal(paths.sessao('c1', 's9'), '/comunidades/c1/sessoes/s9');
   assert.equal(paths.pessoas('c1'), '/comunidades/c1/pessoas');
-  assert.equal(paths.atleta('c1', 'p7'), '/comunidades/c1/pessoas/editar-atleta/p7');
-  assert.equal(paths.atleta('c1', NEW_PLAYER_ID), '/comunidades/c1/pessoas/editar-atleta/novo');
+  assert.equal('atleta' in paths, false);
   assert.equal(paths.gestao('c1'), '/comunidades/c1/gestao');
 });
 
@@ -239,6 +235,7 @@ test('pathForLegacyPage traduz as páginas que o wizard ainda emite', () => {
   assert.equal(pathForLegacyPage('dashboard', 'c1'), '/painel');
   assert.equal(pathForLegacyPage('players', 'c1'), '/comunidades/c1/pessoas');
   assert.equal(pathForLegacyPage('players', null), '/comunidades');
+  assert.equal(pathForLegacyPage('player-edit', 'c1'), '/comunidades/c1/pessoas');
 });
 
 test('getPageTitleForPath deriva o título da URL', () => {
@@ -254,7 +251,7 @@ test('getPageTitleForPath deriva o título da URL', () => {
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9'), 'Detalhe da Sessão');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9/inscricao'), 'Inscrição');
   assert.equal(getPageTitleForPath('/comunidades/c1/pessoas'), 'Pessoas');
-  assert.equal(getPageTitleForPath('/comunidades/c1/pessoas/editar-atleta/p7'), 'Perfil do Atleta');
+  assert.equal(getPageTitleForPath('/comunidades/c1/pessoas/editar-atleta/p7'), 'Pessoas');
   assert.equal(getPageTitleForPath('/comunidades/c1/desempenho'), 'Desempenho');
   assert.equal(getPageTitleForPath('/comunidades/c1/gestao'), 'Gestão da Comunidade');
   assert.equal(getPageTitleForPath('/perfil'), 'Meu Perfil');
@@ -320,90 +317,6 @@ test('sidebar global expõe administração só para staff', () => {
   const items = getShellNavigationItems({ pathname: '/painel', isStaff: true, pendingChanges: 0 });
   assert.equal(items.at(-1)?.id, 'plataforma');
   assert.equal(items.at(-1)?.to, '/plataforma');
-});
-
-test('resolvePlayerRoute aceita id, handle e a sentinela de novo atleta', () => {
-  const players = [{ id: 'p1', username: 'ana' }, { id: 'p2' }];
-  assert.deepEqual(resolvePlayerRoute({ param: 'p1', players }), { kind: 'ok', playerId: 'p1' });
-  assert.deepEqual(resolvePlayerRoute({ param: 'ana', players }), { kind: 'ok', playerId: 'p1' });
-  assert.deepEqual(resolvePlayerRoute({ param: 'ANA', players }), { kind: 'ok', playerId: 'p1' });
-  assert.deepEqual(resolvePlayerRoute({ param: 'p2', players }), { kind: 'ok', playerId: 'p2' });
-  assert.deepEqual(resolvePlayerRoute({ param: NEW_PLAYER_ID, players }), { kind: 'new' });
-  assert.deepEqual(resolvePlayerRoute({ param: 'nao-existe', players }), { kind: 'not-found' });
-  assert.deepEqual(resolvePlayerRoute({ players }), { kind: 'not-found' });
-});
-
-test('resolvePlayerRoute prefere id quando um handle colide com um id', () => {
-  const players = [
-    { id: 'ana', username: 'zeca' },
-    { id: 'p2', username: 'ana' },
-  ];
-  assert.deepEqual(resolvePlayerRoute({ param: 'ana', players }), { kind: 'ok', playerId: 'ana' });
-});
-
-test('resolvePlayerEditAction nao recarrega quando o atleta em edicao ja e o alvo resolvido', () => {
-  assert.equal(
-    resolvePlayerEditAction({
-      playerId: 'ana',
-      targetPlayerId: 'p1',
-      editingPlayerId: 'p1',
-      hasEditingPlayer: true,
-    }),
-    'none',
-  );
-});
-
-test('resolvePlayerEditAction pede o carregamento do alvo quando o atleta em edicao ainda nao e ele', () => {
-  assert.equal(
-    resolvePlayerEditAction({
-      playerId: 'ana',
-      targetPlayerId: 'p1',
-      editingPlayerId: undefined,
-      hasEditingPlayer: false,
-    }),
-    'edit-existing',
-  );
-});
-
-test('resolvePlayerEditAction cria o atleta novo so quando ainda nao ha edicao em curso', () => {
-  assert.equal(
-    resolvePlayerEditAction({
-      playerId: NEW_PLAYER_ID,
-      targetPlayerId: undefined,
-      editingPlayerId: undefined,
-      hasEditingPlayer: false,
-    }),
-    'add-new',
-  );
-  assert.equal(
-    resolvePlayerEditAction({
-      playerId: NEW_PLAYER_ID,
-      targetPlayerId: undefined,
-      editingPlayerId: 'novo-id',
-      hasEditingPlayer: true,
-    }),
-    'none',
-  );
-});
-
-test('resolvePlayerEditAction nao faz nada sem playerId ou quando o alvo nao existe', () => {
-  assert.equal(
-    resolvePlayerEditAction({
-      targetPlayerId: undefined,
-      editingPlayerId: undefined,
-      hasEditingPlayer: false,
-    }),
-    'none',
-  );
-  assert.equal(
-    resolvePlayerEditAction({
-      playerId: 'nao-existe',
-      targetPlayerId: undefined,
-      editingPlayerId: undefined,
-      hasEditingPlayer: false,
-    }),
-    'none',
-  );
 });
 
 test('sidebar dentro da comunidade troca para as 6 áreas mais a volta', () => {
@@ -478,6 +391,11 @@ test('enderecos antigos redirecionam para os novos', () => {
   assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/desempenho', ''), { kind: 'ok' });
   assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/gestao', ''), { kind: 'ok' });
   assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/sessoes/presenca', ''), { kind: 'ok' });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/pessoas/editar-atleta/x', ''), {
+    kind: 'redirect',
+    to: '/comunidades/c1/pessoas',
+  });
+  assert.deepEqual(resolveLegacyQueryRoute('/comunidades/c1/pessoas', ''), { kind: 'ok' });
 });
 
 test('gestao exige quem administra ou modera', () => {

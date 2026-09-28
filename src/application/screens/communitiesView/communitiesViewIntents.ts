@@ -8,7 +8,6 @@ export type CommunitiesViewIntent =
   | { kind: 'deleteCommunity'; communityId: string }
   | { kind: 'duplicateCommunity'; communityId: string; includeAthletes: boolean }
   | { kind: 'updatePlayerCommunities'; communityId: string; playerIds: string[] }
-  | { kind: 'createPlayer'; name: string; communityId: string }
   | { kind: 'createSession'; community: Community; playerIds: string[]; rules: CommunityRules }
   | { kind: 'viewSession'; sessionId: string }
   | { kind: 'clearCommunityHistory'; communityId: string }

@@ -9,6 +9,7 @@ import { getCommunityPlayers } from '@logic/community';
 import { useRegistrationBoard } from '../../hooks/useRegistrationBoard';
 import { SessionWizard } from '../../components/session/SessionWizard';
 import { useCommunityShell } from '../shellContext';
+import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 
 /** O passo do wizard que fala de formato, depois de Sessão e Atletas. */
 const PASSO_DO_FORMATO = 2;
@@ -31,6 +32,7 @@ function Aviso({ titulo, mensagem, voltar }: { titulo: string; mensagem: string;
 export function CommunityDrawRoute() {
   const shell = useCommunityShell();
   const { community, sess, play, comm, wizard } = shell;
+  const permissions = useCommunityPermissions(community);
   const { sessionId } = useParams();
 
   const session = sess.sessions.find((item) => item.id === sessionId) ?? null;
@@ -114,6 +116,7 @@ export function CommunityDrawRoute() {
         hookApi: wizard,
         applyGuestPlayer: (player, editDetails) =>
           shell.applyGuestPlayer(player, editDetails, community.id),
+        canEditGuestDetails: permissions.canEditPlayerProfile,
       })}
     />
   );

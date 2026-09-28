@@ -2,9 +2,6 @@ import type { Community, Game, Player, PointEvent, Session, Team } from '@shared
 
 export interface CommunityRosterContext {
   community: Community;
-  canManageMembers: boolean;
-  currentUserId: string | null;
-  isSupabaseConfigured: boolean;
 }
 
 export interface PlayersViewModel {

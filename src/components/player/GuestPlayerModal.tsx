@@ -12,6 +12,7 @@ interface GuestPlayerModalProps {
   players: Player[];
   onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
   defaultCommunityId?: string | null;
+  canEditDetails?: boolean;
 }
 
 const POSITION_LABELS: Record<Position, string> = {
@@ -43,6 +44,7 @@ export function GuestPlayerModal({
   players,
   onAddGuestPlayer,
   defaultCommunityId,
+  canEditDetails = false,
 }: GuestPlayerModalProps) {
   const [nome, setNome] = useState('');
   const [genero, setGenero] = useState<Gender>('M');
@@ -509,13 +511,15 @@ export function GuestPlayerModal({
             Cancelar
           </button>
 
-          <button
-            type="button"
-            onClick={() => handleSave(true)}
-            className="btn btn-neutral btn-outline sm:flex-1 font-bold uppercase text-xs"
-          >
-            Salvar e Editar Detalhes
-          </button>
+          {canEditDetails && (
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              className="btn btn-neutral btn-outline sm:flex-1 font-bold uppercase text-xs"
+            >
+              Salvar e Editar Detalhes
+            </button>
+          )}
 
           <button
             type="button"

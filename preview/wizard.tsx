@@ -64,6 +64,7 @@ function contrato(
     model: {
       players: ELENCO,
       communities: [COMUNIDADE_NA_NUVEM],
+      canEditGuestDetails: false,
       wizardStep: 0,
       validationErrors: {},
       bestDivisions: [],

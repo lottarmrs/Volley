@@ -90,10 +90,6 @@ export interface Player {
     updatedAt?: string;
   };
   evaluationCommunityId?: string;
-  selfEvaluation?: {
-    attributes: Attributes;
-    updatedAt: string;
-  };
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;

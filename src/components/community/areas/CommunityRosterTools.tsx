@@ -1,10 +1,7 @@
-import { Plus } from 'lucide-react';
-import { useState } from 'react';
 import type { Community, Player } from '@shared/types';
 import { COMMUNITY_ROSTER_FILTERS, type CommunityRosterFilter } from '@app/communityRosterFilters';
 import { getCommunityPlayers } from '@logic/community';
 import { formatCommunityPlayersText } from '@logic/shareFormatters';
-import { AthleteUsernameSearch } from '../AthleteUsernameSearch';
 import { ShareActions } from '../../share/ShareActions';
 
 export interface CommunityRosterToolsProps {
@@ -13,11 +10,6 @@ export interface CommunityRosterToolsProps {
   visiblePlayers: Player[];
   filter: CommunityRosterFilter;
   onFilterChange: (filter: CommunityRosterFilter) => void;
-  canManageMembers: boolean;
-  currentUserId: string | null;
-  isSupabaseConfigured: boolean;
-  onCreatePlayer: (name: string) => void;
-  onLinkedPlayer: (player: Player, communityId: string) => void;
 }
 
 export function CommunityRosterTools({
@@ -26,13 +18,7 @@ export function CommunityRosterTools({
   visiblePlayers,
   filter,
   onFilterChange,
-  canManageMembers,
-  currentUserId,
-  isSupabaseConfigured,
-  onCreatePlayer,
-  onLinkedPlayer,
 }: CommunityRosterToolsProps) {
-  const [newPlayerName, setNewPlayerName] = useState('');
   const membros = getCommunityPlayers(community.id, players);
   const paraCompartilhar = visiblePlayers.length > 0 ? visiblePlayers : membros;
 
@@ -51,47 +37,6 @@ export function CommunityRosterTools({
             </option>
           ))}
         </select>
-
-        {canManageMembers && (
-          <form
-            className="space-y-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!newPlayerName.trim()) return;
-              onCreatePlayer(newPlayerName);
-              setNewPlayerName('');
-            }}
-          >
-            <label htmlFor="novo-atleta" className="label-text font-bold">
-              Novo atleta
-            </label>
-            <div className="join w-full">
-              <input
-                id="novo-atleta"
-                className="input input-bordered join-item flex-1"
-                placeholder="Ex.: Ana Paula"
-                value={newPlayerName}
-                onChange={(event) => setNewPlayerName(event.target.value)}
-              />
-              <button
-                type="submit"
-                aria-label="Adicionar atleta ao elenco"
-                className="btn btn-primary join-item"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-        )}
-
-        {canManageMembers && (
-          <AthleteUsernameSearch
-            community={community}
-            currentUserId={currentUserId}
-            isSupabaseConfigured={isSupabaseConfigured}
-            onLinkedPlayer={onLinkedPlayer}
-          />
-        )}
 
         <ShareActions
           title={`Atletas - ${community.name}`}

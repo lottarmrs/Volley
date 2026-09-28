@@ -435,55 +435,13 @@ describe('AppRouter — pessoas', () => {
     expect(screen.queryByText(/bruno lima/i)).toBeNull();
   });
 
-  it('abre o atleta da URL em modo edição', async () => {
+  it('um link antigo de editar atleta cai em Pessoas, sem editor', async () => {
     seedLocalDb({ communities: [community], players: [player] });
     renderApp('/comunidades/c1/pessoas/editar-atleta/p1');
-    expect(await screen.findByDisplayValue('Ana Souza', {}, { timeout: 5000 })).toBeTruthy();
-  });
-
-  it('volta para a lista quando o atleta da URL não existe', async () => {
-    seedLocalDb({ communities: [community], players: [player] });
-    renderApp('/comunidades/c1/pessoas/editar-atleta/p-inexistente');
     expect(await screen.findByText(/ana souza/i)).toBeTruthy();
-  });
-
-  it('não edita atleta de outra comunidade pela URL da c1', async () => {
-    const foreign = { ...player, id: 'p2', nome: 'Bruno Lima', communityIds: ['c2'] };
-    seedLocalDb({
-      communities: [community, { id: 'c2', name: 'Rivais' }],
-      players: [player, foreign],
-    });
-    renderApp('/comunidades/c1/pessoas/editar-atleta/p2');
-    expect(await screen.findByText(/ana souza/i)).toBeTruthy();
-    expect(screen.queryByDisplayValue('Bruno Lima')).toBeNull();
-  });
-
-  it('monta o formulário em branco para o atleta novo (sentinela "novo")', async () => {
-    seedLocalDb({ communities: [community] });
-    renderApp('/comunidades/c1/pessoas/editar-atleta/novo');
-    const nomeInput = await screen.findByPlaceholderText('Nome Completo', {}, { timeout: 5000 });
-    expect((nomeInput as HTMLInputElement).value).toBe('');
-    expect((screen.getByPlaceholderText('Apelido') as HTMLInputElement).value).toBe('');
-  });
-
-  it('abre o atleta pelo handle na URL', async () => {
-    seedLocalDb({ communities: [community], players: [{ ...player, username: 'ana' }] });
-    renderApp('/comunidades/c1/pessoas/editar-atleta/ana');
-    expect(await screen.findByDisplayValue('Ana Souza')).toBeTruthy();
-  });
-
-  it('continua abrindo o atleta pelo id', async () => {
-    seedLocalDb({ communities: [community], players: [{ ...player, username: 'ana' }] });
-    renderApp('/comunidades/c1/pessoas/editar-atleta/p1');
-    expect(await screen.findByDisplayValue('Ana Souza')).toBeTruthy();
-  });
-
-  it('salvar no editor de atleta volta para a lista de Pessoas', async () => {
-    seedLocalDb({ communities: [community], players: [player] });
-    renderApp('/comunidades/c1/pessoas/editar-atleta/p1');
-    await screen.findByDisplayValue('Ana Souza', {}, { timeout: 5000 });
-    fireEvent.click(screen.getByRole('button', { name: /salvar altera/i }));
-    expect(await screen.findByText(/ana souza/i)).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe(paths.pessoas('c1')),
+    );
     expect(screen.queryByPlaceholderText('Nome Completo')).toBeNull();
   });
 });
@@ -678,6 +636,26 @@ describe('AppRouter — wizard e sessão ativa', () => {
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').textContent).toBe(paths.sessaoNova('c2')),
     );
+  });
+
+  it('editar detalhes do convidado no wizard leva a Gestao, Convidados, com ele aberto', async () => {
+    seedLocalDb({ communities: [community] });
+    renderApp('/comunidades/c1/sessoes/nova');
+    await screen.findByPlaceholderText(WIZARD_MARKER, {}, { timeout: 5000 });
+    fireEvent.change(screen.getByPlaceholderText(WIZARD_MARKER), {
+      target: { value: 'Pelada de teste' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /escolher atletas/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^\+ convidado$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/ex: carlos convidado/i), {
+      target: { value: 'Lucas Convidado' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /editar detalhes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe').textContent).toBe(paths.convidados('c1')),
+    );
+    expect(await screen.findByDisplayValue('Lucas Convidado', {}, { timeout: 5000 })).toBeTruthy();
   });
 
   it('não abre o wizard por cima de uma sessão em fase jogável', async () => {

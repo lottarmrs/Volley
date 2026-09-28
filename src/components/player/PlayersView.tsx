@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
-import { ChevronLeft, Plus, Search, Users } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronLeft, Search, Users } from 'lucide-react';
 import type { Player } from '@shared/types';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { PlayersViewModel } from '@app/screens/playersView/playersViewModel';
 import type { PlayersViewIntent } from '@app/screens/playersView/playersViewIntents';
 import { PlayerItem } from './PlayerComponents';
-import { GuestPlayerModal } from './GuestPlayerModal';
 import { FutCardModal } from './FutCardModal';
 import { matchesSearch } from '../../logic/textNormalization';
 import {
@@ -26,7 +25,6 @@ export const PlayersView = ({
   const [showInactive, setShowInactive] = useState(false);
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showGuestModal, setShowGuestModal] = useState(false);
   const [selectedVutPlayer, setSelectedVutPlayer] = useState<Player | null>(null);
   const [rosterFilter, setRosterFilter] = useState<CommunityRosterFilter>('all');
   const communitySessions = roster ? getCommunitySessions(roster.community.id, sessions) : [];
@@ -55,13 +53,6 @@ export const PlayersView = ({
           visiblePlayers={visiblePlayers}
           filter={rosterFilter}
           onFilterChange={setRosterFilter}
-          canManageMembers={roster.canManageMembers}
-          currentUserId={roster.currentUserId}
-          isSupabaseConfigured={roster.isSupabaseConfigured}
-          onCreatePlayer={(name) => dispatch({ kind: 'createPlayerInCommunity', name })}
-          onLinkedPlayer={(player, communityId) =>
-            dispatch({ kind: 'linkedCloudPlayer', player, communityId })
-          }
         />
       )}
       {/* Header and Controls */}
@@ -79,22 +70,6 @@ export const PlayersView = ({
             className="btn btn-outline btn-sm text-[10px] sm:text-xs font-bold uppercase"
           >
             {showInactive ? 'Ocultar inativos' : 'Mostrar inativos'}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap justify-end">
-          <button
-            type="button"
-            onClick={() => setShowGuestModal(true)}
-            className="btn btn-outline btn-accent btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
-          >
-            <Plus className="w-4 h-4" /> Convidado
-          </button>
-          <button
-            onClick={() => dispatch({ kind: 'addPlayer' })}
-            className="btn btn-primary btn-sm flex-1 sm:flex-initial text-[10px] sm:text-xs"
-          >
-            <Plus className="w-4 h-4" /> Cadastrar
           </button>
         </div>
       </div>
@@ -139,7 +114,7 @@ export const PlayersView = ({
           <PlayerItem
             key={player.id}
             player={player}
-            onToggle={() => dispatch({ kind: 'editPlayer', player })}
+            onToggle={() => setSelectedVutPlayer(player)}
             onViewVutCard={(p) => setSelectedVutPlayer(p)}
           />
         ))}
@@ -149,16 +124,8 @@ export const PlayersView = ({
               <EmptyState
                 icon={Users}
                 title="O elenco começa aqui"
-                description="Cada atleta cadastrado carrega os fundamentos que o sorteio usa para equilibrar os times — saque, recepção, levantamento, ataque, bloqueio e defesa. Sem elenco não há sorteio, e é por isso que este é o primeiro passo."
-              >
-                <button
-                  type="button"
-                  onClick={() => dispatch({ kind: 'addPlayer' })}
-                  className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
-                >
-                  <Plus className="h-5 w-5" /> Cadastrar o primeiro atleta
-                </button>
-              </EmptyState>
+                description="Quem entra pelo convite da comunidade aparece aqui com a própria ficha. Atletas sem conta são cadastrados por quem administra, em Gestão, Convidados."
+              />
             </div>
           ) : (
             /* O elenco existe; foi o filtro que não bateu. Outra mensagem, outra saída. */
@@ -183,17 +150,6 @@ export const PlayersView = ({
             </div>
           ))}
       </div>
-
-      {/* Guest Modal */}
-      <GuestPlayerModal
-        isOpen={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        players={players}
-        onAddGuestPlayer={(p, editDetails) =>
-          dispatch({ kind: 'addGuestPlayer', player: p, editDetails })
-        }
-        defaultCommunityId={selectedCommunityId !== 'all' ? selectedCommunityId : null}
-      />
 
       {/* VUT Card Modal */}
       {selectedVutPlayer && (

@@ -3023,6 +3023,7 @@ export function SessionWizard({ contract }: SessionWizardProps) {
           dispatch({ kind: 'addGuestPlayer', player, editDetails })
         }
         defaultCommunityId={activeSession?.communityId}
+        canEditDetails={model.canEditGuestDetails}
       />
 
       <AnimatePresence>

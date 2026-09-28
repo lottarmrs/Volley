@@ -9,8 +9,9 @@ vi.mock('@app/athleteProfileUseCases', async (importOriginal) => ({
   updateMyAthleteProfile: vi.fn(),
 }));
 const retry = vi.fn();
+const signOut = vi.fn();
 vi.mock('./useAuthSession', () => ({
-  useAuthSession: () => ({ retry, session: { user: { id: 'conta-1' } } }),
+  useAuthSession: () => ({ retry, signOut, session: { user: { id: 'conta-1' } } }),
 }));
 
 function preencher() {
@@ -40,7 +41,16 @@ describe('CompleteAthleteProfilePage', () => {
   beforeEach(() => {
     vi.mocked(updateMyAthleteProfile).mockReset();
     retry.mockReset();
+    signOut.mockReset();
     localStorage.clear();
+  });
+
+  it('da para sair da conta sem preencher a ficha', () => {
+    signOut.mockResolvedValue(undefined);
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: /sair da conta/i }));
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(updateMyAthleteProfile).not.toHaveBeenCalled();
   });
 
   it('depois de salvar, a copia local da propria ficha ja tem a ficha', async () => {

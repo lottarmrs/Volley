@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, LogOut } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { applyAthleteDraftToOwnPlayer, updateMyAthleteProfile } from '@app/athleteProfileUseCases';
 import { validateAthleteProfile, type AthleteProfileDraft } from '@domain/athleteProfile';
@@ -25,7 +25,7 @@ function aplicarNaCopiaLocal(userId: string | undefined, draft: AthleteProfileDr
 }
 
 export function CompleteAthleteProfilePage() {
-  const { retry, session } = useAuthSession();
+  const { retry, session, signOut } = useAuthSession();
   const navigate = useNavigate();
   const location = useLocation();
   const [draft, setDraft] = useState(VAZIO);
@@ -79,6 +79,16 @@ export function CompleteAthleteProfilePage() {
         >
           Continuar
         </button>
+
+        <div className="text-center pt-1 border-t border-base-300/50">
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs gap-1.5 text-xs text-base-content/50 hover:text-base-content"
+            onClick={() => void signOut()}
+          >
+            <LogOut className="w-3.5 h-3.5" /> Sair da Conta
+          </button>
+        </div>
       </div>
     </div>
   );

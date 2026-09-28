@@ -125,3 +125,24 @@ test('mandatory MFA already satisfied at aal2 is ready', () => {
     'ready',
   );
 });
+
+const account = (state: 'needs_username' | 'needs_athlete_profile' | 'ready', requiresAal2 = false) => ({
+  state,
+  profile: profile('u'),
+  playerId: 'p',
+  username: state === 'needs_username' ? null : 'u',
+  requiresAal2,
+});
+
+test('ficha incompleta vira athlete_profile, depois do nome de usuario e antes do MFA', () => {
+  assert.equal(resolveAuthSessionState({ session: { userId: 'u', emailConfirmed: true }, account: account('needs_username') }).kind, 'onboarding');
+  assert.equal(
+    resolveAuthSessionState({ session: { userId: 'u', emailConfirmed: true }, account: account('needs_athlete_profile', true) }).kind,
+    'athlete_profile',
+  );
+  assert.equal(
+    resolveAuthSessionState({ session: { userId: 'u', emailConfirmed: true }, account: account('ready', true), aal: { current: 'aal1', next: 'aal1' } }).kind,
+    'mfa_setup_required',
+  );
+  assert.equal(resolveAuthSessionState({ session: { userId: 'u', emailConfirmed: true }, account: account('ready') }).kind, 'ready');
+});

@@ -1,7 +1,7 @@
 import { appOk, productError, technicalError, type AppResult } from './appResult';
 import type { UserProfile } from '@shared/types';
 
-export type AccountReadiness = 'needs_username' | 'ready';
+export type AccountReadiness = 'needs_username' | 'needs_athlete_profile' | 'ready';
 
 export interface AccountSnapshot {
   state: AccountReadiness;

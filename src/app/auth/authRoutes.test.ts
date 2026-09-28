@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { isAuthOnlyPath, resolveTransitionDestination } from './authRoutes';
+import { isAuthOnlyPath, resolveTransitionDestination, routeForAuthState } from './authRoutes';
 import type { AuthSessionState } from '@app/authSession';
 
 const readyState: AuthSessionState = {
@@ -80,4 +80,12 @@ test('resolveTransitionDestination prioriza a rota forcada quando o estado ainda
     { pathname: '/comunidades/c1/desempenho' },
   );
   assert.equal(destination, '/escolher-username');
+});
+
+test('a ficha incompleta prende em /completar-ficha, que e rota de autenticacao', () => {
+  assert.equal(
+    routeForAuthState({ kind: 'athlete_profile', userId: 'u', account: {} as never }),
+    '/completar-ficha',
+  );
+  assert.equal(isAuthOnlyPath('/completar-ficha'), true);
 });

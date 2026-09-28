@@ -11,6 +11,8 @@ export function routeForAuthState(state: AuthSessionState): string | null {
       return '/verificar-email';
     case 'onboarding':
       return '/escolher-username';
+    case 'athlete_profile':
+      return '/completar-ficha';
     case 'mfa_required':
       return '/confirmar-mfa';
     case 'mfa_setup_required':
@@ -28,6 +30,7 @@ const AUTH_ONLY_PATH_PREFIXES = [
   '/auth',
   '/verificar-email',
   '/escolher-username',
+  '/completar-ficha',
   '/configurar-mfa',
   '/confirmar-mfa',
   '/recuperar-senha',

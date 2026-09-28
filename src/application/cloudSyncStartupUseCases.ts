@@ -4,6 +4,7 @@ export interface StartupCloudDownloadInput {
     | 'anonymous'
     | 'email_verification'
     | 'onboarding'
+    | 'athlete_profile'
     | 'mfa_required'
     | 'mfa_setup_required'
     | 'ready'

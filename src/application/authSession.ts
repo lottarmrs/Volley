@@ -5,6 +5,7 @@ export type AuthSessionState =
   | { kind: 'anonymous' }
   | { kind: 'email_verification'; userId: string }
   | { kind: 'onboarding'; userId: string; playerId: string }
+  | { kind: 'athlete_profile'; userId: string; account: AccountSnapshot }
   | { kind: 'mfa_required'; userId: string; account: AccountSnapshot }
   | { kind: 'mfa_setup_required'; userId: string; account: AccountSnapshot }
   | { kind: 'ready'; userId: string; account: AccountSnapshot }
@@ -35,6 +36,9 @@ export function resolveAuthSessionState(input: {
       userId: input.session.userId,
       playerId: input.account?.playerId ?? '',
     };
+  }
+  if (input.account.state === 'needs_athlete_profile') {
+    return { kind: 'athlete_profile', userId: input.session.userId, account: input.account };
   }
   if (input.aal?.next === 'aal2' && input.aal.current !== 'aal2') {
     return { kind: 'mfa_required', userId: input.session.userId, account: input.account };

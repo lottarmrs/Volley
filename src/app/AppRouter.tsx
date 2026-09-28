@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { AppShell } from './AppShell';
 import { AccountGate, SessionGate } from './auth/AuthGuard';
+import { CompleteAthleteProfilePage } from './auth/CompleteAthleteProfilePage';
 import { CommunityInviteRoute } from './routes/CommunityInviteRoute';
 import { CommunityDrawRoute } from './routes/CommunityDrawRoute';
 import { QuickStartRoute, SessionRecapRoute } from './routes/onboardingRoutes';
@@ -63,6 +64,7 @@ export function AppRouter() {
       <Route path="/auth/recuperar-sessao" element={<RecoverableSessionPage />} />
       <Route path="/verificar-email" element={<EmailVerificationPage />} />
       <Route path="/escolher-username" element={<UsernameOnboardingPage />} />
+      <Route path="/completar-ficha" element={<CompleteAthleteProfilePage />} />
       <Route path="/configurar-mfa" element={<MfaSetupPage />} />
       <Route path="/confirmar-mfa" element={<MfaChallengePage />} />
       <Route element={<SessionGate />}>

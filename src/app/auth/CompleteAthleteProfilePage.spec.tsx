@@ -1,0 +1,76 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { updateMyAthleteProfile } from '@app/athleteProfileUseCases';
+import { CompleteAthleteProfilePage } from './CompleteAthleteProfilePage';
+
+vi.mock('@app/athleteProfileUseCases', () => ({ updateMyAthleteProfile: vi.fn() }));
+const retry = vi.fn();
+vi.mock('./useAuthSession', () => ({ useAuthSession: () => ({ retry }) }));
+
+function preencher() {
+  fireEvent.click(screen.getByRole('radio', { name: 'Masculino' }));
+  fireEvent.click(screen.getByRole('radio', { name: 'Ponteiro' }));
+  fireEvent.change(screen.getByLabelText('Altura (cm)'), { target: { value: '182' } });
+  fireEvent.click(screen.getByRole('radio', { name: 'Destro' }));
+}
+
+function renderAt(from?: string) {
+  render(
+    <MemoryRouter
+      initialEntries={[
+        { pathname: '/completar-ficha', state: from ? { from: { pathname: from } } : null },
+      ]}
+    >
+      <Routes>
+        <Route path="/completar-ficha" element={<CompleteAthleteProfilePage />} />
+        <Route path="/convite/:c" element={<p>Convite</p>} />
+        <Route path="/" element={<p>Início</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('CompleteAthleteProfilePage', () => {
+  beforeEach(() => {
+    vi.mocked(updateMyAthleteProfile).mockReset();
+    retry.mockReset();
+  });
+
+  it('continuar fica desabilitado ate os quatro obrigatorios', () => {
+    renderAt();
+    const continuar = screen.getByRole('button', { name: 'Continuar' }) as HTMLButtonElement;
+    expect(continuar.disabled).toBe(true);
+    preencher();
+    expect(continuar.disabled).toBe(false);
+    expect(screen.getByText(/é com isso que o sorteio monta times equilibrados/i)).toBeTruthy();
+    expect(screen.queryByLabelText('Lesionado')).toBeNull();
+  });
+
+  it('salva, atualiza a sessao e segue para o destino guardado', async () => {
+    vi.mocked(updateMyAthleteProfile).mockResolvedValue({ ok: true, value: 'ready' });
+    renderAt('/convite/ABC');
+    preencher();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await waitFor(() => expect(retry).toHaveBeenCalled());
+    expect(await screen.findByText('Convite')).toBeTruthy();
+  });
+
+  it('a falha fica na tela e mantem o que foi preenchido', async () => {
+    vi.mocked(updateMyAthleteProfile).mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'product',
+        code: 'cloud_unavailable',
+        recoverable: true,
+        message: 'Precisamos de conexão para salvar sua ficha.',
+      },
+    } as never);
+    renderAt();
+    preencher();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect((screen.getByLabelText('Altura (cm)') as HTMLInputElement).value).toBe('182');
+    expect(retry).not.toHaveBeenCalled();
+  });
+});

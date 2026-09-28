@@ -223,7 +223,7 @@ export function CommunityGestaoRoute() {
 export function CommunityGuestsRoute() {
   const { shell, permissions, acesso } = useGestaoContext();
   const { community, play, auth } = shell;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   if (!acesso) return null;
   if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
   if (!permissions.canEditPlayerProfile) {
@@ -232,6 +232,13 @@ export function CommunityGuestsRoute() {
 
   const guests = getCommunityPlayers(community.id, play.players).filter((player) => !player.userId);
   const noCloud = !community.cloudId || !auth.isSupabaseConfigured;
+
+  const fecharEditorNaUrl = () => {
+    if (!searchParams.has('editar')) return;
+    const proximos = new URLSearchParams(searchParams);
+    proximos.delete('editar');
+    setSearchParams(proximos, { replace: true });
+  };
 
   return (
     <div className="space-y-5">
@@ -272,6 +279,7 @@ export function CommunityGuestsRoute() {
           ) : undefined
         }
         initialEditingId={searchParams.get('editar')}
+        onCloseEditor={fecharEditorNaUrl}
       />
     </div>
   );

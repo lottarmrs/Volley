@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
-import type { Community } from '@shared/types';
+import type { Community, Player } from '@shared/types';
 import type { CommunityPermissions } from '@domain/communityPermissions';
 
 const { permissionsMock } = vi.hoisted(() => ({ permissionsMock: vi.fn() }));
@@ -17,11 +17,47 @@ const community: Community = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const guestPlayer: Player = {
+  id: 'g1',
+  nome: 'Zé',
+  apelido: 'Zé',
+  genero: 'M',
+  ativo: true,
+  posicaoPrincipal: 'ponteiro',
+  posicoesSecundarias: [],
+  maoDominante: 'direita',
+  alturaCm: 180,
+  atributos: {
+    saque: 5,
+    recepcao: 5,
+    levantamento: 5,
+    ataque: 5,
+    bloqueio: 5,
+    defesa: 5,
+    velocidade: 5,
+    resistencia: 5,
+    leituraDeJogo: 5,
+    regularidade: 5,
+    controleEmocional: 5,
+  },
+  perfil: {
+    nivel: 1,
+    classe: 'Atleta',
+    arquetipo: 'Versátil',
+    especialidade: 'Teste',
+    fraqueza: 'Teste',
+  },
+  formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
+  status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
+  metadata: { criadoEm: '2026-01-01T00:00:00.000Z', atualizadoEm: '2026-01-01T00:00:00.000Z' },
+  communityIds: ['c1'],
+};
+
 vi.mock('../shellContext', () => ({
   useCommunityShell: () => ({
     community,
     play: {
-      players: [],
+      players: [guestPlayer],
       setPlayers: vi.fn(),
       saveGuestPlayer: vi.fn(),
       removeGuestPlayer: vi.fn(),
@@ -59,6 +95,16 @@ function permissionsFor(role: 'owner' | 'admin' | 'moderator' | 'member'): Commu
   };
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <p data-testid="location">
+      {location.pathname}
+      {location.search}
+    </p>
+  );
+}
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -70,6 +116,7 @@ function renderAt(path: string) {
           element={<CommunityGuestsRoute />}
         />
       </Routes>
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -110,5 +157,18 @@ describe('Gestao > Convidados — acesso por papel', () => {
     renderAt('/comunidades/c1/gestao/convidados');
 
     expect(screen.getByText('Visão geral')).toBeTruthy();
+  });
+
+  it('Voltar do editor limpa o parametro editar da URL', () => {
+    permissionsMock.mockReturnValue(permissionsFor('owner'));
+    renderAt('/comunidades/c1/gestao/convidados?editar=g1');
+
+    expect(screen.getByTestId('location').textContent).toContain('editar=g1');
+    expect(screen.getByLabelText('Nome')).toHaveProperty('value', 'Zé');
+
+    fireEvent.click(screen.getByRole('button', { name: /voltar/i }));
+
+    expect(screen.getByTestId('location').textContent).not.toContain('editar');
+    expect(screen.getByRole('button', { name: /cadastrar convidado/i })).toBeTruthy();
   });
 });

@@ -123,6 +123,45 @@ describe('CommunityGuestsArea', () => {
     expect(screen.queryByRole('button', { name: /cadastrar convidado/i })).toBeNull();
   });
 
+  it('initialEditingId que nao bate com nenhum convidado abre a lista com aviso, sem editor vazio', () => {
+    renderArea({ initialEditingId: 'nao-existe' });
+
+    expect(screen.getByRole('button', { name: /cadastrar convidado/i })).toBeTruthy();
+    expect(screen.queryByLabelText('Nome')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain(
+      'Esse convidado não está mais nesta comunidade.',
+    );
+  });
+
+  it('o aviso de convidado ausente some ao interagir com a lista', () => {
+    renderArea({ initialEditingId: 'nao-existe' });
+
+    expect(screen.getByRole('status')).toBeTruthy();
+    fireEvent.click(screen.getByText('Zé'));
+
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('Voltar do editor avisa onCloseEditor', () => {
+    const onCloseEditor = vi.fn();
+    renderArea({ initialEditingId: 'g1', onCloseEditor });
+
+    fireEvent.click(screen.getByRole('button', { name: /voltar/i }));
+
+    expect(onCloseEditor).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /cadastrar convidado/i })).toBeTruthy();
+  });
+
+  it('Salvar com sucesso avisa onCloseEditor', () => {
+    const onSave = vi.fn(() => appOk(convidado));
+    const onCloseEditor = vi.fn();
+    renderArea({ initialEditingId: 'g1', onSave, onCloseEditor });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(onCloseEditor).toHaveBeenCalled();
+  });
+
   it('mostra o searchSlot numa secao propria quando existe', () => {
     renderArea({ searchSlot: <p>busca por username</p> });
 

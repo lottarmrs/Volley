@@ -46,6 +46,7 @@ export interface CommunityGuestsAreaProps {
   hasHistory: (playerId: string) => boolean;
   searchSlot?: ReactNode;
   initialEditingId?: string | null;
+  onCloseEditor?: () => void;
 }
 
 const GuestEditor: FC<{
@@ -154,8 +155,24 @@ export const CommunityGuestsArea: FC<CommunityGuestsAreaProps> = ({
   hasHistory,
   searchSlot,
   initialEditingId,
+  onCloseEditor,
 }) => {
-  const [mode, setMode] = useState<'list' | 'new' | string>(() => initialEditingId ?? 'list');
+  const convidadoAusente =
+    !!initialEditingId && !guests.some((item) => item.id === initialEditingId);
+  const [mode, setMode] = useState<'list' | 'new' | string>(() =>
+    initialEditingId && !convidadoAusente ? initialEditingId : 'list',
+  );
+  const [avisoConvidadoAusente, setAvisoConvidadoAusente] = useState(convidadoAusente);
+
+  const abrirEditor = (proximo: 'new' | string) => {
+    setAvisoConvidadoAusente(false);
+    setMode(proximo);
+  };
+
+  const fecharEditor = () => {
+    setMode('list');
+    onCloseEditor?.();
+  };
 
   if (mode !== 'list') {
     const guest = mode === 'new' ? null : (guests.find((item) => item.id === mode) ?? null);
@@ -165,7 +182,7 @@ export const CommunityGuestsArea: FC<CommunityGuestsAreaProps> = ({
         guest={guest}
         noCloud={noCloud}
         hasHistory={guest ? hasHistory(guest.id) : false}
-        onBack={() => setMode('list')}
+        onBack={fecharEditor}
         onSave={onSave}
         onRemove={onRemove}
       />
@@ -174,9 +191,15 @@ export const CommunityGuestsArea: FC<CommunityGuestsAreaProps> = ({
 
   return (
     <div className="space-y-5">
-      <button type="button" className="btn btn-primary min-h-11" onClick={() => setMode('new')}>
+      <button type="button" className="btn btn-primary min-h-11" onClick={() => abrirEditor('new')}>
         <Plus className="w-4 h-4" /> Cadastrar convidado
       </button>
+
+      {avisoConvidadoAusente && (
+        <p role="status" className="text-sm text-warning">
+          Esse convidado não está mais nesta comunidade.
+        </p>
+      )}
 
       {guests.length === 0 ? (
         <p className="text-sm text-base-content/70">Nenhum convidado ainda.</p>
@@ -190,7 +213,7 @@ export const CommunityGuestsArea: FC<CommunityGuestsAreaProps> = ({
                 <button
                   type="button"
                   className="flex w-full min-h-11 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-base-300/50 focus-visible:bg-base-300/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
-                  onClick={() => setMode(guest.id)}
+                  onClick={() => abrirEditor(guest.id)}
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block font-bold leading-snug text-base-content">

@@ -650,6 +650,7 @@ describe('AppRouter — wizard e sessão ativa', () => {
     fireEvent.change(screen.getByPlaceholderText(/ex: carlos convidado/i), {
       target: { value: 'Lucas Convidado' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Masculino' }));
     fireEvent.click(screen.getByRole('button', { name: /editar detalhes/i }));
 
     await waitFor(() =>

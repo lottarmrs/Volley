@@ -143,6 +143,10 @@ O formulário em modo de edição, gravando pela RPC. `/perfil` mostra só a fic
 (`player.userId === auth.user.id`); sem ela no aparelho, a lê da nuvem. Nunca mais
 `play.players[0]`.
 
+> **Emenda — 2026-09-28.** "Minha ficha" (`MyAthleteProfile.tsx`) também monta o `AvatarUpload`
+> acima do `AthleteProfileForm`, com `playerCloudId`/`currentAvatarUrl` da própria ficha — a foto
+> passa a se editar no mesmo lugar que o resto dos dados do atleta, em vez de um fluxo à parte.
+
 ### 2.5 Gestão → Convidados
 
 Rota `/comunidades/:id/gestao/convidados`, aba ao lado de Membros, Regras e Dados, visível e

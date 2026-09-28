@@ -42,7 +42,7 @@ O cliente **nunca consulta responsabilidades**: nem `useCommunityPermissions` ne
 | B3 | Idem | ✅ ~~**Exportar comunidade**~~ | **Decidido e corrigido em 2026-09-25**: membro não exporta; só owner/admin. Spec em `CommunityDataArea.spec.tsx`. | `CommunityDataArea.tsx:129`, `CommunitiesView.tsx:492` |
 | B4 | Ligas globais `/ligas`, `/ligas/nova`, `/ligas/:id` | 🔴 **Criar liga, Excluir liga, Ver sessão da rodada, Aprovar/Recusar pedidos** | Nenhuma checagem. O servidor só aceita owner/admin, e a **mesma** área dentro da comunidade exige `canEditRules`. Duas portas para a mesma ação, uma trancada e outra aberta. | `ChampionshipDetailView.tsx:228,449,675,682`, `ChampionshipWizardView.tsx:227` |
 | B5 | Sessões → Torneios | ⚠️ **Novo torneio**; **abrir torneio ao vivo** | "Novo torneio" leva à tela de bloqueio. "Abrir ao vivo" põe a sessão como ativa sem checagem: latente, como B1. | `TournamentsModule.tsx:33,85`, `sessionRoutes.tsx:405` |
-| B6 | Pessoas | ⚠️ **Cadastrar**; **Convidado** | "Cadastrar" aparece e só falha no salvar, com `PERMISSION_DENIED`. "Convidado" não confere nada e grava o atleta no aparelho. | `PlayersView.tsx:86,93`, `AppShell.tsx:587` |
+| B6 | Pessoas | ✅ ~~**Cadastrar**; **Convidado**~~ | **Resolvido em 2026-09-28**: os botões saíram. Pessoas só lista (carta VUT ao tocar); convidado se cadastra e se edita em Gestão → Convidados. | `PlayersView.tsx`, `CommunityGuestsArea.tsx` |
 | B7 | Painel | ⚠️ **Nova sessão** | Aparece para todos e leva o `member` à tela de bloqueio. | `globalRoutes.tsx:80` |
 | B8 | Menu → Gestão | ✅ ~~**A área inteira**~~ | **Decidido e corrigido em 2026-09-25**: Gestão é de owner, admin e moderador (que aprova pedidos de entrada lá), por `canSeeManagement`, no menu e na rota. "Sair da comunidade" foi para o pé da Visão geral para quem não vê Gestão. | `appRoutes.ts:127`, `appRoutes.ts:395` |
 | B9 | Quadro da inscrição | ⚠️ **"Quem organiza"** | O botão aparece para o atleta e abre um painel só com título. E `organizadorAtual` é sempre `null`: o nome de quem organiza não aparece **para ninguém**. | `RegistrationBoardView.tsx:441,455` |
@@ -56,7 +56,7 @@ O cliente **nunca consulta responsabilidades**: nem `useCommunityPermissions` ne
 | Plataforma `/plataforma` | Rota exige `isStaff`; ações de master exigem `isMaster`. |
 | Gestão → Membros | Convite, pedidos, cargo, remoção e organização gateados por `canManage`/`canApprove`, com o dono protegido. |
 | Gestão → Regras | Todos os campos e o salvar desabilitados sem `canEditRules`. |
-| Editar atleta | Campos, salvar, reverter e excluir gateados; o salvar confere de novo em `usePlayers.ts`. |
+| Gestão → Convidados | Só entra na lista de abas e só abre para quem tem `canEditPlayerProfile` (dono/admin); quem não tem é redirecionado. | `communityRoutes.tsx` |
 | Quadro da inscrição (barra do organizador) | Tudo depende de `board.viewerCanManage`, **que vem do servidor**. É o modelo a seguir. |
 | Sortear `sessoes/:id/sortear` | O portão é do servidor ("Só quem organiza sorteia"). |
 | Ligas dentro da comunidade | Gateadas por `canEditRules`, coerente com o servidor. |
@@ -90,9 +90,14 @@ Estado em 2026-09-28:
 
 - **Parte 1 — avaliação da comunidade:** ✅ em produção desde 2026-09-27
   ([spec](superpowers/specs/2026-09-25-avaliacao-da-comunidade-design.md)).
-- **Parte 3 — ficha do atleta:** spec escrita
-  ([spec](superpowers/specs/2026-09-28-ficha-do-atleta-design.md)). A tela de edição de atleta
-  sai inteira; convidado é editado em Gestão → Convidados; atleta com conta só pela própria conta.
+- **Parte 3 — ficha do atleta:** ✅ **feita em 2026-09-28, em código — aguarda publicação**
+  ([spec](superpowers/specs/2026-09-28-ficha-do-atleta-design.md)). Resumo: a ficha (gênero,
+  posição principal, altura, mão dominante) é pedida no cadastro (`/completar-ficha`) e também
+  às contas antigas, que ficam presas lá até preencher; ficha de quem tem conta só muda pela
+  própria conta (policy de `update` de `players` + RPC `update_my_athlete_profile`); a tela de
+  edição de atleta por terceiros saiu inteira; convidado (sem conta) é cadastrado e editado em
+  Gestão → Convidados, só por dono/admin; Pessoas passou a só listar, com a carta VUT ao tocar;
+  "Minha ficha" mora em `/perfil`, com envio de foto.
 - **Parte 2 — perfil do atleta e convidado numa comunidade só:** depois da parte 3.
 
 ## F. Pontas soltas que contradizem as decisões de 2026-09-25 a 2026-09-28

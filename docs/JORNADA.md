@@ -49,6 +49,10 @@ Em toda etapa, quatro famílias, nesta ordem:
 | 1.1 | O destino sobrevive à confirmação por e-mail? | ✅ Sim: vai na URL **e** no armazenamento, aceita só caminho interno, vale uma volta. |
 | 1.2 | E se a rede cair no meio do cadastro? | ❓ **Aberta.** Não verifiquei a mensagem. |
 | 1.3 | O que a pessoa já tem ao sair daqui? | Conta e perfil. **Não** tem comunidade, nem elenco, nem vínculo de atleta. |
+| 1.4 | O que a conta pede além do nome de usuário? | ✅ **Desde 2026-09-28.** A ficha do atleta: gênero, posição principal, altura e mão dominante são obrigatórios (apelido e posições secundárias, opcionais). A tela é `/completar-ficha` (`CompleteAthleteProfilePage.tsx`), com o mesmo `AthleteProfileForm` usado em Minha ficha e em Convidados. |
+| 1.5 | E as contas antigas, que já tinham conta antes da ficha existir? | ✅ Caem na mesma tela no próximo acesso — o servidor responde `needs_athlete_profile` enquanto faltar qualquer um dos quatro obrigatórios (`ensure_account_ready`), e a sessão prende em `/completar-ficha` até a conta preencher. `fichaDoAtleta.dbtest.ts`: `com nome de usuario e ficha vazia, needs_athlete_profile`, `faltando qualquer um dos quatro obrigatorios, continua needs_athlete_profile`, `com os quatro obrigatorios, ready`. |
+| 1.6 | O destino sobrevive a preencher a ficha? | ✅ Sim, mesmo padrão da 1.1 — vem de `location.state.from` e volta para onde a pessoa ia. `CompleteAthleteProfilePage.spec.tsx`: `salva, atualiza a sessao e segue para o destino guardado`. |
+| 1.7 | Quem edita a ficha, depois de criada? | ✅ **Só a própria conta.** A policy de `update` de `players` e a RPC `update_my_athlete_profile` recusam qualquer outra conta, inclusive dono e admin da comunidade. `fichaDoAtleta.dbtest.ts`: `dono da comunidade nao altera nenhuma coluna de ficha com conta`, `o atleta altera a propria ficha, mesmo quando outra conta e o owner_id`, `ficha sem conta continua editavel por dono da comunidade e pelo owner_id` (convidado é a exceção — sem conta, dono/admin editam em Gestão → Convidados). |
 
 ---
 
@@ -136,8 +140,9 @@ pertence ao sorteio. Se não, pertence ao marcar. É exatamente a costura da spe
 
 ## Etapa 4b — Avaliar o elenco
 
-**De onde veio:** o item "Avaliação" do menu da comunidade, que só aparece para
-quem o servidor deixa avaliar; ou "Avaliar atleta" no perfil da comunidade.
+**De onde veio:** só o item "Avaliação" do menu da comunidade, que só aparece
+para quem o servidor deixa avaliar. O link "Avaliar atleta" saiu com a tela de
+edição de atleta em 2026-09-28 — não há mais entrada pelo perfil do atleta.
 Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-comunidade-design.md).
 
 | # | Pergunta | Resposta |
@@ -213,9 +218,14 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 
 ## Etapa 10 — Encerrar, histórico, avaliação
 
-❓ **Não investigada.** O que se sabe: a autoavaliação existe e seu destino é
-pergunta aberta; `AvatarApprovalInbox` não tem tela; o conjunto de candidatos
-publicado não tem leitor.
+❓ **Não investigada.** O que se sabe: a autoavaliação (nota provisória do
+único avaliador de uma comunidade, item 4b.4) segue existindo — só ela, não
+a **ficha** do atleta; a pergunta sobre o **destino de um perfil de
+autoavaliação próprio** (tela dedicada, edição pelo atleta) está
+✅ **descontinuada em 2026-09-28**: quem se avalia usa o mesmo formulário de
+Avaliação, e os dados do atleta (gênero, posição, altura, mão) moram na ficha,
+não numa autoavaliação — ver Etapa 1 (1.4–1.7). `AvatarApprovalInbox` não tem
+tela; o conjunto de candidatos publicado não tem leitor.
 
 ---
 

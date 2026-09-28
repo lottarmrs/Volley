@@ -174,6 +174,10 @@ O bloco "Avaliar atleta nesta comunidade" sai de `PlayerEditView`; no lugar, um 
 Avaliação daquele atleta, visível com `player.evaluate`. O resto da edição fica como está até a
 parte 2.
 
+> **Nota — 2026-09-28.** O link "Avaliar atleta" saiu com a tela de edição em 2026-09-28; a
+> entrada é só pela área de Avaliação. Ver
+> [`2026-09-28-ficha-do-atleta-design.md`](2026-09-28-ficha-do-atleta-design.md), seção 2.6.
+
 ### Testes
 
 - unitários: o modelo da lista (ordem, progresso, autoavaliação no topo) e `showEvaluation`;

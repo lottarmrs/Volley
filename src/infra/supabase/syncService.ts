@@ -1078,12 +1078,24 @@ export const syncService = {
     for (const player of local.players) {
       const playerForUpload = repairLegacyPlayerUnlinkIntent(player);
       try {
+        const isTeamGuest =
+          !playerForUpload.userId &&
+          !!playerForUpload.cloudOwnerId &&
+          playerForUpload.cloudOwnerId !== ownerId;
+
         if (playerForUpload.deletedAt) {
           const canDeleteGlobalPlayer =
             playerForUpload.cloudId &&
-            (!playerForUpload.cloudOwnerId || playerForUpload.cloudOwnerId === ownerId);
+            (!playerForUpload.cloudOwnerId ||
+              playerForUpload.cloudOwnerId === ownerId ||
+              isTeamGuest);
           if (canDeleteGlobalPlayer) {
-            await playerCloudService.softDelete(playerForUpload.cloudId!);
+            const removed = await playerCloudService.softDelete(playerForUpload.cloudId!);
+            if (!removed && isTeamGuest) {
+              throw new Error(
+                'O servidor não excluiu este convidado. Só o dono ou um admin da comunidade pode excluí-lo.',
+              );
+            }
           }
           updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
           continue;
@@ -1095,6 +1107,7 @@ export const syncService = {
         }
 
         const isSharedPlayer =
+          !!playerForUpload.userId &&
           !!playerForUpload.cloudId &&
           !!playerForUpload.cloudOwnerId &&
           playerForUpload.cloudOwnerId !== ownerId;
@@ -1106,7 +1119,14 @@ export const syncService = {
 
         const uploaded = await playerCloudService.upsert(playerForUpload, ownerId);
         updatedPlayers.push(
-          markSynced({ ...playerForUpload, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt),
+          markSynced(
+            {
+              ...playerForUpload,
+              cloudOwnerId: isTeamGuest ? playerForUpload.cloudOwnerId : ownerId,
+            },
+            uploaded.cloudId,
+            syncedAt,
+          ),
         );
       } catch (error) {
         onIssue(`atleta "${player.nome}"`, error);

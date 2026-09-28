@@ -4,7 +4,7 @@ import { Player } from '../../types';
 export function mapPlayerToDb(local: Player, ownerId: string) {
   return {
     id: local.cloudId || undefined,
-    owner_id: ownerId,
+    owner_id: !local.userId && local.cloudOwnerId ? local.cloudOwnerId : ownerId,
     // O handle só existe onde a linha pertence a uma conta (user_id não nulo).
     // Sem esse guard, o upload reescreveria na nuvem o handle de um atleta sem
     // conta e desfaria a migration que soltou esses nomes.
@@ -254,13 +254,15 @@ export const playerCloudService = {
     }
   },
 
-  async softDelete(cloudId: string): Promise<void> {
-    const { error } = await supabase
+  async softDelete(cloudId: string): Promise<boolean> {
+    const { data, error } = await supabase
       .from('players')
       .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', cloudId);
+      .eq('id', cloudId)
+      .select('id');
 
     if (error) throw error;
+    return (data?.length ?? 0) > 0;
   },
 
   /** Look up a global athlete by its unique handle (authenticated-only RPC). */

@@ -14,7 +14,7 @@ import {
   operationalCloudService,
   TargetSessionRequiresSemanticCommandError,
 } from './operationalCloudService';
-import { playerCloudService } from './playerCloudService';
+import { mapPlayerToDb, playerCloudService } from './playerCloudService';
 import { playerEvaluationCloudService } from './playerEvaluationCloudService';
 import { communityCloudService } from './communityCloudService';
 import { communityPlayerCloudService } from './communityPlayerCloudService';
@@ -2776,5 +2776,135 @@ test('syncNow: ficha com conta de outra pessoa fica inteira com a nuvem, mesmo c
   } finally {
     syncService.downloadCloudDataToLocal = originalDownload;
     syncService.uploadLocalDataToCloud = originalUpload;
+  }
+});
+
+test('uploadLocalDataToCloud sobe convidado criado por outra pessoa da equipe sem trocar o dono', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const enviados: Array<{ local: Player; ownerId: string }> = [];
+
+  try {
+    playerCloudService.upsert = async (local, ownerId) => {
+      enviados.push({ local, ownerId });
+      return { ...local, cloudOwnerId: 'dono' };
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [makeSyncPlayer({ cloudOwnerId: 'dono', userId: undefined, genero: 'M' })],
+      }),
+      'admin',
+    );
+
+    assert.equal(enviados.length, 1);
+    assert.equal(mapPlayerToDb(enviados[0].local, enviados[0].ownerId).owner_id, 'dono');
+    assert.equal(mapPlayerToDb(enviados[0].local, enviados[0].ownerId).gender, 'M');
+    assert.equal(result.players[0].cloudOwnerId, 'dono');
+    assert.equal(result.players[0].syncStatus, 'synced');
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('uploadLocalDataToCloud: convidado recusado pelo servidor fica pendente e nao derruba os outros', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const issues: string[] = [];
+  const restoreConsole = silenceConsoleError();
+
+  try {
+    playerCloudService.upsert = async (local) => {
+      if (local.id === 'convidado-alheio') {
+        throw Object.assign(new Error('new row violates row-level security policy'), {
+          code: '42501',
+        });
+      }
+      return local;
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            id: 'convidado-alheio',
+            cloudId: 'cloud-alheio',
+            cloudOwnerId: 'dono',
+            nome: 'Convidado Alheio',
+          }),
+          makeSyncPlayer({ id: 'meu', cloudId: 'cloud-meu', cloudOwnerId: 'admin', nome: 'Meu' }),
+        ],
+      }),
+      'admin',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    const alheio = result.players.find((player) => player.id === 'convidado-alheio');
+    const meu = result.players.find((player) => player.id === 'meu');
+    assert.equal(alheio?.syncStatus, 'pending');
+    assert.equal(meu?.syncStatus, 'synced');
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /Convidado Alheio/);
+  } finally {
+    restoreConsole();
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('uploadLocalDataToCloud exclui convidado de outra pessoa da equipe e avisa quando o servidor nao exclui', async () => {
+  const originalSoftDelete = playerCloudService.softDelete;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const excluidos: string[] = [];
+  const issues: string[] = [];
+  const restoreConsole = silenceConsoleError();
+
+  try {
+    playerCloudService.softDelete = async (cloudId) => {
+      excluidos.push(cloudId);
+      return cloudId === 'cloud-aceito';
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const deletedAt = '2026-09-28T12:00:00.000Z';
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            id: 'aceito',
+            cloudId: 'cloud-aceito',
+            cloudOwnerId: 'dono',
+            deletedAt,
+          }),
+          makeSyncPlayer({
+            id: 'recusado',
+            cloudId: 'cloud-recusado',
+            cloudOwnerId: 'dono',
+            nome: 'Recusado',
+            deletedAt,
+          }),
+        ],
+      }),
+      'admin',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.deepEqual(excluidos, ['cloud-aceito', 'cloud-recusado']);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /Recusado/);
+    assert.equal(result.players.length, 0);
+  } finally {
+    restoreConsole();
+    playerCloudService.softDelete = originalSoftDelete;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
   }
 });

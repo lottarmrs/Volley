@@ -86,6 +86,37 @@ Decidido em 2026-09-25, ainda não feito:
 - A comunidade ganha uma **área própria para quem administra avaliar os membros por
   fundamento** — e só isso.
 
+Estado em 2026-09-28:
+
+- **Parte 1 — avaliação da comunidade:** ✅ em produção desde 2026-09-27
+  ([spec](superpowers/specs/2026-09-25-avaliacao-da-comunidade-design.md)).
+- **Parte 3 — ficha do atleta:** spec escrita
+  ([spec](superpowers/specs/2026-09-28-ficha-do-atleta-design.md)). A tela de edição de atleta
+  sai inteira; convidado é editado em Gestão → Convidados; atleta com conta só pela própria conta.
+- **Parte 2 — perfil do atleta e convidado numa comunidade só:** depois da parte 3.
+
+## F. Pontas soltas que contradizem as decisões de 2026-09-25 a 2026-09-28
+
+Levantadas em 2026-09-28. Cada uma tem dono; nenhuma depende da conversa em que foi achada.
+P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
+
+| #   | Ponta                                                                                                                  | Onde                                                  | Parte |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----- |
+| P8  | "Duplicar com atletas" põe os mesmos atletas sem conta em outra comunidade                                              | `applyCommunityMembershipDuplicate`                   | 2     |
+| P9  | O modal de convidado reaproveita um atleta de outra comunidade                                                           | `GuestPlayerModal`, `findDuplicatePlayerByProfile`    | 2     |
+| P10 | Falta o gatilho "atleta sem conta numa comunidade só"                                                                    | spec da avaliação, item 1.6                           | 2     |
+| P11 | Lixeira "Excluir histórico" sem permissão (B1); vira real quando o membro ler o histórico                                | `HistoryView.tsx`                                     | 4     |
+| P12 | Ligas globais: criar, excluir, abrir rodada e aprovar pedido sem permissão (B4)                                          | `ChampionshipDetailView`, `ChampionshipWizardView`    | 4     |
+| P13 | Torneios: "Novo torneio" e "abrir ao vivo" sem permissão (B5)                                                            | `TournamentsModule`                                   | 4     |
+| P14 | Painel: "Nova sessão" leva o membro a um beco (B7)                                                                       | `globalRoutes.tsx`                                    | 4     |
+| P15 | "Quem organiza" vazio para o atleta, e o nome de quem organiza nunca aparece (B9)                                        | `RegistrationBoardView`, `sessionRoutes.tsx`          | 4     |
+| P16 | Marcar pelada decidido pelo cargo, não pela responsabilidade `ORGANIZER` (A1, A2)                                        | `canCreateSession` e as telas que o usam              | 4     |
+| P17 | Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)                               | policies de `sessions`, `teams`, `games`, …           | 4     |
+
+**Pendente antes do plano da parte 4:** a P17 depende de uma pergunta sem resposta desde
+2026-09-25 — o membro deve ver sessões `PRIVATE`? Hoje nada no app publica sessão
+(`publish_target_session` não tem chamador), então toda sessão `target` é `PRIVATE`.
+
 ## Não verificado
 
 - A tela ao vivo (`sessoes/ativa`) controla por aparelho, não por cargo; a disputa entre dois aparelhos é a pergunta 9.2 da JORNADA.

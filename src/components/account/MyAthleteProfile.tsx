@@ -26,10 +26,18 @@ export const MyAthleteProfile: FC<MyAthleteProfileProps> = ({
   );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [editado, setEditado] = useState(false);
+  const fichaRecebida = player ? JSON.stringify(draftFromPlayer(player)) : null;
 
   useEffect(() => {
-    if (player) setDraft(draftFromPlayer(player));
+    if (!player) return;
+    setDraft(draftFromPlayer(player));
+    setEditado(false);
   }, [player?.id]);
+
+  useEffect(() => {
+    if (player && !editado) setDraft(draftFromPlayer(player));
+  }, [fichaRecebida]);
 
   return (
     <div className="card card-border bg-base-200">
@@ -48,7 +56,10 @@ export const MyAthleteProfile: FC<MyAthleteProfileProps> = ({
             />
             <AthleteProfileForm
               value={draft}
-              onChange={setDraft}
+              onChange={(next) => {
+                setDraft(next);
+                setEditado(true);
+              }}
               showCondition
               serverError={erro}
               disabled={salvando}
@@ -67,6 +78,7 @@ export const MyAthleteProfile: FC<MyAthleteProfileProps> = ({
                     setErro(result.error.message);
                     return;
                   }
+                  setEditado(false);
                   onSaved(draft);
                 }}
               >

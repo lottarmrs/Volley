@@ -92,4 +92,34 @@ describe('MyAthleteProfile', () => {
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(onSaved).not.toHaveBeenCalled();
   });
+
+  it('reinicia o rascunho quando a mesma ficha muda e a pessoa ainda nao editou', () => {
+    const { rerender } = render(
+      <MyAthleteProfile player={player} onSaved={vi.fn()} onAvatarApplied={vi.fn()} />,
+    );
+    rerender(
+      <MyAthleteProfile
+        player={{ ...player, alturaCm: 181 }}
+        onSaved={vi.fn()}
+        onAvatarApplied={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText('Altura (cm)') as HTMLInputElement).value).toBe('181');
+  });
+
+  it('nao descarta o que a pessoa ja editou quando a ficha recebida muda', () => {
+    const { rerender } = render(
+      <MyAthleteProfile player={player} onSaved={vi.fn()} onAvatarApplied={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText('Altura (cm)'), { target: { value: '175' } });
+    rerender(
+      <MyAthleteProfile
+        player={{ ...player, genero: 'M' }}
+        onSaved={vi.fn()}
+        onAvatarApplied={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText('Altura (cm)') as HTMLInputElement).value).toBe('175');
+    expect(screen.getByRole('radio', { name: 'Feminino' })).toHaveProperty('checked', true);
+  });
 });

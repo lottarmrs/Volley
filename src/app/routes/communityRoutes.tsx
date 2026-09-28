@@ -36,9 +36,11 @@ import {
   applyLinkedCloudPlayer,
 } from '@app/localCommunityUseCases';
 import { CommunityMembersPanel } from '../../components/community/CommunityMembersPanel';
+import { AthleteUsernameSearch } from '../../components/community/AthleteUsernameSearch';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityRulesArea } from '../../components/community/areas/CommunityRulesArea';
 import { CommunityDataArea } from '../../components/community/areas/CommunityDataArea';
+import { CommunityGuestsArea } from '../../components/community/areas/CommunityGuestsArea';
 import { CommunityLeaguesArea } from '../../components/community/areas/CommunityLeaguesArea';
 import { CommunityOverviewArea } from '../../components/community/areas/CommunityOverviewArea';
 import { CommunityRankingArea } from '../../components/community/areas/CommunityRankingArea';
@@ -165,9 +167,11 @@ function useGestaoContext() {
 function GestaoTabs({
   communityId,
   ativa,
+  canEditPlayerProfile,
 }: {
   communityId: string;
-  ativa: 'membros' | 'regras' | 'dados';
+  ativa: 'membros' | 'regras' | 'dados' | 'convidados';
+  canEditPlayerProfile: boolean;
 }) {
   return (
     <CommunityAreaTabs
@@ -175,20 +179,33 @@ function GestaoTabs({
         { to: paths.gestao(communityId), label: 'Membros', active: ativa === 'membros' },
         { to: paths.regras(communityId), label: 'Regras', active: ativa === 'regras' },
         { to: paths.dados(communityId), label: 'Dados', active: ativa === 'dados' },
+        ...(canEditPlayerProfile
+          ? [
+              {
+                to: paths.convidados(communityId),
+                label: 'Convidados',
+                active: ativa === 'convidados',
+              },
+            ]
+          : []),
       ]}
     />
   );
 }
 
 export function CommunityGestaoRoute() {
-  const { shell, acesso } = useGestaoContext();
+  const { shell, permissions, acesso } = useGestaoContext();
   const { community, play, auth } = shell;
   if (!acesso) return null;
   if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
 
   return (
     <div className="space-y-5">
-      <GestaoTabs communityId={community.id} ativa="membros" />
+      <GestaoTabs
+        communityId={community.id}
+        ativa="membros"
+        canEditPlayerProfile={permissions.canEditPlayerProfile}
+      />
       <CommunityMembersPanel
         community={community}
         currentUserId={auth.user?.id ?? null}
@@ -203,6 +220,63 @@ export function CommunityGestaoRoute() {
   );
 }
 
+export function CommunityGuestsRoute() {
+  const { shell, permissions, acesso } = useGestaoContext();
+  const { community, play, auth } = shell;
+  const [searchParams] = useSearchParams();
+  if (!acesso) return null;
+  if (acesso.kind === 'redirect') return <Navigate to={acesso.to} replace />;
+  if (!permissions.canEditPlayerProfile) {
+    return <Navigate to={paths.comunidade(community.id)} replace />;
+  }
+
+  const guests = getCommunityPlayers(community.id, play.players).filter((player) => !player.userId);
+  const noCloud = !community.cloudId || !auth.isSupabaseConfigured;
+
+  return (
+    <div className="space-y-5">
+      <GestaoTabs
+        communityId={community.id}
+        ativa="convidados"
+        canEditPlayerProfile={permissions.canEditPlayerProfile}
+      />
+      <CommunityGuestsArea
+        guests={guests}
+        noCloud={noCloud}
+        onSave={(input) =>
+          play.saveGuestPlayer({
+            ...input,
+            communityId: community.id,
+            canEdit: permissions.canEditPlayerProfile,
+            currentUserId: auth.user?.id ?? null,
+          })
+        }
+        onRemove={(playerId) =>
+          play.removeGuestPlayer({
+            playerId,
+            canEdit: permissions.canEditPlayerProfile,
+            currentUserId: auth.user?.id ?? null,
+          })
+        }
+        hasHistory={(playerId) => play.getPlayerHistoryUsage(playerId).hasHistory}
+        searchSlot={
+          permissions.canManageMembers ? (
+            <AthleteUsernameSearch
+              community={community}
+              currentUserId={auth.user?.id ?? null}
+              isSupabaseConfigured={auth.isSupabaseConfigured}
+              onLinkedPlayer={(player, communityId) =>
+                play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId))
+              }
+            />
+          ) : undefined
+        }
+        initialEditingId={searchParams.get('editar')}
+      />
+    </div>
+  );
+}
+
 export function CommunityRulesRoute() {
   const { shell, permissions, acesso } = useGestaoContext();
   const { community, communityRules } = shell;
@@ -211,7 +285,11 @@ export function CommunityRulesRoute() {
 
   return (
     <div className="space-y-5">
-      <GestaoTabs communityId={community.id} ativa="regras" />
+      <GestaoTabs
+        communityId={community.id}
+        ativa="regras"
+        canEditPlayerProfile={permissions.canEditPlayerProfile}
+      />
       <CommunityRulesArea
         rules={communityRules.getRules(community)}
         canEditRules={permissions.canEditRules}
@@ -237,7 +315,11 @@ export function CommunityDataRoute() {
 
   return (
     <div className="space-y-5">
-      <GestaoTabs communityId={community.id} ativa="dados" />
+      <GestaoTabs
+        communityId={community.id}
+        ativa="dados"
+        canEditPlayerProfile={permissions.canEditPlayerProfile}
+      />
       <CommunityDataArea
         community={community}
         players={play.players}

@@ -453,6 +453,7 @@ test('paths das areas novas da comunidade', () => {
   assert.equal(paths.gestao('c1'), '/comunidades/c1/gestao');
   assert.equal(paths.regras('c1'), '/comunidades/c1/gestao/regras');
   assert.equal(paths.dados('c1'), '/comunidades/c1/gestao/dados');
+  assert.equal(paths.convidados('c1'), '/comunidades/c1/gestao/convidados');
   assert.equal(paths.plataforma, '/plataforma');
   assert.equal(paths.inscricao('c1', 's9'), '/comunidades/c1/sessoes/s9/inscricao');
 });
@@ -544,6 +545,7 @@ test('a plataforma substitui a administracao no menu e no titulo', () => {
   assert.equal(getPageTitleForPath('/plataforma'), 'Administração da plataforma');
   assert.equal(getPageTitleForPath('/comunidades/c1/gestao/regras'), 'Regras da Comunidade');
   assert.equal(getPageTitleForPath('/comunidades/c1/gestao/dados'), 'Dados da Comunidade');
+  assert.equal(getPageTitleForPath('/comunidades/c1/gestao/convidados'), 'Convidados');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/presenca'), 'Presença');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/lista-whatsapp'), 'Lista de WhatsApp');
   assert.equal(getPageTitleForPath('/comunidades/c1/ligas'), 'Ligas da Comunidade');

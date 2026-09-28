@@ -32,6 +32,7 @@ import {
 import {
   CommunityDataRoute,
   CommunityGestaoRoute,
+  CommunityGuestsRoute,
   CommunityHistoryRoute,
   CommunityStatsRoute,
   CommunityLeaguesRoute,
@@ -100,6 +101,7 @@ export function AppRouter() {
               <Route path="gestao" element={<CommunityGestaoRoute />} />
               <Route path="gestao/regras" element={<CommunityRulesRoute />} />
               <Route path="gestao/dados" element={<CommunityDataRoute />} />
+              <Route path="gestao/convidados" element={<CommunityGuestsRoute />} />
             </Route>
             <Route path="*" element={<Navigate to="/comunidades" replace />} />
           </Route>

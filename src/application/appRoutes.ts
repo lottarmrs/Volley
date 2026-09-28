@@ -50,6 +50,7 @@ export const paths = {
   gestao: (communityId: string) => `/comunidades/${communityId}/gestao`,
   regras: (communityId: string) => `/comunidades/${communityId}/gestao/regras`,
   dados: (communityId: string) => `/comunidades/${communityId}/gestao/dados`,
+  convidados: (communityId: string) => `/comunidades/${communityId}/gestao/convidados`,
   presenca: (communityId: string) => `/comunidades/${communityId}/sessoes/presenca`,
   listaWhatsapp: (communityId: string) => `/comunidades/${communityId}/sessoes/lista-whatsapp`,
   ligasComunidade: (communityId: string) => `/comunidades/${communityId}/ligas`,
@@ -276,6 +277,7 @@ export function getPageTitleForPath(pathname: string): string {
     case 'gestao':
       if (segments[3] === 'regras') return 'Regras da Comunidade';
       if (segments[3] === 'dados') return 'Dados da Comunidade';
+      if (segments[3] === 'convidados') return 'Convidados';
       return 'Gestão da Comunidade';
     default:
       return 'Panelinha';

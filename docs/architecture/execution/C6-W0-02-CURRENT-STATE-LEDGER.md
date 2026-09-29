@@ -477,10 +477,10 @@ Already a derived projection, but must declare an explicit rebuild contract to q
 | Sources | `CloudServiceOnly` |
 | Payload key | — |
 | Local storage key | — |
-| Cloud table / RPC | `player_avatar_proposals`<br>`rpc:propose_player_avatar`<br>`rpc:approve_player_avatar`<br>`rpc:reject_player_avatar` |
+| Cloud table / RPC | `player_avatar_proposals`<br>`rpc:propose_player_avatar` |
 | Legacy writers | `infra/supabase/avatarStorageService.ts` |
-| Legacy readers | `components/account/MyAthleteProfile.tsx` |
-| Current authority | Server-authoritative through approval RPCs plus Storage bucket policy. |
+| Legacy readers | `components/account/MyAthleteProfile.tsx`<br>`components/community/areas/CommunityGuestsArea.tsx` |
+| Current authority | Server-authoritative through propose_player_avatar (account photo only by the account, guest photo by community admins; applied immediately) plus Storage bucket policy. |
 | Current merge | None. |
 | Lifecycle fields | `status`<br>`created_at` |
 | FK / delete | player_avatar_proposals -> players(id) cascade. |
@@ -489,7 +489,7 @@ Already a derived projection, but must declare an explicit rebuild contract to q
 | Migration class | `MIGRATE_TO_TARGET_MODEL` |
 | Remaining surfaces | `components/player/FutCard.tsx` |
 
-Target requires MediaAsset identity rather than a URL, and raw upload stays private/untrusted until server processing reaches READY (GINV-MEDIA-001/002).
+Target requires MediaAsset identity rather than a URL, and raw upload stays private/untrusted until server processing reaches READY (GINV-MEDIA-001/002). Aprovação de foto descontinuada em 2026-09-29 (spec perfil-do-atleta): a foto vale na hora.
 
 ## active session pointer
 

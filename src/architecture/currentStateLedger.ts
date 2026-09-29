@@ -540,15 +540,14 @@ export const currentStateLedger: readonly CurrentStateLedgerEntry[] = [
   {
     entity: 'player avatars and proposals',
     sources: ['CloudServiceOnly'],
-    cloudTableOrRpc: [
-      'player_avatar_proposals',
-      'rpc:propose_player_avatar',
-      'rpc:approve_player_avatar',
-      'rpc:reject_player_avatar',
-    ],
+    cloudTableOrRpc: ['player_avatar_proposals', 'rpc:propose_player_avatar'],
     legacyWriters: ['infra/supabase/avatarStorageService.ts'],
-    legacyReaders: ['components/account/MyAthleteProfile.tsx'],
-    currentAuthority: 'Server-authoritative through approval RPCs plus Storage bucket policy.',
+    legacyReaders: [
+      'components/account/MyAthleteProfile.tsx',
+      'components/community/areas/CommunityGuestsArea.tsx',
+    ],
+    currentAuthority:
+      'Server-authoritative through propose_player_avatar (account photo only by the account, guest photo by community admins; applied immediately) plus Storage bucket policy.',
     currentMerge: 'None.',
     lifecycleFields: ['status', 'created_at'],
     foreignKeyDelete: 'player_avatar_proposals -> players(id) cascade.',
@@ -557,7 +556,7 @@ export const currentStateLedger: readonly CurrentStateLedgerEntry[] = [
     migrationClass: 'MIGRATE_TO_TARGET_MODEL',
     remainingSurfaces: ['components/player/FutCard.tsx'],
     notes:
-      'Target requires MediaAsset identity rather than a URL, and raw upload stays private/untrusted until server processing reaches READY (GINV-MEDIA-001/002).',
+      'Target requires MediaAsset identity rather than a URL, and raw upload stays private/untrusted until server processing reaches READY (GINV-MEDIA-001/002). Aprovação de foto descontinuada em 2026-09-29 (spec perfil-do-atleta): a foto vale na hora.',
   },
 
   // ── STORAGE_KEYS with no cloud counterpart ────────────────────────────────

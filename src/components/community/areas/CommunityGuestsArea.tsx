@@ -10,6 +10,7 @@ import {
   type AthleteProfileDraft,
 } from '@domain/athleteProfile';
 import { AthleteProfileForm } from '../../player/AthleteProfileForm';
+import { AvatarUpload } from '../../player/AvatarUpload';
 
 const EMPTY_DRAFT: AthleteProfileDraft = {
   genero: null,
@@ -55,6 +56,7 @@ export interface CommunityGuestsAreaProps {
   searchSlot?: ReactNode;
   initialEditingId?: string | null;
   onCloseEditor?: () => void;
+  onAvatarApplied?: (playerId: string, url: string) => void;
 }
 
 const GuestEditor: FC<{
@@ -64,7 +66,8 @@ const GuestEditor: FC<{
   onSave: CommunityGuestsAreaProps['onSave'];
   onDeactivate: CommunityGuestsAreaProps['onDeactivate'];
   onReactivate: CommunityGuestsAreaProps['onReactivate'];
-}> = ({ guest, noCloud, onBack, onSave, onDeactivate, onReactivate }) => {
+  onAvatarApplied?: CommunityGuestsAreaProps['onAvatarApplied'];
+}> = ({ guest, noCloud, onBack, onSave, onDeactivate, onReactivate, onAvatarApplied }) => {
   const [nome, setNome] = useState(guest?.nome ?? '');
   const [draft, setDraft] = useState<AthleteProfileDraft>(
     guest ? draftFromPlayer(guest) : EMPTY_DRAFT,
@@ -131,6 +134,15 @@ const GuestEditor: FC<{
         <p className="text-sm text-base-content/70">
           Convidado desativado: fica fora da presença e do sorteio até ser reativado.
         </p>
+      )}
+
+      {guest?.cloudId && (
+        <AvatarUpload
+          playerCloudId={guest.cloudId}
+          currentAvatarUrl={guest.avatarUrl}
+          initials={guest.nome.substring(0, 2).toUpperCase()}
+          onApplied={(url) => onAvatarApplied?.(guest.id, url)}
+        />
       )}
 
       <div className="form-control">
@@ -241,6 +253,7 @@ export const CommunityGuestsArea: FC<CommunityGuestsAreaProps> = ({
   searchSlot,
   initialEditingId,
   onCloseEditor,
+  onAvatarApplied,
 }) => {
   const convidadoAusente =
     !!initialEditingId && !guests.some((item) => item.id === initialEditingId);
@@ -301,6 +314,7 @@ export const CommunityGuestsArea: FC<CommunityGuestsAreaProps> = ({
         onSave={onSave}
         onDeactivate={onDeactivate}
         onReactivate={onReactivate}
+        onAvatarApplied={onAvatarApplied}
       />
     );
   }

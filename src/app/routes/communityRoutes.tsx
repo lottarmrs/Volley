@@ -277,6 +277,11 @@ export function CommunityGuestsRoute() {
         }
         initialEditingId={searchParams.get('editar')}
         onCloseEditor={fecharEditorNaUrl}
+        onAvatarApplied={(playerId, url) =>
+          play.setPlayers((prev) =>
+            prev.map((player) => (player.id === playerId ? { ...player, avatarUrl: url } : player)),
+          )
+        }
       />
     </div>
   );

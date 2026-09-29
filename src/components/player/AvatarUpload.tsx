@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Loader2, Clock } from 'lucide-react';
+import { Camera, Loader2 } from 'lucide-react';
 import { proposePlayerAvatarCommand } from '../../application/avatarUseCases';
 
 interface AvatarUploadProps {
@@ -8,14 +8,13 @@ interface AvatarUploadProps {
   currentAvatarUrl?: string;
   /** Fallback initials shown when there is no photo. */
   initials: string;
-  /** Called only when the change went live immediately (current user is the creator). */
   onApplied?: (newUrl: string) => void;
   /** Tailwind width class for the circle, e.g. "w-16". */
   sizeClass?: string;
   disabled?: boolean;
 }
 
-type Feedback = { kind: 'error' | 'pending' | 'applied'; message: string } | null;
+type Feedback = { kind: 'error' | 'applied'; message: string } | null;
 
 export function AvatarUpload({
   playerCloudId,
@@ -44,10 +43,7 @@ export function AvatarUpload({
       onApplied?.(result.value.imageUrl);
       setFeedback({ kind: 'applied', message: 'Foto atualizada.' });
     } else {
-      setFeedback({
-        kind: 'pending',
-        message: 'Enviada para aprovação do criador do atleta.',
-      });
+      setFeedback({ kind: 'error', message: 'Não foi possível atualizar a foto.' });
     }
     setIsUploading(false);
   };
@@ -110,14 +106,9 @@ export function AvatarUpload({
       {feedback && (
         <p
           className={`text-[10px] font-bold uppercase tracking-wider text-center max-w-[10rem] flex items-center gap-1 ${
-            feedback.kind === 'error'
-              ? 'text-error'
-              : feedback.kind === 'pending'
-                ? 'text-warning'
-                : 'text-success'
+            feedback.kind === 'error' ? 'text-error' : 'text-success'
           }`}
         >
-          {feedback.kind === 'pending' && <Clock className="w-3 h-3 shrink-0" />}
           {feedback.message}
         </p>
       )}

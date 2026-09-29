@@ -256,4 +256,25 @@ describe('CommunityGuestsArea', () => {
 
     expect(screen.queryByText('Trazer atleta com conta pelo @')).toBeNull();
   });
+
+  describe('foto do convidado', () => {
+    it('convidado com nuvem pode ganhar foto no editor', () => {
+      renderArea({
+        guests: [{ ...convidado, cloudId: 'cg1' }],
+        initialEditingId: convidado.id,
+      });
+      expect(screen.getByTitle('Alterar foto de perfil')).toBeTruthy();
+    });
+
+    it('convidado sem nuvem nao mostra o envio de foto', () => {
+      renderArea({
+        guests: [{ ...convidado, cloudId: undefined }],
+        initialEditingId: convidado.id,
+      });
+      expect(screen.queryByTitle('Alterar foto de perfil')).toBeNull();
+      expect(
+        screen.queryByTitle('Sincronize o atleta com a nuvem para adicionar uma foto'),
+      ).toBeNull();
+    });
+  });
 });

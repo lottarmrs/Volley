@@ -1,5 +1,4 @@
 import { supabase } from '../../lib/supabaseClient';
-import { PlayerAvatarProposal } from '../../types';
 
 const BUCKET = 'avatars';
 const MAX_DIMENSION = 256; // px — avatars are shown small (selection grid, ranking)
@@ -57,19 +56,6 @@ async function requireUserId(): Promise<string> {
   return id;
 }
 
-function mapProposal(row: any): PlayerAvatarProposal {
-  return {
-    id: row.id,
-    playerCloudId: row.player_id,
-    proposedBy: row.proposed_by,
-    imageUrl: row.image_url,
-    status: row.status,
-    reviewedBy: row.reviewed_by || undefined,
-    reviewedAt: row.reviewed_at || undefined,
-    createdAt: row.created_at,
-  };
-}
-
 export const avatarStorageService = {
   /**
    * Upload a candidate photo and register a proposal.
@@ -123,7 +109,6 @@ export const avatarStorageService = {
     });
     if (error) throw error;
 
-    // The RPC auto-approves (and promotes) when the caller is the athlete creator.
     const { data: proposalRow } = await supabase
       .from('player_avatar_proposals')
       .select('status')
@@ -131,51 +116,5 @@ export const avatarStorageService = {
       .single();
 
     return { proposalId: data, imageUrl, applied: proposalRow?.status === 'approved' };
-  },
-
-  /** Pending proposals for one athlete (visible to its admins/creator). */
-  async listPendingForPlayer(playerCloudId: string): Promise<PlayerAvatarProposal[]> {
-    if (!supabase) return [];
-    const { data, error } = await supabase
-      .from('player_avatar_proposals')
-      .select('*')
-      .eq('player_id', playerCloudId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(mapProposal);
-  },
-
-  /**
-   * The current user's approval inbox: pending proposals for athletes they created.
-   * RLS already limits visibility to admins; we keep only the ones this user can
-   * actually approve (athletes they own).
-   */
-  async listMyApprovalQueue(): Promise<Array<PlayerAvatarProposal & { playerName: string }>> {
-    if (!supabase) return [];
-    const uid = await requireUserId();
-    const { data, error } = await supabase
-      .from('player_avatar_proposals')
-      .select('*, players!inner(name, owner_id)')
-      .eq('status', 'pending')
-      .eq('players.owner_id', uid)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map((row: any) => ({
-      ...mapProposal(row),
-      playerName: row.players?.name ?? '—',
-    }));
-  },
-
-  async approve(proposalId: string): Promise<void> {
-    if (!supabase) throw new Error('Sincronização na nuvem indisponível.');
-    const { error } = await supabase.rpc('approve_player_avatar', { p_proposal_id: proposalId });
-    if (error) throw error;
-  },
-
-  async reject(proposalId: string): Promise<void> {
-    if (!supabase) throw new Error('Sincronização na nuvem indisponível.');
-    const { error } = await supabase.rpc('reject_player_avatar', { p_proposal_id: proposalId });
-    if (error) throw error;
   },
 };

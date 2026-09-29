@@ -235,6 +235,25 @@ if (!isTestDatabaseConfigured()) {
     assert.deepEqual(await sourceSnapshot(), before);
   });
 
+  async function darConta(playerId: string): Promise<void> {
+    const { rows } = await client.query<{ id: string }>(
+      'insert into auth.users (email) values ($1) returning id',
+      [`conta-${randomUUID()}@test.local`],
+    );
+    await client.query('set session_replication_role = replica');
+    try {
+      await client.query('update public.players set user_id = null where user_id = $1', [
+        rows[0].id,
+      ]);
+      await client.query(
+        'update public.players set user_id = $1, has_account_identity_history = true where id = $2',
+        [rows[0].id, playerId],
+      );
+    } finally {
+      await client.query('set session_replication_role = origin');
+    }
+  }
+
   test('isolates Community, Player and rubric and supersedes across versions while retaining history', async () => {
     const c = await context();
     const other = await context();
@@ -245,6 +264,8 @@ if (!isTestDatabaseConfigured()) {
     const originalId = await record(c, { saque: 6 });
     const original = await read(c);
     await record(other, { saque: 10 });
+    await darConta(c.playerId);
+    await darConta(other.playerId);
     await client.query(
       `insert into public.community_players (community_id, player_id, owner_id, active, status)
        values ($1, $2, $3, true, 'active'), ($4, $5, $6, true, 'active')`,

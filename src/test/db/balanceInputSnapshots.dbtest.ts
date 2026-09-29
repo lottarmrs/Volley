@@ -157,6 +157,20 @@ if (!isTestDatabaseConfigured()) {
     return id;
   }
 
+  async function darConta(playerId: string): Promise<void> {
+    const userId = await newUser('conta');
+    await client.query('set session_replication_role = replica');
+    try {
+      await client.query('update public.players set user_id = null where user_id = $1', [userId]);
+      await client.query(
+        'update public.players set user_id = $1, has_account_identity_history = true where id = $2',
+        [userId, playerId],
+      );
+    } finally {
+      await client.query('set session_replication_role = origin');
+    }
+  }
+
   async function newEvaluator(ownerId: string, communityId: string): Promise<string> {
     const id = await newUser('evaluator');
     await activeMembership(communityId, id);
@@ -321,6 +335,7 @@ if (!isTestDatabaseConfigured()) {
     await activateEvaluationModel(ownerId, communityB);
 
     const playerId = await newPlayer(ownerId, communityA, { name: 'Compartilhada' });
+    await darConta(playerId);
     await client.query(
       `insert into public.community_players (community_id, player_id, owner_id, active, status)
        values ($1, $2, $3, true, 'active')`,
@@ -600,6 +615,7 @@ if (!isTestDatabaseConfigured()) {
     // a origem em sombra nao pode ser promovida a entrada confiavel nem omitida em silencio.
     await activateEvaluationModel(ownerId, shadowCommunity);
     const otherCommunity = await newCommunity(ownerId, `Origem sombra ${randomUUID()}`);
+    await darConta(playerId);
     await client.query(
       `insert into public.community_players (community_id, player_id, owner_id, active, status)
        values ($1, $2, $3, true, 'active')`,

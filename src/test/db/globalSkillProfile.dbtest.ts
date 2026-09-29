@@ -142,6 +142,25 @@ if (!isTestDatabaseConfigured()) {
     return id;
   }
 
+  async function darConta(playerId: string): Promise<void> {
+    const { rows } = await client.query<{ id: string }>(
+      'insert into auth.users (email) values ($1) returning id',
+      [`conta-${randomUUID()}@test.local`],
+    );
+    await client.query('set session_replication_role = replica');
+    try {
+      await client.query('update public.players set user_id = null where user_id = $1', [
+        rows[0].id,
+      ]);
+      await client.query(
+        'update public.players set user_id = $1, has_account_identity_history = true where id = $2',
+        [rows[0].id, playerId],
+      );
+    } finally {
+      await client.query('set session_replication_role = origin');
+    }
+  }
+
   async function addPlayer(communityId: string, playerId: string, ownerId: string) {
     await client.query(
       `insert into public.community_players (community_id, player_id, owner_id, active, status)
@@ -161,6 +180,7 @@ if (!isTestDatabaseConfigured()) {
   test('weights each Community equally after Community filtering', async () => {
     const ownerId = await user();
     const playerId = await player(ownerId);
+    await darConta(playerId);
     const communityA = await community(ownerId, 'Many evaluators');
     const communityB = await community(ownerId, 'One evaluator');
     await client.query(
@@ -193,6 +213,7 @@ if (!isTestDatabaseConfigured()) {
   test('returns the exact DTO with sorted provenance, per-dimension coverage and zero values', async () => {
     const ownerId = await user();
     const playerId = await player(ownerId);
+    await darConta(playerId);
     const communityA = await community(ownerId, 'Coverage A');
     const communityB = await community(ownerId, 'Coverage B');
     await addPlayer(communityA, playerId, ownerId);

@@ -276,6 +276,35 @@ export function getCommunityRanking(params: {
   };
 }
 
+const FREQUENCY_WINDOW = 6;
+
+function recentFinishedSessions(sessions: Session[]): Session[] {
+  return (Array.isArray(sessions) ? sessions : [])
+    .filter((session) => session?.status === 'finished')
+    .sort(
+      (a, b) =>
+        (b.date ?? '').localeCompare(a.date ?? '') ||
+        (b.createdAt ?? '').localeCompare(a.createdAt ?? ''),
+    )
+    .slice(0, FREQUENCY_WINDOW);
+}
+
+export function isFrequentInCommunity(playerId: string, sessions: Session[]): boolean {
+  const recent = recentFinishedSessions(sessions);
+  if (recent.length === 0) return false;
+  const attended = recent.filter((session) =>
+    (session.selectedPlayerIds ?? []).includes(playerId),
+  ).length;
+  return attended >= Math.ceil(recent.length / 2);
+}
+
+export function frequentPlayerIds(sessions: Session[]): Set<string> {
+  const recent = recentFinishedSessions(sessions);
+  const ids = new Set<string>();
+  for (const session of recent) for (const id of session.selectedPlayerIds ?? []) ids.add(id);
+  return new Set([...ids].filter((id) => isFrequentInCommunity(id, recent)));
+}
+
 export function getCommunityFrequency(playerId: string, sessions: Session[]) {
   const list = Array.isArray(sessions) ? sessions : [];
   if (list.length === 0) return 0;

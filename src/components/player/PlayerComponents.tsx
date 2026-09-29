@@ -134,7 +134,8 @@ export const PlayerItem: React.FC<{
   isSelected?: boolean;
   onToggle?: () => void;
   onViewVutCard?: (player: Player) => void;
-}> = ({ player, isSelected, onToggle, onViewVutCard }) => {
+  isFrequent?: boolean;
+}> = ({ player, isSelected, onToggle, onViewVutCard, isFrequent = false }) => {
   const overall = calculatePositionOverall(player, player.posicaoPrincipal);
   const rawOverall = calculatePositionOverall(
     { ...player, formaAtual: { ...player.formaAtual, valor: 0 } },
@@ -415,7 +416,7 @@ export const PlayerItem: React.FC<{
                 )}
               </span>
             )}
-            {player.status.presencaFrequente && (
+            {isFrequent && (
               <span className="badge badge-success badge-soft badge-xs font-bold uppercase rounded-md scale-90">
                 ✓ Frequente
               </span>

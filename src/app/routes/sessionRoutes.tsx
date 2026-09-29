@@ -12,7 +12,7 @@ import { buildSessionWizardContract } from '@app/screens/sessionWizard/sessionWi
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
 import { resolveSessionCreationAccess } from '@app/sessionCreationAccess';
 import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionLifecycleUseCases';
-import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
+import { frequentPlayerIds, getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { generateUUID } from '@logic/uuid';
 import { SessionCreationBlocked } from '../../components/session/SessionCreationBlocked';
 import { useCommunityMembers } from '../../hooks/useCommunityMembers';
@@ -92,6 +92,7 @@ export function CommunityPresenceRoute() {
       <CommunityPresenceArea
         community={community}
         players={communityPlayers}
+        sessions={getCommunitySessions(community.id, shell.sess.sessions)}
         presenceApi={communityPresence}
         canCreateSession={permissions.canCreateSession}
         onCreateSession={() =>
@@ -214,6 +215,7 @@ export function CommunityRegistrationRoute() {
     <RegistrationBoardView
       api={api}
       players={getCommunityPlayers(community.id, play.players)}
+      frequentPlayerIds={frequentPlayerIds(getCommunitySessions(community.id, sess.sessions))}
       sessionName={alvo.name ?? nomeDaNuvem}
       sessionDate={alvo.date}
       canOpen={!!session && permissions.canCreateSession}

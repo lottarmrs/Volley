@@ -35,10 +35,15 @@ test('atividade, frequência e limitação saem do próprio atleta', () => {
   assert.equal(matchesCommunityRosterFilter(ativo, 'inactive', []), false);
   assert.equal(matchesCommunityRosterFilter(inativo, 'inactive', []), true);
 
-  const frequente = atleta({ id: 'c', status: { presencaFrequente: true } as Player['status'] });
-  const raro = atleta({ id: 'c2', status: { presencaFrequente: false } as Player['status'] });
-  assert.equal(matchesCommunityRosterFilter(frequente, 'frequent', []), true);
-  assert.equal(matchesCommunityRosterFilter(raro, 'frequent', []), false);
+  const marcado = atleta({ id: 'c', status: { presencaFrequente: true } as Player['status'] });
+  assert.equal(matchesCommunityRosterFilter(marcado, 'frequent', []), false);
+  const sessoes = [
+    makeSession('s1', { status: 'finished', date: '2026-09-01', selectedPlayerIds: ['c'] }),
+    makeSession('s2', { status: 'finished', date: '2026-09-08', selectedPlayerIds: ['c'] }),
+    makeSession('s3', { status: 'finished', date: '2026-09-15', selectedPlayerIds: ['x'] }),
+  ];
+  assert.equal(matchesCommunityRosterFilter(marcado, 'frequent', sessoes), true);
+  assert.equal(matchesCommunityRosterFilter(atleta({ id: 'c2' }), 'frequent', sessoes), false);
 
   const lesionado = atleta({ id: 'd', status: { lesionado: true } as Player['status'] });
   assert.equal(matchesCommunityRosterFilter(lesionado, 'limited', []), true);

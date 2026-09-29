@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getCommunityRanking } from './community';
+import { frequentPlayerIds, getCommunityRanking, isFrequentInCommunity } from './community';
+import { makeSession } from '../test/fixtures';
 import { Game, Player, PointEvent, Session, Team } from '../types';
 
 const player = {
@@ -77,4 +78,47 @@ test('getCommunityRanking counts modern defense counterattacks as attacks', () =
 
   assert.equal(ranking.rows[0].totalPoints, 1);
   assert.equal(ranking.rows[0].attacks, 1);
+});
+
+function encerrada(id: string, date: string, ids: string[]) {
+  return makeSession(id, { status: 'finished', date, selectedPlayerIds: ids });
+}
+
+test('sem pelada encerrada ninguem e frequente', () => {
+  assert.equal(isFrequentInCommunity('p1', []), false);
+  assert.equal(
+    isFrequentInCommunity('p1', [
+      makeSession('s', { status: 'active', selectedPlayerIds: ['p1'] }),
+    ]),
+    false,
+  );
+});
+
+test('frequente e estar em metade, arredondada para cima, das encerradas', () => {
+  const sessoes = [
+    encerrada('a', '2026-09-01', ['p1']),
+    encerrada('b', '2026-09-08', ['p2']),
+    encerrada('c', '2026-09-15', ['p1']),
+  ];
+  assert.equal(isFrequentInCommunity('p1', sessoes), true);
+  assert.equal(isFrequentInCommunity('p2', sessoes), false);
+});
+
+test('so as 6 encerradas mais recentes contam', () => {
+  const antigas = ['01', '02', '03', '04'].map((d, i) =>
+    encerrada(`v${i}`, `2026-08-${d}`, ['p1']),
+  );
+  const recentes = ['01', '02', '03', '04', '05', '06'].map((d, i) =>
+    encerrada(`r${i}`, `2026-09-${d}`, i < 2 ? ['p1'] : ['p2']),
+  );
+  assert.equal(isFrequentInCommunity('p1', [...antigas, ...recentes]), false);
+  assert.equal(isFrequentInCommunity('p2', [...antigas, ...recentes]), true);
+});
+
+test('frequentPlayerIds junta quem e frequente', () => {
+  const sessoes = [
+    encerrada('a', '2026-09-01', ['p1', 'p2']),
+    encerrada('b', '2026-09-08', ['p1']),
+  ];
+  assert.deepEqual([...frequentPlayerIds(sessoes)].sort(), ['p1', 'p2']);
 });

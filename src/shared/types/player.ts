@@ -70,7 +70,7 @@ export interface Player {
   status: {
     lesionado: boolean;
     limitacaoFisica: string | null;
-    presencaFrequente: boolean;
+    presencaFrequente?: boolean;
   };
   metadata: {
     criadoEm: string;

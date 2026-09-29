@@ -125,7 +125,7 @@ const MinhaFichaPreenchida: FC = () => {
       posicoesSecundarias: ['oposto'],
       alturaCm: 178,
       maoDominante: 'direita',
-      status: { lesionado: true, limitacaoFisica: 'Joelho direito', presencaFrequente: true },
+      status: { lesionado: true, limitacaoFisica: 'Joelho direito' },
     }),
   );
   return (

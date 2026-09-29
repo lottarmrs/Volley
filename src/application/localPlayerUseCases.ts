@@ -45,7 +45,7 @@ export function buildDefaultCommunityPlayer(input: {
       fraqueza: 'Não informado',
     },
     formaAtual: { valor: 0, observacao: 'Em avaliacao', ultimasPartidas: [] },
-    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
+    status: { lesionado: false, limitacaoFisica: null },
     metadata: { criadoEm: input.now, atualizadoEm: input.now },
     communityIds: [input.communityId],
   };

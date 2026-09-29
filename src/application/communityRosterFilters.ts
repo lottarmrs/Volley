@@ -1,5 +1,5 @@
 import type { Player, Session } from '@shared/types';
-import { getCommunityFrequency } from '@logic/community';
+import { getCommunityFrequency, isFrequentInCommunity } from '@logic/community';
 
 export type CommunityRosterFilter =
   | 'all'
@@ -39,7 +39,7 @@ export function matchesCommunityRosterFilter(
     case 'inactive':
       return !player.ativo;
     case 'frequent':
-      return Boolean(player.status?.presencaFrequente);
+      return isFrequentInCommunity(player.id, communitySessions);
     case 'absent':
       return getCommunityFrequency(player.id, communitySessions) < ABSENT_THRESHOLD;
     case 'setters':

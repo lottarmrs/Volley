@@ -41,7 +41,6 @@ export const players = [
   status: (p as any).status || {
     lesionado: false,
     limitacaoFisica: null,
-    presencaFrequente: true,
   },
   metadata: (p as any).metadata || {
     criadoEm: '2026-04-28',

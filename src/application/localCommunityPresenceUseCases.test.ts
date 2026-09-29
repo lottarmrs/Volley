@@ -196,7 +196,7 @@ test('addLocalPresenceGuest trims guest names and ignores blank names', () => {
   assert.deepEqual(unchanged, withGuest);
 });
 
-test('selectFrequentLocalPresencePlayers marks only active frequent players as present', () => {
+test('selectFrequentLocalPresencePlayers marca presentes os ativos que recebe', () => {
   const result = selectFrequentLocalPresencePlayers({
     records: [
       presence('community-1', today, [
@@ -205,7 +205,7 @@ test('selectFrequentLocalPresencePlayers marks only active frequent players as p
       ]),
     ],
     communityId: 'community-1',
-    players: [player('frequent'), player('inactive', false), player('rare', true, false)],
+    players: [player('frequent'), player('inactive', false), player('marcado-raro', true, false)],
     date: today,
     now,
   });
@@ -214,6 +214,7 @@ test('selectFrequentLocalPresencePlayers marks only active frequent players as p
     { playerId: 'existing', status: 'maybe' },
     { temporaryName: 'Visitante', status: 'guest' },
     { playerId: 'frequent', status: 'present' },
+    { playerId: 'marcado-raro', status: 'present' },
   ]);
   assert.equal(result[0].syncStatus, 'pending');
 });

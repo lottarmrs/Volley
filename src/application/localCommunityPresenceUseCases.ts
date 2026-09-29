@@ -131,7 +131,7 @@ export function selectFrequentLocalPresencePlayers(input: {
 }): CommunityPresence[] {
   const base = ensureLocalPresence(input);
   const next = input.players
-    .filter((player) => player.status.presencaFrequente && player.ativo)
+    .filter((player) => player.ativo)
     .reduce((presence, player) => setPresenceItemStatus(presence, player.id, 'present'), base);
 
   return upsertLocalPresence({

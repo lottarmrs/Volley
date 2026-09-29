@@ -18,7 +18,7 @@ function normalizePlayer(p: any): Player {
     apelido: p.apelido ?? p.nome,
     ativo: p.ativo ?? true,
     posicoesSecundarias: p.posicoesSecundarias ?? [],
-    status: p.status ?? { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
+    status: p.status ?? { lesionado: false, limitacaoFisica: null },
     metadata: p.metadata ?? {
       criadoEm: new Date().toISOString(),
       atualizadoEm: new Date().toISOString(),

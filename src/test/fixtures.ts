@@ -59,7 +59,7 @@ export function makePlayer(id: string, overrides: Partial<Player> = {}): Player 
       fraqueza: 'Teste',
     },
     formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
-    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: true },
+    status: { lesionado: false, limitacaoFisica: null },
     metadata: { criadoEm: NOW, atualizadoEm: NOW },
     ...overrides,
   };

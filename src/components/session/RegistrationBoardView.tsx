@@ -46,6 +46,7 @@ const POSITION_LABELS: Record<Position, string> = {
 interface RegistrationBoardViewProps {
   api: RegistrationBoardApi;
   players: Player[];
+  frequentPlayerIds?: ReadonlySet<string>;
   sessionName: string | null;
   sessionDate: string | null;
   canOpen?: boolean;
@@ -159,6 +160,7 @@ function situacaoDoAtleta(board: RegistrationBoard): SituacaoVisual {
 export function RegistrationBoardView({
   api,
   players,
+  frequentPlayerIds,
   sessionName,
   sessionDate,
   canOpen = false,
@@ -469,6 +471,7 @@ export function RegistrationBoardView({
               entry={entry}
               marcador={`${indice + 1}`}
               players={players}
+              frequentPlayerIds={frequentPlayerIds}
               board={board}
               api={api}
               corte={corte}
@@ -495,6 +498,7 @@ export function RegistrationBoardView({
                   entry={entry}
                   marcador={`${entry.queuePosition ?? ''}º`}
                   players={players}
+                  frequentPlayerIds={frequentPlayerIds}
                   board={board}
                   api={api}
                   corte={corte}
@@ -529,6 +533,7 @@ interface LinhaProps {
   entry: RegistrationBoardEntry;
   marcador: string;
   players: Player[];
+  frequentPlayerIds?: ReadonlySet<string>;
   board: RegistrationBoard;
   api: RegistrationBoardApi;
   corte: RegistrationPendingCut | null;
@@ -539,6 +544,7 @@ const Linha: React.FC<LinhaProps> = ({
   entry,
   marcador,
   players,
+  frequentPlayerIds,
   board,
   api,
   corte,
@@ -596,7 +602,7 @@ const Linha: React.FC<LinhaProps> = ({
         </div>
         <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-wider text-base-content/50">
           {posicao}
-          {player?.status.presencaFrequente && ' · Presença frequente'}
+          {player && frequentPlayerIds?.has(player.id) && ' · Presença frequente'}
           {/* De onde a inscricao veio e assunto de quem organiza; para o atleta
               a linha ja carrega posicao e presenca, e um terceiro fato a quebra
               em duas no celular. */}

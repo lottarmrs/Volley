@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { AlertTriangle, ClipboardCheck, Users } from 'lucide-react';
-import type { Community, CommunityPresenceStatus, Player } from '../../../types';
+import type { Community, CommunityPresenceStatus, Player, Session } from '../../../types';
 import type { CommunityPresenceApi } from '@app/screens/communitiesView/communitiesViewModel';
-import { getCommunityPlayers, getPlayerDisplayName } from '../../../logic/community';
+import {
+  getCommunityPlayers,
+  getPlayerDisplayName,
+  isFrequentInCommunity,
+} from '../../../logic/community';
 import {
   formatPresenceText,
   getPresenceAlerts,
@@ -26,12 +30,14 @@ const POSITION_LABELS: Record<Position, string> = {
 export function CommunityPresenceArea({
   community,
   players,
+  sessions,
   presenceApi,
   onCreateSession,
   canCreateSession = true,
 }: {
   community: Community;
   players: Player[];
+  sessions: Session[];
   presenceApi: CommunityPresenceApi;
   onCreateSession: () => void;
   canCreateSession?: boolean;
@@ -92,7 +98,12 @@ export function CommunityPresenceArea({
         <button
           type="button"
           className="btn btn-outline btn-sm"
-          onClick={() => presenceApi.selectFrequentPlayers(community.id, players)}
+          onClick={() =>
+            presenceApi.selectFrequentPlayers(
+              community.id,
+              players.filter((player) => isFrequentInCommunity(player.id, sessions)),
+            )
+          }
           disabled={!canCreateSession}
         >
           Frequentes

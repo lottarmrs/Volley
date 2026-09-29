@@ -77,7 +77,6 @@ const ELENCO: Player[] = NOMES.map((nome, indice) =>
     status: {
       lesionado: indice === 4,
       limitacaoFisica: null,
-      presencaFrequente: indice % 2 === 0,
     },
   }),
 );
@@ -274,6 +273,7 @@ export function Bancada() {
           <CommunityPresenceArea
             community={COMUNIDADE}
             players={ELENCO}
+            sessions={[]}
             presenceApi={presenceApi}
             onCreateSession={nada}
           />

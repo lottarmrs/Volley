@@ -54,7 +54,7 @@ const ELENCO: Player[] = [
     cloudId: 'cloud-c',
     nome: 'Caio Medeiros',
     posicaoPrincipal: 'ponteiro',
-    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: false },
+    status: { lesionado: false, limitacaoFisica: null },
   }),
   makePlayer('d', {
     atributos: atributos(9),
@@ -73,7 +73,7 @@ const ELENCO: Player[] = [
     cloudId: 'cloud-f',
     nome: 'Fernanda Quintanilha',
     posicaoPrincipal: 'ponteiro',
-    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: false },
+    status: { lesionado: false, limitacaoFisica: null },
   }),
   makePlayer('g', {
     atributos: atributos(4),
@@ -86,13 +86,13 @@ const ELENCO: Player[] = [
     cloudId: 'cloud-h',
     nome: 'Helena Vasconcelos',
     posicaoPrincipal: 'levantador',
-    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: false },
+    status: { lesionado: false, limitacaoFisica: null },
   }),
   makePlayer('i', {
     cloudId: 'cloud-i',
     nome: 'Ivan Muniz',
     posicaoPrincipal: 'oposto',
-    status: { lesionado: false, limitacaoFisica: null, presencaFrequente: false },
+    status: { lesionado: false, limitacaoFisica: null },
   }),
 ];
 

@@ -11,7 +11,7 @@ import {
   matchesCommunityRosterFilter,
   type CommunityRosterFilter,
 } from '@app/communityRosterFilters';
-import { getCommunitySessions } from '@logic/community';
+import { frequentPlayerIds, getCommunitySessions } from '@logic/community';
 import { CommunityRosterTools } from '../community/areas/CommunityRosterTools';
 import { EmptyState } from '../../ui/EmptyState';
 
@@ -28,6 +28,7 @@ export const PlayersView = ({
   const [selectedVutPlayer, setSelectedVutPlayer] = useState<Player | null>(null);
   const [rosterFilter, setRosterFilter] = useState<CommunityRosterFilter>('all');
   const communitySessions = roster ? getCommunitySessions(roster.community.id, sessions) : [];
+  const frequentes = frequentPlayerIds(communitySessions);
 
   const visiblePlayers = players
     .filter((player) => (showInactive ? true : player.ativo))
@@ -116,6 +117,7 @@ export const PlayersView = ({
             player={player}
             onToggle={() => setSelectedVutPlayer(player)}
             onViewVutCard={(p) => setSelectedVutPlayer(p)}
+            isFrequent={frequentes.has(player.id)}
           />
         ))}
         {visiblePlayers.length === 0 &&

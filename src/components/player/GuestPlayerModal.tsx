@@ -167,7 +167,6 @@ export function GuestPlayerModal({
       status: {
         lesionado: false,
         limitacaoFisica: null,
-        presencaFrequente: true,
       },
       metadata: {
         criadoEm: now,

@@ -103,7 +103,12 @@ Estado em 2026-09-28:
   Gatilho `zz_guard_guest_single_community` recusa o segundo vínculo ativo de atleta sem conta;
   o convidado rápido só reaproveita convidado da mesma comunidade e pergunta "Reativar e usar?"
   para um desativado; "Duplicar comunidade" copia só nome e regras.
-- **Parte 2b — perfil do atleta, presença frequente, troca da própria foto (P19):** depois da 2a.
+- **Parte 2b — perfil do atleta:** feita em código em 2026-09-29
+  ([spec](superpowers/specs/2026-09-29-perfil-do-atleta-design.md)), aguarda publicação. A carta
+  ganha a aba "Avaliação" (média por fundamento da comunidade) para quem avalia e para o próprio
+  atleta; presença frequente é calculada pelo histórico (metade das até 6 últimas peladas
+  encerradas); a foto de uma conta só a conta troca, e vale na hora; convidado ganha foto em
+  Gestão → Convidados; a aprovação de foto saiu.
 
 ## F. Pontas soltas que contradizem as decisões de 2026-09-25 a 2026-09-28
 
@@ -123,7 +128,7 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 | P16 | Marcar pelada decidido pelo cargo, não pela responsabilidade `ORGANIZER` (A1, A2)                                        | `canCreateSession` e as telas que o usam              | 4     |
 | P17 | Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)                               | policies de `sessions`, `teams`, `games`, …           | 4     |
 | P18 | "Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin | policy de `players` / `deleted_at`                   | 4     |
-| P19 | A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta | `propose_player_avatar`, Minha ficha                  | 2     |
+| P19 | ✅ ~~A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta~~ — resolvida em 2026-09-29: só a conta troca a própria foto, na hora | `propose_player_avatar`, Minha ficha                  | 2     |
 | P20 | ✅ ~~Cadastrar convidado com o perfil de um desativado cria outro registro em vez de oferecer reativar~~ — resolvida em 2026-09-29: o modal pergunta "Reativar e usar?" | `findDuplicatePlayerByProfile` ignora inativos        | 2     |
 | P21 | ✅ ~~Quem encerra sessão sem poder editar convidado (moderador, organizador) marca a progressão dos convidados alheios como pendente; o servidor recusa e cada um vira um aviso, a cada sessão, e a mudança fica só naquele aparelho~~ — resolvida em 2026-09-29: a recusa não vira mais aviso | `progression.ts`, `rating.ts`, laço de atletas do `syncService` | 2     |
 

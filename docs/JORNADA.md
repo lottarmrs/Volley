@@ -53,6 +53,9 @@ Em toda etapa, quatro famílias, nesta ordem:
 | 1.5 | E as contas antigas, que já tinham conta antes da ficha existir? | ✅ Caem na mesma tela no próximo acesso — o servidor responde `needs_athlete_profile` enquanto faltar qualquer um dos quatro obrigatórios (`ensure_account_ready`), e a sessão prende em `/completar-ficha` até a conta preencher. `fichaDoAtleta.dbtest.ts`: `com nome de usuario e ficha vazia, needs_athlete_profile`, `faltando qualquer um dos quatro obrigatorios, continua needs_athlete_profile`, `com os quatro obrigatorios, ready`. |
 | 1.6 | O destino sobrevive a preencher a ficha? | ✅ Sim, mesmo padrão da 1.1 — vem de `location.state.from` e volta para onde a pessoa ia. `CompleteAthleteProfilePage.spec.tsx`: `salva, atualiza a sessao e segue para o destino guardado`. |
 | 1.7 | Quem edita a ficha, depois de criada? | ✅ **Só a própria conta.** A policy de `update` de `players` e a RPC `update_my_athlete_profile` recusam qualquer outra conta, inclusive dono e admin da comunidade. `fichaDoAtleta.dbtest.ts`: `dono da comunidade nao altera nenhuma coluna de ficha com conta`, `o atleta altera a propria ficha, mesmo quando outra conta e o owner_id`, `ficha sem conta continua editavel por dono da comunidade e pelo owner_id` (convidado é a exceção — sem conta, dono/admin editam em Gestão → Convidados). |
+| 1.8 | O atleta vê a própria avaliação? | ✅ **Desde 2026-09-29, na carta.** Tocar em si mesmo em Pessoas abre a carta com a aba "Avaliação": média por fundamento nesta comunidade, sem dizer quem deu cada nota. Quem avalia vê a de todos; os demais membros, só a carta. `perfilDoAtleta.dbtest.ts` (`o atleta le a propria avaliacao e nao a de outro`), `PlayersView.spec.tsx`. |
+| 1.9 | Quem troca a foto de um atleta? | ✅ **Com conta, só a própria conta**, em Minha ficha; **convidado**, dono ou admin da comunidade, em Gestão → Convidados. Nos dois casos vale na hora — não há mais aprovação. `perfilDoAtleta.dbtest.ts`. |
+| 1.10 | O que é "presença frequente"? | ✅ **Calculada, desde 2026-09-29:** esteve em pelo menos metade das até 6 últimas peladas encerradas da comunidade (`isFrequentInCommunity`, `community.test.ts`). Ninguém marca. Limite: quem não lê as peladas da comunidade (o membro, até a P17) não vê ninguém como frequente. |
 
 ---
 
@@ -154,7 +157,7 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 | 4b.3 | Alguém avalia a si mesmo? | ✅ Não, salvo o único avaliador da comunidade, em caráter provisório. |
 | 4b.4 | **E se a comunidade tem um avaliador só?** | ✅ Ele se autoavalia; a nota vale até a primeira nota de outra pessoa sobre ele, e então sai da média sem ser apagada. Designar alguém tira dele o direito de alterar a própria nota. |
 | 4b.5 | E se o elenco estiver vazio? | ✅ "Ninguém no elenco ainda." `EvaluationRosterView.spec.tsx`. |
-| 4b.6 | Quem avalia vê a nota dos outros? | ✅ Não, nem a média enquanto avalia: a média puxaria a nota para ela. |
+| 4b.6 | Quem avalia vê a nota dos outros? | ✅ Não, nem a média enquanto avalia: a média puxaria a nota para ela. Desde 2026-09-29 a média aparece **fora** da tela de avaliação, na aba "Avaliação" da carta do atleta (decisão do usuário) — quem avalia pode consultá-la antes de avaliar. |
 | 4b.7 | E sem sinal? | ✅ "A avaliação precisa de conexão." Salvar que falha guarda o comando e repete com o mesmo identificador. |
 | 4b.8 | Atleta sem avaliação entra no sorteio? | ✅ Com a média dos avaliados daquela pelada (ou 5), e o resultado avisa quantos foram estimados. |
 | 4b.9 | O toque no trilho do deslizante grava a nota num celular real? | ❓ **Aberta.** Provado por teste de componente e pelo teclado na bancada; o toque com dedo não foi verificado. |

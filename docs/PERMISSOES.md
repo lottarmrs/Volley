@@ -90,7 +90,7 @@ Estado em 2026-09-28:
 
 - **Parte 1 — avaliação da comunidade:** ✅ em produção desde 2026-09-27
   ([spec](superpowers/specs/2026-09-25-avaliacao-da-comunidade-design.md)).
-- **Parte 3 — ficha do atleta:** ✅ **feita em 2026-09-28, em código — aguarda publicação**
+- **Parte 3 — ficha do atleta:** ✅ **em produção desde 2026-09-29**
   ([spec](superpowers/specs/2026-09-28-ficha-do-atleta-design.md)). Resumo: a ficha (gênero,
   posição principal, altura, mão dominante) é pedida no cadastro (`/completar-ficha`) e também
   às contas antigas, que ficam presas lá até preencher; ficha de quem tem conta só muda pela

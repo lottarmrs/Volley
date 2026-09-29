@@ -3054,7 +3054,7 @@ test('syncNow: convidado alheio pendente recusado avisa uma vez e nao volta a su
 test('syncNow: ficha com conta de outra pessoa mantem o elenco local (communityIds)', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpload = syncService.uploadLocalDataToCloud;
-  const captured: { merged: LocalSyncPayload | null } = { merged: null };
+  const captured: { merged: ReturnType<typeof emptyPayload> | null } = { merged: null };
 
   try {
     syncService.downloadCloudDataToLocal = async () =>

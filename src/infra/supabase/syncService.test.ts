@@ -3049,3 +3049,51 @@ test('syncNow: convidado alheio pendente recusado avisa uma vez e nao volta a su
     playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
   }
 });
+
+test('syncNow: ficha com conta de outra pessoa mantem o elenco local (communityIds)', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpload = syncService.uploadLocalDataToCloud;
+  const captured: { merged: LocalSyncPayload | null } = { merged: null };
+
+  try {
+    syncService.downloadCloudDataToLocal = async () =>
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            userId: 'outra-conta',
+            genero: 'F',
+            communityIds: ['c1'],
+            updatedAt: '2026-09-20T10:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      });
+    syncService.uploadLocalDataToCloud = async (payload) => {
+      captured.merged = payload;
+      return payload;
+    };
+
+    await syncService.syncNow(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            userId: 'outra-conta',
+            genero: 'M',
+            communityIds: ['c1', 'c-duplicada'],
+            updatedAt: '2026-09-20T10:00:00.000Z',
+            syncStatus: 'synced',
+          }),
+        ],
+      }),
+      'owner-1',
+    );
+
+    const merged = captured.merged;
+    assert.ok(merged, 'merged payload was never captured');
+    assert.deepEqual(merged.players[0].communityIds, ['c1', 'c-duplicada']);
+    assert.equal(merged.players[0].genero, 'F');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    syncService.uploadLocalDataToCloud = originalUpload;
+  }
+});

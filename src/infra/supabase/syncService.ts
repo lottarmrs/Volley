@@ -606,7 +606,13 @@ export function applyServerOwnedAthleteFields(
       return player;
     }
     if (cloud.userId !== ownerId) {
-      return { ...preserveLocalIdentity(cloud, player), syncStatus: 'synced' };
+      const communityIds =
+        findSamePlayer(player, localPlayers)?.communityIds ?? player.communityIds;
+      return {
+        ...preserveLocalIdentity(cloud, player),
+        ...(communityIds ? { communityIds } : {}),
+        syncStatus: 'synced',
+      };
     }
     return {
       ...player,
@@ -1868,6 +1874,13 @@ export const syncService = {
     const playersForMerge = repairedLocal.players.map((player) =>
       repairLegacyPlayerUnlinkIntent(player, findCorrespondingCloudPlayer(player, cloud.players)),
     );
+    const syncStatusBeforeRepair = new Map(
+      local.players.map((player) => [normalizeIdValue(player.id), player.syncStatus]),
+    );
+    const localPlayersForServerFields = playersForMerge.map((player) => ({
+      ...player,
+      syncStatus: syncStatusBeforeRepair.get(normalizeIdValue(player.id)) ?? player.syncStatus,
+    }));
 
     const merged: LocalSyncPayload = {
       communities: mergeEntityLists<Community>(repairedLocal.communities, cloud.communities, {
@@ -1882,7 +1895,7 @@ export const syncService = {
         }),
         cloud.players,
         ownerId,
-        local.players,
+        localPlayersForServerFields,
       ),
       rules: mergeEntityLists(repairedLocal.rules, cloud.rules, {
         getId: (item) => item.communityId,

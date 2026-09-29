@@ -150,11 +150,10 @@ export function useCommunities() {
   );
 
   const duplicateCommunity = useCallback(
-    (communityId: string, includeAthletes: boolean) => {
+    (communityId: string) => {
       const result = duplicateLocalCommunity({
         communities,
         communityId,
-        includeAthletes,
         id: generateUUID(),
         now: new Date().toISOString(),
       });

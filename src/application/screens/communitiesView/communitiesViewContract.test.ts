@@ -83,7 +83,6 @@ function makeInput(
     onUpdateCommunity: (() => true) as never,
     onDeleteCommunity: () => {},
     onDuplicateCommunity: () => {},
-    onUpdatePlayerCommunities: () => {},
     onCreateSession: () => {},
     onViewSession: () => {},
     onClearCommunityHistory: () => {},

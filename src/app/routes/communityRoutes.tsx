@@ -21,11 +21,7 @@ import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
 import { LegacyQueryRedirect } from './LegacyQueryRedirect';
-import {
-  applyCommunityHistoryClear,
-  applyCommunityMembershipDuplicate,
-  applyLinkedCloudPlayer,
-} from '@app/localCommunityUseCases';
+import { applyCommunityHistoryClear, applyLinkedCloudPlayer } from '@app/localCommunityUseCases';
 import { CommunityMembersPanel } from '../../components/community/CommunityMembersPanel';
 import { AthleteUsernameSearch } from '../../components/community/AthleteUsernameSearch';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
@@ -357,17 +353,9 @@ export function CommunityDataRoute() {
           shell.deleteCommunityAggregate(id);
           navigate(paths.comunidades);
         }}
-        onDuplicateCommunity={(id, includeAthletes) => {
+        onDuplicateCommunity={(id) => {
           if (!permissions.canExportCommunity) return;
-          const result = comm.duplicateCommunity(id, includeAthletes);
-          if (result?.includeAthletes) {
-            play.setPlayers((prev) =>
-              applyCommunityMembershipDuplicate(prev, {
-                sourceCommunityId: id,
-                duplicateCommunityId: result.duplicate.id,
-              }),
-            );
-          }
+          comm.duplicateCommunity(id);
         }}
         onClearCommunityHistory={(id) => {
           if (!permissions.canClearHistory) {

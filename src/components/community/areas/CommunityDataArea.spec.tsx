@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Community } from '../../../types';
@@ -34,14 +34,25 @@ describe('CommunityDataArea', () => {
     renderArea({ canExportCommunity: false });
 
     expect(screen.queryByRole('button', { name: /exportar comunidade/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /duplicar com atletas/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /duplicar comunidade/i })).toBeNull();
   });
 
   it('mostra exportar e duplicar para quem pode', () => {
     renderArea({ canExportCommunity: true });
 
     expect(screen.getByRole('button', { name: /exportar comunidade/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /duplicar com atletas/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /duplicar comunidade/i })).toBeTruthy();
+  });
+
+  it('duplicar copia so a comunidade, sem atletas', () => {
+    const onDuplicateCommunity = vi.fn();
+    renderArea({ canExportCommunity: true, onDuplicateCommunity });
+
+    fireEvent.click(screen.getByRole('button', { name: /duplicar comunidade/i }));
+
+    expect(onDuplicateCommunity).toHaveBeenCalledWith('community-1');
+    expect(onDuplicateCommunity.mock.calls[0]).toHaveLength(1);
+    expect(screen.queryByText(/com atletas/i)).toBeNull();
   });
 
   it('sem a permissao declarada, nao exporta', () => {

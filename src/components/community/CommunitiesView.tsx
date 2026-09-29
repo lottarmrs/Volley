@@ -165,8 +165,7 @@ interface CommunitiesViewProps {
   onAddCommunity: (input: Partial<Community>) => Community;
   onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
   onDeleteCommunity: (communityId: string) => void;
-  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
-  onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
+  onDuplicateCommunity: (communityId: string) => void;
   onCreateSession: (community: Community, playerIds: string[], rules: CommunityRules) => void;
   onViewSession: (sessionId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;
@@ -346,8 +345,8 @@ export function CommunitiesView({
                 })
               }
               onUpdateCommunity={updateCommunity}
-              onDuplicateCommunity={(communityId, includeAthletes) =>
-                void dispatch({ kind: 'duplicateCommunity', communityId, includeAthletes })
+              onDuplicateCommunity={(communityId) =>
+                void dispatch({ kind: 'duplicateCommunity', communityId })
               }
               onDeleteCommunity={(communityId) =>
                 void dispatch({ kind: 'deleteCommunity', communityId })
@@ -425,7 +424,7 @@ function CommunityCard({
   onOpen: () => void;
   onCreateSession: () => void;
   onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
-  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
+  onDuplicateCommunity: (communityId: string) => void;
   onDeleteCommunity: (communityId: string) => void;
 }) {
   const permissions = useCommunityPermissions(community);
@@ -472,8 +471,8 @@ function CommunityCard({
               </li>
               {permissions.canExportCommunity && (
                 <li>
-                  <button type="button" onClick={() => onDuplicateCommunity(community.id, true)}>
-                    Duplicar com atletas
+                  <button type="button" onClick={() => onDuplicateCommunity(community.id)}>
+                    Duplicar comunidade
                   </button>
                 </li>
               )}

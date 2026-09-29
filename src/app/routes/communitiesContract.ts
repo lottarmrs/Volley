@@ -2,12 +2,7 @@ import { useNavigate } from 'react-router';
 import { paths } from '@app/appRoutes';
 import { buildCommunitiesViewContract } from '@app/screens/communitiesView/communitiesViewContract';
 import type { CommunityTab } from '@app/screens/communitiesView/communitiesViewModel';
-import {
-  applyCommunityHistoryClear,
-  applyCommunityMembershipDuplicate,
-  applyLinkedCloudPlayer,
-  applyPlayerCommunityMemberships,
-} from '@app/localCommunityUseCases';
+import { applyCommunityHistoryClear, applyLinkedCloudPlayer } from '@app/localCommunityUseCases';
 import { useShell } from '../shellContext';
 
 export function useCommunitiesContract(input: {
@@ -56,21 +51,8 @@ export function useCommunitiesContract(input: {
       shell.deleteCommunityAggregate(communityId);
       navigate(paths.comunidades);
     },
-    onDuplicateCommunity: (communityId, includeAthletes) => {
-      const result = comm.duplicateCommunity(communityId, includeAthletes);
-      if (result?.includeAthletes) {
-        play.setPlayers((prev) =>
-          applyCommunityMembershipDuplicate(prev, {
-            sourceCommunityId: communityId,
-            duplicateCommunityId: result.duplicate.id,
-          }),
-        );
-      }
-    },
-    onUpdatePlayerCommunities: (communityId, memberPlayerIds) => {
-      play.setPlayers((prev) =>
-        applyPlayerCommunityMemberships(prev, communityId, memberPlayerIds),
-      );
+    onDuplicateCommunity: (communityId) => {
+      comm.duplicateCommunity(communityId);
     },
     onCreateSession: shell.createSessionFromCommunity,
     onViewSession: (sessionId) => {

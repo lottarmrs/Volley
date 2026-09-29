@@ -137,10 +137,9 @@ export function createLocalCommunity(input: {
 export function duplicateLocalCommunity(input: {
   communities: Community[];
   communityId: string;
-  includeAthletes: boolean;
   id: string;
   now: string;
-}): { duplicate: Community; includeAthletes: boolean } | null {
+}): { duplicate: Community } | null {
   const source = input.communities.find((community) => community.id === input.communityId);
   if (!source) return null;
 
@@ -155,7 +154,7 @@ export function duplicateLocalCommunity(input: {
     syncStatus: 'local',
   };
 
-  return { duplicate, includeAthletes: input.includeAthletes };
+  return { duplicate };
 }
 
 type CommunityScopedRecord = {
@@ -202,38 +201,6 @@ export function applyCommunityDeletion(input: {
     templates: deleteCommunityScopedRecords(input.templates, communityId, now),
     drafts: deleteCommunityScopedRecords(input.drafts, communityId, now),
   };
-}
-
-export function applyCommunityMembershipDuplicate(
-  players: Player[],
-  input: { sourceCommunityId: string; duplicateCommunityId: string },
-): Player[] {
-  return players.map((player) => {
-    const communityIds = player.communityIds ?? [];
-    if (!communityIds.includes(input.sourceCommunityId)) return player;
-    return {
-      ...player,
-      communityIds: Array.from(new Set([...communityIds, input.duplicateCommunityId])),
-    };
-  });
-}
-
-export function applyPlayerCommunityMemberships(
-  players: Player[],
-  communityId: string,
-  memberPlayerIds: string[],
-): Player[] {
-  const memberIds = new Set(memberPlayerIds);
-  return players.map((player) => {
-    const currentIds = player.communityIds ?? [];
-    const isMember = memberIds.has(player.id);
-    const exists = currentIds.includes(communityId);
-    if (isMember && !exists) return { ...player, communityIds: [...currentIds, communityId] };
-    if (!isMember && exists) {
-      return { ...player, communityIds: currentIds.filter((id) => id !== communityId) };
-    }
-    return player;
-  });
 }
 
 export function applyCommunityHistoryClear(sessions: Session[], communityId: string): Session[] {

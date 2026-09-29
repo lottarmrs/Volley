@@ -3,13 +3,11 @@ import assert from 'node:assert/strict';
 import {
   applyCommunityDeletion,
   applyCommunityHistoryClear,
-  applyCommunityMembershipDuplicate,
   applyLocalCommunityDeletion,
   applyLocalCommunityUpdate,
   createLocalCommunity,
   duplicateLocalCommunity,
   applyLinkedCloudPlayer,
-  applyPlayerCommunityMemberships,
   validateLocalCommunitySave,
 } from './localCommunityUseCases';
 import type {
@@ -249,47 +247,15 @@ test('duplicateLocalCommunity copies a source with a unique local name and no cl
       community('c2', 'Domingo (copia)'),
     ],
     communityId: 'c1',
-    includeAthletes: true,
     id: 'c3',
     now,
   });
 
-  assert.equal(result?.includeAthletes, true);
   assert.equal(result?.duplicate.id, 'c3');
   assert.equal(result?.duplicate.name, 'Domingo (copia) 2');
   assert.equal(result?.duplicate.archived, false);
   assert.equal(result?.duplicate.cloudId, undefined);
   assert.equal(result?.duplicate.syncStatus, 'local');
-});
-
-test('applyCommunityMembershipDuplicate adds the duplicated community to source members once', () => {
-  const result = applyCommunityMembershipDuplicate([player('p1', ['c1']), player('p2', ['c2'])], {
-    sourceCommunityId: 'c1',
-    duplicateCommunityId: 'c3',
-  });
-
-  assert.deepEqual(result[0].communityIds, ['c1', 'c3']);
-  assert.deepEqual(result[1].communityIds, ['c2']);
-  assert.deepEqual(
-    applyCommunityMembershipDuplicate(result, {
-      sourceCommunityId: 'c1',
-      duplicateCommunityId: 'c3',
-    })[0].communityIds,
-    ['c1', 'c3'],
-  );
-});
-
-test('applyPlayerCommunityMemberships makes selected players the only community members', () => {
-  const result = applyPlayerCommunityMemberships(
-    [player('p1', []), player('p2', ['c1']), player('p3', ['c1', 'c2'])],
-    'c1',
-    ['p1', 'p3'],
-  );
-
-  assert.deepEqual(
-    result.map((item) => item.communityIds),
-    [['c1'], [], ['c1', 'c2']],
-  );
 });
 
 test('applyCommunityHistoryClear detaches sessions from a community', () => {

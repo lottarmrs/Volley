@@ -6,8 +6,7 @@ export type CommunitiesViewIntent =
   | { kind: 'addCommunity'; input: Partial<Community> }
   | { kind: 'updateCommunity'; communityId: string; patch: Partial<Community>; allowed?: boolean }
   | { kind: 'deleteCommunity'; communityId: string }
-  | { kind: 'duplicateCommunity'; communityId: string; includeAthletes: boolean }
-  | { kind: 'updatePlayerCommunities'; communityId: string; playerIds: string[] }
+  | { kind: 'duplicateCommunity'; communityId: string }
   | { kind: 'createSession'; community: Community; playerIds: string[]; rules: CommunityRules }
   | { kind: 'viewSession'; sessionId: string }
   | { kind: 'clearCommunityHistory'; communityId: string }

@@ -48,8 +48,7 @@ export interface CommunitiesViewContractInput {
   onAddCommunity: (input: Partial<Community>) => Community;
   onUpdateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
   onDeleteCommunity: (communityId: string) => void;
-  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
-  onUpdatePlayerCommunities: (communityId: string, playerIds: string[]) => void;
+  onDuplicateCommunity: (communityId: string) => void;
   onCreateSession: (community: Community, playerIds: string[], rules: CommunityRules) => void;
   onViewSession: (sessionId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;
@@ -114,10 +113,7 @@ export function buildCommunitiesViewContract(
         input.onDeleteCommunity(intent.communityId);
         return;
       case 'duplicateCommunity':
-        input.onDuplicateCommunity(intent.communityId, intent.includeAthletes);
-        return;
-      case 'updatePlayerCommunities':
-        input.onUpdatePlayerCommunities(intent.communityId, intent.playerIds);
+        input.onDuplicateCommunity(intent.communityId);
         return;
       case 'createSession':
         input.onCreateSession(intent.community, intent.playerIds, intent.rules);

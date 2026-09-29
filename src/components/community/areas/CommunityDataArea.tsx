@@ -23,7 +23,7 @@ export function CommunityDataArea({
   sessions: Session[];
   onUpdateCommunity: (communityId: string, patch: Partial<Community>) => boolean;
   onDeleteCommunity: (communityId: string) => void;
-  onDuplicateCommunity: (communityId: string, includeAthletes: boolean) => void;
+  onDuplicateCommunity: (communityId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;
   canEditRules?: boolean;
   canDeleteCommunity?: boolean;
@@ -126,9 +126,9 @@ export function CommunityDataArea({
             <button
               type="button"
               className="btn btn-outline"
-              onClick={() => onDuplicateCommunity(community.id, true)}
+              onClick={() => onDuplicateCommunity(community.id)}
             >
-              <Copy className="w-4 h-4" /> Duplicar com atletas
+              <Copy className="w-4 h-4" /> Duplicar comunidade
             </button>
             <button
               type="button"

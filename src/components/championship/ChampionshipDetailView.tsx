@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
+import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
 import { paths } from '../../application/appRoutes';
 import {
   getRoundPlayStatus,
@@ -68,6 +69,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
   );
 
   const community = comm.communities.find((c) => c.id === championship?.communityId);
+  const { canEditRules: podeAdministrar } = useCommunityPermissions(community ?? null);
 
   // Group Rounds
   const roundNumbers = Array.from(new Set(rounds.map((r) => r.round))).sort(
@@ -224,15 +226,17 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="btn btn-ghost min-h-[44px] px-3 text-xs font-bold uppercase tracking-wider text-error hover:bg-error/10 flex items-center gap-1.5"
-            onClick={handleDelete}
-          >
-            <Trash2 className="w-4 h-4" /> Excluir liga
-          </button>
-        </div>
+        {podeAdministrar && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-ghost min-h-[44px] px-3 text-xs font-bold uppercase tracking-wider text-error hover:bg-error/10 flex items-center gap-1.5"
+              onClick={handleDelete}
+            >
+              <Trash2 className="w-4 h-4" /> Excluir liga
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs Bar */}
@@ -442,7 +446,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
-                    {match.sessionId ? (
+                    {!podeAdministrar ? null : match.sessionId ? (
                       <button
                         type="button"
                         className="btn btn-primary min-h-[44px] px-4 text-xs font-bold uppercase tracking-wider shadow-md shadow-primary/20"
@@ -670,20 +674,26 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
                           Adversário aceita
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleAprovarPedido(request)}
-                        className="btn btn-success min-h-[44px] px-4 text-xs font-black uppercase tracking-wider"
-                      >
-                        Aprovar e remarcar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleResolverPedido(request.id, rejectChampionshipRequest)}
-                        className="btn btn-ghost min-h-[44px] px-4 text-xs font-bold uppercase tracking-wider text-error hover:bg-error/10"
-                      >
-                        Recusar
-                      </button>
+                      {podeAdministrar && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleAprovarPedido(request)}
+                            className="btn btn-success min-h-[44px] px-4 text-xs font-black uppercase tracking-wider"
+                          >
+                            Aprovar e remarcar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleResolverPedido(request.id, rejectChampionshipRequest)
+                            }
+                            className="btn btn-ghost min-h-[44px] px-4 text-xs font-bold uppercase tracking-wider text-error hover:bg-error/10"
+                          >
+                            Recusar
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

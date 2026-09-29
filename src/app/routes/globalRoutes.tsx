@@ -30,6 +30,7 @@ import { useShell } from '../shellContext';
 import { useAuthSession } from '../auth/useAuthSession';
 import { useCommunitiesContract } from './communitiesContract';
 import { SessionActiveView } from './sessionRoutes';
+import { useCommunitiesWithCapability } from '@hooks/useCommunitiesWithCapability';
 
 const Dashboard = lazy(() =>
   import('../../components/dashboard/Dashboard').then((module) => ({ default: module.Dashboard })),
@@ -66,6 +67,7 @@ export function PainelRoute() {
   const navigate = useNavigate();
   const { sess, comm, wizard, play } = shell;
   const communityIds = comm.communities.map((community) => community.id);
+  const organiza = useCommunitiesWithCapability(comm.communities, 'session.manage', () => true);
 
   // Painel vazio nao ensina nada: sem elenco, sem sessao e sem rascunho, o
   // proximo passo util e montar a lista e sortear. Nao ha laco aqui porque
@@ -83,6 +85,8 @@ export function PainelRoute() {
         sessions: sess.sessions,
         communities: comm.communities,
         today: formatLocalDateInput(new Date()),
+        canStartSession:
+          comm.communities.length === 0 || (!organiza.pending && organiza.allowedIds.size > 0),
         // Sem comunidade nenhuma, `resolveNewSessionPath` despeja o usuario numa
         // lista vazia de comunidades. O comeco rapido cria a comunidade sozinho.
         onNewSession: () =>

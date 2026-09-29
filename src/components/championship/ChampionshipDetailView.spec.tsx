@@ -6,7 +6,8 @@ import { ChampionshipDetailView } from './ChampionshipDetailView';
 
 // A fabrica do mock devolve um objeto novo a cada chamada; sem hoistar os spies,
 // o `useShell()` do teste enxerga instancias diferentes das que o componente usou.
-const { spies } = vi.hoisted(() => ({
+const { spies, acesso } = vi.hoisted(() => ({
+  acesso: { canEditRules: true },
   spies: {
     createRequest: vi.fn(),
     resolveRequest: vi.fn(() => ({ ok: true, value: undefined })),
@@ -14,6 +15,10 @@ const { spies } = vi.hoisted(() => ({
     materializeChampionshipRound: vi.fn(() => ({ ok: true, value: { sessionId: 's-new' } })),
     openChampionshipRoundSession: vi.fn(() => ({ ok: true, value: undefined })),
   },
+}));
+
+vi.mock('../../hooks/useCommunityPermissions', () => ({
+  useCommunityPermissions: () => acesso,
 }));
 
 vi.mock('../../app/shellContext', () => ({
@@ -123,6 +128,7 @@ describe('ChampionshipDetailView', () => {
     spies.materializeChampionshipRound.mockClear();
     spies.openChampionshipRoundSession.mockClear();
     window.history.pushState({}, '', '/');
+    acesso.canEditRules = true;
   });
 
   it('renders league detail header and standings table tab', () => {
@@ -273,5 +279,22 @@ describe('ChampionshipDetailView', () => {
 
     expect(spies.openChampionshipRoundSession).toHaveBeenCalledWith('r2');
     expect(window.location.pathname).not.toMatch(/\/sessoes\//);
+  });
+
+  it('quem nao administra a comunidade da liga nao exclui, nao aprova e nao abre rodada', async () => {
+    acesso.canEditRules = false;
+    const user = userEvent.setup({ delay: null });
+    render(
+      <BrowserRouter>
+        <ChampionshipDetailView championshipId="champ-1" />
+      </BrowserRouter>,
+    );
+    expect(screen.queryByRole('button', { name: /excluir liga/i })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /governança/i }));
+    expect(screen.queryByRole('button', { name: /aprovar e remarcar/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /recusar/i })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
+    expect(screen.queryByRole('button', { name: /ver sessão/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /materializar/i })).toBeNull();
   });
 });

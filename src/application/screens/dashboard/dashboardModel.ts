@@ -6,4 +6,5 @@ export interface DashboardModel {
   sessionDraft: SessionDraft | null;
   games: Game[];
   proximaPelada: { to: string; title: string; subtitle: string } | null;
+  canStartSession: boolean;
 }

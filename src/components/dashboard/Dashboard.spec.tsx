@@ -11,6 +11,7 @@ function createMockContract(modelOverrides: Partial<DashboardModel> = {}) {
     sessionDraft: null,
     games: [],
     proximaPelada: null,
+    canStartSession: true,
     ...modelOverrides,
   };
   const dispatch = vi.fn();
@@ -29,6 +30,12 @@ describe('Dashboard', () => {
 
     fireEvent.click(newSessionBtn);
     expect(dispatch).toHaveBeenCalledWith({ kind: 'newSession' });
+  });
+
+  it('quem nao organiza em nenhuma comunidade nao ve Nova Sessao', () => {
+    const { contract } = createMockContract({ canStartSession: false });
+    render(<Dashboard contract={contract} />);
+    expect(screen.queryByRole('button', { name: /nova sessão/i })).toBeNull();
   });
 
   it('renders active session alert when a session is active', () => {

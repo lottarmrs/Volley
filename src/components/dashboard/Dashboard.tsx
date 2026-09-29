@@ -43,14 +43,16 @@ export function Dashboard({ contract }: DashboardProps) {
             com algoritmo Web Worker.
           </p>
         </div>
-        <div className="flex gap-3 shrink-0 w-full sm:w-auto">
-          <button
-            onClick={() => dispatch({ kind: 'newSession' })}
-            className="btn btn-primary btn-md font-black uppercase tracking-wider px-6 shadow-lg shadow-primary/20 gap-2 min-h-[48px] w-full sm:w-auto"
-          >
-            <Plus className="w-5 h-5" /> Nova Sessão
-          </button>
-        </div>
+        {model.canStartSession && (
+          <div className="flex gap-3 shrink-0 w-full sm:w-auto">
+            <button
+              onClick={() => dispatch({ kind: 'newSession' })}
+              className="btn btn-primary btn-md font-black uppercase tracking-wider px-6 shadow-lg shadow-primary/20 gap-2 min-h-[48px] w-full sm:w-auto"
+            >
+              <Plus className="w-5 h-5" /> Nova Sessão
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 2. ALERTAS DE SESSÃO ATIVA OU RASCUNHO PENDENTE */}

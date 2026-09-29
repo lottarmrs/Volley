@@ -23,6 +23,7 @@ export interface DashboardContractInput {
   sessions: Session[];
   communities: Community[];
   today: string;
+  canStartSession?: boolean;
 }
 
 function formatarDia(iso: string): string {
@@ -54,6 +55,7 @@ function buildModel(input: DashboardContractInput): DashboardModel {
     sessionDraft: input.sessionDraft,
     games: input.games,
     proximaPelada: proximaPelada(input),
+    canStartSession: input.canStartSession ?? true,
   };
 }
 

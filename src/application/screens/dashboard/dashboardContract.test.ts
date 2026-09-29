@@ -180,3 +180,29 @@ test('sem sessao futura, a proxima pelada e nula', () => {
   );
   assert.equal(c.model.proximaPelada, null);
 });
+
+test('canStartSession vem da entrada e vale verdadeiro por padrao', () => {
+  const base = {
+    activeSession: null,
+    sessionDraft: null,
+    games: [],
+    sessions: [],
+    communities: [],
+    today: '2026-09-29',
+    onNewSession: () => {},
+    onResumeSession: () => {},
+    onResumeDraft: () => {},
+    onClearDraft: () => {},
+    onClearActiveSession: () => {},
+    onPlayers: () => {},
+    onHistory: () => {},
+    onExportBackup: () => {},
+    onImportBackup: () => {},
+    onCommunities: () => {},
+  };
+  assert.equal(buildDashboardContract(base).model.canStartSession, true);
+  assert.equal(
+    buildDashboardContract({ ...base, canStartSession: false }).model.canStartSession,
+    false,
+  );
+});

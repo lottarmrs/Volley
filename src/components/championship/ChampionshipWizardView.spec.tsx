@@ -27,6 +27,15 @@ vi.mock('../../application/championshipUseCases', async (importOriginal) => {
   return { ...actual, createChampionship: createChampionshipSpy };
 });
 
+const { administradas } = vi.hoisted(() => ({ administradas: { ids: ['comm-1'] as string[] } }));
+
+vi.mock('../../hooks/useCommunitiesWithCapability', () => ({
+  useCommunitiesWithCapability: () => ({
+    allowedIds: new Set(administradas.ids),
+    pending: false,
+  }),
+}));
+
 vi.mock('../../app/shellContext', () => ({
   useShell: () => ({
     comm: { communities: [{ id: 'comm-1', name: 'Vôlei de Terça' }] },
@@ -161,5 +170,14 @@ describe('ChampionshipWizardView', () => {
     expect(times.every((t) => t.syncStatus === 'local')).toBe(true);
 
     expect(navigateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem comunidade administrada, diz que nao da para criar liga', () => {
+    administradas.ids = [];
+    renderWizard();
+    expect(
+      screen.getByText('Você não administra nenhuma comunidade para criar uma liga.'),
+    ).toBeTruthy();
+    administradas.ids = ['comm-1'];
   });
 });

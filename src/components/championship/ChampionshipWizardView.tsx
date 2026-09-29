@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { AlertCircle, ArrowLeft, ArrowRight, Check, Calendar, Shield, Trophy } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
+import { useCommunitiesWithCapability } from '../../hooks/useCommunitiesWithCapability';
 import { paths } from '../../application/appRoutes';
 import { generateRoundDates } from '../../logic/championship';
 import { createChampionship as createChampionshipUseCase } from '../../application/championshipUseCases';
@@ -25,7 +26,16 @@ export function ChampionshipWizardView() {
 
   // Step 1: Info & Recurrence
   const [name, setName] = useState('');
-  const [communityId, setCommunityId] = useState(comm.communities[0]?.id || '');
+  const administra = useCommunitiesWithCapability(
+    comm.communities,
+    'community.profile.update',
+    () => true,
+  );
+  const comunidadesAdministradas = comm.communities.filter((c) => administra.allowedIds.has(c.id));
+  const [escolhida, setCommunityId] = useState('');
+  const communityId = comunidadesAdministradas.some((c) => c.id === escolhida)
+    ? escolhida
+    : (comunidadesAdministradas[0]?.id ?? '');
   const [format, setFormat] = useState<'round_robin' | 'double_round_robin'>('round_robin');
   const [dayOfWeek, setDayOfWeek] = useState<number>(2); // Terça-feira
   const [time, setTime] = useState('20:00');
@@ -169,6 +179,14 @@ export function ChampionshipWizardView() {
     navigate(paths.liga(championshipId));
   };
 
+  if (!administra.pending && comunidadesAdministradas.length === 0) {
+    return (
+      <p className="text-sm text-base-content/70">
+        Você não administra nenhuma comunidade para criar uma liga.
+      </p>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24">
       {/* Header */}
@@ -224,7 +242,7 @@ export function ChampionshipWizardView() {
                 value={communityId}
                 onChange={(e) => setCommunityId(e.target.value)}
               >
-                {comm.communities.map((c) => (
+                {comunidadesAdministradas.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

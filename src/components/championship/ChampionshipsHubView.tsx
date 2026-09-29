@@ -4,6 +4,7 @@ import { Calendar, Plus, Search, Trophy, Users } from 'lucide-react';
 import { useShell } from '../../app/shellContext';
 import { paths } from '../../application/appRoutes';
 import { EmptyState } from '../../ui/EmptyState';
+import { useCommunitiesWithCapability } from '../../hooks/useCommunitiesWithCapability';
 
 export function ChampionshipsHubView() {
   const { comm, championships } = useShell();
@@ -22,6 +23,12 @@ export function ChampionshipsHubView() {
   const activeCount = championships.championships.filter((c) => !c.deletedAt).length;
   const semNenhumaLiga = activeCount === 0;
   const semComunidade = comm.communities.length === 0;
+  const administra = useCommunitiesWithCapability(
+    comm.communities,
+    'community.profile.update',
+    () => true,
+  );
+  const podeCriarLiga = !administra.pending && administra.allowedIds.size > 0;
 
   return (
     <div className="space-y-6 pb-24">
@@ -35,7 +42,7 @@ export function ChampionshipsHubView() {
             Central de campeonatos por pontos corridos, tabelas e estatísticas da temporada.
           </p>
         </div>
-        {!semNenhumaLiga && (
+        {!semNenhumaLiga && podeCriarLiga && (
           <Link to={paths.ligaNova} className="btn btn-primary min-h-[44px] px-4">
             <Plus className="w-4 h-4" /> Nova liga
           </Link>
@@ -63,6 +70,10 @@ export function ChampionshipsHubView() {
                 Criar minha comunidade
               </Link>
             </div>
+          ) : !podeCriarLiga ? (
+            <p className="text-xs leading-relaxed text-base-content/60">
+              Você não administra nenhuma comunidade para criar uma liga.
+            </p>
           ) : (
             <Link
               to={paths.ligaNova}

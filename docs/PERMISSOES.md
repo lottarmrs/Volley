@@ -98,8 +98,8 @@ Estado em 2026-09-28:
   edição de atleta por terceiros saiu inteira; convidado (sem conta) é cadastrado e editado em
   Gestão → Convidados, só por dono/admin; Pessoas passou a só listar, com a carta VUT ao tocar;
   "Minha ficha" mora em `/perfil`, com envio de foto.
-- **Parte 2a — convidado numa comunidade só:** feita em código em 2026-09-29
-  ([spec](superpowers/specs/2026-09-29-convidado-numa-comunidade-design.md)), aguarda publicação.
+- **Parte 2a — convidado numa comunidade só:** ✅ em produção desde 2026-09-29
+  ([spec](superpowers/specs/2026-09-29-convidado-numa-comunidade-design.md)).
   Gatilho `zz_guard_guest_single_community` recusa o segundo vínculo ativo de atleta sem conta;
   o convidado rápido só reaproveita convidado da mesma comunidade e pergunta "Reativar e usar?"
   para um desativado; "Duplicar comunidade" copia só nome e regras.

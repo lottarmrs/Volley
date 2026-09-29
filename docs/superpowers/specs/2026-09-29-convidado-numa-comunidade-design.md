@@ -70,11 +70,11 @@ em `community_players`.
 
 ### 2.1 A regra no cliente
 
-Função pura em `src/domain/` (ex.: `guestCommunityRule.ts`):
-`canGuestJoinCommunity(player, communityId): boolean` — verdadeiro se o atleta tem conta
-(`userId`), ou não tem nenhuma outra comunidade ativa em `communityIds`, ou `communityId` já é a
-dele. Os casos de uso que dão comunidade a um atleta a consultam, para o modo sem nuvem obedecer à
-mesma regra e o sync nunca mandar o que o servidor recusa.
+O guarda é o gatilho do servidor. No cliente, depois das mudanças abaixo, não sobra caminho que dê
+uma segunda comunidade a um convidado: o convidado rápido nasce com exatamente a comunidade da
+pelada, Gestão → Convidados cria na comunidade aberta, e duplicar deixa de mexer em atletas. Por
+isso não há uma função de regra à parte (decidido ao escrever o plano, em 2026-09-29: ela seria
+sempre verdadeira).
 
 ### 2.2 Duplicar comunidade (P8)
 
@@ -115,7 +115,6 @@ progressão local da sessão.
 
 ## Testes do cliente
 
-- `canGuestJoinCommunity`: conta, sem comunidade, mesma comunidade, outra comunidade.
 - Busca de duplicado: só a comunidade dada; desativado encontrado; outra comunidade e conta nunca.
 - `applyGuestPlayerUpsert` / caso de uso de reativação.
 - `GuestPlayerModal.spec.tsx`: fluxo "Reativar e usar", "Cadastrar outro", e sem permissão.

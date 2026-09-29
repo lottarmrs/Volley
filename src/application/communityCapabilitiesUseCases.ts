@@ -5,7 +5,11 @@ export interface CommunityCapabilitiesGateway {
   has(communityCloudId: string, capability: string): Promise<boolean>;
 }
 
-export const CAPABILITIES_OF_INTEREST = ['player.evaluate'] as const;
+export const CAPABILITIES_OF_INTEREST = [
+  'player.evaluate',
+  'session.manage',
+  'community.profile.update',
+] as const;
 
 export async function loadCommunityCapabilities(
   communityCloudId: string | null | undefined,

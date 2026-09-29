@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveCommunityPermissions } from './communityPermissions';
+import { canManageSessions, deriveCommunityPermissions } from './communityPermissions';
 import type { Community, CommunityMember } from '../types';
 
 const community: Pick<Community, 'id' | 'cloudId'> = {
@@ -276,4 +276,45 @@ test('membro nao exporta nem ve Gestao; moderador ve Gestao para aprovar pedidos
   });
   assert.equal(local.canExportCommunity, true);
   assert.equal(local.canSeeManagement, true);
+});
+
+test('canManageSessions: na nuvem vale o servidor, sem nuvem o cargo', () => {
+  const vazio = new Set<string>();
+  const organiza = new Set(['session.manage']);
+  assert.deepEqual(
+    canManageSessions({
+      cloud: true,
+      capabilities: organiza,
+      resolved: true,
+      roleCanCreateSession: false,
+    }),
+    { allowed: true, pending: false },
+  );
+  assert.deepEqual(
+    canManageSessions({
+      cloud: true,
+      capabilities: vazio,
+      resolved: true,
+      roleCanCreateSession: true,
+    }),
+    { allowed: false, pending: false },
+  );
+  assert.deepEqual(
+    canManageSessions({
+      cloud: true,
+      capabilities: vazio,
+      resolved: false,
+      roleCanCreateSession: true,
+    }),
+    { allowed: false, pending: true },
+  );
+  assert.deepEqual(
+    canManageSessions({
+      cloud: false,
+      capabilities: vazio,
+      resolved: false,
+      roleCanCreateSession: true,
+    }),
+    { allowed: true, pending: false },
+  );
 });

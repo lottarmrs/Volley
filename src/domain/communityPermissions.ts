@@ -94,3 +94,14 @@ export function deriveCommunityPermissions(input: CommunityPermissionInput): Com
 
   return permissionsForRole(activeMember?.role ?? null);
 }
+
+export function canManageSessions(input: {
+  cloud: boolean;
+  capabilities: ReadonlySet<string>;
+  resolved: boolean;
+  roleCanCreateSession: boolean;
+}): { allowed: boolean; pending: boolean } {
+  if (!input.cloud) return { allowed: input.roleCanCreateSession, pending: false };
+  if (!input.resolved) return { allowed: false, pending: true };
+  return { allowed: input.capabilities.has('session.manage'), pending: false };
+}

@@ -27,7 +27,7 @@ test('devolve as capacidades que o servidor confirma, uma a uma', async () => {
     ok: true,
     value: ['player.evaluate'],
   });
-  assert.deepEqual(perguntadas, ['player.evaluate']);
+  assert.deepEqual(perguntadas, ['player.evaluate', 'session.manage', 'community.profile.update']);
 
   const nega = { has: async () => false };
   assert.deepEqual(await loadCommunityCapabilities('c1', 'u1', nega), { ok: true, value: [] });

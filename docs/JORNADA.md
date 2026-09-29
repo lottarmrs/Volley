@@ -94,6 +94,8 @@ Uma pessoa só joga quando tem **três**, e elas são independentes:
 | 3.6 | Quantas pessoas estavam presas em produção? | Zero, por acidente histórico — os 6 donos vieram do backfill de agosto. O buraco era das comunidades **novas**. |
 | 3.7 | E se a comunidade não tem outros membros? | ✅ Quem criou já é atleta dela, então a lista nunca nasce vazia de gente elegível. |
 | 3.8 | **É a hora certa de exigir vínculo?** | Sim — e a hora de **conceder** passou a ser quando a pessoa entra no grupo, por qualquer das duas portas. |
+| 3.9 | Um convidado (atleta sem conta) pode estar em duas comunidades? | Não, desde 2026-09-29: o gatilho `zz_guard_guest_single_community` recusa o segundo vínculo ativo (`convidadoNumaComunidade.dbtest.ts`), e o convidado rápido só reaproveita convidado da mesma comunidade (`playerDuplicates.test.ts`). Quando o convidado ganha conta, a regra deixa de valer. |
+| 3.10 | Duplicar a comunidade leva o elenco? | Não, desde 2026-09-29: copia só nome e regras (`CommunityDataArea.spec.tsx`). O elenco da nova se monta de novo — convidados cadastrados lá, contas pelo convite. |
 
 ---
 

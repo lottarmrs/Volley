@@ -98,7 +98,12 @@ Estado em 2026-09-28:
   edição de atleta por terceiros saiu inteira; convidado (sem conta) é cadastrado e editado em
   Gestão → Convidados, só por dono/admin; Pessoas passou a só listar, com a carta VUT ao tocar;
   "Minha ficha" mora em `/perfil`, com envio de foto.
-- **Parte 2 — perfil do atleta e convidado numa comunidade só:** depois da parte 3.
+- **Parte 2a — convidado numa comunidade só:** feita em código em 2026-09-29
+  ([spec](superpowers/specs/2026-09-29-convidado-numa-comunidade-design.md)), aguarda publicação.
+  Gatilho `zz_guard_guest_single_community` recusa o segundo vínculo ativo de atleta sem conta;
+  o convidado rápido só reaproveita convidado da mesma comunidade e pergunta "Reativar e usar?"
+  para um desativado; "Duplicar comunidade" copia só nome e regras.
+- **Parte 2b — perfil do atleta, presença frequente, troca da própria foto (P19):** depois da 2a.
 
 ## F. Pontas soltas que contradizem as decisões de 2026-09-25 a 2026-09-28
 
@@ -107,9 +112,9 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 
 | #   | Ponta                                                                                                                  | Onde                                                  | Parte |
 | --- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----- |
-| P8  | "Duplicar com atletas" põe os mesmos atletas sem conta em outra comunidade                                              | `applyCommunityMembershipDuplicate`                   | 2     |
-| P9  | O modal de convidado reaproveita um atleta de outra comunidade                                                           | `GuestPlayerModal`, `findDuplicatePlayerByProfile`    | 2     |
-| P10 | Falta o gatilho "atleta sem conta numa comunidade só"                                                                    | spec da avaliação, item 1.6                           | 2     |
+| P8  | ✅ ~~"Duplicar com atletas" põe os mesmos atletas sem conta em outra comunidade~~ — resolvida em 2026-09-29: duplicar copia só nome e regras | `applyCommunityMembershipDuplicate`                   | 2     |
+| P9  | ✅ ~~O modal de convidado reaproveita um atleta de outra comunidade~~ — resolvida em 2026-09-29: só convidado da mesma comunidade | `GuestPlayerModal`, `findDuplicatePlayerByProfile`    | 2     |
+| P10 | ✅ ~~Falta o gatilho "atleta sem conta numa comunidade só"~~ — resolvida em 2026-09-29: gatilho em `community_players` | spec da avaliação, item 1.6                           | 2     |
 | P11 | Lixeira "Excluir histórico" sem permissão (B1); vira real quando o membro ler o histórico                                | `HistoryView.tsx`                                     | 4     |
 | P12 | Ligas globais: criar, excluir, abrir rodada e aprovar pedido sem permissão (B4)                                          | `ChampionshipDetailView`, `ChampionshipWizardView`    | 4     |
 | P13 | Torneios: "Novo torneio" e "abrir ao vivo" sem permissão (B5)                                                            | `TournamentsModule`                                   | 4     |
@@ -119,8 +124,8 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 | P17 | Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)                               | policies de `sessions`, `teams`, `games`, …           | 4     |
 | P18 | "Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin | policy de `players` / `deleted_at`                   | 4     |
 | P19 | A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta | `propose_player_avatar`, Minha ficha                  | 2     |
-| P20 | Cadastrar convidado com o perfil de um desativado cria outro registro em vez de oferecer reativar | `findDuplicatePlayerByProfile` ignora inativos        | 2     |
-| P21 | Quem encerra sessão sem poder editar convidado (moderador, organizador) marca a progressão dos convidados alheios como pendente; o servidor recusa e cada um vira um aviso, a cada sessão, e a mudança fica só naquele aparelho | `progression.ts`, `rating.ts`, laço de atletas do `syncService` | 2     |
+| P20 | ✅ ~~Cadastrar convidado com o perfil de um desativado cria outro registro em vez de oferecer reativar~~ — resolvida em 2026-09-29: o modal pergunta "Reativar e usar?" | `findDuplicatePlayerByProfile` ignora inativos        | 2     |
+| P21 | ✅ ~~Quem encerra sessão sem poder editar convidado (moderador, organizador) marca a progressão dos convidados alheios como pendente; o servidor recusa e cada um vira um aviso, a cada sessão, e a mudança fica só naquele aparelho~~ — resolvida em 2026-09-29: a recusa não vira mais aviso | `progression.ts`, `rating.ts`, laço de atletas do `syncService` | 2     |
 
 **Pendente antes do plano da parte 4:** a P17 depende de uma pergunta sem resposta desde
 2026-09-25 — o membro deve ver sessões `PRIVATE`? Hoje nada no app publica sessão

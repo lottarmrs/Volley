@@ -99,6 +99,8 @@ Nova `public.list_community_evaluation_roster(p_community_id uuid) returns jsonb
 
 ### 1.6 Atleta sem conta numa comunidade só — movido para a parte 2
 
+Entrou em 2026-09-29 com `2026-09-29-convidado-numa-comunidade-design.md`.
+
 Decidido com o usuário em 2026-09-25, ao escrever o plano. O gatilho em `community_players`
 quebraria dois fluxos que existem hoje: **duplicar com atletas** põe os mesmos atletas na comunidade
 nova, e o **modal de convidado** reaproveita um atleta de outra comunidade

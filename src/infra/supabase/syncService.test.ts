@@ -2811,7 +2811,7 @@ test('uploadLocalDataToCloud sobe convidado criado por outra pessoa da equipe se
   }
 });
 
-test('uploadLocalDataToCloud: convidado recusado pelo servidor fica pendente e nao derruba os outros', async () => {
+test('uploadLocalDataToCloud: convidado pendente recusado pelo servidor avisa uma vez, sai sincronizado e nao derruba os outros', async () => {
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
   const issues: string[] = [];
@@ -2848,7 +2848,8 @@ test('uploadLocalDataToCloud: convidado recusado pelo servidor fica pendente e n
 
     const alheio = result.players.find((player) => player.id === 'convidado-alheio');
     const meu = result.players.find((player) => player.id === 'meu');
-    assert.equal(alheio?.syncStatus, 'pending');
+    assert.equal(alheio?.syncStatus, 'synced');
+    assert.equal(alheio?.cloudOwnerId, 'dono');
     assert.equal(meu?.syncStatus, 'synced');
     assert.equal(issues.length, 1);
     assert.match(issues[0], /Convidado Alheio/);
@@ -2905,6 +2906,146 @@ test('uploadLocalDataToCloud exclui convidado de outra pessoa da equipe e avisa 
   } finally {
     restoreConsole();
     playerCloudService.softDelete = originalSoftDelete;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('uploadLocalDataToCloud nao sobe convidado de outra pessoa ja sincronizado', async () => {
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const issues: string[] = [];
+
+  try {
+    playerCloudService.upsert = async () => {
+      assert.fail('nao deveria subir convidado alheio sem mudanca local');
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        players: [
+          makeSyncPlayer({
+            id: 'convidado-alheio',
+            cloudId: 'cloud-alheio',
+            cloudOwnerId: 'organizador',
+            userId: undefined,
+            syncStatus: 'synced',
+          }),
+        ],
+      }),
+      'membro-comum',
+      { onIssue: (context) => issues.push(context) },
+    );
+
+    assert.equal(issues.length, 0);
+    assert.equal(result.players[0].syncStatus, 'synced');
+    assert.equal(result.players[0].cloudOwnerId, 'organizador');
+  } finally {
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('syncNow de membro comum nao sobe convidado alheio sincronizado nem gera aviso', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const issues: string[] = [];
+  const convidado = makeSyncPlayer({
+    id: 'convidado-alheio',
+    cloudId: 'cloud-alheio',
+    cloudOwnerId: 'organizador',
+    userId: undefined,
+    updatedAt: '2026-09-20T10:00:00.000Z',
+    syncStatus: 'synced',
+  });
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload({ players: [convidado] });
+    playerCloudService.upsert = async () => {
+      assert.fail('nao deveria subir convidado alheio sem mudanca local');
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const first = await syncService.syncNow(
+      emptyPayload({ players: [convidado] }),
+      'membro-comum',
+      {
+        onIssue: (context) => issues.push(context),
+      },
+    );
+    await syncService.syncNow(first, 'membro-comum', {
+      onIssue: (context) => issues.push(context),
+    });
+
+    assert.equal(issues.length, 0);
+    assert.equal(first.players[0].syncStatus, 'synced');
+  } finally {
+    syncService.downloadCloudDataToLocal = originalDownload;
+    playerCloudService.upsert = originalUpsert;
+    playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
+  }
+});
+
+test('syncNow: convidado alheio pendente recusado avisa uma vez e nao volta a subir no sync seguinte', async () => {
+  const originalDownload = syncService.downloadCloudDataToLocal;
+  const originalUpsert = playerCloudService.upsert;
+  const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
+  const issues: string[] = [];
+  let tentativas = 0;
+  const restoreConsole = silenceConsoleError();
+  const naNuvem = makeSyncPlayer({
+    id: 'convidado-alheio',
+    cloudId: 'cloud-alheio',
+    cloudOwnerId: 'organizador',
+    userId: undefined,
+    nome: 'Convidado Alheio',
+    updatedAt: '2026-09-20T10:00:00.000Z',
+    syncStatus: 'synced',
+  });
+
+  try {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload({ players: [naNuvem] });
+    playerCloudService.upsert = async () => {
+      tentativas += 1;
+      throw Object.assign(new Error('new row violates row-level security policy'), {
+        code: '42501',
+      });
+    };
+    playerEvaluationCloudService.bulkUpsertForPlayers = async () => ({
+      omittedForTargetCohort: [],
+    });
+
+    const first = await syncService.syncNow(
+      emptyPayload({
+        players: [
+          {
+            ...naNuvem,
+            apelido: 'Editado',
+            updatedAt: '2026-09-28T10:00:00.000Z',
+            syncStatus: 'pending',
+          },
+        ],
+      }),
+      'membro-comum',
+      { onIssue: (context) => issues.push(context) },
+    );
+    await syncService.syncNow(first, 'membro-comum', {
+      onIssue: (context) => issues.push(context),
+    });
+
+    assert.equal(tentativas, 1);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0], /Convidado Alheio/);
+    assert.equal(first.players[0].syncStatus, 'synced');
+  } finally {
+    restoreConsole();
+    syncService.downloadCloudDataToLocal = originalDownload;
+    playerCloudService.upsert = originalUpsert;
     playerEvaluationCloudService.bulkUpsertForPlayers = originalBulkEvaluations;
   }
 });

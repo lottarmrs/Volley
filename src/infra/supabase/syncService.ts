@@ -574,10 +574,19 @@ export function mergeEntityLists<T extends Syncable>(
   return merged;
 }
 
+function findSamePlayer(player: Player, candidates: Player[]): Player | undefined {
+  const norm = (value: string | undefined) => value?.trim().toLowerCase() || '';
+  if (player.cloudId) {
+    return candidates.find((candidate) => norm(candidate.cloudId) === norm(player.cloudId));
+  }
+  return candidates.find((candidate) => norm(candidate.id) === norm(player.id));
+}
+
 export function applyServerOwnedAthleteFields(
   players: Player[],
   cloudPlayers: Player[],
   ownerId: string,
+  localPlayers: Player[] = [],
 ): Player[] {
   const norm = (value: string | undefined) => value?.trim().toLowerCase() || '';
   return players.map((player) => {
@@ -587,7 +596,15 @@ export function applyServerOwnedAthleteFields(
         (!!player.cloudId && norm(candidate.cloudId) === norm(player.cloudId)) ||
         norm(candidate.id) === norm(player.id),
     );
-    if (!cloud || cloud.deletedAt || !cloud.userId) return player;
+    if (!cloud || cloud.deletedAt) return player;
+    if (!cloud.userId) {
+      const isTeamGuest = !!cloud.cloudOwnerId && cloud.cloudOwnerId !== ownerId;
+      const local = findSamePlayer(player, localPlayers);
+      if (isTeamGuest && !player.userId && local?.syncStatus === 'synced') {
+        return { ...player, syncStatus: 'synced' };
+      }
+      return player;
+    }
     if (cloud.userId !== ownerId) {
       return { ...preserveLocalIdentity(cloud, player), syncStatus: 'synced' };
     }
@@ -606,6 +623,11 @@ export function applyServerOwnedAthleteFields(
 
 function targetPlayModeForSession(session: Session): TargetSessionPlayMode {
   return session.type === 'tournament' ? 'STRUCTURED_MATCHES' : 'FREE_PLAY';
+}
+
+function isPermissionRefusal(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === '42501' || code === 'PGRST116';
 }
 
 function markSynced<T extends Syncable>(
@@ -1042,6 +1064,11 @@ export const syncService = {
   ): Promise<LocalSyncPayload> {
     const onIssue = options.onIssue || (() => {});
     const syncedAt = nowIso();
+    const pendingPlayerIds = new Set(
+      local.players
+        .filter((player) => player.syncStatus === 'pending')
+        .map((player) => normalizeIdValue(player.id)),
+    );
     local = consolidateDuplicateRecords(local, { ownerId }).payload;
 
     const updatedCommunities: Community[] = [];
@@ -1077,12 +1104,11 @@ export const syncService = {
     let updatedPlayers: Player[] = [];
     for (const player of local.players) {
       const playerForUpload = repairLegacyPlayerUnlinkIntent(player);
+      const isTeamGuest =
+        !playerForUpload.userId &&
+        !!playerForUpload.cloudOwnerId &&
+        playerForUpload.cloudOwnerId !== ownerId;
       try {
-        const isTeamGuest =
-          !playerForUpload.userId &&
-          !!playerForUpload.cloudOwnerId &&
-          playerForUpload.cloudOwnerId !== ownerId;
-
         if (playerForUpload.deletedAt) {
           const canDeleteGlobalPlayer =
             playerForUpload.cloudId &&
@@ -1112,7 +1138,10 @@ export const syncService = {
           !!playerForUpload.cloudOwnerId &&
           playerForUpload.cloudOwnerId !== ownerId;
 
-        if (isSharedPlayer) {
+        if (
+          isSharedPlayer ||
+          (isTeamGuest && !pendingPlayerIds.has(normalizeIdValue(playerForUpload.id)))
+        ) {
           updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
           continue;
         }
@@ -1129,6 +1158,16 @@ export const syncService = {
           ),
         );
       } catch (error) {
+        if (isTeamGuest && !playerForUpload.deletedAt && isPermissionRefusal(error)) {
+          onIssue(
+            `atleta "${player.nome}"`,
+            new Error(
+              'O servidor recusou a edição deste convidado: só o dono ou um admin da comunidade pode editá-lo. A versão da nuvem volta no próximo sync.',
+            ),
+          );
+          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
+          continue;
+        }
         onIssue(`atleta "${player.nome}"`, error);
         updatedPlayers.push(playerForUpload);
       }
@@ -1843,6 +1882,7 @@ export const syncService = {
         }),
         cloud.players,
         ownerId,
+        local.players,
       ),
       rules: mergeEntityLists(repairedLocal.rules, cloud.rules, {
         getId: (item) => item.communityId,

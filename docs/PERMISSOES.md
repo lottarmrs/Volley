@@ -117,6 +117,9 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 | P15 | "Quem organiza" vazio para o atleta, e o nome de quem organiza nunca aparece (B9)                                        | `RegistrationBoardView`, `sessionRoutes.tsx`          | 4     |
 | P16 | Marcar pelada decidido pelo cargo, não pela responsabilidade `ORGANIZER` (A1, A2)                                        | `canCreateSession` e as telas que o usam              | 4     |
 | P17 | Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)                               | policies de `sessions`, `teams`, `games`, …           | 4     |
+| P18 | "Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin | policy de `players` / `deleted_at`                   | 4     |
+| P19 | A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta | `propose_player_avatar`, Minha ficha                  | 2     |
+| P20 | Cadastrar convidado com o perfil de um desativado cria outro registro em vez de oferecer reativar | `findDuplicatePlayerByProfile` ignora inativos        | 2     |
 
 **Pendente antes do plano da parte 4:** a P17 depende de uma pergunta sem resposta desde
 2026-09-25 — o membro deve ver sessões `PRIVATE`? Hoje nada no app publica sessão

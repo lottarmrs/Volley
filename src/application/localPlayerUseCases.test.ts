@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyGuestActiveChange,
+  applyGuestDeletion,
   applyLocalPlayerDeletion,
   applyGuestPlayerUpsert,
   applyGuestProfileSave,
@@ -246,4 +248,127 @@ test('isForeignAccountPlayer', () => {
   assert.equal(isForeignAccountPlayer({ ...makeGuest('a'), userId: 'u1' }, 'u2'), true);
   assert.equal(isForeignAccountPlayer({ ...makeGuest('a'), userId: 'u1' }, 'u1'), false);
   assert.equal(isForeignAccountPlayer(makeGuest('a'), 'u1'), false);
+});
+
+test('applyGuestActiveChange desativa o convidado para dono ou admin e marca pendente', () => {
+  const guest = { ...makeGuest('g1'), updatedAt: '2026-07-01T00:00:00.000Z' };
+  const result = applyGuestActiveChange({
+    players: [guest],
+    playerId: 'g1',
+    ativo: false,
+    canEdit: true,
+    currentUserId: 'u1',
+    now,
+  });
+
+  assert.ok(result.ok);
+  if (!result.ok) return;
+  assert.equal(result.value[0].ativo, false);
+  assert.equal(result.value[0].syncStatus, 'pending');
+  assert.equal(result.value[0].updatedAt, now);
+  assert.equal(result.value[0].metadata.atualizadoEm, now);
+  assert.equal(result.value[0].deletedAt, undefined);
+});
+
+test('applyGuestActiveChange reativa o convidado', () => {
+  const result = applyGuestActiveChange({
+    players: [{ ...makeGuest('g1'), ativo: false }],
+    playerId: 'g1',
+    ativo: true,
+    canEdit: true,
+    currentUserId: 'u1',
+    now,
+  });
+
+  assert.ok(result.ok);
+  if (!result.ok) return;
+  assert.equal(result.value[0].ativo, true);
+  assert.equal(result.value[0].syncStatus, 'pending');
+});
+
+test('applyGuestActiveChange recusa sem permissao e recusa ficha com conta', () => {
+  const semPermissao = applyGuestActiveChange({
+    players: [makeGuest('g1')],
+    playerId: 'g1',
+    ativo: false,
+    canEdit: false,
+    currentUserId: 'u1',
+    now,
+  });
+  assert.equal(semPermissao.ok, false);
+
+  const comConta = applyGuestActiveChange({
+    players: [{ ...makeGuest('g1'), userId: 'conta-1' }],
+    playerId: 'g1',
+    ativo: false,
+    canEdit: true,
+    currentUserId: 'u1',
+    now,
+  });
+  assert.equal(comConta.ok, false);
+});
+
+test('applyGuestDeletion so o dono exclui, e nunca ficha com conta', () => {
+  const admin = applyGuestDeletion({
+    players: [makeGuest('g1')],
+    playerId: 'g1',
+    isOwner: false,
+    currentUserId: 'u1',
+    usage: { hasHistory: false },
+    now,
+  });
+  assert.equal(admin.ok, false);
+  if (!admin.ok) assert.equal(admin.error.kind, 'product');
+
+  const comConta = applyGuestDeletion({
+    players: [{ ...makeGuest('g1'), userId: 'conta-1' }],
+    playerId: 'g1',
+    isOwner: true,
+    currentUserId: 'u1',
+    usage: { hasHistory: false },
+    now,
+  });
+  assert.equal(comConta.ok, false);
+});
+
+test('applyGuestDeletion do dono segue a regra de historico de applyLocalPlayerDeletion', () => {
+  const naNuvem = applyGuestDeletion({
+    players: [{ ...makeGuest('g1'), cloudId: 'cloud-g1', ativo: false }],
+    playerId: 'g1',
+    isOwner: true,
+    currentUserId: 'u1',
+    usage: { hasHistory: true },
+    now,
+  });
+  assert.ok(naNuvem.ok);
+  if (!naNuvem.ok) return;
+  assert.equal(naNuvem.value.outcome, 'removed');
+  assert.equal(naNuvem.value.players[0].deletedAt, now);
+
+  const localComHistorico = applyGuestDeletion({
+    players: [{ ...makeGuest('g1'), ativo: false }],
+    playerId: 'g1',
+    isOwner: true,
+    currentUserId: 'u1',
+    usage: { hasHistory: true },
+    now,
+  });
+  assert.ok(localComHistorico.ok);
+  if (!localComHistorico.ok) return;
+  assert.equal(localComHistorico.value.outcome, 'deactivated');
+  assert.equal(localComHistorico.value.players.length, 1);
+  assert.equal(localComHistorico.value.players[0].ativo, false);
+
+  const localSemHistorico = applyGuestDeletion({
+    players: [{ ...makeGuest('g1'), ativo: false }],
+    playerId: 'g1',
+    isOwner: true,
+    currentUserId: 'u1',
+    usage: { hasHistory: false },
+    now,
+  });
+  assert.ok(localSemHistorico.ok);
+  if (!localSemHistorico.ok) return;
+  assert.equal(localSemHistorico.value.outcome, 'removed');
+  assert.equal(localSemHistorico.value.players.length, 0);
 });

@@ -4,8 +4,9 @@ import { INITIAL_PLAYERS } from '../constants';
 import { STORAGE_KEYS, saveToStorage } from '../storage/localStorageRepository';
 import { generateUUID } from '../logic/uuid';
 import {
+  applyGuestActiveChange,
+  applyGuestDeletion,
   applyGuestProfileSave,
-  applyLocalPlayerDeletion,
   isForeignAccountPlayer,
 } from '../application/localPlayerUseCases';
 import type { AthleteProfileDraft } from '../domain/athleteProfile';
@@ -145,29 +146,60 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
       playerId: string;
       canEdit: boolean;
       currentUserId: string | null;
-    }): AppResult<'removed' | 'deactivated'> => {
-      const existing = players.find((player) => player.id === input.playerId);
-      if (!existing) return productError('not_found', 'Atleta nao encontrado.');
-      if (existing.userId || isForeignAccountPlayer(existing, input.currentUserId)) {
-        return productError('permission_denied', 'Esta ficha pertence a uma conta.');
-      }
-      if (!input.canEdit) {
-        return productError('permission_denied', 'Voce nao pode remover esta ficha.');
-      }
-
-      const usage = getPlayerHistoryUsage(input.playerId);
-      const now = new Date().toISOString();
-      const updated = applyLocalPlayerDeletion({
+    }): AppResult<'deactivated'> => {
+      const result = applyGuestActiveChange({
         players,
         playerId: input.playerId,
-        usage,
-        now,
+        ativo: false,
+        canEdit: input.canEdit,
+        currentUserId: input.currentUserId,
+        now: new Date().toISOString(),
       });
+      if (!result.ok) return result;
+      setPlayers(result.value);
+      return appOk('deactivated');
+    },
+    [players],
+  );
 
-      setPlayers(updated);
-      const outcome: 'removed' | 'deactivated' =
-        !existing.cloudId && usage.hasHistory ? 'deactivated' : 'removed';
-      return appOk(outcome);
+  const reactivateGuestPlayer = useCallback(
+    (input: {
+      playerId: string;
+      canEdit: boolean;
+      currentUserId: string | null;
+    }): AppResult<'reactivated'> => {
+      const result = applyGuestActiveChange({
+        players,
+        playerId: input.playerId,
+        ativo: true,
+        canEdit: input.canEdit,
+        currentUserId: input.currentUserId,
+        now: new Date().toISOString(),
+      });
+      if (!result.ok) return result;
+      setPlayers(result.value);
+      return appOk('reactivated');
+    },
+    [players],
+  );
+
+  const deleteGuestPlayer = useCallback(
+    (input: {
+      playerId: string;
+      isOwner: boolean;
+      currentUserId: string | null;
+    }): AppResult<'removed' | 'deactivated'> => {
+      const result = applyGuestDeletion({
+        players,
+        playerId: input.playerId,
+        isOwner: input.isOwner,
+        currentUserId: input.currentUserId,
+        usage: getPlayerHistoryUsage(input.playerId),
+        now: new Date().toISOString(),
+      });
+      if (!result.ok) return result;
+      setPlayers(result.value.players);
+      return appOk(result.value.outcome);
     },
     [players, getPlayerHistoryUsage],
   );
@@ -191,6 +223,8 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     getPlayerHistoryUsage,
     saveGuestPlayer,
     removeGuestPlayer,
+    reactivateGuestPlayer,
+    deleteGuestPlayer,
     handleRestoreDemoPlayers,
   };
 }

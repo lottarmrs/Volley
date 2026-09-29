@@ -84,6 +84,69 @@ export function applyLocalPlayerDeletion(input: {
   return input.players.filter((item) => item.id !== input.playerId);
 }
 
+export function applyGuestActiveChange(input: {
+  players: Player[];
+  playerId: string;
+  ativo: boolean;
+  canEdit: boolean;
+  currentUserId: string | null;
+  now: string;
+}): AppResult<Player[]> {
+  const existing = input.players.find((player) => player.id === input.playerId);
+  if (!existing) return productError('not_found', 'Atleta não encontrado.');
+  if (existing.userId || isForeignAccountPlayer(existing, input.currentUserId)) {
+    return productError('permission_denied', 'Esta ficha pertence a uma conta.');
+  }
+  if (!input.canEdit) {
+    return productError(
+      'permission_denied',
+      input.ativo ? 'Você não pode reativar esta ficha.' : 'Você não pode desativar esta ficha.',
+    );
+  }
+
+  return appOk(
+    input.players.map((player) =>
+      player.id === input.playerId
+        ? {
+            ...player,
+            ativo: input.ativo,
+            syncStatus: 'pending' as const,
+            updatedAt: input.now,
+            metadata: { ...player.metadata, atualizadoEm: input.now },
+          }
+        : player,
+    ),
+  );
+}
+
+export function applyGuestDeletion(input: {
+  players: Player[];
+  playerId: string;
+  isOwner: boolean;
+  currentUserId: string | null;
+  usage: { hasHistory: boolean };
+  now: string;
+}): AppResult<{ players: Player[]; outcome: 'removed' | 'deactivated' }> {
+  const existing = input.players.find((player) => player.id === input.playerId);
+  if (!existing) return productError('not_found', 'Atleta não encontrado.');
+  if (existing.userId || isForeignAccountPlayer(existing, input.currentUserId)) {
+    return productError('permission_denied', 'Esta ficha pertence a uma conta.');
+  }
+  if (!input.isOwner) {
+    return productError('permission_denied', 'Só o dono da comunidade pode excluir um convidado.');
+  }
+
+  const players = applyLocalPlayerDeletion({
+    players: input.players,
+    playerId: input.playerId,
+    usage: input.usage,
+    now: input.now,
+  });
+  const outcome: 'removed' | 'deactivated' =
+    !existing.cloudId && input.usage.hasHistory ? 'deactivated' : 'removed';
+  return appOk({ players, outcome });
+}
+
 export function isForeignAccountPlayer(player: Player, currentUserId: string | null): boolean {
   return !!player.userId && player.userId !== currentUserId;
 }

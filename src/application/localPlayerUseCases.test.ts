@@ -70,7 +70,7 @@ test('buildDefaultCommunityPlayer creates a local player with defaults and commu
 });
 
 test('applyGuestPlayerUpsert reuses duplicate guests and appends new guests', () => {
-  const existing = player('player-1', 'Convidado');
+  const existing = player('player-1', 'Convidado', ['community-1']);
   const duplicateGuest = { ...player('guest-1', 'Convidado'), isGuest: true };
   const newGuest = { ...player('guest-2', 'Visitante'), isGuest: true };
 
@@ -94,6 +94,31 @@ test('applyGuestPlayerUpsert nunca reaproveita atleta com conta como convidado d
   assert.equal(result.wasCreated, true);
   assert.equal(result.selectedPlayer.id, 'guest-3');
   assert.equal(result.players.length, 2);
+});
+
+test('applyGuestPlayerUpsert nao reaproveita convidado de outra comunidade', () => {
+  const deOutra = player('player-outra', 'Convidado', ['community-2']);
+  const novo = { ...player('guest-9', 'Convidado', ['community-1']), isGuest: true };
+  const result = applyGuestPlayerUpsert([deOutra], novo, 'community-1');
+  assert.equal(result.wasCreated, true);
+  assert.deepEqual(result.selectedPlayer.communityIds, ['community-1']);
+  assert.deepEqual(result.players.find((p) => p.id === 'player-outra')?.communityIds, [
+    'community-2',
+  ]);
+});
+
+test('applyGuestPlayerUpsert com duplicado desativado cria outro', () => {
+  const desativado = { ...player('player-off', 'Convidado', ['community-1']), ativo: false };
+  const novo = { ...player('guest-10', 'Convidado', ['community-1']), isGuest: true };
+  const result = applyGuestPlayerUpsert([desativado], novo, 'community-1');
+  assert.equal(result.wasCreated, true);
+  assert.equal(result.selectedPlayer.id, 'guest-10');
+});
+
+test('applyGuestPlayerUpsert grava o convidado so na comunidade da pelada', () => {
+  const novo = { ...player('guest-11', 'Visitante', ['community-2']), isGuest: true };
+  const result = applyGuestPlayerUpsert([], novo, 'community-1');
+  assert.deepEqual(result.selectedPlayer.communityIds, ['community-1']);
 });
 
 test('applyGuestPlayerUpsert vincula o convidado à comunidade sem duplicar ids', () => {

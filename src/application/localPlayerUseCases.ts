@@ -1,5 +1,5 @@
 import type { Gender, Player, Position } from '../types';
-import { findDuplicatePlayerByProfile } from '../logic/playerDuplicates';
+import { findGuestMatchInCommunity } from '../logic/playerDuplicates';
 import type { AthleteProfileDraft } from '../domain/athleteProfile';
 import { levelFromAttributes, validateAthleteProfile } from '../domain/athleteProfile';
 import { buildLevelAttributes } from './quickStart';
@@ -220,11 +220,8 @@ export function applyGuestPlayerUpsert(
   guestPlayer: Player,
   communityId: string,
 ): { players: Player[]; selectedPlayer: Player; wasCreated: boolean } {
-  const duplicate = findDuplicatePlayerByProfile(players, guestPlayer);
-  if (duplicate) return { players, selectedPlayer: duplicate, wasCreated: false };
-  const selectedPlayer: Player = {
-    ...guestPlayer,
-    communityIds: Array.from(new Set([...(guestPlayer.communityIds ?? []), communityId])),
-  };
+  const match = findGuestMatchInCommunity(players, guestPlayer, communityId);
+  if (match && match.ativo !== false) return { players, selectedPlayer: match, wasCreated: false };
+  const selectedPlayer: Player = { ...guestPlayer, communityIds: [communityId] };
   return { players: [...players, selectedPlayer], selectedPlayer, wasCreated: true };
 }

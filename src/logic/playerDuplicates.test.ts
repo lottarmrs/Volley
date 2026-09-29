@@ -1,39 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makePlayer } from '../test/fixtures';
-import { findDuplicatePlayerByProfile } from './playerDuplicates';
+import { findGuestMatchInCommunity } from './playerDuplicates';
 
-test('findDuplicatePlayerByProfile matches active players by normalized profile', () => {
-  const existing = makePlayer('player-existing', {
-    nome: 'Vitur',
-    genero: 'M',
-    posicaoPrincipal: 'oposto',
-    alturaCm: 176,
-  });
-  const candidate = makePlayer('player-new', {
-    nome: ' vitur ',
-    genero: 'M',
-    posicaoPrincipal: 'oposto',
-    alturaCm: 176,
-  });
+const perfil = {
+  nome: 'Vitur',
+  genero: 'M' as const,
+  posicaoPrincipal: 'oposto' as const,
+  alturaCm: 176,
+};
+const candidato = makePlayer('novo', { ...perfil, nome: ' vitur ' });
 
-  assert.equal(findDuplicatePlayerByProfile([existing], candidate)?.id, 'player-existing');
+test('acha convidado de mesmo perfil na mesma comunidade', () => {
+  const g = makePlayer('g', { ...perfil, communityIds: ['c1'] });
+  assert.equal(findGuestMatchInCommunity([g], candidato, 'c1')?.id, 'g');
 });
 
-test('findDuplicatePlayerByProfile ignora atleta com conta de mesmo perfil', () => {
-  const comConta = makePlayer('player-conta', {
-    nome: 'Vitur',
-    genero: 'M',
-    posicaoPrincipal: 'oposto',
-    alturaCm: 176,
-    userId: 'conta-1',
-  });
-  const candidate = makePlayer('player-new', {
-    nome: 'Vitur',
-    genero: 'M',
-    posicaoPrincipal: 'oposto',
-    alturaCm: 176,
-  });
+test('acha tambem o desativado', () => {
+  const g = makePlayer('g', { ...perfil, communityIds: ['c1'], ativo: false });
+  assert.equal(findGuestMatchInCommunity([g], candidato, 'c1')?.id, 'g');
+});
 
-  assert.equal(findDuplicatePlayerByProfile([comConta], candidate), undefined);
+test('nunca acha de outra comunidade, com conta ou apagado', () => {
+  const outra = makePlayer('o', { ...perfil, communityIds: ['c2'] });
+  const conta = makePlayer('k', { ...perfil, communityIds: ['c1'], userId: 'u1' });
+  const apagado = makePlayer('x', {
+    ...perfil,
+    communityIds: ['c1'],
+    deletedAt: '2026-09-01T00:00:00.000Z',
+  });
+  assert.equal(findGuestMatchInCommunity([outra, conta, apagado], candidato, 'c1'), undefined);
+});
+
+test('sem nome nao acha nada', () => {
+  const g = makePlayer('g', { ...perfil, communityIds: ['c1'] });
+  assert.equal(findGuestMatchInCommunity([g], { ...candidato, nome: '  ' }, 'c1'), undefined);
 });

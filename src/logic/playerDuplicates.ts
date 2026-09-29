@@ -15,9 +15,10 @@ export function duplicatePlayerProfileKey(
   ].join(':');
 }
 
-export function findDuplicatePlayerByProfile(
+export function findGuestMatchInCommunity(
   players: Player[],
   candidate: Pick<Player, 'id' | 'nome' | 'genero' | 'posicaoPrincipal' | 'alturaCm'>,
+  communityId: string,
 ) {
   const candidateKey = duplicatePlayerProfileKey(candidate);
   if (!candidateKey) return undefined;
@@ -27,7 +28,7 @@ export function findDuplicatePlayerByProfile(
       player.id !== candidate.id &&
       !player.userId &&
       !player.deletedAt &&
-      player.ativo !== false &&
+      (player.communityIds ?? []).includes(communityId) &&
       duplicatePlayerProfileKey(player) === candidateKey,
   );
 }

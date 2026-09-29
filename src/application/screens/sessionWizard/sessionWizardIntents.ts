@@ -20,4 +20,5 @@ export type SessionWizardIntent =
   | { kind: 'addPairConstraint'; p1: string; p2: string; type: 'together' | 'separated' }
   | { kind: 'removePairConstraint'; p1: string; p2: string; type: 'together' | 'separated' }
   | { kind: 'setBestDivisions'; divisions: Division[] }
-  | { kind: 'addGuestPlayer'; player: Player; editDetails: boolean };
+  | { kind: 'addGuestPlayer'; player: Player; editDetails: boolean }
+  | { kind: 'reactivateGuestPlayer'; playerId: string; editDetails: boolean };

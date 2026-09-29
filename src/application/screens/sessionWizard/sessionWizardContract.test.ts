@@ -383,3 +383,13 @@ test('editar detalhes do convidado so aparece com a permissao de editar ficha', 
   });
   assert.equal(comPermissao.model.canEditGuestDetails, true);
 });
+
+test('reativar convidado desativado repassa ao shell', () => {
+  const chamadas: Array<[string, boolean]> = [];
+  const contract = buildSessionWizardContract({
+    ...makeInput(makeHookApi()),
+    reactivateGuestPlayer: (playerId, editDetails) => chamadas.push([playerId, editDetails]),
+  });
+  contract.dispatch({ kind: 'reactivateGuestPlayer', playerId: 'off-1', editDetails: true });
+  assert.deepEqual(chamadas, [['off-1', true]]);
+});

@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GuestPlayerModal } from './GuestPlayerModal';
 import type { Player } from '../../types';
+import { makePlayer } from '../../test/fixtures';
 
 describe('GuestPlayerModal', () => {
   it('does not render when isOpen is false', () => {
@@ -104,5 +105,104 @@ describe('GuestPlayerModal', () => {
     expect(handleAddGuest).not.toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith('Escolha o gênero do convidado.');
     alertSpy.mockRestore();
+  });
+
+  describe('convidado desativado de mesmo perfil', () => {
+    const desativado = makePlayer('off-1', {
+      nome: 'Lucas Convidado',
+      genero: 'M',
+      posicaoPrincipal: 'ponteiro',
+      communityIds: ['c1'],
+      ativo: false,
+    });
+
+    function preencher() {
+      fireEvent.change(screen.getByPlaceholderText(/ex: carlos convidado/i), {
+        target: { value: 'Lucas Convidado' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Masculino' }));
+      fireEvent.click(screen.getByRole('button', { name: /salvar convidado/i }));
+    }
+
+    it('pergunta antes de salvar e reativa quando pedido', () => {
+      const onAdd = vi.fn();
+      const onReactivate = vi.fn();
+      const onClose = vi.fn();
+      render(
+        <GuestPlayerModal
+          isOpen
+          onClose={onClose}
+          players={[desativado]}
+          onAddGuestPlayer={onAdd}
+          onReactivateGuestPlayer={onReactivate}
+          defaultCommunityId="c1"
+          canEditDetails
+        />,
+      );
+      preencher();
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Lucas Convidado está desativado nesta comunidade.',
+      );
+      expect(onAdd).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Reativar e usar' }));
+      expect(onReactivate).toHaveBeenCalledWith('off-1', false);
+      expect(onAdd).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('cadastrar outro cria um convidado novo', () => {
+      const onAdd = vi.fn();
+      render(
+        <GuestPlayerModal
+          isOpen
+          onClose={vi.fn()}
+          players={[desativado]}
+          onAddGuestPlayer={onAdd}
+          onReactivateGuestPlayer={vi.fn()}
+          defaultCommunityId="c1"
+          canEditDetails
+        />,
+      );
+      preencher();
+      fireEvent.click(screen.getByRole('button', { name: 'Cadastrar outro' }));
+      expect(onAdd).toHaveBeenCalledTimes(1);
+      expect(onAdd.mock.calls[0][0].id).not.toBe('off-1');
+      expect(onAdd.mock.calls[0][1]).toBe(false);
+    });
+
+    it('sem permissao, so oferece cadastrar outro', () => {
+      render(
+        <GuestPlayerModal
+          isOpen
+          onClose={vi.fn()}
+          players={[desativado]}
+          onAddGuestPlayer={vi.fn()}
+          onReactivateGuestPlayer={vi.fn()}
+          defaultCommunityId="c1"
+        />,
+      );
+      preencher();
+      expect(screen.getByText('Peça a quem administra para reativá-lo.')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Reativar e usar' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Cadastrar outro' })).toBeTruthy();
+    });
+
+    it('desativado de outra comunidade nao interrompe o salvar', () => {
+      const onAdd = vi.fn();
+      render(
+        <GuestPlayerModal
+          isOpen
+          onClose={vi.fn()}
+          players={[{ ...desativado, communityIds: ['c2'] }]}
+          onAddGuestPlayer={onAdd}
+          onReactivateGuestPlayer={vi.fn()}
+          defaultCommunityId="c1"
+          canEditDetails
+        />,
+      );
+      preencher();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(onAdd).toHaveBeenCalledTimes(1);
+    });
   });
 });

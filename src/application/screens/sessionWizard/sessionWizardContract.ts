@@ -56,6 +56,7 @@ export interface SessionWizardContractInput {
   communities: Community[];
   hookApi: SessionWizardHookApi;
   applyGuestPlayer: (player: Player, editDetails: boolean) => void;
+  reactivateGuestPlayer?: (playerId: string, editDetails: boolean) => void;
   canEditGuestDetails?: boolean;
 }
 
@@ -177,6 +178,9 @@ export function buildSessionWizardContract(
         return;
       case 'addGuestPlayer':
         input.applyGuestPlayer(intent.player, intent.editDetails);
+        return;
+      case 'reactivateGuestPlayer':
+        input.reactivateGuestPlayer?.(intent.playerId, intent.editDetails);
         return;
     }
   };

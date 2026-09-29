@@ -43,6 +43,12 @@ export interface ShellApi {
   deleteChampionshipAggregate: (championshipId: string) => void;
   deleteCommunityAggregate: (communityId: string) => void;
   applyGuestPlayer: (player: Player, editDetails: boolean, communityId: string) => void;
+  reactivateGuestPlayerForSession: (
+    playerId: string,
+    editDetails: boolean,
+    communityId: string,
+    canEdit: boolean,
+  ) => void;
 }
 
 export function useShell(): ShellApi {

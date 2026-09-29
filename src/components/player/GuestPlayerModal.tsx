@@ -5,12 +5,14 @@ import { calculateGeneralOverall, getAttributeLabel } from '../../logic/calculat
 import { ATTRIBUTE_TOOLTIPS } from '../../constants';
 import { generateUUID } from '../../logic/uuid';
 import { StarRating } from '../../ui/StarRating';
+import { findGuestMatchInCommunity } from '../../logic/playerDuplicates';
 
 interface GuestPlayerModalProps {
   isOpen: boolean;
   onClose: () => void;
   players: Player[];
   onAddGuestPlayer: (player: Player, editDetails: boolean) => void;
+  onReactivateGuestPlayer?: (playerId: string, editDetails: boolean) => void;
   defaultCommunityId?: string | null;
   canEditDetails?: boolean;
 }
@@ -43,6 +45,7 @@ export function GuestPlayerModal({
   onClose,
   players,
   onAddGuestPlayer,
+  onReactivateGuestPlayer,
   defaultCommunityId,
   canEditDetails = false,
 }: GuestPlayerModalProps) {
@@ -53,6 +56,11 @@ export function GuestPlayerModal({
   const [templateSearch, setTemplateSearch] = useState('');
   const [selectedTemplatePlayer, setSelectedTemplatePlayer] = useState<Player | null>(null);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const [pendenteDesativado, setPendenteDesativado] = useState<{
+    guest: Player;
+    match: Player;
+    editDetails: boolean;
+  } | null>(null);
 
   // Filter registered players for autocomplete
   const filteredTemplatePlayers = useMemo(() => {
@@ -171,16 +179,41 @@ export function GuestPlayerModal({
       updatedAt: now,
     };
 
-    onAddGuestPlayer(newGuest, editDetails);
+    const match = defaultCommunityId
+      ? findGuestMatchInCommunity(players, newGuest, defaultCommunityId)
+      : undefined;
+    if (match && match.ativo === false) {
+      setPendenteDesativado({ guest: newGuest, match, editDetails });
+      return;
+    }
 
-    // Reset state
+    onAddGuestPlayer(newGuest, editDetails);
+    limparEFechar();
+  };
+
+  const limparEFechar = () => {
     setNome('');
     setGenero(null);
     setPosicaoPrincipal('ponteiro');
     setAtributos({ ...INITIAL_ATTRIBUTES });
     setSelectedTemplatePlayer(null);
     setTemplateSearch('');
+    setPendenteDesativado(null);
     onClose();
+  };
+
+  const podeReativar = canEditDetails && Boolean(onReactivateGuestPlayer);
+
+  const reativar = () => {
+    if (!pendenteDesativado || !onReactivateGuestPlayer) return;
+    onReactivateGuestPlayer(pendenteDesativado.match.id, pendenteDesativado.editDetails);
+    limparEFechar();
+  };
+
+  const cadastrarOutro = () => {
+    if (!pendenteDesativado) return;
+    onAddGuestPlayer(pendenteDesativado.guest, pendenteDesativado.editDetails);
+    limparEFechar();
   };
 
   return (
@@ -507,8 +540,36 @@ export function GuestPlayerModal({
           </div>
         </div>
 
+        {pendenteDesativado && (
+          <div className="p-5 border-t border-base-300 bg-base-300/30">
+            <div
+              role="alert"
+              className="alert alert-warning alert-soft flex flex-col items-start gap-3"
+            >
+              <p className="text-sm font-bold">
+                {pendenteDesativado.match.nome} está desativado nesta comunidade.
+              </p>
+              {!podeReativar && <p className="text-xs">Peça a quem administra para reativá-lo.</p>}
+              <div className="flex flex-wrap gap-2">
+                {podeReativar && (
+                  <button type="button" className="btn btn-primary min-h-11" onClick={reativar}>
+                    Reativar e usar
+                  </button>
+                )}
+                <button type="button" className="btn btn-ghost min-h-11" onClick={cadastrarOutro}>
+                  Cadastrar outro
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer actions */}
-        <div className="flex flex-col sm:flex-row gap-3 p-5 border-t border-base-300 bg-base-300/30">
+        <div
+          className={`flex flex-col sm:flex-row gap-3 p-5 border-t border-base-300 bg-base-300/30 ${
+            pendenteDesativado ? 'hidden' : ''
+          }`}
+        >
           <button
             type="button"
             onClick={onClose}

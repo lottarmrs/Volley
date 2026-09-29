@@ -568,6 +568,30 @@ export function AppShell() {
     }
   };
 
+  const reactivateGuestPlayerForSession = (
+    playerId: string,
+    editDetails: boolean,
+    communityId: string,
+    canEdit: boolean,
+  ) => {
+    const result = play.reactivateGuestPlayer({
+      playerId,
+      canEdit,
+      currentUserId: auth.user?.id ?? null,
+    });
+    if (!result.ok) {
+      toasts.push(result.error.message, 'error');
+      return;
+    }
+    if (sess.activeSession && sess.activeSession.communityId === communityId) {
+      const nextSelected = [...new Set([...sess.activeSession.selectedPlayerIds, playerId])];
+      wizard.updateSession({ selectedPlayerIds: nextSelected });
+    }
+    if (editDetails) {
+      navigate(`${paths.convidados(communityId)}?editar=${playerId}`);
+    }
+  };
+
   const isGuest = isGuestAccess(auth.state);
 
   // Conversão de convidado: o acervo montado no modo local não tem dono
@@ -652,6 +676,7 @@ export function AppShell() {
     deleteChampionshipAggregate,
     deleteCommunityAggregate,
     applyGuestPlayer,
+    reactivateGuestPlayerForSession,
   };
 
   return (

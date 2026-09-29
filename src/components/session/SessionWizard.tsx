@@ -3022,6 +3022,9 @@ export function SessionWizard({ contract }: SessionWizardProps) {
         onAddGuestPlayer={(player, editDetails) =>
           dispatch({ kind: 'addGuestPlayer', player, editDetails })
         }
+        onReactivateGuestPlayer={(playerId, editDetails) =>
+          dispatch({ kind: 'reactivateGuestPlayer', playerId, editDetails })
+        }
         defaultCommunityId={activeSession?.communityId}
         canEditDetails={model.canEditGuestDetails}
       />

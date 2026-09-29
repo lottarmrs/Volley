@@ -348,6 +348,13 @@ export function SessionWizardRoute() {
         hookApi: wizard,
         applyGuestPlayer: (player, editDetails) =>
           shell.applyGuestPlayer(player, editDetails, community.id),
+        reactivateGuestPlayer: (playerId, editDetails) =>
+          shell.reactivateGuestPlayerForSession(
+            playerId,
+            editDetails,
+            community.id,
+            permissions.canEditPlayerProfile,
+          ),
         canEditGuestDetails: permissions.canEditPlayerProfile,
       })}
     />

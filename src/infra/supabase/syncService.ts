@@ -1160,12 +1160,6 @@ export const syncService = {
         );
       } catch (error) {
         if (isTeamGuest && !playerForUpload.deletedAt && isPermissionRefusal(error)) {
-          onIssue(
-            `atleta "${player.nome}"`,
-            new Error(
-              'O servidor recusou a edição deste convidado: só o dono ou um admin da comunidade pode editá-lo. A mudança fica só neste aparelho.',
-            ),
-          );
           updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
           continue;
         }

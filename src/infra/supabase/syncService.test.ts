@@ -2992,7 +2992,7 @@ test('syncNow de membro comum nao sobe convidado alheio sincronizado nem gera av
   }
 });
 
-test('syncNow: convidado alheio pendente recusado avisa uma vez e nao volta a subir no sync seguinte', async () => {
+test('syncNow: convidado alheio pendente recusado sai synced, sem aviso, e nao volta a subir', async () => {
   const originalDownload = syncService.downloadCloudDataToLocal;
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
@@ -3040,8 +3040,7 @@ test('syncNow: convidado alheio pendente recusado avisa uma vez e nao volta a su
     });
 
     assert.equal(tentativas, 1);
-    assert.equal(issues.length, 1);
-    assert.match(issues[0], /Convidado Alheio/);
+    assert.equal(issues.length, 0);
     assert.equal(first.players[0].syncStatus, 'synced');
   } finally {
     restoreConsole();

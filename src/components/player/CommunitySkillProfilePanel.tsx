@@ -27,7 +27,7 @@ const dimensionLabels: Record<string, string> = {
   controleEmocional: 'Controle emocional',
 };
 
-const ProfileResult: React.FC<{ communityId: string; playerId: string }> = ({
+export const CommunitySkillProfileResult: React.FC<{ communityId: string; playerId: string }> = ({
   communityId,
   playerId,
 }) => {
@@ -178,7 +178,7 @@ const PanelForPlayer: React.FC<{
         )}
       </div>
       {request > 0 && selected && (
-        <ProfileResult
+        <CommunitySkillProfileResult
           key={`${communityId}:${request}:${refreshVersion}`}
           communityId={communityId}
           playerId={playerCloudId}

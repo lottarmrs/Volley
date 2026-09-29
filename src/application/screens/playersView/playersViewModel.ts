@@ -2,6 +2,8 @@ import type { Community, Game, Player, PointEvent, Session, Team } from '@shared
 
 export interface CommunityRosterContext {
   community: Community;
+  canEvaluate?: boolean;
+  currentUserId?: string | null;
 }
 
 export interface PlayersViewModel {

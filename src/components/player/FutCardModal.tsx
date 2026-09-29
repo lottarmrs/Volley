@@ -16,8 +16,10 @@ import {
   Image as ImageIcon,
   Medal,
   History,
+  ClipboardCheck,
 } from 'lucide-react';
 import { FutCard } from './FutCard';
+import { CommunitySkillProfileResult } from './CommunitySkillProfilePanel';
 import { CareerTimeline } from './CareerTimeline';
 import { usePlayerCareer } from '../../hooks/usePlayerCareer';
 import { careerStatsFromTotals } from '../../logic/career';
@@ -42,9 +44,18 @@ interface FutCardModalProps {
   teams: Team[];
   games: Game[];
   pointEvents: PointEvent[];
+  communityId?: string | null;
+  canSeeEvaluation?: boolean;
 }
 
-type MobileTab = 'card' | 'evolution' | 'album' | 'carreira' | 'collection' | 'export';
+type MobileTab =
+  | 'card'
+  | 'evolution'
+  | 'album'
+  | 'carreira'
+  | 'avaliacao'
+  | 'collection'
+  | 'export';
 
 const DEFAULT_FRAME_PREVIEW: CardFrame = {
   id: 'default',
@@ -111,6 +122,8 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   teams,
   games,
   pointEvents,
+  communityId = null,
+  canSeeEvaluation = false,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [includeHistory, setIncludeHistory] = useState(true);
@@ -126,11 +139,22 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   // fingir que a carreira esta vazia.
   const career = usePlayerCareer({ playerCloudId: player.cloudId, enabled: isOpen });
 
+  const showEvaluation = Boolean(canSeeEvaluation && communityId && player.cloudId);
+
   const tabItems: { key: MobileTab; label: string; icon: React.ReactNode }[] = [
     { key: 'card', label: 'Card', icon: <Star className="w-3.5 h-3.5" /> },
     { key: 'evolution', label: 'Evolucao', icon: <TrendingUp className="w-3.5 h-3.5" /> },
     { key: 'album', label: 'Album', icon: <Trophy className="w-3.5 h-3.5" /> },
     { key: 'carreira', label: 'Carreira', icon: <History className="w-3.5 h-3.5" /> },
+    ...(showEvaluation
+      ? [
+          {
+            key: 'avaliacao' as const,
+            label: 'Avaliação',
+            icon: <ClipboardCheck className="w-3.5 h-3.5" />,
+          },
+        ]
+      : []),
     { key: 'collection', label: 'Colecao', icon: <Layers className="w-3.5 h-3.5" /> },
     { key: 'export', label: 'Exportar', icon: <Share2 className="w-3.5 h-3.5" /> },
   ];
@@ -763,6 +787,18 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     </div>
   );
 
+  const renderEvaluation = () => (
+    <div className="space-y-3">
+      <p className="text-xs text-base-content/70">
+        Média por fundamento nesta comunidade. Quem avaliou não aparece.
+      </p>
+      <CommunitySkillProfileResult
+        communityId={communityId ?? ''}
+        playerId={player.cloudId ?? ''}
+      />
+    </div>
+  );
+
   const renderCareer = () => {
     const stats = careerStatsFromTotals(career.totals);
     // Sem cloudId o jogador nunca sincronizou: nao existe carreira CONFIRMADA para ele.
@@ -1053,6 +1089,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           {mobileTab === 'evolution' && renderEvolution()}
           {mobileTab === 'album' && renderAchievements()}
           {mobileTab === 'carreira' && renderCareer()}
+          {mobileTab === 'avaliacao' && showEvaluation && renderEvaluation()}
           {mobileTab === 'collection' && renderCollection()}
           {mobileTab === 'export' && renderExportConfig()}
         </div>
@@ -1102,6 +1139,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
             {(mobileTab === 'card' || mobileTab === 'evolution') && renderEvolution()}
             {mobileTab === 'album' && renderAchievements()}
             {mobileTab === 'carreira' && renderCareer()}
+            {mobileTab === 'avaliacao' && showEvaluation && renderEvaluation()}
             {mobileTab === 'collection' && renderCollection()}
             {mobileTab === 'export' && renderExportConfig()}
           </div>

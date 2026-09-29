@@ -164,6 +164,12 @@ export const PlayersView = ({
           teams={teams}
           games={games}
           pointEvents={pointEvents}
+          communityId={roster?.community.cloudId ?? null}
+          canSeeEvaluation={Boolean(
+            roster &&
+            (roster.canEvaluate ||
+              (selectedVutPlayer.userId && selectedVutPlayer.userId === roster.currentUserId)),
+          )}
         />
       )}
     </div>

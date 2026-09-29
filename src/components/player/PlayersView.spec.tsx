@@ -7,12 +7,19 @@ import { PlayersView } from './PlayersView';
 
 const community = { id: 'c1', name: 'Panelinha' } as Community;
 
-function renderView(players = [makePlayer('p1', { nome: 'Ana Souza', communityIds: ['c1'] })]) {
+function renderView(
+  players = [makePlayer('p1', { nome: 'Ana Souza', communityIds: ['c1'] })],
+  roster: { canEvaluate?: boolean; currentUserId?: string | null; cloudId?: string } = {},
+) {
   const onBack = vi.fn();
   render(
     <PlayersView
       contract={buildPlayersViewContract({
-        roster: { community },
+        roster: {
+          community: roster.cloudId ? { ...community, cloudId: roster.cloudId } : community,
+          canEvaluate: roster.canEvaluate,
+          currentUserId: roster.currentUserId,
+        },
         players,
         communities: [community],
         games: [],
@@ -60,5 +67,36 @@ describe('PlayersView', () => {
 
     expect(screen.getByText(/o elenco começa aqui/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /cadastrar/i })).toBeNull();
+  });
+
+  describe('aba Avaliação na carta', () => {
+    const atleta = makePlayer('p1', {
+      nome: 'Ana Souza',
+      communityIds: ['c1'],
+      cloudId: 'cp1',
+      userId: 'u-ana',
+    });
+
+    function abrir() {
+      fireEvent.click(screen.getByText('Ana Souza'));
+    }
+
+    it('quem avalia ve a aba na carta de outro', () => {
+      renderView([atleta], { canEvaluate: true, currentUserId: 'u-outro', cloudId: 'cc1' });
+      abrir();
+      expect(screen.queryAllByRole('button', { name: /avaliação/i }).length).toBeGreaterThan(0);
+    });
+
+    it('o proprio atleta ve a aba na carta dele', () => {
+      renderView([atleta], { canEvaluate: false, currentUserId: 'u-ana', cloudId: 'cc1' });
+      abrir();
+      expect(screen.queryAllByRole('button', { name: /avaliação/i }).length).toBeGreaterThan(0);
+    });
+
+    it('outro membro nao ve a aba', () => {
+      renderView([atleta], { canEvaluate: false, currentUserId: 'u-outro', cloudId: 'cc1' });
+      abrir();
+      expect(screen.queryAllByRole('button', { name: /avaliação/i })).toHaveLength(0);
+    });
   });
 });

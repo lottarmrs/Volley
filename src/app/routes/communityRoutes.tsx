@@ -14,6 +14,7 @@ import { buildHistoryViewContract } from '@app/screens/historyView/historyViewCo
 import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { useShell, useCommunityShell } from '../shellContext';
 import { useAuthSession } from '../auth/useAuthSession';
+import { useCommunityCapabilities } from '@hooks/useCommunityCapabilities';
 import { isGuestAccess } from '@app/guestAccess';
 import { AccountRequiredView } from '../../components/onboarding/AccountRequiredView';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
@@ -372,13 +373,18 @@ export function CommunityDataRoute() {
 export function CommunityPeopleRoute() {
   const shell = useCommunityShell();
   const navigate = useNavigate();
-  const { community, play, sess, comm } = shell;
+  const { community, play, sess, comm, auth } = shell;
   const communityPlayers = getCommunityPlayers(community.id, play.players);
+  const { capabilities } = useCommunityCapabilities(community);
 
   return (
     <PlayersView
       contract={buildPlayersViewContract({
-        roster: { community },
+        roster: {
+          community,
+          canEvaluate: capabilities.has('player.evaluate'),
+          currentUserId: auth.user?.id ?? null,
+        },
         players: communityPlayers,
         communities: comm.communities,
         games: sess.games,

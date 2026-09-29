@@ -588,14 +588,9 @@ export function applyServerOwnedAthleteFields(
   ownerId: string,
   localPlayers: Player[] = [],
 ): Player[] {
-  const norm = (value: string | undefined) => value?.trim().toLowerCase() || '';
   return players.map((player) => {
     if (player.deletedAt) return player;
-    const cloud = cloudPlayers.find(
-      (candidate) =>
-        (!!player.cloudId && norm(candidate.cloudId) === norm(player.cloudId)) ||
-        norm(candidate.id) === norm(player.id),
-    );
+    const cloud = findSamePlayer(player, cloudPlayers);
     if (!cloud || cloud.deletedAt) return player;
     if (!cloud.userId) {
       const isTeamGuest = !!cloud.cloudOwnerId && cloud.cloudOwnerId !== ownerId;

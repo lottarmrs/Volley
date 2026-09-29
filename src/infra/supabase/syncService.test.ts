@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyServerOwnedAthleteFields,
   mergeEntityLists,
   computeStaleRelationIds,
   communitySemanticKey,
@@ -3096,4 +3097,32 @@ test('syncNow: ficha com conta de outra pessoa mantem o elenco local (communityI
     syncService.downloadCloudDataToLocal = originalDownload;
     syncService.uploadLocalDataToCloud = originalUpload;
   }
+});
+
+test('applyServerOwnedAthleteFields casa pela cloudId antes do local_id', () => {
+  const local = makeSyncPlayer({ id: 'p1', cloudId: 'cloud-certa', userId: 'owner-1' });
+  const result = applyServerOwnedAthleteFields(
+    [local],
+    [
+      makeSyncPlayer({ id: 'p1', cloudId: 'cloud-errada', userId: 'owner-1', genero: 'M' }),
+      makeSyncPlayer({ id: 'p1', cloudId: 'cloud-certa', userId: 'owner-1', genero: 'F' }),
+    ],
+    'owner-1',
+  );
+  assert.equal(result[0].genero, 'F');
+
+  const semCloudId = makeSyncPlayer({ id: 'p2', cloudId: undefined, userId: 'owner-1' });
+  const porLocalId = applyServerOwnedAthleteFields(
+    [semCloudId],
+    [makeSyncPlayer({ id: 'p2', cloudId: 'cloud-p2', userId: 'owner-1', genero: 'M' })],
+    'owner-1',
+  );
+  assert.equal(porLocalId[0].genero, 'M');
+
+  const outraLinha = applyServerOwnedAthleteFields(
+    [makeSyncPlayer({ id: 'p3', cloudId: 'cloud-p3', userId: 'owner-1', genero: 'F' })],
+    [makeSyncPlayer({ id: 'p3', cloudId: 'cloud-de-outro-dono', userId: 'owner-1', genero: 'M' })],
+    'owner-1',
+  );
+  assert.equal(outraLinha[0].genero, 'F');
 });

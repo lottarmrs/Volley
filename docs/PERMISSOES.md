@@ -103,8 +103,8 @@ Estado em 2026-09-28:
   Gatilho `zz_guard_guest_single_community` recusa o segundo vínculo ativo de atleta sem conta;
   o convidado rápido só reaproveita convidado da mesma comunidade e pergunta "Reativar e usar?"
   para um desativado; "Duplicar comunidade" copia só nome e regras.
-- **Parte 2b — perfil do atleta:** feita em código em 2026-09-29
-  ([spec](superpowers/specs/2026-09-29-perfil-do-atleta-design.md)), aguarda publicação. A carta
+- **Parte 2b — perfil do atleta:** ✅ em produção desde 2026-09-29
+  ([spec](superpowers/specs/2026-09-29-perfil-do-atleta-design.md)). A carta
   ganha a aba "Avaliação" (média por fundamento da comunidade) para quem avalia e para o próprio
   atleta; presença frequente é calculada pelo histórico (metade das até 6 últimas peladas
   encerradas); a foto de uma conta só a conta troca, e vale na hora; convidado ganha foto em

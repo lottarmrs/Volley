@@ -25,6 +25,7 @@ export function findDuplicatePlayerByProfile(
   return players.find(
     (player) =>
       player.id !== candidate.id &&
+      !player.userId &&
       !player.deletedAt &&
       player.ativo !== false &&
       duplicatePlayerProfileKey(player) === candidateKey,

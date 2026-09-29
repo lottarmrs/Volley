@@ -83,6 +83,17 @@ test('applyGuestPlayerUpsert reuses duplicate guests and appends new guests', ()
   assert.equal(inserted.wasCreated, true);
 });
 
+test('applyGuestPlayerUpsert nunca reaproveita atleta com conta como convidado duplicado', () => {
+  const comConta = { ...player('player-conta', 'Convidado'), alturaCm: 180, userId: 'conta-1' };
+  const novoConvidado = { ...player('guest-3', 'Convidado'), alturaCm: 180, isGuest: true };
+
+  const result = applyGuestPlayerUpsert([comConta], novoConvidado, 'community-1');
+
+  assert.equal(result.wasCreated, true);
+  assert.equal(result.selectedPlayer.id, 'guest-3');
+  assert.equal(result.players.length, 2);
+});
+
 test('applyGuestPlayerUpsert vincula o convidado à comunidade sem duplicar ids', () => {
   const newGuest = { ...player('guest-2', 'Visitante'), isGuest: true, communityIds: [] };
 

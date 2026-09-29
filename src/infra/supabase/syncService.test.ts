@@ -2812,7 +2812,7 @@ test('uploadLocalDataToCloud sobe convidado criado por outra pessoa da equipe se
   }
 });
 
-test('uploadLocalDataToCloud: convidado pendente recusado pelo servidor avisa uma vez, sai sincronizado e nao derruba os outros', async () => {
+test('uploadLocalDataToCloud: convidado pendente recusado pelo servidor sai sincronizado, sem aviso, e nao derruba os outros', async () => {
   const originalUpsert = playerCloudService.upsert;
   const originalBulkEvaluations = playerEvaluationCloudService.bulkUpsertForPlayers;
   const issues: string[] = [];
@@ -2852,8 +2852,7 @@ test('uploadLocalDataToCloud: convidado pendente recusado pelo servidor avisa um
     assert.equal(alheio?.syncStatus, 'synced');
     assert.equal(alheio?.cloudOwnerId, 'dono');
     assert.equal(meu?.syncStatus, 'synced');
-    assert.equal(issues.length, 1);
-    assert.match(issues[0], /Convidado Alheio/);
+    assert.equal(issues.length, 0);
   } finally {
     restoreConsole();
     playerCloudService.upsert = originalUpsert;

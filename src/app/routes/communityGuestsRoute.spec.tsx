@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Community, Player } from '@shared/types';
@@ -53,14 +53,29 @@ const guestPlayer: Player = {
   communityIds: ['c1'],
 };
 
+const inactiveGuest: Player = {
+  ...guestPlayer,
+  id: 'g9',
+  nome: 'Beto Parado',
+  apelido: 'Beto Parado',
+  ativo: false,
+};
+
+const { deleteGuestPlayerMock, reactivateGuestPlayerMock } = vi.hoisted(() => ({
+  deleteGuestPlayerMock: vi.fn(),
+  reactivateGuestPlayerMock: vi.fn(),
+}));
+
 vi.mock('../shellContext', () => ({
   useCommunityShell: () => ({
     community,
     play: {
-      players: [guestPlayer],
+      players: [guestPlayer, inactiveGuest],
       setPlayers: vi.fn(),
       saveGuestPlayer: vi.fn(),
       removeGuestPlayer: vi.fn(),
+      reactivateGuestPlayer: reactivateGuestPlayerMock,
+      deleteGuestPlayer: deleteGuestPlayerMock,
       getPlayerHistoryUsage: () => ({ hasHistory: false }),
     },
     auth: { user: { id: 'u1' }, isSupabaseConfigured: true, profile: { role: 'user' } },
@@ -169,5 +184,44 @@ describe('Gestao > Convidados — acesso por papel', () => {
 
     expect(screen.getByTestId('location').textContent).not.toContain('editar');
     expect(screen.getByRole('button', { name: /cadastrar convidado/i })).toBeTruthy();
+  });
+
+  it('dono ve os desativados com Reativar e Excluir; Excluir chama deleteGuestPlayer como dono', () => {
+    permissionsMock.mockReturnValue(permissionsFor('owner'));
+    deleteGuestPlayerMock.mockReturnValue({ ok: true, value: 'removed' });
+    renderAt('/comunidades/c1/gestao/convidados');
+
+    const secao = screen.getByRole('list', { name: 'Desativados' });
+    expect(within(secao).getByText('Beto Parado')).toBeTruthy();
+    expect(within(secao).getByRole('button', { name: 'Reativar' })).toBeTruthy();
+
+    fireEvent.click(within(secao).getByRole('button', { name: 'Excluir' }));
+    fireEvent.click(within(secao).getByRole('button', { name: /confirmar exclusão/i }));
+
+    expect(deleteGuestPlayerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: 'g9', isOwner: true, currentUserId: 'u1' }),
+    );
+  });
+
+  it('admin ve os desativados com Reativar, sem Excluir', () => {
+    permissionsMock.mockReturnValue(permissionsFor('admin'));
+    reactivateGuestPlayerMock.mockReturnValue({ ok: true, value: 'reactivated' });
+    renderAt('/comunidades/c1/gestao/convidados');
+
+    const secao = screen.getByRole('list', { name: 'Desativados' });
+    expect(within(secao).queryByRole('button', { name: /excluir/i })).toBeNull();
+    fireEvent.click(within(secao).getByRole('button', { name: 'Reativar' }));
+
+    expect(reactivateGuestPlayerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: 'g9', canEdit: true }),
+    );
+  });
+
+  it('?editar= de um convidado desativado abre o editor dele', () => {
+    permissionsMock.mockReturnValue(permissionsFor('owner'));
+    renderAt('/comunidades/c1/gestao/convidados?editar=g9');
+
+    expect(screen.getByLabelText('Nome')).toHaveProperty('value', 'Beto Parado');
+    expect(screen.getByRole('button', { name: 'Reativar' })).toBeTruthy();
   });
 });

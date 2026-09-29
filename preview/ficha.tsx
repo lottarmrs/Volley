@@ -186,60 +186,83 @@ function fabricaDeCallbacks() {
       }),
     );
   };
-  const onRemove: ComponentProps<typeof CommunityGuestsArea>['onRemove'] = () =>
+  const onDeactivate: ComponentProps<typeof CommunityGuestsArea>['onDeactivate'] = () =>
+    appOk('deactivated' as const);
+  const onReactivate: ComponentProps<typeof CommunityGuestsArea>['onReactivate'] = () =>
+    appOk('reactivated' as const);
+  const onDelete: ComponentProps<typeof CommunityGuestsArea>['onDelete'] = () =>
     appOk('removed' as const);
-  return { onSave, onRemove };
+  return { onSave, onDeactivate, onReactivate, onDelete };
 }
 
 const ConvidadosListaVazia: FC = () => {
-  const { onSave, onRemove } = fabricaDeCallbacks();
-  return (
-    <CommunityGuestsArea
-      guests={[]}
-      noCloud={false}
-      onSave={onSave}
-      onRemove={onRemove}
-      hasHistory={() => false}
-    />
-  );
+  const callbacks = fabricaDeCallbacks();
+  return <CommunityGuestsArea guests={[]} noCloud={false} isOwner {...callbacks} />;
 };
 
 const ConvidadosComLista: FC = () => {
-  const { onSave, onRemove } = fabricaDeCallbacks();
+  const callbacks = fabricaDeCallbacks();
   return (
     <CommunityGuestsArea
       guests={[CONVIDADO_COMPLETO, CONVIDADO_INCOMPLETO]}
       noCloud={false}
-      onSave={onSave}
-      onRemove={onRemove}
-      hasHistory={(playerId) => playerId === CONVIDADO_COMPLETO.id}
+      isOwner
+      {...callbacks}
     />
   );
 };
 
 const ConvidadosEditando: FC = () => {
-  const { onSave, onRemove } = fabricaDeCallbacks();
+  const callbacks = fabricaDeCallbacks();
   return (
     <CommunityGuestsArea
       guests={[CONVIDADO_COMPLETO, CONVIDADO_INCOMPLETO]}
       noCloud={true}
-      onSave={onSave}
-      onRemove={onRemove}
-      hasHistory={(playerId) => playerId === CONVIDADO_COMPLETO.id}
+      isOwner
+      {...callbacks}
       initialEditingId={CONVIDADO_COMPLETO.id}
     />
   );
 };
 
+const CONVIDADOS_DESATIVADOS = [
+  makePlayer('g3', { nome: 'Rogério Batista', apelido: 'Rogério Batista', ativo: false }),
+  makePlayer('g4', { nome: 'Lúcia Fernandes', apelido: 'Lu', ativo: false }),
+];
+
+const ConvidadosComDesativados: FC<{ isOwner: boolean }> = ({ isOwner }) => {
+  const callbacks = fabricaDeCallbacks();
+  return (
+    <CommunityGuestsArea
+      guests={[CONVIDADO_COMPLETO, ...CONVIDADOS_DESATIVADOS]}
+      noCloud={false}
+      {...callbacks}
+      isOwner={isOwner}
+    />
+  );
+};
+
+const ConvidadosEditandoDesativado: FC = () => {
+  const callbacks = fabricaDeCallbacks();
+  return (
+    <CommunityGuestsArea
+      guests={[CONVIDADO_COMPLETO, ...CONVIDADOS_DESATIVADOS]}
+      noCloud={false}
+      isOwner
+      {...callbacks}
+      initialEditingId={CONVIDADOS_DESATIVADOS[0].id}
+    />
+  );
+};
+
 const ConvidadosAusente: FC = () => {
-  const { onSave, onRemove } = fabricaDeCallbacks();
+  const callbacks = fabricaDeCallbacks();
   return (
     <CommunityGuestsArea
       guests={[CONVIDADO_COMPLETO]}
       noCloud={false}
-      onSave={onSave}
-      onRemove={onRemove}
-      hasHistory={() => false}
+      isOwner
+      {...callbacks}
       initialEditingId="convidado-que-nao-existe-mais"
     />
   );
@@ -301,6 +324,15 @@ export function Bancada() {
             </Bloco>
             <Bloco nome="CommunityGuestsArea — aviso de convidado ausente">
               <ConvidadosAusente />
+            </Bloco>
+            <Bloco nome="CommunityGuestsArea — desativados, visto pelo dono (Reativar e Excluir)">
+              <ConvidadosComDesativados isOwner />
+            </Bloco>
+            <Bloco nome="CommunityGuestsArea — desativados, visto pelo admin (só Reativar)">
+              <ConvidadosComDesativados isOwner={false} />
+            </Bloco>
+            <Bloco nome="CommunityGuestsArea — editando um desativado">
+              <ConvidadosEditandoDesativado />
             </Bloco>
           </div>
         </div>

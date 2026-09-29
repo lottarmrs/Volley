@@ -236,6 +236,7 @@ export function CommunityGuestsRoute() {
       <CommunityGuestsArea
         guests={guests}
         noCloud={noCloud}
+        isOwner={permissions.canDeleteCommunity}
         onSave={(input) =>
           play.saveGuestPlayer({
             ...input,
@@ -244,14 +245,27 @@ export function CommunityGuestsRoute() {
             currentUserId: auth.user?.id ?? null,
           })
         }
-        onRemove={(playerId) =>
+        onDeactivate={(playerId) =>
           play.removeGuestPlayer({
             playerId,
             canEdit: permissions.canEditPlayerProfile,
             currentUserId: auth.user?.id ?? null,
           })
         }
-        hasHistory={(playerId) => play.getPlayerHistoryUsage(playerId).hasHistory}
+        onReactivate={(playerId) =>
+          play.reactivateGuestPlayer({
+            playerId,
+            canEdit: permissions.canEditPlayerProfile,
+            currentUserId: auth.user?.id ?? null,
+          })
+        }
+        onDelete={(playerId) =>
+          play.deleteGuestPlayer({
+            playerId,
+            isOwner: permissions.canDeleteCommunity,
+            currentUserId: auth.user?.id ?? null,
+          })
+        }
         searchSlot={
           permissions.canManageMembers ? (
             <AthleteUsernameSearch

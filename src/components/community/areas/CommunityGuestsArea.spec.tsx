@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { appOk, productError } from '@app/appResult';
@@ -13,14 +13,24 @@ const convidado: Player = makePlayer('g1', {
   alturaCm: 180,
 });
 
+const desativado: Player = makePlayer('g9', {
+  nome: 'Beto Parado',
+  apelido: 'Beto Parado',
+  posicaoPrincipal: 'central',
+  alturaCm: 190,
+  ativo: false,
+});
+
 function renderArea(overrides: Partial<ComponentProps<typeof CommunityGuestsArea>> = {}) {
   return render(
     <CommunityGuestsArea
       guests={[convidado]}
       noCloud={false}
+      isOwner
       onSave={vi.fn(() => appOk(convidado))}
-      onRemove={vi.fn(() => appOk('removed' as const))}
-      hasHistory={() => false}
+      onDeactivate={vi.fn(() => appOk('deactivated' as const))}
+      onReactivate={vi.fn(() => appOk('reactivated' as const))}
+      onDelete={vi.fn(() => appOk('removed' as const))}
       {...overrides}
     />,
   );
@@ -77,32 +87,104 @@ describe('CommunityGuestsArea', () => {
       <CommunityGuestsArea
         guests={[convidado]}
         noCloud
+        isOwner
         onSave={vi.fn(() => appOk(convidado))}
-        onRemove={vi.fn(() => appOk('removed' as const))}
-        hasHistory={() => false}
+        onDeactivate={vi.fn(() => appOk('deactivated' as const))}
+        onReactivate={vi.fn(() => appOk('reactivated' as const))}
+        onDelete={vi.fn(() => appOk('removed' as const))}
       />,
     );
     expect(screen.getByText('Nível')).toBeTruthy();
   });
 
-  it('mostra Excluir quando nao ha historico e chama onRemove apos confirmar', () => {
-    const onRemove = vi.fn(() => appOk('removed' as const));
-    renderArea({ onRemove, hasHistory: () => false });
+  it('no editor de um convidado ativo, a acao destrutiva e so Desativar, em dois toques', () => {
+    const onDeactivate = vi.fn(() => appOk('deactivated' as const));
+    const onDelete = vi.fn(() => appOk('removed' as const));
+    renderArea({ onDeactivate, onDelete });
 
     fireEvent.click(screen.getByText('Zé'));
-    const excluir = screen.getByRole('button', { name: /excluir/i });
-    fireEvent.click(excluir);
-    expect(onRemove).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /excluir/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Desativar' }));
+    expect(onDeactivate).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: /confirmar exclusão/i }));
-    expect(onRemove).toHaveBeenCalledWith('g1');
+    fireEvent.click(screen.getByRole('button', { name: /confirmar desativação/i }));
+    expect(onDeactivate).toHaveBeenCalledWith('g1');
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /cadastrar convidado/i })).toBeTruthy();
   });
 
-  it('mostra Desativar quando ha historico', () => {
-    renderArea({ hasHistory: () => true });
+  it('a lista principal mostra so os ativos e os desativados ficam numa secao propria', () => {
+    renderArea({ guests: [convidado, desativado] });
 
-    fireEvent.click(screen.getByText('Zé'));
-    expect(screen.getByRole('button', { name: /desativar/i })).toBeTruthy();
+    const principal = screen.getByRole('list', { name: 'Convidados ativos' });
+    expect(within(principal).getByText('Zé')).toBeTruthy();
+    expect(within(principal).queryByText('Beto Parado')).toBeNull();
+
+    const secao = screen.getByRole('list', { name: 'Desativados' });
+    expect(within(secao).getByText('Beto Parado')).toBeTruthy();
+  });
+
+  it('sem desativados, a secao Desativados nao aparece', () => {
+    renderArea();
+
+    expect(screen.queryByText('Desativados')).toBeNull();
+  });
+
+  it('admin reativa um desativado e nao ve Excluir', () => {
+    const onReactivate = vi.fn(() => appOk('reactivated' as const));
+    renderArea({ guests: [convidado, desativado], isOwner: false, onReactivate });
+
+    const secao = screen.getByRole('list', { name: 'Desativados' });
+    expect(within(secao).queryByRole('button', { name: /excluir/i })).toBeNull();
+    fireEvent.click(within(secao).getByRole('button', { name: 'Reativar' }));
+
+    expect(onReactivate).toHaveBeenCalledWith('g9');
+  });
+
+  it('dono exclui um desativado com confirmacao em dois toques', () => {
+    const onDelete = vi.fn(() => appOk('removed' as const));
+    renderArea({ guests: [convidado, desativado], onDelete });
+
+    const secao = screen.getByRole('list', { name: 'Desativados' });
+    fireEvent.click(within(secao).getByRole('button', { name: 'Excluir' }));
+    expect(onDelete).not.toHaveBeenCalled();
+
+    fireEvent.click(within(secao).getByRole('button', { name: /confirmar exclusão/i }));
+    expect(onDelete).toHaveBeenCalledWith('g9');
+  });
+
+  it('excluir que so desativa por causa do historico avisa em role status', () => {
+    const onDelete = vi.fn(() => appOk('deactivated' as const));
+    renderArea({ guests: [desativado], onDelete });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar exclusão/i }));
+
+    expect(screen.getByRole('status').textContent).toContain('histórico');
+  });
+
+  it('erro ao excluir aparece em role alert', () => {
+    const onDelete = vi.fn(() =>
+      productError('permission_denied', 'Só o dono da comunidade pode excluir um convidado.'),
+    );
+    renderArea({ guests: [desativado], onDelete });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar exclusão/i }));
+
+    expect(screen.getByRole('alert').textContent).toContain('Só o dono');
+  });
+
+  it('?editar= de um desativado abre o editor, diz que esta desativado e oferece Reativar', () => {
+    const onReactivate = vi.fn(() => appOk('reactivated' as const));
+    renderArea({ guests: [convidado, desativado], initialEditingId: 'g9', onReactivate });
+
+    expect(screen.getByLabelText('Nome')).toHaveProperty('value', 'Beto Parado');
+    expect(screen.getByText(/convidado desativado/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Desativar' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reativar' }));
+    expect(onReactivate).toHaveBeenCalledWith('g9');
   });
 
   it('erro do onSave aparece em role alert', () => {
@@ -128,8 +210,8 @@ describe('CommunityGuestsArea', () => {
 
     expect(screen.getByRole('button', { name: /cadastrar convidado/i })).toBeTruthy();
     expect(screen.queryByLabelText('Nome')).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain(
-      'Esse convidado não está mais nesta comunidade.',
+    expect(screen.getByRole('status').textContent).toBe(
+      'Esse convidado não está mais aqui: foi removido ou ganhou conta e agora aparece em Pessoas.',
     );
   });
 

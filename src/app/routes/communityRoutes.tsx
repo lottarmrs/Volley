@@ -15,6 +15,7 @@ import { getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { useShell, useCommunityShell } from '../shellContext';
 import { useAuthSession } from '../auth/useAuthSession';
 import { useCommunityCapabilities } from '@hooks/useCommunityCapabilities';
+import { useCanManageSessions } from '@hooks/useCanManageSessions';
 import { isGuestAccess } from '@app/guestAccess';
 import { AccountRequiredView } from '../../components/onboarding/AccountRequiredView';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
@@ -83,6 +84,7 @@ export function CommunityOverviewRoute() {
     enabled: auth.isSupabaseConfigured && !!community.cloudId,
   });
   const communityPlayers = getCommunityPlayers(community.id, play.players);
+  const podeOrganizar = useCanManageSessions(community);
   const podeSairAqui =
     permissions.membersResolved &&
     !permissions.canSeeManagement &&
@@ -108,7 +110,7 @@ export function CommunityOverviewRoute() {
         games={sess.games}
         pointEvents={sess.pointEvents}
         sessionReports={sess.sessionReports}
-        canCreateSession={permissions.canCreateSession}
+        canCreateSession={podeOrganizar.allowed && !podeOrganizar.pending}
         canManageRoster={permissions.canEditPlayerProfile}
         onCreateSession={() =>
           shell.createSessionFromCommunity(

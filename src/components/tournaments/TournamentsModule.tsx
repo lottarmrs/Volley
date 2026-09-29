@@ -9,6 +9,7 @@ interface TournamentsModuleProps {
   sessionReports: SessionReport[];
   onNewTournament: () => void;
   onOpenTournament: (tournament: Session, shouldOpenLive: boolean) => void;
+  canManage: boolean;
 }
 
 export function TournamentsModule({
@@ -18,6 +19,7 @@ export function TournamentsModule({
   sessionReports,
   onNewTournament,
   onOpenTournament,
+  canManage,
 }: TournamentsModuleProps) {
   const tournamentCards = buildTournamentListViewModel({
     sessions,
@@ -30,12 +32,14 @@ export function TournamentsModule({
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-surface p-4 rounded-xl border border-border">
         <span className="text-xs font-bold text-text-muted uppercase">Torneios Registrados</span>
-        <button
-          onClick={onNewTournament}
-          className="btn btn-primary rounded-full uppercase tracking-wider text-xs"
-        >
-          <Plus className="w-4 h-4" /> Novo Torneio
-        </button>
+        {canManage && (
+          <button
+            onClick={onNewTournament}
+            className="btn btn-primary rounded-full uppercase tracking-wider text-xs"
+          >
+            <Plus className="w-4 h-4" /> Novo Torneio
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -83,7 +87,7 @@ export function TournamentsModule({
               </div>
 
               <button
-                onClick={() => onOpenTournament(t, card.shouldOpenLive)}
+                onClick={() => onOpenTournament(t, canManage && card.shouldOpenLive)}
                 className="btn btn-secondary rounded-full w-full uppercase tracking-wider text-xs"
               >
                 Ver Detalhes

@@ -11,6 +11,7 @@ import { buildHistoryViewContract } from '@app/screens/historyView/historyViewCo
 import { buildSessionWizardContract } from '@app/screens/sessionWizard/sessionWizardContract';
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
 import { resolveSessionCreationAccess } from '@app/sessionCreationAccess';
+import { useCanManageSessions } from '@hooks/useCanManageSessions';
 import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionLifecycleUseCases';
 import { frequentPlayerIds, getCommunityPlayers, getCommunitySessions } from '@logic/community';
 import { generateUUID } from '@logic/uuid';
@@ -84,6 +85,7 @@ export function CommunityPresenceRoute() {
   const shell = useCommunityShell();
   const { community, play, communityPresence, communityRules } = shell;
   const permissions = useCommunityPermissions(community);
+  const podeOrganizar = useCanManageSessions(community);
   const communityPlayers = getCommunityPlayers(community.id, play.players);
 
   return (
@@ -94,7 +96,7 @@ export function CommunityPresenceRoute() {
         players={communityPlayers}
         sessions={getCommunitySessions(community.id, shell.sess.sessions)}
         presenceApi={communityPresence}
-        canCreateSession={permissions.canCreateSession}
+        canCreateSession={podeOrganizar.allowed && !podeOrganizar.pending}
         onCreateSession={() =>
           shell.createSessionFromCommunity(
             community,
@@ -113,6 +115,7 @@ export function CommunityWhatsAppRoute() {
   const shell = useCommunityShell();
   const { community, play, whatsAppLists } = shell;
   const permissions = useCommunityPermissions(community);
+  const podeOrganizar = useCanManageSessions(community);
 
   return (
     <div className="space-y-5">
@@ -121,7 +124,7 @@ export function CommunityWhatsAppRoute() {
         community={community}
         players={getCommunityPlayers(community.id, play.players)}
         whatsAppApi={whatsAppLists}
-        canCreateSession={permissions.canCreateSession}
+        canCreateSession={podeOrganizar.allowed && !podeOrganizar.pending}
         canEditRules={permissions.canEditRules}
       />
     </div>
@@ -164,6 +167,7 @@ export function CommunityRegistrationRoute() {
   const { community, play, sess, comm, whatsAppLists, auth } = useCommunityShell();
   const { sessionId } = useParams();
   const permissions = useCommunityPermissions(community);
+  const podeOrganizar = useCanManageSessions(community);
   const { members } = useCommunityMembers({
     communityCloudId: community.cloudId,
     communityLocalId: community.id,
@@ -218,7 +222,7 @@ export function CommunityRegistrationRoute() {
       frequentPlayerIds={frequentPlayerIds(getCommunitySessions(community.id, sess.sessions))}
       sessionName={alvo.name ?? nomeDaNuvem}
       sessionDate={alvo.date}
-      canOpen={!!session && permissions.canCreateSession}
+      canOpen={!!session && podeOrganizar.allowed && !podeOrganizar.pending}
       pixKey={pixKey}
       shareUrl={buildRegistrationShareUrl({
         origin: window.location.origin,
@@ -294,9 +298,10 @@ export function SessionWizardRoute() {
   const [searchParams] = useSearchParams();
   const { community, sess, play, comm, wizard } = shell;
   const permissions = useCommunityPermissions(community);
+  const podeOrganizar = useCanManageSessions(community);
   const access = resolveSessionCreationAccess({
-    membersResolved: permissions.membersResolved,
-    canCreateSession: permissions.canCreateSession,
+    pending: podeOrganizar.pending || !permissions.membersResolved,
+    allowed: podeOrganizar.allowed,
   });
   const type = searchParams.get('tipo') === 'torneio' ? 'tournament' : undefined;
   const resolution = resolveWizardRoute({
@@ -400,6 +405,7 @@ export function SessionActiveRoute() {
 export function CommunityTournamentsRoute() {
   const { community, sess } = useCommunityShell();
   const navigate = useNavigate();
+  const podeOrganizar = useCanManageSessions(community);
 
   return (
     <div className="space-y-5">
@@ -409,6 +415,7 @@ export function CommunityTournamentsRoute() {
         games={sess.games}
         teams={sess.teams}
         sessionReports={sess.sessionReports}
+        canManage={podeOrganizar.allowed}
         onNewTournament={() =>
           navigate(resolveNewSessionPath({ communityIds: [community.id], type: 'tournament' }))
         }

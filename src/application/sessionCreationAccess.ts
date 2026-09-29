@@ -1,9 +1,9 @@
 export type SessionCreationAccess = 'pending' | 'allowed' | 'blocked';
 
 export function resolveSessionCreationAccess(input: {
-  membersResolved: boolean;
-  canCreateSession: boolean;
+  pending: boolean;
+  allowed: boolean;
 }): SessionCreationAccess {
-  if (!input.membersResolved) return 'pending';
-  return input.canCreateSession ? 'allowed' : 'blocked';
+  if (input.pending) return 'pending';
+  return input.allowed ? 'allowed' : 'blocked';
 }

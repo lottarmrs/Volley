@@ -64,6 +64,7 @@ import {
   getPlayerDisplayName,
 } from '../../logic/community';
 import { useCommunityPermissions } from '../../hooks/useCommunityPermissions';
+import { useCanManageSessions } from '../../hooks/useCanManageSessions';
 import {
   formatPresenceText,
   getPresenceAlerts,
@@ -428,6 +429,7 @@ function CommunityCard({
   onDeleteCommunity: (communityId: string) => void;
 }) {
   const permissions = useCommunityPermissions(community);
+  const podeOrganizar = useCanManageSessions(community);
   const summary = getCommunitySummary({
     community,
     players,
@@ -546,7 +548,7 @@ function CommunityCard({
           <button
             type="button"
             onClick={onCreateSession}
-            disabled={!permissions.canCreateSession}
+            disabled={!podeOrganizar.allowed || podeOrganizar.pending}
             className="btn btn-primary btn-sm"
           >
             Criar sessão

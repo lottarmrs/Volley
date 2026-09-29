@@ -2,27 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolveSessionCreationAccess } from './sessionCreationAccess';
 
-test('espera enquanto os membros nao foram lidos, mesmo sem permissao ainda', () => {
-  assert.equal(
-    resolveSessionCreationAccess({ membersResolved: false, canCreateSession: false }),
-    'pending',
-  );
-  assert.equal(
-    resolveSessionCreationAccess({ membersResolved: false, canCreateSession: true }),
-    'pending',
-  );
+test('espera enquanto o sinal de quem organiza nao chegou', () => {
+  assert.equal(resolveSessionCreationAccess({ pending: true, allowed: false }), 'pending');
+  assert.equal(resolveSessionCreationAccess({ pending: true, allowed: true }), 'pending');
 });
 
-test('libera quem pode criar sessao depois de ler os membros', () => {
-  assert.equal(
-    resolveSessionCreationAccess({ membersResolved: true, canCreateSession: true }),
-    'allowed',
-  );
+test('libera quem organiza pelada', () => {
+  assert.equal(resolveSessionCreationAccess({ pending: false, allowed: true }), 'allowed');
 });
 
-test('bloqueia quem nao pode criar sessao depois de ler os membros', () => {
-  assert.equal(
-    resolveSessionCreationAccess({ membersResolved: true, canCreateSession: false }),
-    'blocked',
-  );
+test('bloqueia quem nao organiza pelada', () => {
+  assert.equal(resolveSessionCreationAccess({ pending: false, allowed: false }), 'blocked');
 });

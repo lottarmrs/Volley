@@ -120,6 +120,7 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 | P18 | "Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin | policy de `players` / `deleted_at`                   | 4     |
 | P19 | A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta | `propose_player_avatar`, Minha ficha                  | 2     |
 | P20 | Cadastrar convidado com o perfil de um desativado cria outro registro em vez de oferecer reativar | `findDuplicatePlayerByProfile` ignora inativos        | 2     |
+| P21 | Quem encerra sessão sem poder editar convidado (moderador, organizador) marca a progressão dos convidados alheios como pendente; o servidor recusa e cada um vira um aviso, a cada sessão, e a mudança fica só naquele aparelho | `progression.ts`, `rating.ts`, laço de atletas do `syncService` | 2     |
 
 **Pendente antes do plano da parte 4:** a P17 depende de uma pergunta sem resposta desde
 2026-09-25 — o membro deve ver sessões `PRIVATE`? Hoje nada no app publica sessão

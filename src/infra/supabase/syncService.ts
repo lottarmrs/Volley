@@ -1163,7 +1163,7 @@ export const syncService = {
           onIssue(
             `atleta "${player.nome}"`,
             new Error(
-              'O servidor recusou a edição deste convidado: só o dono ou um admin da comunidade pode editá-lo. A versão da nuvem volta no próximo sync.',
+              'O servidor recusou a edição deste convidado: só o dono ou um admin da comunidade pode editá-lo. A mudança fica só neste aparelho.',
             ),
           );
           updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));

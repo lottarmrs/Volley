@@ -9,6 +9,7 @@ import { useAuth } from './useAuth';
 export interface OnlineStatus {
   loading: boolean;
   error: AppError | null;
+  readError: AppError | null;
   offline: boolean;
 }
 
@@ -76,6 +77,7 @@ export function useOnlineList<T>(options: {
   const status: OnlineStatus = {
     loading: options.enabled && query.isPending,
     error,
+    readError,
     offline: error?.kind === 'offline_unavailable',
   };
 

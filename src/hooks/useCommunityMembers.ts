@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../application/queryKeys';
 import { AuthRole, CommunityMember, CommunityMemberRole } from '../types';
 import {
   approveCommunityJoinRequestCommand,
@@ -44,39 +46,28 @@ export function useCommunityMembers({
   globalRole = null,
   enabled,
 }: UseCommunityMembersOptions) {
-  const [members, setMembers] = useState<CommunityMember[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [resolved, setResolved] = useState(false);
-
-  const reload = useCallback(async () => {
-    if (!enabled || !communityCloudId) {
-      setMembers([]);
-      setResolved(true);
-      return;
-    }
-    setResolved(false);
-    setLoading(true);
-    setError(null);
-    try {
+  const queryClient = useQueryClient();
+  const active = enabled && !!communityCloudId;
+  const query = useQuery({
+    queryKey: [...queryKeys.membros(communityCloudId ?? ''), communityLocalId ?? ''],
+    enabled: active,
+    queryFn: async (): Promise<CommunityMember[]> => {
       const result = await fetchCommunityMembersQuery({ communityCloudId, communityLocalId });
       if (result.ok === false) throw new Error(result.error.message);
-      if (result.issues?.length) {
-        setError(result.issues[0].message);
-        return;
-      }
-      setMembers(result.value.members);
-      setResolved(true);
-    } catch (e) {
-      setError(messageOf(e, 'Não foi possível carregar os membros.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled, communityCloudId, communityLocalId]);
+      if (result.issues?.length) throw new Error(result.issues[0].message);
+      return result.value.members;
+    },
+  });
+  const members = active ? (query.data ?? []) : [];
+  const loading = active && query.isFetching;
+  const resolved = !active || query.isSuccess;
+  const error =
+    active && query.error ? messageOf(query.error, 'Não foi possível carregar os membros.') : null;
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  const reload = useCallback(async () => {
+    if (!communityCloudId) return;
+    await queryClient.invalidateQueries({ queryKey: queryKeys.membros(communityCloudId) });
+  }, [communityCloudId, queryClient]);
 
   const currentMember = members.find((member) => member.userId === currentUserId) ?? null;
   const canManage =

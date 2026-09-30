@@ -114,4 +114,21 @@ describe('UserProfileView', () => {
 
     expect(screen.getByText(/Dados & Backup/i)).toBeTruthy();
   });
+  it('com conta, sem backup nem demonstracao: a aba de dados some', () => {
+    render(
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={mockPlayer}
+          communities={mockCommunities}
+        />
+      </BrowserRouter>,
+    );
+
+    expect(screen.queryByRole('button', { name: /Configurações & Dados/i })).toBeNull();
+    expect(screen.queryByText(/Dados & Backup/i)).toBeNull();
+    expect(screen.queryByText(/Último sync/i)).toBeNull();
+    expect(screen.getByText('Matheus')).toBeTruthy();
+  });
 });

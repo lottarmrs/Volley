@@ -258,7 +258,7 @@ export function CommunityRegistrationRoute() {
               podeTransferir: permissions.canManageMembers,
               currentUserId: auth.user?.id ?? null,
               membros: members
-                .filter((membro) => membro.status !== 'suspended')
+                .filter((membro) => (membro.status ?? 'active') === 'active')
                 .map((membro) => ({
                   userId: membro.userId,
                   nome: membro.name || membro.email || 'Membro',

@@ -27,6 +27,8 @@ import { useHandleAvailability } from '@hooks/useHandleAvailability';
 import { useGoogleAuthEnabled } from '@hooks/useGoogleAuthEnabled';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
+import { onlineDataState } from './onlineDataState';
+import { OnlineLoading, OnlineReadError } from '@ui/common/OnlineDataState';
 import { useAuthSession } from '../auth/useAuthSession';
 import { useCommunitiesContract } from './communitiesContract';
 import { SessionActiveView } from './sessionRoutes';
@@ -72,73 +74,84 @@ export function PainelRoute() {
   // Painel vazio nao ensina nada: sem elenco, sem sessao e sem rascunho, o
   // proximo passo util e montar a lista e sortear. Nao ha laco aqui porque
   // /comecar nunca devolve para /painel.
+  const online = onlineDataState(shell);
+  if (comm.status.loading || play.status.loading) {
+    return <OnlineLoading label="Carregando seu painel…" />;
+  }
   const semNada =
     play.players.length === 0 && !sess.activeSession && !shell.sessionDraft && !comm.communities[0];
-  if (semNada) return <Navigate to={paths.comecar} replace />;
+  if (semNada && !online.readError) return <Navigate to={paths.comecar} replace />;
 
   return (
-    <Dashboard
-      contract={buildDashboardContract({
-        activeSession: sess.activeSession,
-        sessionDraft: shell.sessionDraft,
-        games: sess.games,
-        sessions: sess.sessions,
-        communities: comm.communities,
-        today: formatLocalDateInput(new Date()),
-        canStartSession:
-          comm.communities.length === 0 || (!organiza.pending && organiza.allowedIds.size > 0),
-        // Sem comunidade nenhuma, `resolveNewSessionPath` despeja o usuario numa
-        // lista vazia de comunidades. O comeco rapido cria a comunidade sozinho.
-        onNewSession: () =>
-          navigate(
-            communityIds.length === 0 ? paths.comecar : resolveNewSessionPath({ communityIds }),
-          ),
-        onResumeSession: () =>
-          navigate(
-            shell.activeSessionCommunityId
-              ? paths.sessaoAtiva(shell.activeSessionCommunityId)
-              : paths.sessaoAtivaSemComunidade,
-          ),
-        onResumeDraft: (draft) => {
-          wizard.resumeDraft(draft);
-          navigate(
-            draft.session.communityId
-              ? paths.sessaoNova(draft.session.communityId)
-              : resolveNewSessionPath({ communityIds }),
-          );
-        },
-        onClearDraft: () => {
-          if (
-            window.confirm(
-              'Descartar o rascunho da pelada? Os atletas escolhidos e os times sorteados até aqui se perdem. O elenco da comunidade não muda.',
-            )
-          ) {
-            const result = buildDraftClearResult();
-            clearSessionDraft();
-            sess.setActiveSession(result.nextActiveSession);
-          }
-        },
-        onClearActiveSession: () => {
-          if (
-            sess.activeSession &&
-            window.confirm(
-              'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
-            )
-          ) {
-            const result = buildActiveSessionClearResult(sess.activeSession);
-            if (!result) return;
-            sess.deleteSession(result.sessionIdToDelete);
-            sess.setActiveSession(result.nextActiveSession);
-            clearSessionDraft();
-          }
-        },
-        onPlayers: () => navigate(paths.comunidades),
-        onHistory: () => navigate(paths.agenda),
-        onExportBackup: shell.handleExportBackup,
-        onImportBackup: shell.handleImportBackup,
-        onCommunities: () => navigate(paths.comunidades),
-      })}
-    />
+    <>
+      {online.readError && (
+        <div className="mb-4">
+          <OnlineReadError error={online.readError} onRetry={online.retry} />
+        </div>
+      )}
+      <Dashboard
+        contract={buildDashboardContract({
+          activeSession: sess.activeSession,
+          sessionDraft: shell.sessionDraft,
+          games: sess.games,
+          sessions: sess.sessions,
+          communities: comm.communities,
+          today: formatLocalDateInput(new Date()),
+          canStartSession:
+            comm.communities.length === 0 || (!organiza.pending && organiza.allowedIds.size > 0),
+          // Sem comunidade nenhuma, `resolveNewSessionPath` despeja o usuario numa
+          // lista vazia de comunidades. O comeco rapido cria a comunidade sozinho.
+          onNewSession: () =>
+            navigate(
+              communityIds.length === 0 ? paths.comecar : resolveNewSessionPath({ communityIds }),
+            ),
+          onResumeSession: () =>
+            navigate(
+              shell.activeSessionCommunityId
+                ? paths.sessaoAtiva(shell.activeSessionCommunityId)
+                : paths.sessaoAtivaSemComunidade,
+            ),
+          onResumeDraft: (draft) => {
+            wizard.resumeDraft(draft);
+            navigate(
+              draft.session.communityId
+                ? paths.sessaoNova(draft.session.communityId)
+                : resolveNewSessionPath({ communityIds }),
+            );
+          },
+          onClearDraft: () => {
+            if (
+              window.confirm(
+                'Descartar o rascunho da pelada? Os atletas escolhidos e os times sorteados até aqui se perdem. O elenco da comunidade não muda.',
+              )
+            ) {
+              const result = buildDraftClearResult();
+              clearSessionDraft();
+              sess.setActiveSession(result.nextActiveSession);
+            }
+          },
+          onClearActiveSession: () => {
+            if (
+              sess.activeSession &&
+              window.confirm(
+                'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
+              )
+            ) {
+              const result = buildActiveSessionClearResult(sess.activeSession);
+              if (!result) return;
+              sess.deleteSession(result.sessionIdToDelete);
+              sess.setActiveSession(result.nextActiveSession);
+              clearSessionDraft();
+            }
+          },
+          onPlayers: () => navigate(paths.comunidades),
+          onHistory: () => navigate(paths.agenda),
+          onExportBackup: shell.handleExportBackup,
+          onImportBackup: shell.handleImportBackup,
+          onCommunities: () => navigate(paths.comunidades),
+        })}
+      />
+    </>
   );
 }
 
@@ -170,13 +183,25 @@ export function AgendaRoute() {
 }
 
 export function ComunidadesRoute() {
+  const shell = useShell();
   const contract = useCommunitiesContract({ selectedCommunityId: null });
-  return <CommunitiesView contract={contract} />;
+  const online = onlineDataState(shell);
+  if (shell.comm.status.loading) return <OnlineLoading label="Carregando comunidades…" />;
+  return (
+    <>
+      {online.readError && (
+        <div className="mb-4">
+          <OnlineReadError error={online.readError} onRetry={online.retry} />
+        </div>
+      )}
+      <CommunitiesView contract={contract} />
+    </>
+  );
 }
 
 export function PerfilRoute() {
   const shell = useShell();
-  const { auth, play, cloudSync, comm } = shell;
+  const { auth, play, comm } = shell;
   const { account } = useAuthSession();
   const [editing, setEditing] = useState(false);
   const current = account?.username ?? null;
@@ -210,10 +235,13 @@ export function PerfilRoute() {
         profile={profile}
         player={minhaFicha}
         communities={comm.communities}
-        lastSyncedAt={cloudSync.lastSyncedAt}
-        onExportBackup={shell.handleExportBackup}
-        onImportBackup={shell.handleImportBackup}
-        onRestoreDemoPlayers={play.handleRestoreDemoPlayers}
+        {...(play.online
+          ? {}
+          : {
+              onExportBackup: shell.handleExportBackup,
+              onImportBackup: shell.handleImportBackup,
+              onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
+            })}
       />
       {mostrarErroDaBusca && (
         <div className="card card-border bg-base-200">

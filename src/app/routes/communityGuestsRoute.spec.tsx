@@ -1,10 +1,14 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Community, Player } from '@shared/types';
 import type { CommunityPermissions } from '@domain/communityPermissions';
 
-const { permissionsMock } = vi.hoisted(() => ({ permissionsMock: vi.fn() }));
+const { permissionsMock, elenco } = vi.hoisted(() => ({
+  permissionsMock: vi.fn(),
+  elenco: { loading: false, readError: null },
+}));
 vi.mock('../../hooks/useCommunityPermissions', () => ({
   useCommunityPermissions: permissionsMock,
 }));
@@ -71,7 +75,7 @@ vi.mock('../shellContext', () => ({
     community,
     play: {
       players: [guestPlayer, inactiveGuest],
-      setPlayers: vi.fn(),
+      status: elenco,
       saveGuestPlayer: vi.fn(),
       removeGuestPlayer: vi.fn(),
       reactivateGuestPlayer: reactivateGuestPlayerMock,
@@ -121,21 +125,35 @@ function LocationProbe() {
 
 function renderAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/comunidades/:communityId" element={<p>Visão geral</p>} />
-        <Route path="/comunidades/:communityId/gestao" element={<CommunityGestaoRoute />} />
-        <Route
-          path="/comunidades/:communityId/gestao/convidados"
-          element={<CommunityGuestsRoute />}
-        />
-      </Routes>
-      <LocationProbe />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/comunidades/:communityId" element={<p>Visão geral</p>} />
+          <Route path="/comunidades/:communityId/gestao" element={<CommunityGestaoRoute />} />
+          <Route
+            path="/comunidades/:communityId/gestao/convidados"
+            element={<CommunityGuestsRoute />}
+          />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
 describe('Gestao > Convidados — acesso por papel', () => {
+  it('enquanto o elenco chega do banco, mostra que esta carregando', () => {
+    permissionsMock.mockReturnValue(permissionsFor('owner'));
+    elenco.loading = true;
+    try {
+      renderAt('/comunidades/c1/gestao/convidados');
+      expect(screen.getByRole('status').textContent).toMatch(/carregando convidados/i);
+      expect(screen.queryByRole('button', { name: /cadastrar convidado/i })).toBeNull();
+    } finally {
+      elenco.loading = false;
+    }
+  });
+
   it('dono ve a aba Convidados e entra na area', () => {
     permissionsMock.mockReturnValue(permissionsFor('owner'));
     renderAt('/comunidades/c1/gestao/convidados');

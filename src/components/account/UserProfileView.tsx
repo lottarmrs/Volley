@@ -35,10 +35,9 @@ export interface UserProfileViewProps {
     | null;
   player?: Player | null;
   communities?: Community[];
-  lastSyncedAt?: string | null;
-  onExportBackup: () => void;
-  onImportBackup: (file: File) => void;
-  onRestoreDemoPlayers: () => void;
+  onExportBackup?: () => void;
+  onImportBackup?: (file: File) => void;
+  onRestoreDemoPlayers?: () => void;
 }
 
 export function UserProfileView({
@@ -46,12 +45,15 @@ export function UserProfileView({
   profile,
   player,
   communities = [],
-  lastSyncedAt,
   onExportBackup,
   onImportBackup,
   onRestoreDemoPlayers,
 }: UserProfileViewProps) {
   const [activeTab, setActiveTab] = useState<'perfil' | 'configuracoes'>('perfil');
+  const dataTools =
+    onExportBackup && onImportBackup && onRestoreDemoPlayers
+      ? { onExportBackup, onImportBackup, onRestoreDemoPlayers }
+      : null;
 
   const defaultAtributos = {
     saque: 7,
@@ -183,47 +185,40 @@ export function UserProfileView({
                 </strong>
               </span>
             </div>
-            {lastSyncedAt && (
-              <span className="text-[10px] font-mono text-text-muted">
-                Último sync:{' '}
-                {new Date(lastSyncedAt).toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
-            )}
           </div>
         </div>
       </div>
 
       {/* 2. ABAS DE NAVEGAÇÃO */}
-      <div className="flex flex-wrap border-b border-base-300 gap-4">
-        <button
-          type="button"
-          onClick={() => setActiveTab('perfil')}
-          className={`pb-3 text-sm font-bold uppercase tracking-wider min-h-[44px] flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'perfil'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-text-muted hover:text-base-content'
-          }`}
-        >
-          <Activity className="w-4 h-4" /> Desempenho & Habilidades
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('configuracoes')}
-          className={`pb-3 text-sm font-bold uppercase tracking-wider min-h-[44px] flex items-center gap-2 border-b-2 transition-all ${
-            activeTab === 'configuracoes'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-text-muted hover:text-base-content'
-          }`}
-        >
-          <Settings className="w-4 h-4" /> Configurações & Dados
-        </button>
-      </div>
+      {dataTools && (
+        <div className="flex flex-wrap border-b border-base-300 gap-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab('perfil')}
+            className={`pb-3 text-sm font-bold uppercase tracking-wider min-h-[44px] flex items-center gap-2 border-b-2 transition-all ${
+              activeTab === 'perfil'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-muted hover:text-base-content'
+            }`}
+          >
+            <Activity className="w-4 h-4" /> Desempenho & Habilidades
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('configuracoes')}
+            className={`pb-3 text-sm font-bold uppercase tracking-wider min-h-[44px] flex items-center gap-2 border-b-2 transition-all ${
+              activeTab === 'configuracoes'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-muted hover:text-base-content'
+            }`}
+          >
+            <Settings className="w-4 h-4" /> Configurações & Dados
+          </button>
+        </div>
+      )}
 
       {/* 3. CONTEÚDO DAS ABAS */}
-      {activeTab === 'perfil' ? (
+      {activeTab === 'perfil' || !dataTools ? (
         <div className="space-y-6">
           {/* ESTATÍSTICAS RÁPIDAS */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -361,9 +356,9 @@ export function UserProfileView({
         /* ABA CONFIGURAÇÕES & BACKUP */
         <div className="space-y-6">
           <SettingsModule
-            onExportBackup={onExportBackup}
-            onImportBackup={onImportBackup}
-            onRestoreDemoPlayers={onRestoreDemoPlayers}
+            onExportBackup={dataTools.onExportBackup}
+            onImportBackup={dataTools.onImportBackup}
+            onRestoreDemoPlayers={dataTools.onRestoreDemoPlayers}
           />
         </div>
       )}

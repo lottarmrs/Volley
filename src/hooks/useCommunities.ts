@@ -217,6 +217,7 @@ export function useCommunities() {
     replaceLocalCommunities: setLocalCommunities,
     online,
     status: remote.status,
+    refresh: remote.refresh,
     editingCommunity,
     setEditingCommunity,
     validationErrors,

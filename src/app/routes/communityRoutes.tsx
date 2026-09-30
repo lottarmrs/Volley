@@ -23,6 +23,8 @@ import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
 import { LegacyQueryRedirect } from './LegacyQueryRedirect';
+import { onlineDataState } from './onlineDataState';
+import { OnlineLoading, OnlineReadError } from '@ui/common/OnlineDataState';
 import { applyCommunityHistoryClear } from '@app/localCommunityUseCases';
 import { CommunityMembersPanel } from '../../components/community/CommunityMembersPanel';
 import { AthleteUsernameSearch } from '../../components/community/AthleteUsernameSearch';
@@ -53,10 +55,15 @@ export function CommunityShell() {
   const location = useLocation();
   const { state: authState } = useAuthSession();
   const { communityId } = useParams();
+  const online = onlineDataState(shell);
   const resolution = resolveCommunityRoute({
     communityId,
     communityIds: shell.comm.communities.map((community) => community.id),
   });
+  if (shell.comm.status.loading) return <OnlineLoading label="Carregando comunidades…" />;
+  if (resolution.kind === 'redirect' && shell.comm.status.readError) {
+    return <OnlineReadError error={shell.comm.status.readError} onRetry={online.retry} />;
+  }
   if (resolution.kind === 'redirect') {
     // Quem nao tem conta nunca vai ter a comunidade neste aparelho. Mandar para
     // /comunidades so troca um muro por outro e apaga de que pelada se tratava
@@ -69,7 +76,16 @@ export function CommunityShell() {
 
   const community = shell.comm.communities.find((item) => item.id === communityId) as Community;
 
-  return <Outlet context={{ ...shell, community }} />;
+  return (
+    <>
+      {online.readError && (
+        <div className="mb-4">
+          <OnlineReadError error={online.readError} onRetry={online.retry} />
+        </div>
+      )}
+      <Outlet context={{ ...shell, community }} />
+    </>
+  );
 }
 
 export function CommunityOverviewRoute() {
@@ -230,53 +246,57 @@ export function CommunityGuestsRoute() {
         ativa="convidados"
         canEditPlayerProfile={permissions.canEditPlayerProfile}
       />
-      <CommunityGuestsArea
-        guests={guests}
-        noCloud={noCloud}
-        isOwner={permissions.canDeleteCommunity}
-        onSave={(input) =>
-          play.saveGuestPlayer({
-            ...input,
-            communityId: community.id,
-            canEdit: permissions.canEditPlayerProfile,
-            currentUserId: auth.user?.id ?? null,
-          })
-        }
-        onDeactivate={(playerId) =>
-          play.removeGuestPlayer({
-            playerId,
-            canEdit: permissions.canEditPlayerProfile,
-            currentUserId: auth.user?.id ?? null,
-          })
-        }
-        onReactivate={(playerId) =>
-          play.reactivateGuestPlayer({
-            playerId,
-            canEdit: permissions.canEditPlayerProfile,
-            currentUserId: auth.user?.id ?? null,
-          })
-        }
-        onDelete={(playerId) =>
-          play.deleteGuestPlayer({
-            playerId,
-            isOwner: permissions.canDeleteCommunity,
-            currentUserId: auth.user?.id ?? null,
-          })
-        }
-        searchSlot={
-          permissions.canManageMembers ? (
-            <AthleteUsernameSearch
-              community={community}
-              currentUserId={auth.user?.id ?? null}
-              isSupabaseConfigured={auth.isSupabaseConfigured}
-              onLinkedPlayer={(player, communityId) => play.linkCloudPlayer(player, communityId)}
-            />
-          ) : undefined
-        }
-        initialEditingId={searchParams.get('editar')}
-        onCloseEditor={fecharEditorNaUrl}
-        onAvatarApplied={(playerId, url) => play.setAvatar(playerId, url)}
-      />
+      {play.status.loading ? (
+        <OnlineLoading label="Carregando convidados…" />
+      ) : (
+        <CommunityGuestsArea
+          guests={guests}
+          noCloud={noCloud}
+          isOwner={permissions.canDeleteCommunity}
+          onSave={(input) =>
+            play.saveGuestPlayer({
+              ...input,
+              communityId: community.id,
+              canEdit: permissions.canEditPlayerProfile,
+              currentUserId: auth.user?.id ?? null,
+            })
+          }
+          onDeactivate={(playerId) =>
+            play.removeGuestPlayer({
+              playerId,
+              canEdit: permissions.canEditPlayerProfile,
+              currentUserId: auth.user?.id ?? null,
+            })
+          }
+          onReactivate={(playerId) =>
+            play.reactivateGuestPlayer({
+              playerId,
+              canEdit: permissions.canEditPlayerProfile,
+              currentUserId: auth.user?.id ?? null,
+            })
+          }
+          onDelete={(playerId) =>
+            play.deleteGuestPlayer({
+              playerId,
+              isOwner: permissions.canDeleteCommunity,
+              currentUserId: auth.user?.id ?? null,
+            })
+          }
+          searchSlot={
+            permissions.canManageMembers ? (
+              <AthleteUsernameSearch
+                community={community}
+                currentUserId={auth.user?.id ?? null}
+                isSupabaseConfigured={auth.isSupabaseConfigured}
+                onLinkedPlayer={(player, communityId) => play.linkCloudPlayer(player, communityId)}
+              />
+            ) : undefined
+          }
+          initialEditingId={searchParams.get('editar')}
+          onCloseEditor={fecharEditorNaUrl}
+          onAvatarApplied={(playerId, url) => play.setAvatar(playerId, url)}
+        />
+      )}
     </div>
   );
 }
@@ -294,19 +314,23 @@ export function CommunityRulesRoute() {
         ativa="regras"
         canEditPlayerProfile={permissions.canEditPlayerProfile}
       />
-      <CommunityRulesArea
-        rules={communityRules.getRules(community)}
-        canEditRules={permissions.canEditRules}
-        onSave={(draftRules) => {
-          try {
-            communityRules.saveRules(draftRules, permissions.canEditRules);
-          } catch (err) {
-            if ((err as Error).message === 'PERMISSION_DENIED') {
-              alert('Erro: Ação não autorizada pelo nível de permissão.');
+      {communityRules.status.loading ? (
+        <OnlineLoading label="Carregando regras…" />
+      ) : (
+        <CommunityRulesArea
+          rules={communityRules.getRules(community)}
+          canEditRules={permissions.canEditRules}
+          onSave={(draftRules) => {
+            try {
+              communityRules.saveRules(draftRules, permissions.canEditRules);
+            } catch (err) {
+              if ((err as Error).message === 'PERMISSION_DENIED') {
+                alert('Erro: Ação não autorizada pelo nível de permissão.');
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -375,6 +399,8 @@ export function CommunityPeopleRoute() {
   const { community, play, sess, comm, auth } = shell;
   const communityPlayers = getCommunityPlayers(community.id, play.players);
   const { capabilities } = useCommunityCapabilities(community);
+
+  if (play.status.loading) return <OnlineLoading label="Carregando atletas…" />;
 
   return (
     <PlayersView

@@ -94,11 +94,12 @@ export function useCommunityRules() {
       rawRules: rules,
       online,
       status: remote.status,
+      refresh: remote.refresh,
       replaceLocalRules: setLocalRules,
       getRules,
       saveRules,
       removeRules,
     }),
-    [rules, online, remote.status, getRules, saveRules, removeRules],
+    [rules, online, remote.status, remote.refresh, getRules, saveRules, removeRules],
   );
 }

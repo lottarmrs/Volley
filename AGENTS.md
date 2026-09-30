@@ -93,6 +93,18 @@ Sensitive membership mutations use RPCs (`set_community_member_role`, `remove_co
 
 `src/infra/supabase/` has individual cloud services per entity (accountCloudService, careerCloudService, championshipCloudService, communityCloudService, etc.) and a `syncService.ts` that orchestrates them. `authClient.ts` provides the shared Supabase client and auth methods.
 
+### Online data layer (replacing sync, since 2026-09-30)
+
+With an account, communities, roster, members and rules are read and written straight to Supabase
+through TanStack Query (`src/app/queryClient.ts`, keys in `src/application/queryKeys.ts`, reads in
+`src/application/communityDataQueries.ts`, shared hook `src/hooks/useOnlineList.ts`). Writes are
+optimistic and roll back on refusal; offline means the write does not happen
+(`src/application/onlineErrors.ts`). `useCommunityRealtime` subscribes to the open community and
+only invalidates queries — the payload never reaches the UI (ADR-RT-001). Without an account the
+same hooks keep using `localStorage`. `syncService` no longer uploads or downloads these entities;
+it receives them from the cache to translate ids. Sessions, leagues, presence and WhatsApp still go
+through sync until parts 2–5.
+
 ### Optional data backfill
 
 `scripts/backfill-global-from-backup.ts` — standalone utility for backfilling global state from a backup JSON. Not part of the app; invoked independently.

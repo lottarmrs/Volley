@@ -264,6 +264,13 @@ As dez travas abaixo de 44px (**14**), o conjunto de candidatos publicado sem
 leitor (**13**), o `AvatarApprovalInbox` sem tela, o selo de pedido de entrada, o
 destino da autoavaliação, exclusão de conta e privacidade do bucket de avatar.
 
+### Projeto tempo real (desde 2026-09-30)
+
+O sync sai em cinco partes, nesta ordem: **1** comunidade, elenco, membros e regras online
+(feita); **2** peladas e histórico; **3** pelada ao vivo com membros acompanhando (só o placar
+guarda fila sem sinal); **4** ligas, presença, listas de WhatsApp e modelos; **5** remoção do
+`syncService` e do `localStorage` de dados de conta, deixando sem conta só a pelada rápida.
+
 ---
 
 ## 5. O que este documento não decide

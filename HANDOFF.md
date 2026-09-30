@@ -1,5 +1,15 @@
 # HANDOFF — Panelinha
 
+> **2026-09-30 — projeto tempo real, parte 1 (dados online).** O app deixa o sync em cinco
+> partes (memória `volley-next-realtime-replaces-sync`; spec e plano em `docs/superpowers/` com
+> data de 2026-09-30). A parte 1 fez comunidade, elenco, membros e regras serem lidos e gravados
+> direto no banco com TanStack Query, com uma ponte de tempo real que só manda reler
+> (`useCommunityRealtime`, ADR-RT-001). Com conta, o `localStorage` perde essas três chaves na
+> primeira abertura e o perfil perde backup e demonstração; sem conta, nada muda. Migration
+> `20260930140000_dados_online_comunidade` põe as cinco tabelas em `supabase_realtime`. Próximas
+> partes: 2 peladas e histórico, 3 pelada ao vivo com membros acompanhando, 4 ligas, presença,
+> WhatsApp e modelos, 5 remoção do `syncService`.
+>
 > Atualizado em **2026-09-08**, ao integrar em `main` a W5-02..W5-04, o editor de avaliação, a
 > remediação da auditoria de segurança do mesmo dia e a W6-01, depois da review independente de
 > branch inteira. Este é o ponto de retomada canônico se o limite da conversa acabar.

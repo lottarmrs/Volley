@@ -80,6 +80,10 @@ Uma pessoa só joga quando tem **três**, e elas são independentes:
 | 2.2 | Entrar por convite dá quais? | ✅ As três, desde 2026-09-24. |
 | 2.3 | E se a comunidade não tiver nuvem? | Funciona local, mas **a lista nunca abre**: `openRegistration` exige `cloudId`. |
 | 2.4 | E se a pessoa já tinha ficha de outra comunidade? | ✅ O vínculo dela não é reescrito pela aprovação. |
+| 2.5 | Com conta, de onde vêm comunidade, elenco, membros e regras? | ✅ Do banco, desde a parte 1 dos dados online (2026-09-30): `useCommunities`, `usePlayers`, `useCommunityRules` e `useCommunityMembers` leem por TanStack Query; o sync não sobe nem baixa mais essas quatro coisas (`syncService.test.ts`). |
+| 2.6 | Com conta e sem sinal, dá para criar ou editar comunidade, convidado ou regra? | ✅ Não: a mudança aparece, volta atrás e o toast diz "Sem conexão. Tente de novo quando o sinal voltar." Nada fica pendente no aparelho (`useCommunities.spec`, `usePlayers.spec`, `useCommunityRules.spec`). |
+| 2.7 | E se a leitura falhar? | ✅ Faixa com "Tentar de novo" por cima do que já estava na tela; enquanto carrega, a comunidade e o painel esperam em vez de redirecionar (`onlineStates.spec`). |
+| 2.8 | A mudança de um aparelho chega no outro sem recarregar? | ❓ A ponte de tempo real (`useCommunityRealtime`) só manda reler e está coberta por spec com canal simulado; falta conferir no ar com duas abas. |
 
 ---
 

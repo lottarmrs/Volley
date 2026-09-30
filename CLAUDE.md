@@ -124,6 +124,10 @@ Sensitive membership mutations go through RPCs (`set_community_member_role`, `re
 
 `src/infra/supabase/` holds per-entity cloud services plus `syncService.ts` (orchestrator); `authClient.ts` is the shared client.
 
+**Online data layer (since 2026-09-30):** with an account, communities, roster, members and rules
+are TanStack Query reads/writes against Supabase, not sync — see `AGENTS.md` → "Online data layer".
+Specs that render hooks using it need a `QueryClientProvider`.
+
 ## Known tech debt
 
 - `src/logic/migrations.ts` — large, many `any` casts (compat/import layer).

@@ -10,19 +10,76 @@ import {
   duplicateLocalCommunity,
   validateLocalCommunitySave,
 } from '../application/localCommunityUseCases';
+import { fetchMyCommunities } from '../application/communityDataQueries';
+import { queryKeys } from '../application/queryKeys';
+import { communityCloudService } from '../infra/supabase/communityCloudService';
+import { useOnlineAccount, useOnlineList } from './useOnlineList';
+
+function upsertInList(list: Community[], community: Community): Community[] {
+  return list.some((item) => item.id === community.id)
+    ? list.map((item) => (item.id === community.id ? community : item))
+    : [...list, community];
+}
 
 export function useCommunities() {
-  const [communities, setCommunities] = useState<Community[]>(() =>
+  const { online, userId } = useOnlineAccount();
+  const [localCommunities, setLocalCommunities] = useState<Community[]>(() =>
     normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, [])),
   );
+  const remote = useOnlineList<Community>({
+    enabled: online,
+    queryKey: queryKeys.comunidades(userId ?? ''),
+    fetch: fetchMyCommunities,
+  });
+  const communities = online ? remote.data : localCommunities;
 
   const [editingCommunity, setEditingCommunity] = useState<Community | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    saveToStorage(STORAGE_KEYS.communities, communities);
-  }, [communities]);
+    if (!online) saveToStorage(STORAGE_KEYS.communities, localCommunities);
+  }, [localCommunities, online]);
+
+  const persistCommunity = useCallback(
+    (community: Community) => {
+      if (!online || !userId) {
+        setLocalCommunities((prev) => upsertInList(prev, community));
+        return;
+      }
+      void remote.write(
+        (list) => upsertInList(list, community),
+        () => communityCloudService.upsert(community, community.cloudOwnerId ?? userId),
+      );
+    },
+    [online, remote, userId],
+  );
+
+  const deleteCommunity = useCallback(
+    async (communityId: string): Promise<boolean> => {
+      if (!online) {
+        setLocalCommunities((prev) =>
+          applyLocalCommunityDeletion({
+            communities: prev,
+            communityId,
+            now: new Date().toISOString(),
+          }),
+        );
+        return true;
+      }
+      const community = communities.find((item) => item.id === communityId);
+      if (!community?.cloudId) return false;
+      const done = await remote.write(
+        (list) => list.filter((item) => item.id !== communityId),
+        async () => {
+          await communityCloudService.softDelete(community.cloudId!);
+          return true;
+        },
+      );
+      return done === true;
+    },
+    [communities, online, remote],
+  );
 
   const handleSaveCommunity = useCallback(
     (allowed = true) => {
@@ -38,24 +95,16 @@ export function useCommunities() {
         return false;
       }
 
-      const now = new Date().toISOString();
-      const savedCommunity: Community = {
+      persistCommunity({
         ...editingCommunity,
-        syncStatus: 'pending',
-        updatedAt: now,
-      };
-
-      const exists = communities.some((c) => c.id === savedCommunity.id);
-      const updated = exists
-        ? communities.map((c) => (c.id === savedCommunity.id ? savedCommunity : c))
-        : [...communities, savedCommunity];
-
-      setCommunities(updated);
+        syncStatus: online ? editingCommunity.syncStatus : 'pending',
+        updatedAt: new Date().toISOString(),
+      });
       setEditingCommunity(null);
       setValidationErrors({});
       return true;
     },
-    [editingCommunity, communities],
+    [editingCommunity, communities, online, persistCommunity],
   );
 
   const handleDeleteCommunity = useCallback(
@@ -65,14 +114,8 @@ export function useCommunities() {
       }
       if (!editingCommunity) return;
 
-      const updated = applyLocalCommunityDeletion({
-        communities,
-        communityId: editingCommunity.id,
-        now: new Date().toISOString(),
-      });
-      setCommunities(updated);
+      void deleteCommunity(editingCommunity.id);
 
-      // Run cascade delete to clean up references in player models
       if (onCascadeDelete) {
         onCascadeDelete(editingCommunity.id);
       }
@@ -80,7 +123,7 @@ export function useCommunities() {
       setEditingCommunity(null);
       setShowDeleteConfirm(false);
     },
-    [editingCommunity, communities],
+    [editingCommunity, deleteCommunity],
   );
 
   const handleEditCommunity = useCallback((community: Community) => {
@@ -124,29 +167,30 @@ export function useCommunities() {
         now: new Date().toISOString(),
       });
       if ('communities' in result) {
-        setCommunities(result.communities);
+        const updated = result.communities.find((community) => community.id === communityId);
+        if (online && updated) persistCommunity(updated);
+        if (!online) setLocalCommunities(result.communities);
         setValidationErrors({});
         return true;
       }
       setValidationErrors(result.errors);
       return false;
     },
-    [communities],
+    [communities, online, persistCommunity],
   );
 
   const addCommunity = useCallback(
     (input: Partial<Community>) => {
-      const now = new Date().toISOString();
       const community = createLocalCommunity({
         communities,
         input,
         id: generateUUID(),
-        now,
+        now: new Date().toISOString(),
       });
-      setCommunities((prev) => [...prev, community]);
+      persistCommunity(community);
       return community;
     },
-    [communities],
+    [communities, persistCommunity],
   );
 
   const duplicateCommunity = useCallback(
@@ -158,16 +202,20 @@ export function useCommunities() {
         now: new Date().toISOString(),
       });
       if (!result) return null;
-      setCommunities((prev) => [...prev, result.duplicate]);
-      return result;
+      const duplicate: Community = online
+        ? { ...result.duplicate, cloudOwnerId: undefined, joinCode: null }
+        : result.duplicate;
+      persistCommunity(duplicate);
+      return { duplicate };
     },
-    [communities],
+    [communities, online, persistCommunity],
   );
 
   return {
     communities: communities.filter((c) => !c.deletedAt),
-    rawCommunities: communities, // Expose full list with soft deletes for syncService
-    setCommunities,
+    rawCommunities: communities,
+    online,
+    status: remote.status,
     editingCommunity,
     setEditingCommunity,
     validationErrors,
@@ -181,5 +229,6 @@ export function useCommunities() {
     updateCommunity,
     addCommunity,
     duplicateCommunity,
+    deleteCommunity,
   };
 }

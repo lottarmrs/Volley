@@ -13,8 +13,11 @@ export function useCommunitiesWithCapability(
   const auth = useAuth();
   const userId = auth.user?.id ?? null;
   const cloud = auth.isSupabaseConfigured && !!userId;
-  const key = `${capability}:${userId ?? ''}:${communities
-    .map((community) => `${community.id}=${community.cloudId ?? ''}`)
+  const naNuvem = cloud ? communities.filter((community) => !!community.cloudId) : [];
+  const locais = communities.filter((community) => !naNuvem.includes(community));
+  const idsLocais = locais.filter(roleAllows).map((community) => community.id);
+  const key = `${capability}:${userId ?? ''}:${naNuvem
+    .map((community) => `${community.id}=${community.cloudId}`)
     .join(',')}`;
   const [state, setState] = useState<{ key: string; allowedIds: ReadonlySet<string> }>({
     key: '',
@@ -22,10 +25,10 @@ export function useCommunitiesWithCapability(
   });
 
   useEffect(() => {
+    if (naNuvem.length === 0) return;
     let vivo = true;
     void Promise.all(
-      communities.map(async (community) => {
-        if (!cloud || !community.cloudId) return roleAllows(community) ? community.id : null;
+      naNuvem.map(async (community) => {
         const result = await loadCommunityCapabilities(community.cloudId, userId);
         return result.ok && result.value.includes(capability) ? community.id : null;
       }),
@@ -38,7 +41,7 @@ export function useCommunitiesWithCapability(
     };
   }, [key]);
 
-  return state.key === key
-    ? { allowedIds: state.allowedIds, pending: false }
-    : { allowedIds: EMPTY, pending: true };
+  if (naNuvem.length === 0) return { allowedIds: new Set(idsLocais), pending: false };
+  if (state.key !== key) return { allowedIds: EMPTY, pending: true };
+  return { allowedIds: new Set([...idsLocais, ...state.allowedIds]), pending: false };
 }

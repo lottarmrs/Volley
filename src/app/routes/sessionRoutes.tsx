@@ -27,6 +27,7 @@ import {
 import { buildInviteShareUrl } from '@app/communityInviteUseCases';
 import { suggestedRegistrationCapacity } from '@app/scheduleSessionUseCases';
 import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
+import { useScoringOffline } from '@hooks/useScoringOffline';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -392,6 +393,7 @@ export function SessionActiveRoute() {
   const shell = useCommunityShell();
   const navigate = useNavigate();
   const { community, sess, play } = shell;
+  const scoringOffline = useScoringOffline(sess);
   const phase = derivePhase(sess.activeSession, sess.games);
   const resolution = resolveLiveSessionRoute({
     communityId: community.id,
@@ -411,6 +413,7 @@ export function SessionActiveRoute() {
         sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
+        offline: scoringOffline,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,
         setGameReports: sess.setGameReports,

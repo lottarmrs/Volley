@@ -27,6 +27,7 @@ import { useHandleAvailability } from '@hooks/useHandleAvailability';
 import { useGoogleAuthEnabled } from '@hooks/useGoogleAuthEnabled';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
+import { useScoringOffline } from '@hooks/useScoringOffline';
 import { onlineDataState } from './onlineDataState';
 import { OnlineLoading, OnlineReadError } from '@ui/common/OnlineDataState';
 import { useAuthSession } from '../auth/useAuthSession';
@@ -373,6 +374,7 @@ export function LegacyActiveSessionRoute() {
   const shell = useShell();
   const navigate = useNavigate();
   const { sess, play } = shell;
+  const scoringOffline = useScoringOffline(sess);
   const phase = derivePhase(sess.activeSession, sess.games);
   const resolution = resolveLegacyLiveSessionRoute({
     activeSessionCommunityId: shell.activeSessionCommunityId,
@@ -391,6 +393,7 @@ export function LegacyActiveSessionRoute() {
         sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
+        offline: scoringOffline,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,
         setGameReports: sess.setGameReports,

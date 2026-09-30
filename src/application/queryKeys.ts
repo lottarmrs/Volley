@@ -1,0 +1,6 @@
+export const queryKeys = {
+  comunidades: (userId: string) => ['comunidades', userId] as const,
+  atletas: (userId: string) => ['atletas', userId] as const,
+  regras: (userId: string) => ['regras', userId] as const,
+  membros: (communityCloudId: string) => ['comunidade', communityCloudId, 'membros'] as const,
+};

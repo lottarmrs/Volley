@@ -2,7 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'motion/react';
 import { BrowserRouter } from 'react-router';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { AppRouter } from './app/AppRouter';
+import { queryClient } from './app/queryClient';
 import { AuthSessionProvider } from './app/auth/AuthSessionProvider';
 import { supabaseAuthClient } from './infra/supabase/authClient';
 import { accountCloudService } from './infra/supabase/accountCloudService';
@@ -28,11 +30,13 @@ createRoot(document.getElementById('root')!).render(
     <MotionConfig reducedMotion="user">
       <BrowserRouter>
         <AuthSessionProvider authClient={supabaseAuthClient} accountGateway={accountCloudService}>
-          <ToastProvider>
-            <SessionProvider>
-              <AppRouter />
-            </SessionProvider>
-          </ToastProvider>
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <SessionProvider>
+                <AppRouter />
+              </SessionProvider>
+            </ToastProvider>
+          </QueryClientProvider>
         </AuthSessionProvider>
       </BrowserRouter>
     </MotionConfig>

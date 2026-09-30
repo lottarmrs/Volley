@@ -25,6 +25,14 @@ online e migra comunidade, membros, elenco e regras.
    6 contas em produção, sync rodando o tempo todo).
 4. **As telas mudam:** comunidade, elenco (Pessoas, Convidados), membros e regras passam pelo
    `/impeccable shape` para desenhar carregando, erro, sem conexão e confirmação de gravação.
+5. **Backup e demonstração saem para quem tem conta:** exportar backup, importar backup e
+   "restaurar atletas de demonstração" deixam de aparecer no painel e no perfil de quem tem conta
+   (o banco guarda tudo). Sem conta, nada muda nesta parte.
+6. **`/perfil/sync` ("Sincronização & Backup Nuvem") fica como está** até a parte 5, quando sai
+   junto com o sync.
+7. **Textos que falam de sincronizar** comunidades e atletas mudam nesta parte (painel, perfil,
+   configurações da conta, cadastro/entrada e onde mais aparecer), no `/impeccable shape`/`clarify`
+   de cada tela.
 
 ## Por quê
 
@@ -88,6 +96,25 @@ Migration nova `20260930140000_dados_online_comunidade.sql`:
   erro, sem conexão e confirmação de gravação, no mundo visual que o app já tem.
 - A bancada em `preview/` ganha esses estados para conferência no navegador.
 
+## Parte 5 — Painel, perfil, conta e demais referências
+
+- **Painel (home, `Dashboard`):** com conta, sem exportar/importar backup (`onExportBackup`,
+  `onImportBackup` do contrato do painel).
+- **Perfil (`UserProfileView`, `/perfil`):** com conta, sem "último sync", exportar, importar e
+  "restaurar atletas de demonstração".
+- **Cadastro e entrada (`AuthForm`):** a frase "Cadastre-se para sincronizar seus dados e
+  comunidades na nuvem." e a de login deixam de prometer sincronização; o texto novo sai do
+  `/impeccable clarify`.
+- **Demais referências** a sincronizar comunidades ou atletas (`CommunityMembersPanel`,
+  `AthleteUsernameSearch`, `EvaluationRosterView`, `GuestPlayerModal`, `AvatarUpload`,
+  `FutCardModal`, `SessionWizard`, `ChampionshipWizardView`): cada uma é revista; a que fala de
+  comunidade/atleta vira linguagem de "online"/"sem conexão"; a que fala de pelada ou liga fica
+  para a parte que as migra.
+- **Topo do app (`AppShell`, contagem de pendentes):** passa a contar só o que ainda passa pelo
+  sync (peladas, ligas, presença, listas).
+- `/perfil/sync` fica como está (decisão 6).
+- Painel e perfil passam pelo `/impeccable shape` junto com as telas da Parte 4.
+
 ## Testes
 
 - Ponte de tempo real (unitário, canal simulado): aviso de uma tabela invalida só a chave dela;
@@ -100,7 +127,8 @@ Migration nova `20260930140000_dados_online_comunidade.sql`:
   muda.
 - `src/test/db/dadosOnlineComunidade.dbtest.ts`: as cinco tabelas estão em `supabase_realtime`
   depois da migration.
-- Specs dos estados de tela que o shape definir.
+- Specs dos estados de tela que o shape definir; painel e perfil sem backup nem demonstração
+  para quem tem conta, e com eles sem conta.
 
 ## Publicação
 

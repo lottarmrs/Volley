@@ -60,6 +60,7 @@ interface RegistrationBoardViewProps {
   /** Ponto de injecao para o teste; por padrao abre o WhatsApp. */
   onShare?: (texto: string) => void;
   pixKey?: string;
+  organizerName?: string | null;
   organizerHandover?: {
     podeTransferir: boolean;
     currentUserId: string | null;
@@ -169,6 +170,7 @@ export function RegistrationBoardView({
   inviteUrl,
   drawUrl,
   onShare,
+  organizerName = null,
   organizerHandover,
 }: RegistrationBoardViewProps) {
   const { board, busy, error, loading } = api;
@@ -293,6 +295,9 @@ export function RegistrationBoardView({
 
       <div className={`rounded-box border p-5 transition-colors ${situacao.cor}`}>
         <Cabecalho nome={nome} data={data} />
+        {organizerName && (
+          <p className="mt-1 text-sm text-base-content/70">Organiza: {organizerName}</p>
+        )}
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div role="status" className="min-w-0">
             <p className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-base-content">
@@ -440,7 +445,7 @@ export function RegistrationBoardView({
         </button>
       )}
 
-      {organizerHandover && (
+      {organizerHandover?.podeTransferir && (
         <div className="space-y-3">
           <button
             type="button"
@@ -454,7 +459,7 @@ export function RegistrationBoardView({
             <SessionOrganizerPanel
               membros={organizerHandover.membros}
               currentUserId={organizerHandover.currentUserId}
-              organizadorAtual={null}
+              organizadorAtual={organizerName}
               podeTransferir={organizerHandover.podeTransferir}
               onTransfer={organizerHandover.onTransfer}
               onClose={() => setMostrarOrganizador(false)}

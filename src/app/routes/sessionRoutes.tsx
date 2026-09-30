@@ -11,6 +11,7 @@ import { buildHistoryViewContract } from '@app/screens/historyView/historyViewCo
 import { buildSessionWizardContract } from '@app/screens/sessionWizard/sessionWizardContract';
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
 import { resolveSessionCreationAccess } from '@app/sessionCreationAccess';
+import { loadSessionOrganizer } from '@app/sessionOrganizerReadUseCases';
 import { useCanManageSessions } from '@hooks/useCanManageSessions';
 import { buildManualSessionStartResult, selectSessionTeams } from '@app/sessionLifecycleUseCases';
 import { frequentPlayerIds, getCommunityPlayers, getCommunitySessions } from '@logic/community';
@@ -214,6 +215,18 @@ export function CommunityRegistrationRoute() {
     };
   }, [precisaDoNome, alvoCloudId]);
 
+  const [organizador, setOrganizador] = useState<string | null>(null);
+  useEffect(() => {
+    if (!alvoCloudId) return;
+    let vivo = true;
+    void loadSessionOrganizer(alvoCloudId).then((result) => {
+      if (vivo && result.ok) setOrganizador(result.value?.name ?? null);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [alvoCloudId]);
+
   if (!alvo) return <Navigate to={paths.sessoes(community.id)} replace />;
 
   const sessionCloudId = alvo.sessionCloudId;
@@ -223,6 +236,7 @@ export function CommunityRegistrationRoute() {
       api={api}
       players={getCommunityPlayers(community.id, play.players)}
       frequentPlayerIds={frequentPlayerIds(getCommunitySessions(community.id, sess.sessions))}
+      organizerName={organizador}
       sessionName={alvo.name ?? nomeDaNuvem}
       sessionDate={alvo.date}
       canOpen={!!session && podeOrganizar.allowed && !podeOrganizar.pending}

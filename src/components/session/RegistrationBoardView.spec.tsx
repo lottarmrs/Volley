@@ -463,4 +463,40 @@ describe('RegistrationBoardView', () => {
     });
     expect(screen.queryByRole('link', { name: /sortear os times/i })).toBeNull();
   });
+
+  it('todos veem quem organiza a pelada', () => {
+    render(
+      <MemoryRouter>
+        <RegistrationBoardView
+          api={api({})}
+          players={players}
+          sessionName="Pelada de quinta"
+          sessionDate="2026-09-24"
+          organizerName="Beto"
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Organiza: Beto')).toBeTruthy();
+  });
+
+  it('quem nao pode transferir nao ve o botao Quem organiza', () => {
+    render(
+      <MemoryRouter>
+        <RegistrationBoardView
+          api={api({})}
+          players={players}
+          sessionName="Pelada de quinta"
+          sessionDate="2026-09-24"
+          organizerName="Beto"
+          organizerHandover={{
+            podeTransferir: false,
+            currentUserId: 'u-ana',
+            membros: [],
+            onTransfer: vi.fn(),
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('button', { name: /quem organiza/i })).toBeNull();
+  });
 });

@@ -10,7 +10,7 @@ import {
   isMissingTargetLookup,
 } from './playerEvaluationCloudService';
 import { championshipCloudService } from './championshipCloudService';
-import { applyEvaluationAggregate } from '../../logic/playerEvaluations';
+import { assembleRoster } from '../../application/communityDataQueries';
 import {
   isTargetCohortSession,
   type TargetSessionPlayMode,
@@ -1819,29 +1819,11 @@ export const syncService = {
     const cloudChampionshipTeams = championshipChildren.flatMap((entry) => entry.teams);
     const cloudChampionshipRounds = championshipChildren.flatMap((entry) => entry.rounds);
 
-    const playerMemberships: Record<string, string[]> = {};
-    for (const relation of cloudRelations) {
-      const localPlayerId = relation.player_id;
-      const localCommunityId = relation.community_id;
-      if (localPlayerId && localCommunityId && relation.active) {
-        const key = localPlayerId.toLowerCase();
-        playerMemberships[key] = playerMemberships[key] || [];
-        playerMemberships[key].push(localCommunityId);
-      }
-    }
-
-    const mappedPlayers = cloudPlayers.map((player) => {
-      const playerEvaluations = cloudEvaluations.filter(
-        (evaluation) => evaluation.playerId?.toLowerCase() === player.id.toLowerCase(),
-      );
-      return applyEvaluationAggregate(
-        {
-          ...player,
-          communityIds: playerMemberships[player.id.toLowerCase()] || [],
-        },
-        playerEvaluations,
-        ownerId,
-      );
+    const mappedPlayers = assembleRoster({
+      players: cloudPlayers,
+      relations: cloudRelations,
+      evaluations: cloudEvaluations,
+      ownerId,
     });
 
     const communityLocalIds = makeLocalIdLookup(cloudCommunities);

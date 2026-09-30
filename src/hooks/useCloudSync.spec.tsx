@@ -1,4 +1,6 @@
+import type { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSyncIssueLedger, recordStoredSyncIssue } from '../logic/syncIssueLedger';
 import { syncService, type LocalSyncPayload } from '@infra/supabase/syncService';
@@ -7,6 +9,14 @@ import { makeSession } from '../test/fixtures';
 import type { CloudSyncDeps } from './useCloudSync';
 import { useCloudSync } from './useCloudSync';
 import { useSessions } from './useSessions';
+
+vi.mock('./useAuth', () => ({
+  useAuth: () => ({ user: null, isSupabaseConfigured: false }),
+}));
+
+function withQueryClient({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
+}
 
 function emptyPayload(): LocalSyncPayload {
   return {
@@ -661,17 +671,20 @@ describe('useCloudSync com Session ao vivo', () => {
   });
 
   function renderLiveSync() {
-    return renderHook(() => {
-      const sess = useSessions();
-      const cloud = useCloudSync(
-        deps({
-          sessions: sess.rawSessions,
-          setSessions: sess.setSessions,
-          setActiveSession: sess.setActiveSession,
-        }),
-      );
-      return { sess, cloud };
-    });
+    return renderHook(
+      () => {
+        const sess = useSessions();
+        const cloud = useCloudSync(
+          deps({
+            sessions: sess.rawSessions,
+            setSessions: sess.setSessions,
+            setActiveSession: sess.setActiveSession,
+          }),
+        );
+        return { sess, cloud };
+      },
+      { wrapper: withQueryClient },
+    );
   }
 
   it('mantém a identidade de sync quando a Session ao vivo é atualizada depois do sync', async () => {

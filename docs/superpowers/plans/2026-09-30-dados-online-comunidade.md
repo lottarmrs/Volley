@@ -57,8 +57,7 @@ Vitest + RTL, Node test runner, Postgres real.
 
 - [ ] **Step 1: Instalar** — `npm install @tanstack/react-query` na worktree. Atualiza o
   `package.json`/`package-lock.json` da worktree e instala no `node_modules` compartilhado (a
-  junção para `C:\Volley
-ode_modules`); um pacote a mais sem uso não afeta o `main`.
+  junção para o `node_modules` do `C:\Volley`); um pacote a mais sem uso não afeta o `main`.
 - [ ] **Step 2: Testes que falham** — `queryKeys.test.ts`: as chaves são estáveis e distintas por
   usuário/comunidade. `onlineErrors.test.ts`: `TypeError('Failed to fetch')` → `kind: 'offline_unavailable'`;
   `{ code: '42501', message: 'x' }` → `kind: 'authorization'`; outro → `kind: 'unexpected'`.

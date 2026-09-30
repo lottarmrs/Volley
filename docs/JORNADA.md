@@ -112,6 +112,7 @@ AppShell, ranking da comunidade, cartão de rascunho, `resolveNewSessionPath`,
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
+| 4.0 | Quem marca pelada? | ✅ **Desde 2026-09-30, quem o servidor diz que organiza** (`session.manage`, a responsabilidade `ORGANIZER`): dono, admin e moderador ganham ao assumir o cargo, e "Deixar organizar" em Membros liga ou desliga para qualquer um, inclusive um membro. A interface segue o servidor (`useCanManageSessions`, `communityPermissions.test.ts`); sem nuvem, vale o cargo. |
 | 4.1 | Em que passo a pessoa cai? | Passo 0 (`Sessão`). |
 | 4.2 | Quais passos exigem atleta? | 1 (≥4) e 3 (`teamCount × 3`). O passo 0 não. |
 | 4.3 | **É a hora certa de escolher atletas?** | 🔴 **Não.** Com a inscrição decidindo quem joga, escolher atletas no ato de marcar é pedir a resposta antes da pergunta. |
@@ -181,6 +182,7 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
+| 6.0 | O atleta vê quem organiza a pelada? | ✅ **Sim, desde 2026-09-30:** o quadro da inscrição mostra "Organiza: <nome>" a todos os membros (`get_session_organizer`, `quemOrganiza.dbtest.ts`, `RegistrationBoardView.spec.tsx`). O botão de transferir a organização só aparece para quem pode. |
 | 6.1 | Funciona ponta a ponta? | ✅ `approvedMemberCanJoin.dbtest.ts` cobre do pedido de entrada à vaga. |
 | 6.2 | E se a internet cai no toque? | Falha **visível**, e o `commandId` é guardado: tentar de novo reusa o comando e o recibo impede entrada dupla. |
 | 6.3 | Existe fila offline? | 🔴 **Não.** Quem perdeu o sinal precisa voltar à tela e tocar de novo. Numa lista por ordem de chegada, isso é injusto com quem tentou primeiro. |

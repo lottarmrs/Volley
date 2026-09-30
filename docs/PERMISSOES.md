@@ -26,8 +26,8 @@ O cliente **nunca consulta responsabilidades**: nem `useCommunityPermissions` ne
 
 | # | Pergunta | Resposta |
 |---|---|---|
-| A1 | Um `member` a quem se deu "Deixar organizar" consegue marcar pelada? | 🔴 **Não, pela interface.** O servidor dá `session.manage`, mas `canCreateSession` é falso para `member`: "Marcar pelada" fica desabilitado, `/sessoes/nova` cai em `SessionCreationBlocked`, e "Abrir inscrição" some (`canOpen`, `sessionRoutes.tsx:219`). O próprio painel promete o contrário: "a pessoa passa a poder criar peladas novas". |
-| A2 | Um admin ou moderador **sem** a responsabilidade vê ações de quem organiza? | 🔴 **Sim.** Marcar pelada (Visão geral, Comunidades), Presença, Lista de WhatsApp e "Abrir inscrição" aparecem habilitados; o servidor recusa na hora de abrir a lista. |
+| A1 | Um `member` a quem se deu "Deixar organizar" consegue marcar pelada? | ✅ **Resolvido em 2026-09-30.** A interface pergunta ao servidor (`session.manage`, via `useCanManageSessions`): quem tem "Deixar organizar" marca pelada, abre inscrição e entra em `/sessoes/nova`, qualquer que seja o cargo. |
+| A2 | Um admin ou moderador **sem** a responsabilidade vê ações de quem organiza? | ✅ **Resolvido em 2026-09-30.** Sem `ORGANIZER`, as ações de pelada ficam desabilitadas para qualquer cargo, porque a interface segue `session.manage`. |
 | A3 | Quem vê "Avaliar atleta"? | ✅ **Resolvido em 2026-09-25.** Dono e admin avaliam pelo cargo, e quem administra designa outros avaliadores (`EVALUATOR`) em Gestão → Membros. A área Avaliação pergunta ao servidor (`useCommunityCapabilities` → `current_user_has_community_capability`), não ao cargo. Spec `2026-09-25-avaliacao-da-comunidade-design.md`. |
 | A4 | O cargo legado `organizador` ainda aparece? | Não é mais atribuível (`ASSIGNABLE_COMMUNITY_MEMBER_ROLES`), mas quem já o tem continua com `canCreateSession`. |
 
@@ -37,15 +37,15 @@ O cliente **nunca consulta responsabilidades**: nem `useCommunityPermissions` ne
 
 | # | Tela · rota | Ação | O que acontece | Evidência |
 |---|---|---|---|---|
-| B1 | Sessões `sessoes`, detalhe `sessoes/:id`, Desempenho → Histórico | 🔴 **Lixeira "Excluir histórico"** | Nenhuma checagem. Hoje é latente, porque o atleta não recebe peladas; passa a valer assim que a leitura for liberada (achado 15). | `HistoryView.tsx:634`, `sessionRoutes.tsx:148`, `communityRoutes.tsx:474` |
+| B1 | Sessões `sessoes`, detalhe `sessoes/:id`, Desempenho → Histórico | ✅ ~~🔴 **Lixeira "Excluir histórico"**~~ | **Corrigido em 2026-09-30 (parte 4a)**: só o dono (`canClearHistory`) vê a lixeira. Nenhuma checagem. Hoje é latente, porque o atleta não recebe peladas; passa a valer assim que a leitura for liberada (achado 15). | `HistoryView.tsx:634`, `sessionRoutes.tsx:148`, `communityRoutes.tsx:474` |
 | B2 | Gestão → Dados; menu do cartão em Comunidades | ✅ ~~**Duplicar comunidade (com atletas)**~~ | **Corrigido em 2026-09-25**: só owner/admin (`canExportCommunity`), porque copiar o elenco é exportá-lo. | `CommunityDataArea.tsx:122`, `CommunitiesView.tsx:475` |
 | B3 | Idem | ✅ ~~**Exportar comunidade**~~ | **Decidido e corrigido em 2026-09-25**: membro não exporta; só owner/admin. Spec em `CommunityDataArea.spec.tsx`. | `CommunityDataArea.tsx:129`, `CommunitiesView.tsx:492` |
-| B4 | Ligas globais `/ligas`, `/ligas/nova`, `/ligas/:id` | 🔴 **Criar liga, Excluir liga, Ver sessão da rodada, Aprovar/Recusar pedidos** | Nenhuma checagem. O servidor só aceita owner/admin, e a **mesma** área dentro da comunidade exige `canEditRules`. Duas portas para a mesma ação, uma trancada e outra aberta. | `ChampionshipDetailView.tsx:228,449,675,682`, `ChampionshipWizardView.tsx:227` |
-| B5 | Sessões → Torneios | ⚠️ **Novo torneio**; **abrir torneio ao vivo** | "Novo torneio" leva à tela de bloqueio. "Abrir ao vivo" põe a sessão como ativa sem checagem: latente, como B1. | `TournamentsModule.tsx:33,85`, `sessionRoutes.tsx:405` |
+| B4 | Ligas globais `/ligas`, `/ligas/nova`, `/ligas/:id` | ✅ ~~🔴 **Criar liga, Excluir liga, Ver sessão da rodada, Aprovar/Recusar pedidos**~~ | **Corrigido em 2026-09-30 (parte 4a)**: criar, excluir, abrir rodada e aprovar/recusar seguem dono e admin da comunidade da liga. Nenhuma checagem. O servidor só aceita owner/admin, e a **mesma** área dentro da comunidade exige `canEditRules`. Duas portas para a mesma ação, uma trancada e outra aberta. | `ChampionshipDetailView.tsx:228,449,675,682`, `ChampionshipWizardView.tsx:227` |
+| B5 | Sessões → Torneios | ✅ ~~⚠️ **Novo torneio**; **abrir torneio ao vivo**~~ | **Corrigido em 2026-09-30 (parte 4a)**: "Novo torneio" e "abrir ao vivo" só para quem organiza (`session.manage`). "Novo torneio" leva à tela de bloqueio. "Abrir ao vivo" põe a sessão como ativa sem checagem: latente, como B1. | `TournamentsModule.tsx:33,85`, `sessionRoutes.tsx:405` |
 | B6 | Pessoas | ✅ ~~**Cadastrar**; **Convidado**~~ | **Resolvido em 2026-09-28**: os botões saíram. Pessoas só lista (carta VUT ao tocar); convidado se cadastra e se edita em Gestão → Convidados. | `PlayersView.tsx`, `CommunityGuestsArea.tsx` |
-| B7 | Painel | ⚠️ **Nova sessão** | Aparece para todos e leva o `member` à tela de bloqueio. | `globalRoutes.tsx:80` |
+| B7 | Painel | ✅ ~~⚠️ **Nova sessão**~~ | **Corrigido em 2026-09-30 (parte 4a)**: "Nova Sessão" só para quem organiza em pelo menos uma comunidade. Aparece para todos e leva o `member` à tela de bloqueio. | `globalRoutes.tsx:80` |
 | B8 | Menu → Gestão | ✅ ~~**A área inteira**~~ | **Decidido e corrigido em 2026-09-25**: Gestão é de owner, admin e moderador (que aprova pedidos de entrada lá), por `canSeeManagement`, no menu e na rota. "Sair da comunidade" foi para o pé da Visão geral para quem não vê Gestão. | `appRoutes.ts:127`, `appRoutes.ts:395` |
-| B9 | Quadro da inscrição | ⚠️ **"Quem organiza"** | O botão aparece para o atleta e abre um painel só com título. E `organizadorAtual` é sempre `null`: o nome de quem organiza não aparece **para ninguém**. | `RegistrationBoardView.tsx:441,455` |
+| B9 | Quadro da inscrição | ✅ ~~⚠️ **"Quem organiza"**~~ | **Corrigido em 2026-09-30 (parte 4a)**: "Organiza: <nome>" aparece para todos; o botão de transferir, só para quem pode. O botão aparece para o atleta e abre um painel só com título. E `organizadorAtual` é sempre `null`: o nome de quem organiza não aparece **para ninguém**. | `RegistrationBoardView.tsx:441,455` |
 
 ---
 
@@ -109,6 +109,13 @@ Estado em 2026-09-28:
   atleta; presença frequente é calculada pelo histórico (metade das até 6 últimas peladas
   encerradas); a foto de uma conta só a conta troca, e vale na hora; convidado ganha foto em
   Gestão → Convidados; a aprovação de foto saiu.
+- **Parte 4a — quem organiza:** feita em código em 2026-09-30
+  ([spec](superpowers/specs/2026-09-29-quem-organiza-design.md)), aguarda publicação. As ações de
+  pelada seguem o servidor (`session.manage`, a responsabilidade `ORGANIZER`), não o cargo;
+  torneios, painel, ligas globais e a lixeira do histórico só aparecem para quem pode; o quadro da
+  inscrição mostra "Organiza: <nome>" a todos (`get_session_organizer`).
+- **Parte 4b — o membro lê o histórico (P17) e "só o dono exclui convidado" no servidor (P18):**
+  a seguir.
 
 ## F. Pontas soltas que contradizem as decisões de 2026-09-25 a 2026-09-28
 
@@ -120,12 +127,12 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 | P8  | ✅ ~~"Duplicar com atletas" põe os mesmos atletas sem conta em outra comunidade~~ — resolvida em 2026-09-29: duplicar copia só nome e regras | `applyCommunityMembershipDuplicate`                   | 2     |
 | P9  | ✅ ~~O modal de convidado reaproveita um atleta de outra comunidade~~ — resolvida em 2026-09-29: só convidado da mesma comunidade | `GuestPlayerModal`, `findDuplicatePlayerByProfile`    | 2     |
 | P10 | ✅ ~~Falta o gatilho "atleta sem conta numa comunidade só"~~ — resolvida em 2026-09-29: gatilho em `community_players` | spec da avaliação, item 1.6                           | 2     |
-| P11 | Lixeira "Excluir histórico" sem permissão (B1); vira real quando o membro ler o histórico                                | `HistoryView.tsx`                                     | 4     |
-| P12 | Ligas globais: criar, excluir, abrir rodada e aprovar pedido sem permissão (B4)                                          | `ChampionshipDetailView`, `ChampionshipWizardView`    | 4     |
-| P13 | Torneios: "Novo torneio" e "abrir ao vivo" sem permissão (B5)                                                            | `TournamentsModule`                                   | 4     |
-| P14 | Painel: "Nova sessão" leva o membro a um beco (B7)                                                                       | `globalRoutes.tsx`                                    | 4     |
-| P15 | "Quem organiza" vazio para o atleta, e o nome de quem organiza nunca aparece (B9)                                        | `RegistrationBoardView`, `sessionRoutes.tsx`          | 4     |
-| P16 | Marcar pelada decidido pelo cargo, não pela responsabilidade `ORGANIZER` (A1, A2)                                        | `canCreateSession` e as telas que o usam              | 4     |
+| P11 | ✅ ~~Lixeira "Excluir histórico" sem permissão (B1); vira real quando o membro ler o histórico~~ — resolvida em 2026-09-30 (parte 4a) | `HistoryView.tsx`                                     | 4     |
+| P12 | ✅ ~~Ligas globais: criar, excluir, abrir rodada e aprovar pedido sem permissão (B4)~~ — resolvida em 2026-09-30 (parte 4a) | `ChampionshipDetailView`, `ChampionshipWizardView`    | 4     |
+| P13 | ✅ ~~Torneios: "Novo torneio" e "abrir ao vivo" sem permissão (B5)~~ — resolvida em 2026-09-30 (parte 4a) | `TournamentsModule`                                   | 4     |
+| P14 | ✅ ~~Painel: "Nova sessão" leva o membro a um beco (B7)~~ — resolvida em 2026-09-30 (parte 4a) | `globalRoutes.tsx`                                    | 4     |
+| P15 | ✅ ~~"Quem organiza" vazio para o atleta, e o nome de quem organiza nunca aparece (B9)~~ — resolvida em 2026-09-30 (parte 4a) | `RegistrationBoardView`, `sessionRoutes.tsx`          | 4     |
+| P16 | ✅ ~~Marcar pelada decidido pelo cargo, não pela responsabilidade `ORGANIZER` (A1, A2)~~ — resolvida em 2026-09-30 (parte 4a) | `canCreateSession` e as telas que o usam              | 4     |
 | P17 | Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)                               | policies de `sessions`, `teams`, `games`, …           | 4     |
 | P18 | "Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin | policy de `players` / `deleted_at`                   | 4     |
 | P19 | ✅ ~~A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta~~ — resolvida em 2026-09-29: só a conta troca a própria foto, na hora | `propose_player_avatar`, Minha ficha                  | 2     |

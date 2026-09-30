@@ -114,8 +114,13 @@ Estado em 2026-09-28:
   pelada seguem o servidor (`session.manage`, a responsabilidade `ORGANIZER`), não o cargo;
   torneios, painel, ligas globais e a lixeira do histórico só aparecem para quem pode; o quadro da
   inscrição mostra "Organiza: <nome>" a todos (`get_session_organizer`).
-- **Parte 4b — o membro lê o histórico (P17) e "só o dono exclui convidado" no servidor (P18):**
-  a seguir.
+- **Parte 4b — o membro lê o histórico:** feita em código em 2026-09-30
+  ([spec](superpowers/specs/2026-09-30-membro-le-o-historico-design.md)), aguarda publicação.
+  Membro ativo lê toda pelada da comunidade que não é rascunho, com times, jogos, pontos e
+  relatórios (`current_user_can_read_community_session`); o sync não devolve à nuvem o histórico de
+  outra conta; apagar histórico e apagar convidado são só do dono da comunidade, no servidor.
+- **Próximo projeto (decidido em 2026-09-30):** remover o sync e trabalhar em tempo real; membros
+  acompanham a pelada ao vivo.
 
 ## F. Pontas soltas que contradizem as decisões de 2026-09-25 a 2026-09-28
 
@@ -133,15 +138,14 @@ P1–P7 estão na spec da parte 3, seção "Pontas desta parte".
 | P14 | ✅ ~~Painel: "Nova sessão" leva o membro a um beco (B7)~~ — resolvida em 2026-09-30 (parte 4a) | `globalRoutes.tsx`                                    | 4     |
 | P15 | ✅ ~~"Quem organiza" vazio para o atleta, e o nome de quem organiza nunca aparece (B9)~~ — resolvida em 2026-09-30 (parte 4a) | `RegistrationBoardView`, `sessionRoutes.tsx`          | 4     |
 | P16 | ✅ ~~Marcar pelada decidido pelo cargo, não pela responsabilidade `ORGANIZER` (A1, A2)~~ — resolvida em 2026-09-30 (parte 4a) | `canCreateSession` e as telas que o usam              | 4     |
-| P17 | Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)                               | policies de `sessions`, `teams`, `games`, …           | 4     |
-| P18 | "Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin | policy de `players` / `deleted_at`                   | 4     |
+| P17 | ✅ ~~Membro ler o histórico da comunidade — decidido "sim" em 2026-09-25 (achado 15 do ROADMAP)~~ — resolvida em 2026-09-30 (parte 4b) | policies de `sessions`, `teams`, `games`, …           | 4     |
+| P18 | ✅ ~~"Só o dono exclui convidado" (decidido em 2026-09-29) vale só no cliente; o servidor ainda aceita a exclusão (soft delete) feita por admin~~ — resolvida em 2026-09-30 (parte 4b): gatilho no servidor | policy de `players` / `deleted_at`                   | 4     |
 | P19 | ✅ ~~A troca de foto: `propose_player_avatar` ainda exige ser `owner_id` ou admin — o atleta cuja ficha foi criada pelo organizador não troca a própria foto, e o criador troca a foto de uma conta~~ — resolvida em 2026-09-29: só a conta troca a própria foto, na hora | `propose_player_avatar`, Minha ficha                  | 2     |
 | P20 | ✅ ~~Cadastrar convidado com o perfil de um desativado cria outro registro em vez de oferecer reativar~~ — resolvida em 2026-09-29: o modal pergunta "Reativar e usar?" | `findDuplicatePlayerByProfile` ignora inativos        | 2     |
 | P21 | ✅ ~~Quem encerra sessão sem poder editar convidado (moderador, organizador) marca a progressão dos convidados alheios como pendente; o servidor recusa e cada um vira um aviso, a cada sessão, e a mudança fica só naquele aparelho~~ — resolvida em 2026-09-29: a recusa não vira mais aviso | `progression.ts`, `rating.ts`, laço de atletas do `syncService` | 2     |
 
-**Pendente antes do plano da parte 4:** a P17 depende de uma pergunta sem resposta desde
-2026-09-25 — o membro deve ver sessões `PRIVATE`? Hoje nada no app publica sessão
-(`publish_target_session` não tem chamador), então toda sessão `target` é `PRIVATE`.
+**Respondido em 2026-09-30:** o membro vê toda pelada da comunidade, menos rascunho;
+`PRIVATE`/`PUBLISHED` é ignorado (nada no app publica sessão).
 
 ## Não verificado
 

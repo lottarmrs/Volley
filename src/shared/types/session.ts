@@ -63,6 +63,7 @@ export interface GameReport {
     rating?: number;
   }[];
   cloudId?: string;
+  cloudOwnerId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
@@ -111,6 +112,7 @@ export interface SessionReport {
   }[];
   games: GameReport[];
   cloudId?: string;
+  cloudOwnerId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
@@ -131,6 +133,7 @@ export interface Team {
   championshipTeamId?: string;
   strengthSnapshot: TeamStrengthSnapshot;
   cloudId?: string;
+  cloudOwnerId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
@@ -319,6 +322,7 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   cloudId?: string;
+  cloudOwnerId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
@@ -362,6 +366,7 @@ export interface Game {
     originalTeamBId?: string | null;
   };
   cloudId?: string;
+  cloudOwnerId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;
@@ -526,6 +531,7 @@ export interface PointEvent {
   };
   timestamp: string;
   cloudId?: string;
+  cloudOwnerId?: string;
   syncStatus?: CloudSyncStatus;
   lastSyncedAt?: string;
   deletedAt?: string;

@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   fetchRows,
+  mapDbToGame,
+  mapDbToGameReport,
+  mapDbToPointEvent,
+  mapDbToSession,
+  mapDbToSessionReport,
+  mapDbToTeam,
   mapSessionToDb,
   scopeOperationalFetch,
   TargetSessionRequiresSemanticCommandError,
@@ -402,3 +408,13 @@ for (const scenario of [
     );
   });
 }
+
+test('o download guarda o dono na nuvem de cada linha do historico', () => {
+  const base = { id: 'x', owner_id: 'u9', session_id: 's', game_id: 'g' };
+  assert.equal(mapDbToSession(base).cloudOwnerId, 'u9');
+  assert.equal(mapDbToTeam(base).cloudOwnerId, 'u9');
+  assert.equal(mapDbToGame(base).cloudOwnerId, 'u9');
+  assert.equal(mapDbToPointEvent(base).cloudOwnerId, 'u9');
+  assert.equal(mapDbToGameReport(base).cloudOwnerId, 'u9');
+  assert.equal(mapDbToSessionReport(base).cloudOwnerId, 'u9');
+});

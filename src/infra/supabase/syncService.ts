@@ -969,7 +969,8 @@ async function bulkUploadSessionChildren<T extends Syncable>(
   items: T[],
   sessionsById: Map<string, Session>,
   softDeleteTable: Parameters<typeof operationalCloudService.bulkSoftDelete>[0],
-  bulkUpsertFn: (itemsToUpsert: T[]) => Promise<T[]>,
+  ownerId: string,
+  bulkUpsertFn: (itemsToUpsert: T[], owner: string) => Promise<T[]>,
   options: SyncOptions = {},
 ): Promise<T[]> {
   const syncedAt = nowIso();
@@ -983,6 +984,12 @@ async function bulkUploadSessionChildren<T extends Syncable>(
   for (const item of items) {
     if (item.deletedAt) {
       if (item.cloudId) itemsToDelete.push(item.cloudId);
+      updated.push(markSynced(item, item.cloudId, syncedAt));
+      continue;
+    }
+
+    const alheio = !!item.cloudOwnerId && item.cloudOwnerId !== ownerId;
+    if (alheio && item.syncStatus !== 'pending') {
       updated.push(markSynced(item, item.cloudId, syncedAt));
       continue;
     }
@@ -1004,8 +1011,26 @@ async function bulkUploadSessionChildren<T extends Syncable>(
       await operationalCloudService.bulkSoftDelete(softDeleteTable, itemsToDelete);
     }
 
+    const porDono = new Map<string, T[]>();
+    for (const item of itemsToUpsert) {
+      const dono = item.cloudOwnerId && item.cloudOwnerId !== ownerId ? item.cloudOwnerId : ownerId;
+      porDono.set(dono, [...(porDono.get(dono) ?? []), item]);
+    }
+    const uploadedResults: T[] = [];
+    for (const [dono, grupo] of porDono) {
+      try {
+        uploadedResults.push(...(await bulkUpsertFn(grupo, dono)));
+      } catch (error) {
+        if (dono === ownerId || !isPermissionRefusal(error)) throw error;
+        reportIssue(options.onIssue, `upload ${softDeleteTable} de outra conta`, error);
+        for (const item of grupo) {
+          const key = (item.id || item.cloudId || 'temp').toLowerCase();
+          uploadedItemKeys.add(key);
+          updated.push(markSynced(item, item.cloudId, syncedAt));
+        }
+      }
+    }
     if (itemsToUpsert.length > 0) {
-      const uploadedResults = await bulkUpsertFn(itemsToUpsert);
       for (const result of uploadedResults) {
         const key = (result.id || '').toLowerCase();
         const originalItem = itemMap.get(key);
@@ -1371,6 +1396,12 @@ export const syncService = {
           continue;
         }
 
+        const alheia = !!session.cloudOwnerId && session.cloudOwnerId !== ownerId;
+        if (alheia && session.syncStatus !== 'pending') {
+          updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
+          continue;
+        }
+
         if (isTargetCohortSession(session)) {
           updatedSessions.push(session);
           continue;
@@ -1420,11 +1451,18 @@ export const syncService = {
           ...session,
           communityId: sessionCommunityCloudId || null,
         };
-        const uploaded = await operationalCloudService.upsertSession(sessionForUpload, ownerId);
+        const uploaded = await operationalCloudService.upsertSession(
+          sessionForUpload,
+          alheia ? session.cloudOwnerId! : ownerId,
+        );
         updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
       } catch (error) {
         onIssue(`sessão "${session.name}"`, error);
-        updatedSessions.push(session);
+        const recusadaAlheia =
+          !!session.cloudOwnerId && session.cloudOwnerId !== ownerId && isPermissionRefusal(error);
+        updatedSessions.push(
+          recusadaAlheia ? markSynced(session, session.cloudId, syncedAt) : session,
+        );
       }
     }
 
@@ -1483,7 +1521,8 @@ export const syncService = {
       local.teams,
       sessionsById,
       'teams',
-      (items) => {
+      ownerId,
+      (items, owner) => {
         const itemsWithResolvedChampionshipTeam = items.filter(
           (item) =>
             !item.championshipTeamId ||
@@ -1492,7 +1531,7 @@ export const syncService = {
         if (itemsWithResolvedChampionshipTeam.length === 0) return Promise.resolve([]);
         return operationalCloudService.bulkUpsertTeams(
           itemsWithResolvedChampionshipTeam,
-          ownerId,
+          owner,
           sessionsById,
           championshipTeamCloudIds,
         );
@@ -1504,7 +1543,8 @@ export const syncService = {
       local.games,
       sessionsById,
       'games',
-      (items) => operationalCloudService.bulkUpsertGames(items, ownerId, sessionsById),
+      ownerId,
+      (items, owner) => operationalCloudService.bulkUpsertGames(items, owner, sessionsById),
       options,
     );
 
@@ -1521,7 +1561,8 @@ export const syncService = {
       pointEventsParaSubir,
       sessionsById,
       'point_events',
-      (items) => operationalCloudService.bulkUpsertPointEvents(items, ownerId, sessionsById),
+      ownerId,
+      (items, owner) => operationalCloudService.bulkUpsertPointEvents(items, owner, sessionsById),
       options,
     );
 
@@ -1529,7 +1570,8 @@ export const syncService = {
       local.gameReports,
       sessionsById,
       'game_reports',
-      (items) => operationalCloudService.bulkUpsertGameReports(items, ownerId, sessionsById),
+      ownerId,
+      (items, owner) => operationalCloudService.bulkUpsertGameReports(items, owner, sessionsById),
       options,
     );
 
@@ -1537,7 +1579,9 @@ export const syncService = {
       local.sessionReports,
       sessionsById,
       'session_reports',
-      (items) => operationalCloudService.bulkUpsertSessionReports(items, ownerId, sessionsById),
+      ownerId,
+      (items, owner) =>
+        operationalCloudService.bulkUpsertSessionReports(items, owner, sessionsById),
       options,
     );
 

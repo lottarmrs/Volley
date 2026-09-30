@@ -3124,3 +3124,116 @@ test('applyServerOwnedAthleteFields casa pela cloudId antes do local_id', () => 
   );
   assert.equal(outraLinha[0].genero, 'F');
 });
+
+test('upload: pelada de outra conta sem mudanca local nao sobe, nem o time dela', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const originalBulkTeams = operationalCloudService.bulkUpsertTeams;
+  let sessoesEnviadas = 0;
+  const timesEnviados: string[] = [];
+  try {
+    operationalCloudService.upsertSession = async (item) => {
+      sessoesEnviadas += 1;
+      return { ...item, cloudId: 'session-cloud' };
+    };
+    operationalCloudService.bulkUpsertTeams = async (items) => {
+      timesEnviados.push(...items.map((item) => item.id));
+      return items.map((item) => ({ ...item, cloudId: `${item.id}-cloud` }));
+    };
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            status: 'finished',
+            cloudId: 'session-cloud',
+            cloudOwnerId: 'outro',
+            syncStatus: 'synced',
+          }),
+        ],
+        teams: [makeTeam({ cloudId: 'team-cloud', cloudOwnerId: 'outro', syncStatus: 'synced' })],
+      }),
+      'eu',
+    );
+    assert.equal(sessoesEnviadas, 0);
+    assert.deepEqual(timesEnviados, []);
+    assert.equal(result.sessions[0].syncStatus, 'synced');
+    assert.equal(result.teams[0].syncStatus, 'synced');
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+    operationalCloudService.bulkUpsertTeams = originalBulkTeams;
+  }
+});
+
+test('upload: pelada de outra conta com mudanca local sobe com o dono original', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const donos: string[] = [];
+  try {
+    operationalCloudService.upsertSession = async (item, owner) => {
+      donos.push(owner);
+      return { ...item, cloudId: 'session-cloud' };
+    };
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            status: 'finished',
+            cloudId: 'session-cloud',
+            cloudOwnerId: 'outro',
+            syncStatus: 'pending',
+          }),
+        ],
+      }),
+      'eu',
+    );
+    assert.deepEqual(donos, ['outro']);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
+test('upload: recusa a pelada de outra conta vira um aviso e ela sai sincronizada', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const issues: string[] = [];
+  const restoreConsole = silenceConsoleError();
+  try {
+    operationalCloudService.upsertSession = async () => {
+      throw Object.assign(new Error('permission denied'), { code: '42501' });
+    };
+    const result = await syncService.uploadLocalDataToCloud(
+      emptyPayload({
+        sessions: [
+          makeSession({
+            status: 'finished',
+            cloudId: 'session-cloud',
+            cloudOwnerId: 'outro',
+            syncStatus: 'pending',
+          }),
+        ],
+      }),
+      'eu',
+      { onIssue: (context) => issues.push(context) },
+    );
+    assert.equal(issues.length, 1);
+    assert.equal(result.sessions[0].syncStatus, 'synced');
+  } finally {
+    restoreConsole();
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});
+
+test('upload: pelada propria continua subindo como hoje', async () => {
+  const originalUpsertSession = operationalCloudService.upsertSession;
+  const donos: string[] = [];
+  try {
+    operationalCloudService.upsertSession = async (item, owner) => {
+      donos.push(owner);
+      return { ...item, cloudId: 'session-cloud' };
+    };
+    await syncService.uploadLocalDataToCloud(
+      emptyPayload({ sessions: [makeSession({ cloudOwnerId: 'eu', syncStatus: 'synced' })] }),
+      'eu',
+    );
+    assert.deepEqual(donos, ['eu']);
+  } finally {
+    operationalCloudService.upsertSession = originalUpsertSession;
+  }
+});

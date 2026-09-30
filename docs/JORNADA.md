@@ -220,12 +220,18 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 | 9.1 | Funciona sem sinal? | ✅ É o princípio declarado. |
 | 9.2 | Dois aparelhos na mesma pelada? | ❓ **Não verificado.** Há `claim_session_ownership` e heartbeat de 10 min, mas não simulei a disputa. |
 | 9.3 | Quem chegou de última hora entra? | Depende de 8.2. |
+| 9.4 | O membro acompanha a pelada ao vivo? | ❓ **Ainda não.** Próximo projeto (decidido em 2026-09-30): remover o sync e trabalhar em tempo real, com membros acompanhando a pelada enquanto acontece. |
 
 ---
 
 ## Etapa 10 — Encerrar, histórico, avaliação
 
-❓ **Não investigada.** O que se sabe: a autoavaliação (nota provisória do
+| # | Pergunta | Resposta |
+|---|----------|----------|
+| 10.1 | O membro vê o histórico da comunidade? | ✅ **Sim, desde 2026-09-30:** toda pelada que não é rascunho, com times, jogos, pontos e relatórios. Rascunho é só de quem organiza e de quem criou. `membroLeOHistorico.dbtest.ts`. |
+| 10.2 | Quem apaga histórico e convidado? | ✅ **O dono da comunidade**, no servidor (gatilhos `zz_guard_history_delete_owner_only` e `zz_guard_guest_delete_owner_only`). Rascunho, quem pode editá-lo descarta; convidado, o admin desativa. |
+
+❓ **O resto não foi investigado.** O que se sabe: a autoavaliação (nota provisória do
 único avaliador de uma comunidade, item 4b.4) segue existindo — só ela, não
 a **ficha** do atleta; a pergunta sobre o **destino de um perfil de
 autoavaliação próprio** (tela dedicada, edição pelo atleta) está

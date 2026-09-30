@@ -134,6 +134,7 @@ export function CommunityWhatsAppRoute() {
 export function CommunitySessionsRoute() {
   const { community, sess, play } = useCommunityShell();
   const navigate = useNavigate();
+  const { canClearHistory } = useCommunityPermissions(community);
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
 
   return (
@@ -150,10 +151,12 @@ export function CommunitySessionsRoute() {
           selectedHistorySessionId: null,
           setSelectedHistorySessionId: (id) =>
             navigate(id ? paths.sessao(community.id, id) : paths.sessoes(community.id)),
-          onDeleteSession: (sessionId) => {
-            sess.deleteSession(sessionId);
-            navigate(paths.sessoes(community.id));
-          },
+          onDeleteSession: canClearHistory
+            ? (sessionId) => {
+                sess.deleteSession(sessionId);
+                navigate(paths.sessoes(community.id));
+              }
+            : undefined,
           onBackToDashboard: () => navigate(paths.comunidade(community.id)),
           initialTab: 'sessions',
           hideTabs: true,
@@ -265,6 +268,7 @@ export function CommunityRegistrationRoute() {
 export function CommunitySessionDetailRoute() {
   const { community, sess, play } = useCommunityShell();
   const navigate = useNavigate();
+  const { canClearHistory } = useCommunityPermissions(community);
   const { sessionId } = useParams();
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
 
@@ -280,10 +284,12 @@ export function CommunitySessionDetailRoute() {
         selectedHistorySessionId: sessionId ?? null,
         setSelectedHistorySessionId: (id) =>
           navigate(id ? paths.sessao(community.id, id) : paths.sessoes(community.id)),
-        onDeleteSession: (id) => {
-          sess.deleteSession(id);
-          navigate(paths.sessoes(community.id));
-        },
+        onDeleteSession: canClearHistory
+          ? (id) => {
+              sess.deleteSession(id);
+              navigate(paths.sessoes(community.id));
+            }
+          : undefined,
         onBackToDashboard: () => navigate(paths.sessoes(community.id)),
         initialTab: 'sessions',
         hideTabs: true,

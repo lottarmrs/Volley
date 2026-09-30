@@ -12,7 +12,7 @@ export interface HistoryViewContractInput {
   sessionReports: SessionReport[];
   selectedHistorySessionId: string | null;
   setSelectedHistorySessionId: (id: string | null) => void;
-  onDeleteSession: (id: string) => void;
+  onDeleteSession?: (id: string) => void;
   onBackToDashboard: () => void;
   initialTab?: HistoryTab;
   hideTabs?: boolean;
@@ -29,6 +29,7 @@ function buildModel(input: HistoryViewContractInput): HistoryViewModel {
     selectedHistorySessionId: input.selectedHistorySessionId,
     initialTab: input.initialTab,
     hideTabs: input.hideTabs,
+    canDeleteSession: Boolean(input.onDeleteSession),
   };
 }
 
@@ -42,7 +43,7 @@ export function buildHistoryViewContract(
         input.setSelectedHistorySessionId(intent.id);
         return;
       case 'deleteSession':
-        input.onDeleteSession(intent.id);
+        input.onDeleteSession?.(intent.id);
         return;
       case 'backToDashboard':
         input.onBackToDashboard();

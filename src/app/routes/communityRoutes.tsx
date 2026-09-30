@@ -493,6 +493,7 @@ export function CommunityStatsRoute() {
 export function CommunityHistoryRoute() {
   const { community, play, sess } = useCommunityShell();
   const navigate = useNavigate();
+  const { canClearHistory } = useCommunityPermissions(community);
   const [searchParams] = useSearchParams();
   const selectedSessionId = searchParams.get('sessao');
 
@@ -512,10 +513,12 @@ export function CommunityHistoryRoute() {
             navigate(
               id ? paths.historico(community.id, { sessao: id }) : paths.historico(community.id),
             ),
-          onDeleteSession: (sessionId) => {
-            sess.deleteSession(sessionId);
-            navigate(paths.historico(community.id));
-          },
+          onDeleteSession: canClearHistory
+            ? (sessionId) => {
+                sess.deleteSession(sessionId);
+                navigate(paths.historico(community.id));
+              }
+            : undefined,
           onBackToDashboard: () => navigate(paths.comunidade(community.id)),
           initialTab: 'sessions',
           hideTabs: false,

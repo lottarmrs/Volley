@@ -166,4 +166,12 @@ describe('HistoryView', () => {
     const resumoPoints = screen.getByText('Total de Pontos');
     expect(resumoPoints.nextElementSibling?.textContent).toBe('27');
   });
+
+  it('a lixeira do historico so aparece para quem pode excluir', () => {
+    const { unmount } = renderHistoryView({ selectedHistorySessionId: finishedSession.id });
+    expect(screen.getByRole('button', { name: 'Excluir histórico' })).toBeTruthy();
+    unmount();
+    renderHistoryView({ selectedHistorySessionId: finishedSession.id, onDeleteSession: undefined });
+    expect(screen.queryByRole('button', { name: 'Excluir histórico' })).toBeNull();
+  });
 });

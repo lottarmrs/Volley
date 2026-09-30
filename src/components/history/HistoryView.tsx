@@ -100,7 +100,9 @@ export const HistoryView = ({ contract }: HistoryViewProps) => {
         teams={model.teams}
         players={model.players}
         sessionReports={model.sessionReports}
-        onDeleteSession={(id) => dispatch({ kind: 'deleteSession', id })}
+        onDeleteSession={
+          model.canDeleteSession ? (id) => dispatch({ kind: 'deleteSession', id }) : undefined
+        }
         onBack={() => dispatch({ kind: 'setSelectedSessionId', id: null })}
       />
     );
@@ -502,7 +504,7 @@ function SessionDetailView({
   teams: Team[];
   players: Player[];
   sessionReports: SessionReport[];
-  onDeleteSession: (id: string) => void;
+  onDeleteSession?: (id: string) => void;
   onBack: () => void;
 }) {
   const report = sessionReports.find((r) => r.sessionId === session.id);
@@ -631,20 +633,23 @@ function SessionDetailView({
           >
             <Copy className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => {
-              if (
-                confirm(
-                  'Excluir este histórico? Remove o torneio, os jogos, os pontos e os relatórios, e não dá para desfazer.',
-                )
-              ) {
-                onDeleteSession(session.id);
-              }
-            }}
-            className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-all border border-red-500/20"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {onDeleteSession && (
+            <button
+              aria-label="Excluir histórico"
+              onClick={() => {
+                if (
+                  confirm(
+                    'Excluir este histórico? Remove o torneio, os jogos, os pontos e os relatórios, e não dá para desfazer.',
+                  )
+                ) {
+                  onDeleteSession(session.id);
+                }
+              }}
+              className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-all border border-red-500/20"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 

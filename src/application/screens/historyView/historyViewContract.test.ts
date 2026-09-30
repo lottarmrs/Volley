@@ -142,3 +142,15 @@ test('cada intent chama apenas o seu callback (mutual exclusion)', async () => {
   assert.equal(onDeleteSession.calls.length, 1);
   assert.equal(onBackToDashboard.calls.length, 1);
 });
+
+test('sem onDeleteSession, nao ha exclusao de historico', async () => {
+  const input = makeInput({ onDeleteSession: undefined });
+  const contract = buildHistoryViewContract(input);
+  assert.equal(contract.model.canDeleteSession, false);
+  await contract.dispatch({ kind: 'deleteSession', id: 's1' });
+});
+
+test('com onDeleteSession, a exclusao fica disponivel', () => {
+  const contract = buildHistoryViewContract(makeInput({ onDeleteSession: () => {} }));
+  assert.equal(contract.model.canDeleteSession, true);
+});

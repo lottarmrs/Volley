@@ -12,4 +12,5 @@ export interface HistoryViewModel {
   selectedHistorySessionId: string | null;
   initialTab?: HistoryTab;
   hideTabs?: boolean;
+  canDeleteSession: boolean;
 }

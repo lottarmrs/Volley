@@ -168,7 +168,7 @@ export function createSessionCohortCloudService(
         p_session_context: 'COMMUNITY',
         p_play_mode: input.playMode,
         p_name: input.name,
-        p_planned_start_at: null,
+        p_planned_start_at: input.plannedStartAt ?? null,
         p_planned_end_at: null,
       });
       if (error) throw error;

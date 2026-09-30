@@ -78,6 +78,35 @@ incluindo a pelada ao vivo.
 - **Primeiro passo do plano:** medir, contra Postgres real, os pré-requisitos de `schedule`,
   `start` e `finish` no fluxo que o app faz hoje, antes de mexer no app.
 
+### Medição (2026-09-30, Postgres de teste com todas as migrations)
+
+Sondagem do fluxo que o app fará numa comunidade target, como dono:
+
+- `create_target_session` (com `planned_start_at`) já cria a designação de organizador e a
+  quadra 1; `add_target_session_court` para a mesma ordem dá 23505.
+- O elenco só nasce ao fechar a lista (`create_registration_window` → `open_registration` →
+  `add_registration_entry`/`join_registration` → `close_registration` → `lock_registration` →
+  `finalize_session_roster`), fluxo que o app já tem desde a W4.
+- Depois disso a prontidão acusa só `RULES_INVALID`. `freeze_target_session_rules_snapshot` com
+  `COMMUNITY_DEFAULTS` falha sem linha em `community_rules` (23514); com `SESSION_EXPLICIT` e o
+  payload das regras da pelada, passa.
+- `schedule_target_session` → `start_target_session` passam; times, jogos e pontos gravam direto;
+  `finish_target_session` exige que nenhum jogo esteja fora de `finished`/`cancelled`/`walkover`
+  (SES-INV-025), e passa depois disso.
+- `update public.sessions` numa pelada target afeta 0 linhas (sem erro): a raiz target não aceita
+  gravação direta.
+- Comunidade criada como o app cria (insert direto) nasce `legacy` e dá `ORGANIZER` ao dono.
+
+**Consequências:** nenhum ajuste de servidor é necessário além da publicação. Na raiz target, o que
+hoje o app guarda em `sessions` (config do sorteio, `teamIds`, `selectedPlayerIds`) é
+reconstruído na leitura: `config` do payload das regras congeladas (`session_rules_snapshots`,
+legível por `authenticated` pela policy), `teamIds` e `selectedPlayerIds` dos times da pelada, e o
+status de `lifecycle_status` (`DRAFT`/`SCHEDULED` → `draft` ou `teams_generated` conforme haja
+times; `IN_PROGRESS` → `active`; `COMPLETED` → `finished`; `CANCELLED` → `cancelled`). Iniciar na
+target é a sequência congelar regras (`SESSION_EXPLICIT`, com `config` e `type`) → agendar →
+iniciar; encerrar cancela os jogos não terminados antes de `finish_target_session`; sem elenco
+fechado, a tela pede para fechar a lista.
+
 ## Parte 3 — Convivência com o sync
 
 - O `syncService` deixa de subir e baixar `sessions`, `teams`, `games`, `point_events`,
@@ -94,8 +123,7 @@ Migration nova `20260930160000_peladas_online.sql`:
 
 - acrescenta `sessions`, `teams`, `games`, `point_events`, `game_reports` e `session_reports` à
   publicação `supabase_realtime` (idempotente, como a da parte 1);
-- se a medição da Parte 2 mostrar que um pré-requisito target impede o fluxo do app, o ajuste
-  entra aqui, com dbtest;
+- a medição da Parte 2 não pediu ajuste de servidor; o dbtest do fluxo target fica como prova;
 - sem mudança de RLS prevista (leitura de histórico já aberta em `membro_le_o_historico`).
 
 A ponte `useCommunityRealtime` passa a escutar as seis tabelas (filtradas por `community_id`) e

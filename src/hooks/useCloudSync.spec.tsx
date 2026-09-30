@@ -32,11 +32,8 @@ function deps(overrides: Partial<CloudSyncDeps> = {}): CloudSyncDeps {
   return {
     userId: 'user-1',
     communities: [],
-    setCommunities: vi.fn(),
     players: [],
-    setPlayers: vi.fn(),
     rules: [],
-    setRules: vi.fn(),
     templates: [],
     setTemplates: vi.fn(),
     drafts: [],
@@ -329,13 +326,10 @@ describe('useCloudSync cross-account leak guard', () => {
     localStorage.setItem('vpg_sessions', JSON.stringify([{ id: 's-b' }]));
     syncService.downloadCloudDataToLocal = async () => emptyPayload();
 
-    const setPlayersSpy = vi.fn();
+    const setSessionsSpy = vi.fn();
     const baseDeps = deps({
       userId: 'user-a',
-      players: [],
-      setPlayers: setPlayersSpy,
-      communities: [],
-      setCommunities: vi.fn(),
+      setSessions: setSessionsSpy,
     });
 
     const { result } = renderHook(() => useCloudSync(baseDeps));
@@ -344,7 +338,7 @@ describe('useCloudSync cross-account leak guard', () => {
       await result.current.downloadFromCloud();
     });
 
-    expect(setPlayersSpy).toHaveBeenCalledWith([]);
+    expect(setSessionsSpy).toHaveBeenCalledWith([]);
     expect(localStorage.getItem('vpg_players')).toBeNull();
     expect(localStorage.getItem('vpg_sessions')).toBeNull();
     expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');

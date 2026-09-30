@@ -1,4 +1,9 @@
-import { syncService, type LocalSyncPayload, type SyncOptions } from '@infra/supabase/syncService';
+import {
+  syncService,
+  type LocalSyncPayload,
+  type OnlineCatalog,
+  type SyncOptions,
+} from '@infra/supabase/syncService';
 
 export type { LocalSyncPayload } from '@infra/supabase/syncService';
 
@@ -8,7 +13,7 @@ export interface CloudSyncGateway {
     userId: string,
     options?: SyncOptions,
   ): Promise<LocalSyncPayload>;
-  downloadCloudDataToLocal(userId?: string): Promise<LocalSyncPayload>;
+  downloadCloudDataToLocal(userId?: string, catalog?: OnlineCatalog): Promise<LocalSyncPayload>;
   syncNow(
     payload: LocalSyncPayload,
     userId: string,
@@ -25,12 +30,14 @@ export interface CloudSyncPayloadCommandInput {
 
 export interface CloudSyncOwnerQueryInput {
   userId?: string;
+  catalog?: OnlineCatalog;
 }
 
 const supabaseCloudSyncGateway: CloudSyncGateway = {
   uploadLocalDataToCloud: (payload, userId, options) =>
     syncService.uploadLocalDataToCloud(payload, userId, options),
-  downloadCloudDataToLocal: (userId) => syncService.downloadCloudDataToLocal(userId),
+  downloadCloudDataToLocal: (userId, catalog) =>
+    syncService.downloadCloudDataToLocal(userId, catalog),
   syncNow: (payload, userId, options) => syncService.syncNow(payload, userId, options),
   repairDuplicateCloudData: (userId, options) =>
     syncService.repairDuplicateCloudData(userId, options),
@@ -47,7 +54,7 @@ export function downloadCloudDataQuery(
   input: CloudSyncOwnerQueryInput,
   gateway: CloudSyncGateway = supabaseCloudSyncGateway,
 ) {
-  return gateway.downloadCloudDataToLocal(input.userId);
+  return gateway.downloadCloudDataToLocal(input.userId, input.catalog);
 }
 
 export function syncCloudDataCommand(
@@ -58,7 +65,7 @@ export function syncCloudDataCommand(
 }
 
 export function repairDuplicateCloudDataCommand(
-  input: Required<CloudSyncOwnerQueryInput> & Pick<CloudSyncPayloadCommandInput, 'onIssue'>,
+  input: { userId: string } & Pick<CloudSyncPayloadCommandInput, 'onIssue'>,
   gateway: CloudSyncGateway = supabaseCloudSyncGateway,
 ) {
   return gateway.repairDuplicateCloudData(input.userId, { onIssue: input.onIssue });

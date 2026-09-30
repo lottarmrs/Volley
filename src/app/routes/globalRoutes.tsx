@@ -193,7 +193,7 @@ export function PerfilRoute() {
 
   function atualizarMinhaFicha(atualizada: Player) {
     if (currentPlayer) {
-      play.setPlayers(play.players.map((p) => (p.id === atualizada.id ? atualizada : p)));
+      play.replacePlayer(atualizada);
     } else {
       setLinkedPlayer(atualizada);
     }

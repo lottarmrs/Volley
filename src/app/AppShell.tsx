@@ -57,7 +57,6 @@ import { isGuestAccess } from '../application/guestAccess';
 import { countPendingChanges } from '../logic/syncStatus';
 import { generateUUID } from '../logic/uuid';
 import { applyCommunityDeletion } from '../application/localCommunityUseCases';
-import { applyGuestPlayerUpsert } from '../application/localPlayerUseCases';
 import {
   buildFinishedSessionResult,
   buildSessionFromCommunity,
@@ -79,6 +78,8 @@ import {
 } from '../application/championshipUseCases';
 import { appOk, productError } from '@app/appResult';
 import { UnsavedGuardHost } from '../components/common/GuardedLink';
+import { clearAccountEntitiesFromStorage } from '../application/accountStorageCleanup';
+import { useCommunityRealtime } from '../hooks/useCommunityRealtime';
 
 const navigationIconByKey: Record<ShellNavItem['icon'], ReactNode> = {
   dashboard: <LayoutDashboard className="w-5 h-5" />,
@@ -131,6 +132,13 @@ export function AppShell() {
     }
   }, [currentCommunityId]);
 
+  useCommunityRealtime(currentCommunity?.cloudId ?? null);
+
+  const onlineUserId = comm.online ? (auth.user?.id ?? null) : null;
+  useEffect(() => {
+    clearAccountEntitiesFromStorage(onlineUserId);
+  }, [onlineUserId]);
+
   const wizard = useSessionWizard({
     players: play.players,
     activeSession: sess.activeSession,
@@ -150,9 +158,6 @@ export function AppShell() {
   const pendingChanges = useMemo(() => {
     if (!auth.user) return 0;
     return countPendingChanges([
-      comm.rawCommunities,
-      play.rawPlayers,
-      communityRules.rawRules,
       whatsAppLists.rawTemplates,
       whatsAppLists.drafts,
       sess.rawSessions,
@@ -168,9 +173,6 @@ export function AppShell() {
     ]);
   }, [
     auth.user,
-    comm.rawCommunities,
-    play.rawPlayers,
-    communityRules.rawRules,
     whatsAppLists.rawTemplates,
     whatsAppLists.drafts,
     sess.rawSessions,
@@ -189,11 +191,8 @@ export function AppShell() {
     pendingChanges,
     userId: auth.user?.id ?? null,
     communities: comm.rawCommunities,
-    setCommunities: comm.setCommunities,
     players: play.rawPlayers,
-    setPlayers: play.setPlayers,
     rules: communityRules.rawRules,
-    setRules: communityRules.setRules,
     templates: whatsAppLists.rawTemplates,
     setTemplates: whatsAppLists.setTemplates,
     drafts: whatsAppLists.drafts,
@@ -296,18 +295,18 @@ export function AppShell() {
       try {
         const rawData = JSON.parse(e.target?.result as string);
         const data = prepareImportedBackup(rawData);
-        if (data.players) play.setPlayers(data.players);
+        if (data.players) play.replaceLocalPlayers(data.players);
         if (data.sessions) sess.setSessions(data.sessions);
         if (data.teams) sess.setTeams(data.teams);
         if (data.games) sess.setGames(data.games);
         if (data.pointEvents) sess.setPointEvents(data.pointEvents);
         if (data.gameReports) sess.setGameReports(data.gameReports);
         if (data.sessionReports) sess.setSessionReports(data.sessionReports);
-        if (data.communities) comm.setCommunities(data.communities);
+        if (data.communities) comm.replaceLocalCommunities(data.communities);
         if (data.communityPresence) communityPresence.setPresenceRecords(data.communityPresence);
         if (data.whatsAppListTemplates) whatsAppLists.setTemplates(data.whatsAppListTemplates);
         if (data.whatsAppListDrafts) whatsAppLists.setDrafts(data.whatsAppListDrafts);
-        if (data.communityRules) communityRules.setRules(data.communityRules);
+        if (data.communityRules) communityRules.replaceLocalRules(data.communityRules);
         if (data.championships) championships.setChampionships(data.championships);
         if (data.championshipTeams) championships.setChampionshipTeams(data.championshipTeams);
         if (data.championshipRounds) championships.setChampionshipRounds(data.championshipRounds);
@@ -474,8 +473,8 @@ export function AppShell() {
       drafts: whatsAppLists.drafts,
       now: new Date().toISOString(),
     });
-    comm.setCommunities(next.communities);
-    play.setPlayers(next.players);
+    void comm.deleteCommunity(communityId);
+    play.forgetCommunity(communityId);
     communityRules.removeRules(communityId);
     communityPresence.setPresenceRecords(next.presenceRecords);
     whatsAppLists.setTemplates(next.templates);
@@ -537,7 +536,7 @@ export function AppShell() {
       });
 
       // 4. Update states
-      play.setPlayers(result.updatedPlayers);
+      void play.applyProgression(result.updatedPlayers);
       sess.setSessionReports(result.updatedReports);
       sess.setSessions(result.updatedSessions);
       sess.setGames(result.updatedGames);
@@ -555,8 +554,7 @@ export function AppShell() {
   };
 
   const applyGuestPlayer = (newPlayer: Player, editDetails: boolean, communityId: string) => {
-    const result = applyGuestPlayerUpsert(play.rawPlayers, newPlayer, communityId);
-    play.setPlayers(result.players);
+    const result = play.upsertQuickGuest(newPlayer, communityId);
     if (sess.activeSession && sess.activeSession.communityId === communityId) {
       const nextSelected = [
         ...new Set([...sess.activeSession.selectedPlayerIds, result.selectedPlayer.id]),

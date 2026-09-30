@@ -23,7 +23,7 @@ import { useCommunityMembers } from '../../hooks/useCommunityMembers';
 import { CommunitiesView } from './globalRoutes';
 import { useCommunitiesContract } from './communitiesContract';
 import { LegacyQueryRedirect } from './LegacyQueryRedirect';
-import { applyCommunityHistoryClear, applyLinkedCloudPlayer } from '@app/localCommunityUseCases';
+import { applyCommunityHistoryClear } from '@app/localCommunityUseCases';
 import { CommunityMembersPanel } from '../../components/community/CommunityMembersPanel';
 import { AthleteUsernameSearch } from '../../components/community/AthleteUsernameSearch';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
@@ -197,9 +197,7 @@ export function CommunityGestaoRoute() {
         isSupabaseConfigured={auth.isSupabaseConfigured}
         globalRole={auth.profile?.role ?? null}
         players={getCommunityPlayers(community.id, play.players)}
-        onLinkedPlayer={(player, communityId) =>
-          play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId))
-        }
+        onLinkedPlayer={(player, communityId) => play.linkCloudPlayer(player, communityId)}
       />
     </div>
   );
@@ -271,19 +269,13 @@ export function CommunityGuestsRoute() {
               community={community}
               currentUserId={auth.user?.id ?? null}
               isSupabaseConfigured={auth.isSupabaseConfigured}
-              onLinkedPlayer={(player, communityId) =>
-                play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId))
-              }
+              onLinkedPlayer={(player, communityId) => play.linkCloudPlayer(player, communityId)}
             />
           ) : undefined
         }
         initialEditingId={searchParams.get('editar')}
         onCloseEditor={fecharEditorNaUrl}
-        onAvatarApplied={(playerId, url) =>
-          play.setPlayers((prev) =>
-            prev.map((player) => (player.id === playerId ? { ...player, avatarUrl: url } : player)),
-          )
-        }
+        onAvatarApplied={(playerId, url) => play.setAvatar(playerId, url)}
       />
     </div>
   );

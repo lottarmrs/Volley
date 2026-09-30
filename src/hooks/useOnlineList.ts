@@ -12,10 +12,14 @@ export interface OnlineStatus {
   offline: boolean;
 }
 
-export function useOnlineAccount(): { online: boolean; userId: string | null } {
+export function useOnlineAccount(): { online: boolean; userId: string | null; settled: boolean } {
   const auth = useAuth();
   const userId = auth.user?.id ?? null;
-  return { online: !!auth.isSupabaseConfigured && !!userId, userId };
+  return {
+    online: !!auth.isSupabaseConfigured && !!userId,
+    userId,
+    settled: auth.state?.kind !== 'initializing',
+  };
 }
 
 export function useOnlineList<T>(options: {

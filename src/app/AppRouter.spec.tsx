@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -122,12 +123,14 @@ export function renderApp(path: string, state: AuthSessionState = readyState) {
   };
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <ToastProvider>
-        <SessionProvider>
-          <LocationProbe />
-          <AppRouter />
-        </SessionProvider>
-      </ToastProvider>
+      <QueryClientProvider client={new QueryClient()}>
+        <ToastProvider>
+          <SessionProvider>
+            <LocationProbe />
+            <AppRouter />
+          </SessionProvider>
+        </ToastProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   );
 }
@@ -153,12 +156,14 @@ describe('AppRouter — autenticação', () => {
     authSessionMock.current = { ...authSessionMock.current, state: { kind: 'anonymous' } };
     rerender(
       <MemoryRouter initialEntries={['/auth/loading']}>
-        <ToastProvider>
-          <SessionProvider>
-            <LocationProbe />
-            <AppRouter />
-          </SessionProvider>
-        </ToastProvider>
+        <QueryClientProvider client={new QueryClient()}>
+          <ToastProvider>
+            <SessionProvider>
+              <LocationProbe />
+              <AppRouter />
+            </SessionProvider>
+          </ToastProvider>
+        </QueryClientProvider>
       </MemoryRouter>,
     );
 

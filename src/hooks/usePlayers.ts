@@ -97,7 +97,7 @@ function diffPlayers(prev: Player[], next: Player[]) {
 }
 
 export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team[]) {
-  const { online, userId } = useOnlineAccount();
+  const { online, userId, settled } = useOnlineAccount();
   const queryClient = useQueryClient();
   const [localPlayers, setLocalPlayers] = useState<Player[]>(loadLocalPlayers);
   const remote = useOnlineList<Player>({
@@ -114,8 +114,8 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
   const players = online ? remote.data : localPlayers;
 
   useEffect(() => {
-    if (!online) saveToStorage(STORAGE_KEYS.players, localPlayers);
-  }, [localPlayers, online]);
+    if (settled && !online) saveToStorage(STORAGE_KEYS.players, localPlayers);
+  }, [localPlayers, online, settled]);
 
   const communityCloudId = useCallback(
     (communityId: string) => {

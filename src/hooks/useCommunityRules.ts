@@ -18,7 +18,7 @@ export function createDefaultCommunityRules(community: Community): CommunityRule
 }
 
 export function useCommunityRules() {
-  const { online, userId } = useOnlineAccount();
+  const { online, userId, settled } = useOnlineAccount();
   const queryClient = useQueryClient();
   const [localRules, setLocalRules] = useState<CommunityRules[]>(() =>
     loadFromStorage<CommunityRules[]>(STORAGE_KEYS.communityRules, []),
@@ -37,8 +37,8 @@ export function useCommunityRules() {
   const rules = online ? remote.data : localRules;
 
   useEffect(() => {
-    if (!online) saveToStorage(STORAGE_KEYS.communityRules, localRules);
-  }, [localRules, online]);
+    if (settled && !online) saveToStorage(STORAGE_KEYS.communityRules, localRules);
+  }, [localRules, online, settled]);
 
   const getRules = useCallback(
     (community: Community) => {

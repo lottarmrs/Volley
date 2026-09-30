@@ -26,7 +26,7 @@ export const legacyExpansionRules: readonly LegacyExpansionRule[] = [
       'src/hooks/useCloudSync.spec.tsx': 5,
       'src/hooks/useCloudSync.ts': 5,
       'src/infra/supabase/operationalCloudService.ts': 2,
-      'src/infra/supabase/syncService.test.ts': 6,
+      'src/infra/supabase/syncService.test.ts': 4,
       'src/infra/supabase/syncService.ts': 14,
     },
   },

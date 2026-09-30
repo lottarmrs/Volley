@@ -64,11 +64,8 @@ import {
 export interface CloudSyncDeps {
   userId: string | null;
   communities: Community[];
-  setCommunities: (value: Community[]) => void;
   players: Player[];
-  setPlayers: (value: Player[]) => void;
   rules: CommunityRules[];
-  setRules: (value: CommunityRules[]) => void;
   templates: WhatsAppListTemplate[];
   setTemplates: (value: WhatsAppListTemplate[]) => void;
   drafts: WhatsAppListDraft[];
@@ -236,9 +233,6 @@ export function useCloudSync(deps: CloudSyncDeps) {
         ? markConflictedEvents(normalized.pointEvents, conflicts)
         : normalized.pointEvents;
 
-    deps.setCommunities(normalized.communities);
-    deps.setPlayers(normalized.players);
-    deps.setRules(normalized.rules);
     deps.setTemplates(normalized.templates);
     deps.setSessions(normalized.sessions);
     deps.setActiveSession((active) => mergeSyncIdentity(active, normalized.sessions));
@@ -358,9 +352,17 @@ export function useCloudSync(deps: CloudSyncDeps) {
     );
 
   const downloadFromCloud = () =>
-    run('Download da nuvem', () => downloadCloudDataQuery({ userId: deps.userId ?? undefined }), {
-      writes: false,
-    });
+    run(
+      'Download da nuvem',
+      () =>
+        downloadCloudDataQuery({
+          userId: deps.userId ?? undefined,
+          catalog: { communities: deps.communities, players: deps.players, rules: deps.rules },
+        }),
+      {
+        writes: false,
+      },
+    );
 
   const syncOperation: Parameters<typeof run>[1] = (payload, userId, onIssue) =>
     syncCloudDataCommand({ payload, userId, onIssue });

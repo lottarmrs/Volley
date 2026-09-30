@@ -82,7 +82,6 @@ describe('usePlayers sem conta', () => {
 
   it('le e grava no aparelho', () => {
     localStorage.setItem(STORAGE_KEYS.players, JSON.stringify([atleta('a1', 'Ana')]));
-    localStorage.setItem('vpg_players_schema_version', '2');
     const { result } = render();
     expect(result.current.players.map((player) => player.nome)).toEqual(['Ana']);
     act(() => {

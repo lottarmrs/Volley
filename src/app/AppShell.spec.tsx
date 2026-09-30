@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -35,17 +36,19 @@ vi.mock('../hooks/useCommunities', () => ({
 
 function renderAppShell(initialPath = '/painel') {
   return render(
-    <ToastProvider>
-      <SessionProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <Routes>
-            <Route element={<AppShell />}>
-              <Route path="/painel" element={<div>Conteudo do Painel</div>} />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </SessionProvider>
-    </ToastProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ToastProvider>
+        <SessionProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Routes>
+              <Route element={<AppShell />}>
+                <Route path="/painel" element={<div>Conteudo do Painel</div>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </SessionProvider>
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 }
 

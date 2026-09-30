@@ -43,7 +43,7 @@ export function QuickStartRoute() {
       createId: generateUUID,
     });
 
-    play.setPlayers((prev) => [...prev, ...novosAtletas]);
+    play.addPlayers(novosAtletas);
 
     shell.createSessionFromCommunity(
       community,

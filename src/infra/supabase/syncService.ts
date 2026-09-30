@@ -46,6 +46,12 @@ export interface LocalSyncPayload extends OperationalSyncPayload {
   championshipRounds: ChampionshipRound[];
 }
 
+export interface OnlineCatalog {
+  communities: Community[];
+  players: Player[];
+  rules: CommunityRules[];
+}
+
 export interface SyncOptions {
   /**
    * Reporta uma falha por item SEM abortar a operação inteira. O item que
@@ -1090,109 +1096,11 @@ export const syncService = {
   ): Promise<LocalSyncPayload> {
     const onIssue = options.onIssue || (() => {});
     const syncedAt = nowIso();
-    const pendingPlayerIds = new Set(
-      local.players
-        .filter((player) => player.syncStatus === 'pending')
-        .map((player) => normalizeIdValue(player.id)),
-    );
     local = consolidateDuplicateRecords(local, { ownerId }).payload;
 
-    const updatedCommunities: Community[] = [];
-    for (const community of local.communities) {
-      try {
-        if (community.deletedAt) {
-          if (community.cloudId) {
-            await communityCloudService.softDelete(community.cloudId);
-          }
-          updatedCommunities.push(markSynced(community, community.cloudId, syncedAt));
-          continue;
-        }
+    const updatedCommunities: Community[] = [...local.communities];
 
-        // Comunidade de OUTRO dono (entrei como membro): não reenviar — só o
-        // dono/admin pode escrever (RLS), e o estado autoritativo vem do download.
-        const isSharedCommunity =
-          !!community.cloudId && !!community.cloudOwnerId && community.cloudOwnerId !== ownerId;
-        if (isSharedCommunity) {
-          updatedCommunities.push(markSynced(community, community.cloudId, syncedAt));
-          continue;
-        }
-
-        const uploaded = await communityCloudService.upsert(community, ownerId);
-        updatedCommunities.push(
-          markSynced({ ...community, cloudOwnerId: ownerId }, uploaded.cloudId, syncedAt),
-        );
-      } catch (error) {
-        onIssue(`comunidade "${community.name}"`, error);
-        updatedCommunities.push(community);
-      }
-    }
-
-    let updatedPlayers: Player[] = [];
-    for (const player of local.players) {
-      const playerForUpload = repairLegacyPlayerUnlinkIntent(player);
-      const isTeamGuest =
-        !playerForUpload.userId &&
-        !!playerForUpload.cloudOwnerId &&
-        playerForUpload.cloudOwnerId !== ownerId;
-      try {
-        if (playerForUpload.deletedAt) {
-          const canDeleteGlobalPlayer =
-            playerForUpload.cloudId &&
-            (!playerForUpload.cloudOwnerId ||
-              playerForUpload.cloudOwnerId === ownerId ||
-              isTeamGuest);
-          if (canDeleteGlobalPlayer) {
-            const removed = await playerCloudService.softDelete(playerForUpload.cloudId!);
-            if (!removed && isTeamGuest) {
-              throw new Error(
-                'O servidor não excluiu este convidado. Só o dono ou um admin da comunidade pode excluí-lo.',
-              );
-            }
-          }
-          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
-          continue;
-        }
-
-        if (playerForUpload.userId && playerForUpload.userId !== ownerId) {
-          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
-          continue;
-        }
-
-        const isSharedPlayer =
-          !!playerForUpload.userId &&
-          !!playerForUpload.cloudId &&
-          !!playerForUpload.cloudOwnerId &&
-          playerForUpload.cloudOwnerId !== ownerId;
-
-        if (
-          isSharedPlayer ||
-          (isTeamGuest && !pendingPlayerIds.has(normalizeIdValue(playerForUpload.id)))
-        ) {
-          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
-          continue;
-        }
-
-        const uploaded = await playerCloudService.upsert(playerForUpload, ownerId);
-        updatedPlayers.push(
-          markSynced(
-            {
-              ...playerForUpload,
-              cloudOwnerId: isTeamGuest ? playerForUpload.cloudOwnerId : ownerId,
-            },
-            uploaded.cloudId,
-            syncedAt,
-          ),
-        );
-      } catch (error) {
-        if (isTeamGuest && !playerForUpload.deletedAt && isPermissionRefusal(error)) {
-          updatedPlayers.push(markSynced(playerForUpload, playerForUpload.cloudId, syncedAt));
-          continue;
-        }
-        onIssue(`atleta "${player.nome}"`, error);
-        updatedPlayers.push(playerForUpload);
-      }
-    }
-
+    let updatedPlayers: Player[] = [...local.players];
     updatedPlayers = visible(updatedPlayers);
     local = { ...local, players: updatedPlayers };
 
@@ -1250,22 +1158,7 @@ export const syncService = {
       onIssue('avaliações de atletas', error);
     }
 
-    const updatedRules: CommunityRules[] = [];
-    for (const rule of local.rules) {
-      try {
-        const communityCloudId = resolveCloudId(rule.communityId, communityCloudIds);
-        if (!communityCloudId) {
-          updatedRules.push(rule);
-          continue;
-        }
-
-        const uploaded = await communityRulesCloudService.upsert(rule, ownerId, communityCloudId);
-        updatedRules.push(markSynced(rule, uploaded.cloudId, syncedAt));
-      } catch (error) {
-        onIssue('regras de comunidade', error);
-        updatedRules.push(rule);
-      }
-    }
+    const updatedRules: CommunityRules[] = [...local.rules];
 
     const updatedTemplates: WhatsAppListTemplate[] = [];
     for (const template of local.templates) {
@@ -1733,40 +1626,6 @@ export const syncService = {
       });
     }
 
-    const relationsToUpload: Omit<CommunityPlayerDb, 'id'>[] = [];
-    for (const player of updatedPlayers) {
-      if (player.deletedAt) continue;
-      const playerCloudId = resolveCloudId(player.id, playerCloudIds);
-      if (!playerCloudId) continue;
-
-      for (const localCommunityId of player.communityIds || []) {
-        const communityCloudId = resolveCloudId(localCommunityId, communityCloudIds);
-        if (!communityCloudId) continue;
-
-        relationsToUpload.push({
-          owner_id: ownerId,
-          community_id: communityCloudId,
-          player_id: playerCloudId,
-          active: true,
-        });
-      }
-    }
-
-    if (relationsToUpload.length > 0) {
-      try {
-        await communityPlayerCloudService.bulkUpsert(relationsToUpload);
-      } catch (error) {
-        onIssue('vínculos atleta↔comunidade', error);
-      }
-    }
-
-    // Vínculos atleta↔comunidade são ADITIVOS no sync. A deleção automática de
-    // vínculos "órfãos" foi DESATIVADA: ela apagava vínculos válidos quando um
-    // device tinha estado local desatualizado (players sem communityIds vencendo
-    // o merge por timestamp). Remover atleta de comunidade deve ser ação explícita.
-    // (computeStaleRelationIds segue exportada/testada para uso futuro deliberado.)
-    void options.reconcileRelations;
-
     return {
       communities: visible(updatedCommunities),
       players: visible(updatedPlayers),
@@ -1786,9 +1645,12 @@ export const syncService = {
     };
   },
 
-  async downloadCloudDataToLocal(ownerId?: string): Promise<LocalSyncPayload> {
-    const cloudCommunities = await communityCloudService.fetchAll();
-    const cloudPlayers = await playerCloudService.fetchAll();
+  async downloadCloudDataToLocal(
+    ownerId?: string,
+    catalog?: OnlineCatalog,
+  ): Promise<LocalSyncPayload> {
+    const cloudCommunities = catalog?.communities ?? (await communityCloudService.fetchAll());
+    const cloudPlayers = catalog?.players ?? (await playerCloudService.fetchAll());
 
     const [
       cloudRules,
@@ -1798,10 +1660,10 @@ export const syncService = {
       operational,
       cloudChampionships,
     ] = await Promise.all([
-      communityRulesCloudService.fetchAll(),
+      catalog ? Promise.resolve(catalog.rules) : communityRulesCloudService.fetchAll(),
       whatsappTemplateCloudService.fetchAll(),
-      communityPlayerCloudService.fetchAll(),
-      playerEvaluationCloudService.fetchAll(),
+      catalog ? Promise.resolve([]) : communityPlayerCloudService.fetchAll(),
+      catalog ? Promise.resolve([]) : playerEvaluationCloudService.fetchAll(),
       operationalCloudService.fetchAll(),
       championshipCloudService.fetchAll(),
     ]);
@@ -1819,12 +1681,14 @@ export const syncService = {
     const cloudChampionshipTeams = championshipChildren.flatMap((entry) => entry.teams);
     const cloudChampionshipRounds = championshipChildren.flatMap((entry) => entry.rounds);
 
-    const mappedPlayers = assembleRoster({
-      players: cloudPlayers,
-      relations: cloudRelations,
-      evaluations: cloudEvaluations,
-      ownerId,
-    });
+    const mappedPlayers = catalog
+      ? cloudPlayers
+      : assembleRoster({
+          players: cloudPlayers,
+          relations: cloudRelations,
+          evaluations: cloudEvaluations,
+          ownerId,
+        });
 
     const communityLocalIds = makeLocalIdLookup(cloudCommunities);
     const playerLocalIds = makeLocalIdLookup(cloudPlayers);
@@ -1881,40 +1745,19 @@ export const syncService = {
     options: SyncOptions = {},
   ): Promise<LocalSyncPayload> {
     const repairedLocal = consolidateDuplicateRecords(local, { ownerId }).payload;
-    const cloud = await this.downloadCloudDataToLocal(ownerId);
+    const cloud = await this.downloadCloudDataToLocal(ownerId, {
+      communities: local.communities,
+      players: local.players,
+      rules: local.rules,
+    });
     const sessionsAfterTargetCohortMerge = await mergeTargetCohortSessionReads(
       repairedLocal.sessions,
       options.onIssue,
     );
-    const playersForMerge = repairedLocal.players.map((player) =>
-      repairLegacyPlayerUnlinkIntent(player, findCorrespondingCloudPlayer(player, cloud.players)),
-    );
-    const syncStatusBeforeRepair = new Map(
-      local.players.map((player) => [normalizeIdValue(player.id), player.syncStatus]),
-    );
-    const localPlayersForServerFields = playersForMerge.map((player) => ({
-      ...player,
-      syncStatus: syncStatusBeforeRepair.get(normalizeIdValue(player.id)) ?? player.syncStatus,
-    }));
-
     const merged: LocalSyncPayload = {
-      communities: mergeEntityLists<Community>(repairedLocal.communities, cloud.communities, {
-        getId: (item) => item.id,
-        getSemanticKey: (community) => communitySemanticKey(community),
-      }),
-      players: applyServerOwnedAthleteFields(
-        mergeEntityLists<Player>(playersForMerge, cloud.players, {
-          getId: (item) => item.id,
-          getUpdatedAt: (item) => item.updatedAt || item.metadata?.atualizadoEm,
-          getSemanticKey: (player) => playerSemanticKey(player),
-        }),
-        cloud.players,
-        ownerId,
-        localPlayersForServerFields,
-      ),
-      rules: mergeEntityLists(repairedLocal.rules, cloud.rules, {
-        getId: (item) => item.communityId,
-      }),
+      communities: local.communities,
+      players: local.players,
+      rules: local.rules,
       templates: mergeEntityLists(repairedLocal.templates, cloud.templates, {
         getId: (item) => item.id,
       }),

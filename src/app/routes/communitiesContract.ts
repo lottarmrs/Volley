@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router';
 import { paths } from '@app/appRoutes';
 import { buildCommunitiesViewContract } from '@app/screens/communitiesView/communitiesViewContract';
 import type { CommunityTab } from '@app/screens/communitiesView/communitiesViewModel';
-import { applyCommunityHistoryClear, applyLinkedCloudPlayer } from '@app/localCommunityUseCases';
+import { applyCommunityHistoryClear } from '@app/localCommunityUseCases';
 import { useShell } from '../shellContext';
 
 export function useCommunitiesContract(input: {
@@ -70,7 +70,7 @@ export function useCommunitiesContract(input: {
     onSetRoundSkipped: championships.setRoundSkipped,
     onUpdateChampionshipRecurrence: championships.updateRecurrence,
     onLinkedCloudPlayer: (player, communityId) => {
-      play.setPlayers((prev) => applyLinkedCloudPlayer(prev, player, communityId));
+      play.linkCloudPlayer(player, communityId);
     },
   });
 }

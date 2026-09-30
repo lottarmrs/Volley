@@ -22,7 +22,7 @@ function upsertInList(list: Community[], community: Community): Community[] {
 }
 
 export function useCommunities() {
-  const { online, userId } = useOnlineAccount();
+  const { online, userId, settled } = useOnlineAccount();
   const [localCommunities, setLocalCommunities] = useState<Community[]>(() =>
     normalizeCommunities(loadFromStorage<Community[]>(STORAGE_KEYS.communities, [])),
   );
@@ -38,8 +38,8 @@ export function useCommunities() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    if (!online) saveToStorage(STORAGE_KEYS.communities, localCommunities);
-  }, [localCommunities, online]);
+    if (settled && !online) saveToStorage(STORAGE_KEYS.communities, localCommunities);
+  }, [localCommunities, online, settled]);
 
   const persistCommunity = useCallback(
     (community: Community) => {
@@ -214,6 +214,7 @@ export function useCommunities() {
   return {
     communities: communities.filter((c) => !c.deletedAt),
     rawCommunities: communities,
+    replaceLocalCommunities: setLocalCommunities,
     online,
     status: remote.status,
     editingCommunity,

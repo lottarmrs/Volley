@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Com conta, peladas, times, jogos, pontos e relatórios são lidos e gravados direto no banco
-(inclusive o placar ao vivo, que trava sem sinal), a pelada target passa a avançar pelos comandos
-do servidor, e o sync deixa de cuidar dessas seis tabelas.
+**Goal:** Com conta, toda pelada nasce marcada e com a lista aberta (a pelada rápida é a exceção,
+com a lista preenchida e fechada na hora), a tela da pelada conduz lista → fechar → sortear →
+iniciar → placar → encerrar, e peladas, times, jogos, pontos e relatórios são lidos e gravados
+direto no banco (o placar trava sem sinal), com a pelada target avançando pelos comandos do
+servidor e o sync deixando de cuidar dessas tabelas.
 
 **Architecture:** Uma consulta `['peladas', userId]` traz o pacote das seis listas; o `useSessions`
 mantém o formato e os `set*` passam a gravar comparando a lista nova com a anterior
@@ -36,7 +38,11 @@ runner, Postgres real (`volley_test_pg2`).
 - Ids: `id = local_id || id` e `cloudId`, como o sync.
 - Na troca, com conta: apagar `STORAGE_KEYS.sessions`, `activeSession`, `teams`, `games`,
   `points`, `gameReports`, `sessionReports`. Sem "último envio".
-- Sem conta: `localStorage`, como hoje. Rascunho do assistente (`sessionDraft`) continua local.
+- Sem conta: `localStorage`, como hoje (a pelada rápida no aparelho continua igual).
+- **Fluxo** (spec, "Fluxo da pelada"): uma ação "Marcar pelada" com horário obrigatório, que marca
+  e abre a lista numa vez; a tela da pelada (`paths.sessao`) é o centro; a pelada rápida escolhe a
+  comunidade e usa a mesma pelada target com a lista preenchida e fechada na hora; o assistente de
+  7 passos deixa de ser porta de entrada; "pelada" em toda a interface.
 - Sem comentários novos em TS/TSX; SQL de migration com comentário curto do porquê; commits em
   português sem acento com `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; nada em
   produção sem ok do usuário.
@@ -80,7 +86,13 @@ runner, Postgres real (`volley_test_pg2`).
   3. `update public.sessions set status = 'finished'` na target afeta 0 linhas;
   4. membro ativo comum lê `session_rules_snapshots.rules_payload` da pelada e **não** consegue
      `start_target_session` (42501);
-  5. `cancel_target_session` numa pelada `SCHEDULED` põe `CANCELLED`.
+  5. `cancel_target_session` numa pelada `SCHEDULED` põe `CANCELLED`;
+  6. **marcar e abrir numa vez:** `create_target_session` com `planned_start_at` →
+     `create_registration_window` (vagas 12) → `open_registration`; `read_registration_window`
+     devolve `OPEN`, e um membro elegível entra com `join_registration`;
+  7. **pelada rápida:** `create_target_session` → janela com vagas = 4 → `open_registration` →
+     `add_registration_entry` para 4 atletas do elenco → `close_registration` → `lock_registration`
+     → `finalize_session_roster` → congelar regras → `schedule` → `start` passam.
 - [ ] **Step 2:** rodar (`node scripts/db-harness.mjs peladaTargetNoApp.dbtest.ts`); o caso 1 já
   deve passar (a medição provou) — o arquivo é a prova do contrato. Ajustar só o que o teste
   revelar de diferente da medição.
@@ -102,7 +114,7 @@ runner, Postgres real (`volley_test_pg2`).
 
 - [ ] **Step 1: dbtest que falha** — depois de `rebuildFromMigrations`, `pg_publication_tables`
   de `supabase_realtime` contém `sessions`, `teams`, `games`, `point_events`, `game_reports`,
-  `session_reports` (padrão de `dadosOnlineComunidade.dbtest.ts`).
+  `session_reports` e `registration_windows` (padrão de `dadosOnlineComunidade.dbtest.ts`).
 - [ ] **Step 2: Migration**
 
 ```sql
@@ -121,7 +133,7 @@ do $$
 declare
   v_table text;
 begin
-  foreach v_table in array array['sessions', 'teams', 'games', 'point_events', 'game_reports', 'session_reports']
+  foreach v_table in array array['sessions', 'teams', 'games', 'point_events', 'game_reports', 'session_reports', 'registration_windows']
   loop
     if not exists (
       select 1 from pg_publication_tables
@@ -248,7 +260,41 @@ $$;
 
 ---
 
-### Task 6: Placar ao vivo — sem sinal trava, quem não controla só lê
+### Task 6: Casos de uso do fluxo — marcar com lista e pelada rápida
+
+**Files:**
+- Create: `src/application/peladaFlowUseCases.ts` (+ `.test.ts`)
+
+**Interfaces:**
+- Consumes: `registrationCloudService` (`createWindow`, `openWindow`, `addEntry`, `closeWindow`,
+  `lockWindow`, `finalizeRoster`, `readWindow`), `sessionCohortCloudService.createTargetSession`,
+  `generateUUID`, `toOnlineError`.
+- Produces:
+  - `interface PeladaFlowGateway` com exatamente os métodos acima (injetável para teste).
+  - `markPelada(input: { communityCloudId: string; name: string; plannedStartAt: string; location: string | null; capacity: number; type: SessionType }, gateway?): Promise<AppResult<{ sessionId: string; windowId: string }>>`
+    — cria a pelada target, cria a janela com `capacity` e abre; recusa `invalid_input` sem
+    horário ou com vagas < 2; erro de rede vira `offline_unavailable` com `OFFLINE_MESSAGE`.
+  - `startQuickPelada(input: { communityCloudId: string; name: string; playerCloudIds: string[]; type: SessionType }, gateway?): Promise<AppResult<{ sessionId: string; windowId: string }>>`
+    — cria com `plannedStartAt` = agora, janela com vagas = quantidade de atletas, abre, adiciona
+    cada atleta, fecha, trava e finaliza o elenco; recusa com menos de 4 atletas.
+  - `closeListAndFinalize(input: { windowId: string }, gateway?): Promise<AppResult<{ rosterRevisionId: string }>>`
+    — lê a janela e faz fechar → travar → finalizar com as revisões em cadeia (o "Fechar a lista"
+    da tela da pelada).
+  - Cada comando usa `commandId` e ids novos (`generateUUID`) e passa a revisão devolvida pelo
+    anterior.
+
+- [ ] **Step 1: testes que falham** (`node --import tsx --test`), com gateway falso que registra a
+  ordem: `markPelada` chama `createTargetSession` (com `plannedStartAt`), `createWindow`
+  (`capacity`), `openWindow`, nessa ordem; sem horário → `invalid_input` sem nenhuma chamada;
+  `TypeError('Failed to fetch')` no `openWindow` → `offline_unavailable`. `startQuickPelada` com 4
+  atletas → criar, janela 4, abrir, 4 `addEntry`, fechar, travar, finalizar; com 3 →
+  `invalid_input`. `closeListAndFinalize` passa as revisões em cadeia.
+- [ ] **Step 2–4:** ver falhar, implementar, ver passar.
+- [ ] **Step 5: Commit** — `feat: marcar pelada com lista e pelada rapida como casos de uso`.
+
+---
+
+### Task 7: Placar ao vivo — sem sinal trava, quem não controla só lê
 
 **Files:**
 - Modify: `src/components/live/SessionActiveView.tsx`, `src/components/live/TournamentActiveView.tsx`,
@@ -274,7 +320,7 @@ $$;
 
 ---
 
-### Task 7: Chamadores, sync, ponte e limpeza
+### Task 8: Chamadores, sync, ponte e limpeza
 
 **Files:**
 - Modify: `src/app/AppShell.tsx` (importar backup ~299-315 → `sess.replaceLocal` só sem conta;
@@ -306,44 +352,71 @@ $$;
   `STORAGE_KEYS.sessions`, `activeSession`, `teams`, `games`, `points`, `gameReports`,
   `sessionReports`. Teste atualizado.
 - [ ] **Step 4: Chamadores** — `npm run lint` limpo; `AppShell` monta `pendingChanges` sem as
-  seis listas de peladas.
+  seis listas de peladas; `QuickStartRoute` (`onboardingRoutes.tsx`) deixa de usar
+  `comm.communities[0]` com conta (a comunidade vem da escolha na tela da Task 9) e, sem conta,
+  continua como hoje.
+- [ ] **Step 4b: Canal da pelada** — `useSessionRealtime(sessionCloudId, onChange)` em `src/hooks/`
+  (padrão de `useCommunityRealtime`): `registration_windows` com `filter: session_id=eq.<id>` →
+  chama `onChange` (o `reload` do quadro); spec com canal simulado.
 - [ ] **Step 5:** `npm run lint`, `npm test`, `npm run build`.
 - [ ] **Step 6: Commit** — `feat: telas gravam peladas online e o sync para de cuidar delas`.
 
 ---
 
-### Task 8: Telas — estados online das peladas e textos
+### Task 9: Telas — o fluxo novo, os estados online e os textos
 
-**Files (a confirmar no shape):** `src/app/routes/sessionRoutes.tsx`, `src/app/routes/globalRoutes.tsx`
-(agenda e painel), `src/components/history/HistoryView.tsx`, `src/components/live/*`,
-`src/components/session/SessionWizard.tsx`, `src/components/championship/ChampionshipWizardView.tsx`,
+**Files (a confirmar no shape):** `src/components/session/MarkPeladaView.tsx` (novo), a pelada
+rápida (evolução de `QuickStartView`), `src/components/session/RegistrationBoardView.tsx` (vira a
+tela da pelada), `src/app/routes/sessionRoutes.tsx`, `src/app/routes/CommunityDrawRoute.tsx`,
+`src/app/routes/onboardingRoutes.tsx`, `src/app/routes/globalRoutes.tsx` (painel e agenda),
+`src/components/dashboard/Dashboard.tsx`, `src/components/community/areas/CommunityOverviewArea.tsx`,
+a lista de peladas da comunidade, `src/components/session/SessionWizard.tsx` (sai da entrada; os
+passos de formato em diante servem ao sortear), `src/components/history/HistoryView.tsx`,
+`src/components/live/*`, `src/components/account/AuthForm.tsx`, `src/application/appRoutes.ts`,
 `preview/`.
 
-- [ ] **Step 1: `/impeccable shape`** — histórico, agenda e painel (carregando e faixa de erro,
-  reaproveitando `OnlineLoading`/`OnlineReadError`); placar com a faixa de sem conexão e botões
-  travados; placar em leitura para quem não controla; mensagens de recusa target
-  (`RULES_INVALID` não chega à tela porque o app congela antes; `NO_EFFECTIVE_ROSTER` → "Feche a
-  lista antes de iniciar a pelada."; 42501 → "Só quem organiza esta pelada pode iniciar."). Confirmar
-  o brief com o usuário.
-- [ ] **Step 2: `/impeccable clarify`** — textos que falam de sincronizar pelada (`SessionWizard`
-  ~582, `ChampionshipWizardView` no que toca a pelada, `title` de pendentes do `AppShell` ~903).
-- [ ] **Step 3: Specs que falham** por estado do brief; a rota de histórico e o painel esperam o
-  carregamento em vez de mostrar vazio.
-- [ ] **Step 4: Implementar**; a bancada `preview/online.tsx` ganha o placar travado e o placar em
-  leitura.
-- [ ] **Step 5:** specs, `npm run lint`, `npm test`, `npm run build`; conferir a bancada em 375px
-  e desktop; `impeccable detect` nos arquivos de tela alterados.
-- [ ] **Step 6: Commit(s)** — `feat: <tela> de peladas online, com carregando e sem conexao`.
+- [ ] **Step 1: `/impeccable shape` do fluxo** — marcar (tela curta: data, horário, local, vagas,
+  formato; "Marcar e abrir a lista"; termina na tela da pelada com o link), tela da pelada (lista →
+  Fechar a lista → Sortear → Iniciar → placar → Encerrar; estado atual e próximo passo em destaque;
+  quem organiza; cancelar pelada), pelada rápida (escolher comunidade quando houver mais de uma,
+  escolher do elenco ou colar nomes, "Sortear"), entradas (painel com a próxima pelada e o estado
+  da lista, "Marcar pelada" e "Pelada rápida"; agenda com "Marcar pelada" direto; comunidade com as
+  duas ações; comunidade nova com "Marcar a primeira pelada" primeiro). Confirmar o brief com o
+  usuário.
+- [ ] **Step 2: `/impeccable shape` dos estados online** (pode ir no mesmo brief) — histórico,
+  agenda e painel com `OnlineLoading`/`OnlineReadError`; placar travado sem sinal; placar em
+  leitura para quem não controla; recusas target ("Feche a lista antes de iniciar a pelada.", "Só
+  quem organiza esta pelada pode iniciar.").
+- [ ] **Step 3: `/impeccable clarify`** — "sessão" → "pelada" em toda a interface; "Setup de sessão
+  v1.2", "Média Power", "Over", o texto do painel ("local-first… Web Worker"), "Central local dos
+  grupos"; erro de login em português ("E-mail ou senha incorretos."); os que falam de sincronizar
+  pelada (`SessionWizard` ~582, `ChampionshipWizardView` no que toca a pelada, título de pendentes
+  do `AppShell` ~903); toasts de sync sem ação ("Download da nuvem concluído", "Uma sincronização
+  já está em andamento") saem.
+- [ ] **Step 4: Specs que falham** — marcar exige horário e chama `markPelada`; a tela da pelada
+  mostra o próximo passo certo em cada estado (lista aberta, fechada, sorteada, em andamento,
+  encerrada); a pelada rápida chama `startQuickPelada` com a comunidade escolhida; o painel mostra a
+  próxima pelada; as entradas antigas ("Nova sessão", "Criar sessão") levam ao marcar; histórico e
+  painel esperam o carregamento.
+- [ ] **Step 5: Implementar** conforme o brief; `paths.sessaoNova` passa a ser o marcar; a bancada
+  em `preview/` ganha marcar, a tela da pelada em cada estado, a pelada rápida, o placar travado e o
+  placar em leitura.
+- [ ] **Step 6:** specs, `npm run lint`, `npm test`, `npm run build`; bancada em 375px e desktop;
+  `impeccable detect` nos arquivos de tela alterados.
+- [ ] **Step 7: Commit(s)** — por tela ou grupo, `feat: <tela> da pelada ...`.
 
 ---
 
-### Task 9: Documentos, verificação e publicação
+### Task 10: Documentos, verificação e publicação
 
-- [ ] **Step 1: Documentos** — `docs/JORNADA.md` (etapas 4, 9 e 10: o que exige conexão, placar
-  sem sinal trava, pelada target avança por comandos), `HANDOFF.md`, `docs/ROADMAP.md` (parte 2
+- [ ] **Step 1: Documentos** — `docs/JORNADA.md` (etapas 4 a 10 reescritas para o fluxo novo:
+  marcar com horário abre a lista, tela da pelada, pelada rápida, o que exige conexão, placar sem
+  sinal trava, pelada target avança por comandos), `HANDOFF.md`, `docs/ROADMAP.md` (parte 2
   feita), `AGENTS.md`/`CLAUDE.md` (peladas na camada online; raiz target só por comandos).
 - [ ] **Step 2: Verificação** — `npm run lint`, ESLint (erros), `prettier --check`, `npm test`,
   `npm run build`, `npm run test:db`.
 - [ ] **Step 3: Publicação (só com ok do usuário)** — migration primeiro; depois merge, push e
-  deploy `READY`; conferência no ar numa comunidade ativada: marcar, fechar a lista, sortear,
-  iniciar, marcar pontos, encerrar e ver o histórico em outra aba.
+  deploy `READY`; conferência no ar no celular: marcar com horário (a lista abre junto), ver na
+  agenda e no painel, entrar na lista por outra aba, fechar, sortear, iniciar, marcar pontos,
+  encerrar e ver o histórico em outra aba; depois uma pelada rápida colando nomes; e a pelada presa
+  da Inimigos do Vôlei aparece e pode ter a lista aberta ou ser cancelada.

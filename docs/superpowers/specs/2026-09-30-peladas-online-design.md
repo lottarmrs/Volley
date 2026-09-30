@@ -23,6 +23,66 @@ incluindo a pelada ao vivo.
    1; nenhuma pelada foi alterada em produção desde 2026-09-14).
 7. **Sem conta:** nada muda nesta parte.
 
+8. **Toda pelada nasce marcada, com lista** (decidido em 2026-09-30, depois do percurso em
+   produção). A exceção é a **pelada rápida** ("Jogar agora, sem lista"), que fica numa comunidade
+   escolhida (se a pessoa tiver só uma, já vem escolhida) e entra no histórico dela.
+9. **Esta parte inclui o fluxo novo** (seção "Fluxo da pelada"), para marcar, lista e sortear
+   nascerem online já no desenho novo.
+
+## Fluxo da pelada
+
+### O que o percurso em produção mostrou (2026-09-30, celular, conta do usuário)
+
+- A pelada marcada **some**: a tela diz "Ela já aparece na agenda do grupo", mas a agenda e a lista
+  de peladas da comunidade ficam vazias. Marcar grava só no aparelho e depende do sync; a pelada
+  target que subiu nunca volta (o sync não baixa target).
+- A lista **não abre**: sem id da nuvem, "Abrir a lista de presença" termina em "A lista não
+  carregou" sem chamar o servidor; noutro aparelho a janela ficou em `DRAFT` e `reopen_registration`
+  deu 400.
+- Portas demais, com nomes diferentes ("Nova sessão", "Nova pelada", "Criar sessão", "Marcar uma
+  pelada" que leva à lista de comunidades); o painel não mostra a próxima pelada.
+- Marcar ainda é o assistente de 7 passos (Sessão, Atletas, Formato, Regras, Revisão, Times,
+  Tabela), retoma rascunho no meio, não volta pelo topo, título cortado no celular, "Marcar pelada"
+  duas vezes e ativo depois de marcada. **Não há horário.**
+- A comunidade nova ensina "Montar o elenco" antes de "Marcar a primeira pelada".
+- A pelada rápida (`/comecar`) não tem entrada no painel nem na comunidade e, com conta, joga os
+  nomes na primeira comunidade sem perguntar (`onboardingRoutes.tsx`, `comm.communities[0]`).
+- Textos técnicos ou em inglês: "Setup de sessão v1.2", "Média Power", "Over", "Plataforma
+  local-first… Web Worker", "Central local dos grupos", "Invalid login credentials", toasts de sync.
+- **Correção de uma hipótese:** toda comunidade, inclusive a criada hoje, já nasce ativada
+  (gatilho `activate_evaluation_model_on_community_insert`, `20260915180000`); pelada nova é target
+  e aceita lista. `communities.authority_model` não decide isso.
+
+### O desenho
+
+- **Uma ação, "Marcar pelada"**, no painel, na agenda e na comunidade (na agenda e no painel,
+  escolhe a comunidade se houver mais de uma). Tela curta: data, **horário (obrigatório)**, local
+  (vem da comunidade), vagas e formato (jogo livre ou torneio). O botão é **"Marcar e abrir a
+  lista"**: `create_target_session` com `planned_start_at` → `create_registration_window` com as
+  vagas → `open_registration`, tudo online; termina na tela da pelada com o link para o WhatsApp.
+- **A tela da pelada é o centro** (`/comunidades/:c/sessoes/:s`, que hoje é o quadro da
+  inscrição): lista (confirmados, vagas, reserva, pagamento) → **Fechar a lista**
+  (`close_registration` → `lock_registration` → `finalize_session_roster`) → **Sortear** (rota
+  `sortear`, que recebe os passos de formato, regras, revisão, times e tabela do assistente; "ajustar
+  quem joga" é exceção sobre os confirmados) → **Iniciar** → placar → **Encerrar**. Mostra quem
+  organiza e o estado atual.
+- **Pelada rápida** ("Jogar agora, sem lista"), com entrada no painel e na comunidade: escolhe a
+  comunidade, escolhe do elenco ou cola nomes (os colados viram convidados dessa comunidade), e o
+  app faz por trás a mesma pelada target com a lista preenchida por quem organiza e fechada na hora
+  (`create_target_session` → janela com as vagas = quantidade → `open_registration` →
+  `add_registration_entry` por atleta → fechar, travar, `finalize_session_roster`) e vai direto ao
+  sortear. Um tipo só de pelada no servidor. Sem conta, a pelada rápida continua no aparelho, como
+  hoje.
+- **O assistente de 7 passos deixa de ser porta de entrada.** Seus passos de formato e regras em
+  diante vivem no sortear; o passo de atletas vira "ajustar quem joga".
+- **O painel mostra a próxima pelada** marcada (data, hora, lista X de Y, estado) com o próximo
+  passo em destaque, além de "Marcar pelada" e "Pelada rápida".
+- **A comunidade nova** ensina "Marcar a primeira pelada" primeiro (a lista traz as pessoas) e o
+  elenco como complemento.
+- **"Pelada"** em toda a interface; "sessão" some dos textos.
+- A pelada presa em `DRAFT` em produção (Inimigos do Vôlei, 30/09) passa a aparecer e pode ter a
+  lista aberta ou ser cancelada pela tela da pelada.
+
 ## Por quê
 
 - Hoje `useSessions` guarda tudo no `localStorage` e o `syncService` sobe e baixa. Quarenta e dois
@@ -121,8 +181,8 @@ fechado, a tela pede para fechar a lista.
 
 Migration nova `20260930160000_peladas_online.sql`:
 
-- acrescenta `sessions`, `teams`, `games`, `point_events`, `game_reports` e `session_reports` à
-  publicação `supabase_realtime` (idempotente, como a da parte 1);
+- acrescenta `sessions`, `teams`, `games`, `point_events`, `game_reports`, `session_reports` e
+  `registration_windows` à publicação `supabase_realtime` (idempotente, como a da parte 1);
 - a medição da Parte 2 não pediu ajuste de servidor; o dbtest do fluxo target fica como prova;
 - sem mudança de RLS prevista (leitura de histórico já aberta em `membro_le_o_historico`).
 
@@ -131,12 +191,20 @@ invalida `['peladas', userId]`; o payload continua fora da tela (ADR-RT-001).
 
 ## Parte 5 — Telas
 
-- `/impeccable shape` antes do código: histórico, agenda e painel com carregando e faixa de erro;
-  placar ao vivo com a faixa de sem conexão e botões travados; placar em leitura para quem não
-  controla; mensagens de pré-requisito do modelo target. Mesmo padrão da parte 1 (componentes
-  `OnlineLoading`/`OnlineReadError`, gravação silenciosa).
-- `/impeccable clarify` dos textos que ainda falam de sincronizar pelada (`SessionWizard`,
-  `ChampionshipWizardView` no que toca a pelada, contador de pendentes do `AppShell`).
+- `/impeccable shape` antes do código, em duas levas:
+  1. **o fluxo** (seção "Fluxo da pelada"): marcar (tela curta), tela da pelada (lista → fechar →
+     sortear → iniciar), pelada rápida (escolher comunidade, elenco ou colar), entradas (painel com
+     a próxima pelada, agenda, comunidade, comunidade nova);
+  2. **os estados online**: histórico, agenda e painel com carregando e faixa de erro; placar com a
+     faixa de sem conexão e botões travados; placar em leitura para quem não controla; recusas do
+     modelo target ("Feche a lista antes de iniciar a pelada.", "Só quem organiza esta pelada pode
+     iniciar."). Mesmo padrão da parte 1 (`OnlineLoading`/`OnlineReadError`, gravação silenciosa).
+- `/impeccable clarify` dos textos: "sessão" → "pelada"; os técnicos e em inglês listados no
+  percurso; o erro do login em português ("E-mail ou senha incorretos."); os que falam de
+  sincronizar pelada (`SessionWizard`, `ChampionshipWizardView` no que toca a pelada, pendentes do
+  `AppShell`); toasts de sync que não pedem ação saem.
+- A tela da pelada escuta `registration_windows` da pelada aberta (canal por pelada) e relê o
+  quadro quando a lista muda.
 
 ## Testes
 
@@ -154,8 +222,9 @@ invalida `['peladas', userId]`; o payload continua fora da tela (ADR-RT-001).
 
 1. Migration primeiro (publicação e eventual ajuste de pré-requisito).
 2. App depois.
-3. Conferência no ar: numa comunidade ativada, marcar uma pelada, sortear, iniciar, marcar pontos,
-   encerrar e ver o histórico em outra aba.
+3. Conferência no ar, no celular: marcar uma pelada com horário (a lista abre junto), ver a pelada
+   na agenda e no painel, entrar na lista por outra aba, fechar a lista, sortear, iniciar, marcar
+   pontos, encerrar e ver o histórico em outra aba; depois, uma pelada rápida colando nomes.
 
 ## Fora desta parte
 

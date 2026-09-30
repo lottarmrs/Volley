@@ -109,8 +109,8 @@ Estado em 2026-09-28:
   atleta; presença frequente é calculada pelo histórico (metade das até 6 últimas peladas
   encerradas); a foto de uma conta só a conta troca, e vale na hora; convidado ganha foto em
   Gestão → Convidados; a aprovação de foto saiu.
-- **Parte 4a — quem organiza:** feita em código em 2026-09-30
-  ([spec](superpowers/specs/2026-09-29-quem-organiza-design.md)), aguarda publicação. As ações de
+- **Parte 4a — quem organiza:** ✅ em produção desde 2026-09-30
+  ([spec](superpowers/specs/2026-09-29-quem-organiza-design.md)). As ações de
   pelada seguem o servidor (`session.manage`, a responsabilidade `ORGANIZER`), não o cargo;
   torneios, painel, ligas globais e a lixeira do histórico só aparecem para quem pode; o quadro da
   inscrição mostra "Organiza: <nome>" a todos (`get_session_organizer`).

@@ -114,8 +114,8 @@ Estado em 2026-09-28:
   pelada seguem o servidor (`session.manage`, a responsabilidade `ORGANIZER`), não o cargo;
   torneios, painel, ligas globais e a lixeira do histórico só aparecem para quem pode; o quadro da
   inscrição mostra "Organiza: <nome>" a todos (`get_session_organizer`).
-- **Parte 4b — o membro lê o histórico:** feita em código em 2026-09-30
-  ([spec](superpowers/specs/2026-09-30-membro-le-o-historico-design.md)), aguarda publicação.
+- **Parte 4b — o membro lê o histórico:** ✅ em produção desde 2026-09-30
+  ([spec](superpowers/specs/2026-09-30-membro-le-o-historico-design.md)).
   Membro ativo lê toda pelada da comunidade que não é rascunho, com times, jogos, pontos e
   relatórios (`current_user_can_read_community_session`); o sync não devolve à nuvem o histórico de
   outra conta; apagar histórico e apagar convidado são só do dono da comunidade, no servidor.

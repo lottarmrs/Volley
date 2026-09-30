@@ -56,6 +56,13 @@ export async function fetchRoster(ownerId: string, communities?: Community[]): P
   return assembleRoster({ players, relations, evaluations, ownerId, communities });
 }
 
-export function fetchRules(): Promise<CommunityRules[]> {
-  return communityRulesCloudService.fetchAll();
+export async function fetchRules(communities: Community[] = []): Promise<CommunityRules[]> {
+  const appIds = new Map(
+    communities.map((community) => [norm(community.cloudId || community.id), community.id]),
+  );
+  const rules = await communityRulesCloudService.fetchAll();
+  return rules.map((rule) => ({
+    ...rule,
+    communityId: appIds.get(norm(rule.communityId)) ?? rule.communityId,
+  }));
 }

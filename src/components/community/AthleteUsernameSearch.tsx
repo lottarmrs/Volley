@@ -32,9 +32,9 @@ export function AthleteUsernameSearch({
     return (
       <div className="bg-base-200 rounded-xl border border-base-300 p-3 text-xs text-base-content/60 flex items-center gap-2">
         <Cloud className="w-4 h-4 shrink-0" />
-        {!isSupabaseConfigured
-          ? 'Conecte uma conta na nuvem para buscar atletas por @username.'
-          : 'Sincronize esta comunidade com a nuvem para buscar atletas por @username.'}
+        {!isSupabaseConfigured || !currentUserId
+          ? 'Entre com sua conta para buscar atletas por @username.'
+          : 'Ainda salvando no banco. Tente em instantes.'}
       </div>
     );
   }

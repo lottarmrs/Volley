@@ -181,9 +181,7 @@ export function CommunityMembersPanel({
     } else if (result.value) {
       onLinkedPlayer(result.value, community.id);
     } else {
-      setActionError(
-        'Entrada confirmada. O atleta não foi encontrado no elenco; sincronize novamente.',
-      );
+      setActionError('Entrada confirmada. O atleta ainda não apareceu no elenco; atualizando…');
     }
   };
 

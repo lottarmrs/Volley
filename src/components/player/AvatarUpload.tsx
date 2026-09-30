@@ -57,9 +57,7 @@ export function AvatarUpload({
         onClick={() => inputRef.current?.click()}
         disabled={isDisabled}
         title={
-          !playerCloudId
-            ? 'Sincronize o atleta com a nuvem para adicionar uma foto'
-            : 'Alterar foto de perfil'
+          !playerCloudId ? 'Ainda salvando no banco. Tente em instantes.' : 'Alterar foto de perfil'
         }
         className={`avatar avatar-placeholder relative group rounded-full ${
           isDisabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'

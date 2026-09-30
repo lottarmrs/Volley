@@ -814,8 +814,8 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
 
         {naoSincronizado ? (
           <p className="text-xs text-base-content/60">
-            Este atleta ainda nao foi sincronizado com a nuvem, entao nao ha carreira confirmada. Os
-            numeros do card seguem valendo como progresso provisorio.
+            Este atleta existe só neste aparelho, então não há carreira confirmada. Os números do
+            card seguem valendo como progresso provisório.
           </p>
         ) : career.loading ? (
           <p className="text-xs text-base-content/60">Carregando carreira...</p>

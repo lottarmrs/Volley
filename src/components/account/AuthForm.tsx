@@ -286,8 +286,8 @@ export function AuthForm({
           </h2>
           <p className="text-xs text-base-content/60 mt-1">
             {isSignUp
-              ? 'Cadastre-se para sincronizar seus dados e comunidades na nuvem.'
-              : 'Faça login para acessar suas peladas e dados sincronizados.'}
+              ? 'Cadastre-se para ter suas comunidades, atletas e peladas salvos na sua conta.'
+              : 'Entre para acessar suas comunidades e peladas.'}
           </p>
         </div>
 

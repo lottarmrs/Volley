@@ -96,9 +96,9 @@ describe('EvaluationRosterView', () => {
     expect(screen.getByText('A avaliação precisa de conexão.')).toBeTruthy();
   });
 
-  it('comunidade sem nuvem', () => {
+  it('comunidade ainda sem copia no banco', () => {
     renderView({ state: 'not_synced', view: undefined });
-    expect(screen.getByText('Sincronize esta comunidade antes de avaliar.')).toBeTruthy();
+    expect(screen.getByText('Ainda salvando no banco. Tente em instantes.')).toBeTruthy();
   });
 
   it('erro oferece tentar de novo', () => {

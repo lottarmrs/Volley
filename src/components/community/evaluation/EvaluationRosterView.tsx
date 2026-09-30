@@ -94,7 +94,7 @@ export function EvaluationRosterView({
   if (state === 'not_synced')
     return (
       <Aviso>
-        <p>Sincronize esta comunidade antes de avaliar.</p>
+        <p>Ainda salvando no banco. Tente em instantes.</p>
       </Aviso>
     );
   if (state === 'error' || !view)

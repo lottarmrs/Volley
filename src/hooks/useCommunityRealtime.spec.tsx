@@ -67,7 +67,13 @@ describe('useCommunityRealtime', () => {
       'community_members',
       'community_players',
       'community_rules',
+      'game_reports',
+      'games',
       'players',
+      'point_events',
+      'session_reports',
+      'sessions',
+      'teams',
     ]);
     expect(canal.handlers.find(({ table }) => table === 'players')?.filter).toBeUndefined();
     expect(canal.handlers.find(({ table }) => table === 'community_rules')?.filter).toBe(
@@ -83,13 +89,13 @@ describe('useCommunityRealtime', () => {
     expect(setData).not.toHaveBeenCalled();
   });
 
-  it('reconectar depois de erro invalida as quatro chaves', () => {
+  it('reconectar depois de erro invalida as cinco chaves', () => {
     const { invalidate } = montar();
     canal.onStatus!('SUBSCRIBED');
     expect(invalidate).not.toHaveBeenCalled();
     canal.onStatus!('CHANNEL_ERROR');
     canal.onStatus!('SUBSCRIBED');
-    expect(invalidate).toHaveBeenCalledTimes(4);
+    expect(invalidate).toHaveBeenCalledTimes(5);
   });
 
   it('desmontar remove o canal', () => {

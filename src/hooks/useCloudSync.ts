@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   downloadCloudDataQuery,
   repairDuplicateCloudDataCommand,
@@ -47,13 +47,6 @@ import {
 } from '../types';
 import { useConnectivity } from './useConnectivity';
 import { classifySyncError } from '../logic/syncBackoff';
-import { detectSessionConflicts } from '../logic/syncConflicts';
-import type { SessionControlRow } from '@infra/supabase/sessionOwnershipCloudService';
-import {
-  markConflictedEvents,
-  resolveConflictKeepingMine,
-  resolveConflictKeepingTheirs,
-} from '../application/sessionConflictResolution';
 
 /**
  * Everything {@link useCloudSync} needs to build the upload payload and apply a
@@ -71,19 +64,11 @@ export interface CloudSyncDeps {
   drafts: WhatsAppListDraft[];
   setDrafts: (value: WhatsAppListDraft[]) => void;
   sessions: Session[];
-  setSessions: (value: Session[]) => void;
-  /** Recebe só a identidade de sync da Session correspondente; os campos ao vivo ficam. */
-  setActiveSession: Dispatch<SetStateAction<Session | null>>;
   teams: Team[];
-  setTeams: (value: Team[]) => void;
   games: Game[];
-  setGames: (value: Game[]) => void;
   pointEvents: PointEvent[];
-  setPointEvents: (value: PointEvent[]) => void;
   gameReports: GameReport[];
-  setGameReports: (value: GameReport[]) => void;
   sessionReports: SessionReport[];
-  setSessionReports: (value: SessionReport[]) => void;
   presenceRecords: CommunityPresence[];
   setPresenceRecords: (value: CommunityPresence[]) => void;
   championships?: Championship[];
@@ -132,22 +117,6 @@ function clearInflight(userId: string): void {
   localStorage.removeItem(inflightKey(userId));
 }
 
-// A Session ativa e estado separado de `sessions`, e quem a atualiza espalha a copia
-// ativa. Sem trazer para ela o que o sync atribuiu, a proxima interacao ao vivo grava a
-// copia obsoleta de volta em `sessions` e apaga cloudId e authorityModel.
-function mergeSyncIdentity(active: Session | null, synced: Session[]): Session | null {
-  if (!active) return active;
-  const match = synced.find((session) => session.id === active.id);
-  if (!match) return active;
-  return {
-    ...active,
-    cloudId: match.cloudId ?? active.cloudId,
-    syncStatus: match.syncStatus ?? active.syncStatus,
-    lastSyncedAt: match.lastSyncedAt ?? active.lastSyncedAt,
-    authorityModel: match.authorityModel ?? active.authorityModel,
-  };
-}
-
 /**
  * Centralizes the three cloud operations (upload, download, two-way sync) that
  * previously lived as triplicated handlers in App.tsx. Each operation builds the
@@ -183,64 +152,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
     }
     const normalized = normalizeCloudSyncResultPayload(result);
 
-    // Deteccao de conflito: e o momento em que se conhece o estado de controle
-    // da nuvem. Os eventos locais pendentes cuja sessao esta controlada por
-    // outra pessoa sao carimbados para o upload segurar ate alguem decidir.
-    // A chave e o id LOCAL da sessao, nao o cloudId.
-    //
-    // `mapDbToSession` devolve `id: db.local_id || db.id` e `cloudId: db.id`, e
-    // `PointEvent.sessionId` referencia o id LOCAL. Indexar por cloudId fazia o
-    // lookup falhar em toda sessao criada no app — que sao todas, porque toda
-    // sessao criada aqui grava `local_id`. O conflito nunca era detectado, e o
-    // teste unitario de `detectSessionConflicts` passava porque usa chaves
-    // consistentes dos dois lados.
-    const cloudSessionControl: Record<string, SessionControlRow> = {};
-    for (const session of normalized.sessions) {
-      cloudSessionControl[session.id] = {
-        controlled_by_user_id: session.controlledByUserId ?? null,
-        control_claimed_at: session.controlClaimedAt ?? null,
-        control_device_id: session.controlDeviceId ?? null,
-      };
-    }
-
-    // Conta so o que JA ESTA na nuvem, que e o placar da outra pessoa. Contar o
-    // payload inteiro somaria os meus eventos junto e a tela de conflito mostraria
-    // o total onde deveria mostrar o dela. `cloudId` presente e o que distingue:
-    // evento baixado tem, evento meu ainda nao enviado nao tem.
-    const cloudEventCounts: Record<string, number> = {};
-    for (const ev of normalized.pointEvents) {
-      if (!ev.cloudId) continue;
-      cloudEventCounts[ev.sessionId] = (cloudEventCounts[ev.sessionId] ?? 0) + 1;
-    }
-
-    // Sem nome, a tela cai em "Outra pessoa" — perdendo justamente o que motivou
-    // a posse ser por usuario e nao por aparelho: poder dizer com quem falar.
-    const holderNames: Record<string, string> = {};
-    for (const player of deps.players) {
-      if (player.userId) holderNames[player.userId] = player.apelido || player.nome;
-    }
-
-    const conflicts = detectSessionConflicts({
-      currentUserId: deps.userId,
-      localPointEvents: deps.pointEvents,
-      cloudSessionControl,
-      cloudEventCounts,
-      holderNames,
-    });
-
-    const resolvedPointEvents =
-      conflicts.length > 0
-        ? markConflictedEvents(normalized.pointEvents, conflicts)
-        : normalized.pointEvents;
-
     deps.setTemplates(normalized.templates);
-    deps.setSessions(normalized.sessions);
-    deps.setActiveSession((active) => mergeSyncIdentity(active, normalized.sessions));
-    deps.setTeams(normalized.teams);
-    deps.setGames(normalized.games);
-    deps.setPointEvents(resolvedPointEvents);
-    deps.setGameReports(normalized.gameReports);
-    deps.setSessionReports(normalized.sessionReports);
     deps.setPresenceRecords(normalized.presenceRecords);
     deps.setDrafts(normalized.drafts);
     deps.setChampionships?.(normalized.championships);
@@ -357,7 +269,17 @@ export function useCloudSync(deps: CloudSyncDeps) {
       () =>
         downloadCloudDataQuery({
           userId: deps.userId ?? undefined,
-          catalog: { communities: deps.communities, players: deps.players, rules: deps.rules },
+          catalog: {
+            communities: deps.communities,
+            players: deps.players,
+            rules: deps.rules,
+            sessions: deps.sessions,
+            teams: deps.teams,
+            games: deps.games,
+            pointEvents: deps.pointEvents,
+            gameReports: deps.gameReports,
+            sessionReports: deps.sessionReports,
+          },
         }),
       {
         writes: false,
@@ -450,34 +372,6 @@ export function useCloudSync(deps: CloudSyncDeps) {
       repairDuplicateCloudDataCommand({ userId, onIssue }),
     );
 
-  /**
-   * Resolve um conflito de placar mantendo o placar local: os eventos da sessao
-   * seguem pendentes e poderao subir no proximo upload.
-   */
-  const resolveConflictKeepingMineAction = (sessionId: string) => {
-    const now = new Date().toISOString();
-    const next = resolveConflictKeepingMine({
-      pointEvents: deps.pointEvents,
-      sessionId,
-      now,
-    });
-    deps.setPointEvents(next);
-  };
-
-  /**
-   * Resolve um conflito de placar assumindo a versao da outra pessoa: os eventos
-   * locais da sessao viram soft-delete e nunca mais sobem.
-   */
-  const resolveConflictKeepingTheirsAction = (sessionId: string) => {
-    const now = new Date().toISOString();
-    const next = resolveConflictKeepingTheirs({
-      pointEvents: deps.pointEvents,
-      sessionId,
-      now,
-    });
-    deps.setPointEvents(next);
-  };
-
   return {
     uploadToCloud,
     downloadFromCloud,
@@ -492,8 +386,8 @@ export function useCloudSync(deps: CloudSyncDeps) {
     recoverableSyncActions,
     retryPrimarySyncAction,
     clearResolvedSyncIssues,
-    resolveConflictKeepingMine: resolveConflictKeepingMineAction,
-    resolveConflictKeepingTheirs: resolveConflictKeepingTheirsAction,
+    resolveConflictKeepingMine: (_sessionId: string) => undefined,
+    resolveConflictKeepingTheirs: (_sessionId: string) => undefined,
     connectivity: connectivity.state,
   };
 }

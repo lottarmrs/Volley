@@ -28,6 +28,7 @@ import { buildInviteShareUrl } from '@app/communityInviteUseCases';
 import { suggestedRegistrationCapacity } from '@app/scheduleSessionUseCases';
 import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
 import { useScoringOffline } from '@hooks/useScoringOffline';
+import { useSessionRealtime } from '@hooks/useSessionRealtime';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -195,6 +196,10 @@ export function CommunityRegistrationRoute() {
     onSessionChange: (next) =>
       sess.setSessions((prev) => prev.map((item) => (item.id === next.id ? next : item))),
   });
+  useSessionRealtime(
+    (session?.authorityModel === 'target' ? session.cloudId : null) ?? alvo?.sessionCloudId ?? null,
+    () => void api.reload(),
+  );
 
   // Quem abre pelo link nao tem a sessao aqui; o nome vem da nuvem.
   const [nomeDaNuvem, setNomeDaNuvem] = useState<string | null>(null);

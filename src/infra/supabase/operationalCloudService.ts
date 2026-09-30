@@ -725,6 +725,20 @@ export const operationalCloudService = {
     };
   },
 
+  async fetchPresenceAndDrafts(): Promise<{
+    presenceRecords: CommunityPresence[];
+    drafts: WhatsAppListDraft[];
+  }> {
+    const [presenceRows, draftRows] = await Promise.all([
+      fetchRows('community_presence'),
+      fetchRows('whatsapp_list_drafts'),
+    ]);
+    return {
+      presenceRecords: presenceRows.map(mapDbToPresence),
+      drafts: draftRows.map(mapDbToDraft),
+    };
+  },
+
   async upsertSession(local: Session, ownerId: string): Promise<Session> {
     const data = await upsertRow('sessions', mapSessionToDb(local, ownerId));
     return mapDbToSession(data);

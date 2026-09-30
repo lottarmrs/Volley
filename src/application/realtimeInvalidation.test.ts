@@ -24,8 +24,21 @@ test('community_rules invalida as regras', () => {
   assert.deepEqual(invalidationKeysFor('community_rules', ctx), [['regras', 'u1']]);
 });
 
-test('reconectar invalida as quatro chaves da comunidade', () => {
-  assert.equal(allCommunityKeys(ctx).length, 4);
+test('reconectar invalida as cinco chaves da comunidade', () => {
+  assert.equal(allCommunityKeys(ctx).length, 5);
+});
+
+test('peladas, times, jogos, pontos e relatorios invalidam as peladas', () => {
+  for (const table of [
+    'sessions',
+    'teams',
+    'games',
+    'point_events',
+    'game_reports',
+    'session_reports',
+  ] as const) {
+    assert.deepEqual(invalidationKeysFor(table, ctx), [['peladas', 'u1']]);
+  }
 });
 
 test('so players fica sem filtro de coluna', () => {

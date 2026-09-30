@@ -50,6 +50,26 @@ export interface OnlineCatalog {
   communities: Community[];
   players: Player[];
   rules: CommunityRules[];
+  sessions?: Session[];
+  teams?: Team[];
+  games?: Game[];
+  pointEvents?: PointEvent[];
+  gameReports?: GameReport[];
+  sessionReports?: SessionReport[];
+}
+
+async function operationalWithCatalog(catalog: OnlineCatalog) {
+  const { presenceRecords, drafts } = await operationalCloudService.fetchPresenceAndDrafts();
+  return {
+    sessions: catalog.sessions ?? [],
+    teams: catalog.teams ?? [],
+    games: catalog.games ?? [],
+    pointEvents: catalog.pointEvents ?? [],
+    gameReports: catalog.gameReports ?? [],
+    sessionReports: catalog.sessionReports ?? [],
+    presenceRecords,
+    drafts,
+  };
 }
 
 export interface SyncOptions {
@@ -1238,126 +1258,7 @@ export const syncService = {
       }
     }
 
-    // A ativacao do modelo versionado e por Comunidade e ja e resolvida assim para o
-    // upload de avaliacoes (playerEvaluationCloudService); aqui reaproveitamos a mesma
-    // RPC (community_evaluation_target_ids) num unico lote, so para as Sessoes que ainda
-    // vao subir pela primeira vez -- uma Sessao ja sincronizada como legada nao e
-    // convertida por esta rota (fora do escopo desta fatia).
-    const sessionCommunityIdsToCheckActivation = Array.from(
-      new Set(
-        local.sessions
-          .filter(
-            (session) => !session.deletedAt && !session.cloudId && !isTargetCohortSession(session),
-          )
-          .map((session) => resolveCloudId(session.communityId, communityCloudIds))
-          .filter((id): id is string => isUuid(id)),
-      ),
-    );
-
-    let activatedSessionCommunityIds = new Set<string>();
-    let sessionActivationLookupFailed = false;
-    if (sessionCommunityIdsToCheckActivation.length > 0) {
-      try {
-        const activated = await communityEvaluationCloudService.activatedCommunityIds(
-          sessionCommunityIdsToCheckActivation,
-        );
-        activatedSessionCommunityIds = new Set(activated.map((id) => id.toLowerCase()));
-      } catch (error) {
-        if (!isMissingTargetLookup(error as { code?: string } | null)) {
-          sessionActivationLookupFailed = true;
-          console.error('Falha ao consultar Comunidades com o modelo versionado ativado', error);
-          onIssue('ativação de sessões no modelo versionado', error);
-        }
-      }
-    }
-
-    const updatedSessions: Session[] = [];
-    for (const session of local.sessions) {
-      try {
-        if (session.deletedAt) {
-          if (isTargetCohortSession(session)) {
-            onIssue(
-              `exclusão da sessão "${session.name}" no modelo versionado`,
-              new Error(
-                'A exclusão de sessões no modelo versionado ainda não é enviada para a nuvem.',
-              ),
-            );
-          } else if (session.cloudId) {
-            await operationalCloudService.softDelete('sessions', session.cloudId);
-          }
-          updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
-          continue;
-        }
-
-        const alheia = !!session.cloudOwnerId && session.cloudOwnerId !== ownerId;
-        if (alheia && session.syncStatus !== 'pending') {
-          updatedSessions.push(markSynced(session, session.cloudId, syncedAt));
-          continue;
-        }
-
-        if (isTargetCohortSession(session)) {
-          updatedSessions.push(session);
-          continue;
-        }
-
-        if (sessionActivationLookupFailed && session.communityId && !session.cloudId) {
-          updatedSessions.push(session);
-          continue;
-        }
-
-        const sessionCommunityCloudId = resolveCloudId(session.communityId, communityCloudIds);
-
-        if (
-          !session.cloudId &&
-          sessionCommunityCloudId &&
-          activatedSessionCommunityIds.has(sessionCommunityCloudId.toLowerCase())
-        ) {
-          let created: { id: string } | null = null;
-          try {
-            created = await sessionCohortCloudService.createTargetSession({
-              sessionId: session.id,
-              communityId: sessionCommunityCloudId,
-              name: session.name,
-              playMode: targetPlayModeForSession(session),
-            });
-          } catch (createError) {
-            // A linha ja existe (copia local obsoleta ou resposta perdida apos o commit):
-            // adota a Session target lendo-a por id. Se a leitura responde P0002, a linha com
-            // esse id e legada (a propria Session, que perdeu o cloudId) e segue o upsert legado.
-            if ((createError as { code?: string } | null)?.code !== '23505') throw createError;
-            try {
-              created = { id: (await sessionCohortCloudService.readTargetSession(session.id)).id };
-            } catch (readError) {
-              if ((readError as { code?: string } | null)?.code !== 'P0002') throw readError;
-            }
-          }
-          if (created) {
-            updatedSessions.push({
-              ...markSynced(session, created.id, syncedAt),
-              authorityModel: 'target',
-            });
-            continue;
-          }
-        }
-
-        const sessionForUpload = {
-          ...session,
-          communityId: sessionCommunityCloudId || null,
-        };
-        const uploaded = await operationalCloudService.upsertSession(
-          sessionForUpload,
-          alheia ? session.cloudOwnerId! : ownerId,
-        );
-        updatedSessions.push(markSynced(session, uploaded.cloudId, syncedAt));
-      } catch (error) {
-        onIssue(`sessão "${session.name}"`, error);
-        const recusadaAlheia =
-          !!session.cloudOwnerId && session.cloudOwnerId !== ownerId && isPermissionRefusal(error);
-        updatedSessions.push(
-          recusadaAlheia ? markSynced(session, session.cloudId, syncedAt) : session,
-        );
-      }
-    }
+    const updatedSessions: Session[] = [...local.sessions];
 
     const sessionsById = new Map(
       updatedSessions.map((session) => [
@@ -1410,73 +1311,11 @@ export const syncService = {
       }
     }
 
-    const updatedTeams = await bulkUploadSessionChildren<Team>(
-      local.teams,
-      sessionsById,
-      'teams',
-      ownerId,
-      (items, owner) => {
-        const itemsWithResolvedChampionshipTeam = items.filter(
-          (item) =>
-            !item.championshipTeamId ||
-            championshipTeamCloudIds.has(item.championshipTeamId.toLowerCase()),
-        );
-        if (itemsWithResolvedChampionshipTeam.length === 0) return Promise.resolve([]);
-        return operationalCloudService.bulkUpsertTeams(
-          itemsWithResolvedChampionshipTeam,
-          owner,
-          sessionsById,
-          championshipTeamCloudIds,
-        );
-      },
-      options,
-    );
-
-    const updatedGames = await bulkUploadSessionChildren<Game>(
-      local.games,
-      sessionsById,
-      'games',
-      ownerId,
-      (items, owner) => operationalCloudService.bulkUpsertGames(items, owner, sessionsById),
-      options,
-    );
-
-    // Eventos de sessao em conflito nao sobem ate alguem decidir qual versao vale.
-    // O filtro e POR SESSAO de proposito: as demais continuam subindo normalmente.
-    const emConflito = new Set(
-      local.pointEvents
-        .filter((e) => (e as { conflictStatus?: string }).conflictStatus === 'pending_decision')
-        .map((e) => e.sessionId),
-    );
-    const pointEventsParaSubir = local.pointEvents.filter((e) => !emConflito.has(e.sessionId));
-
-    const updatedPointEvents = await bulkUploadSessionChildren<PointEvent>(
-      pointEventsParaSubir,
-      sessionsById,
-      'point_events',
-      ownerId,
-      (items, owner) => operationalCloudService.bulkUpsertPointEvents(items, owner, sessionsById),
-      options,
-    );
-
-    const updatedGameReports = await bulkUploadSessionChildren<GameReport>(
-      local.gameReports,
-      sessionsById,
-      'game_reports',
-      ownerId,
-      (items, owner) => operationalCloudService.bulkUpsertGameReports(items, owner, sessionsById),
-      options,
-    );
-
-    const updatedSessionReports = await bulkUploadSessionChildren<SessionReport>(
-      local.sessionReports,
-      sessionsById,
-      'session_reports',
-      ownerId,
-      (items, owner) =>
-        operationalCloudService.bulkUpsertSessionReports(items, owner, sessionsById),
-      options,
-    );
+    const updatedTeams = local.teams;
+    const updatedGames = local.games;
+    const updatedPointEvents = local.pointEvents;
+    const updatedGameReports = local.gameReports;
+    const updatedSessionReports = local.sessionReports;
 
     const updatedPresenceRecords: CommunityPresence[] = [];
     const presenceToDelete: CommunityPresence[] = [];
@@ -1664,7 +1503,7 @@ export const syncService = {
       whatsappTemplateCloudService.fetchAll(),
       catalog ? Promise.resolve([]) : communityPlayerCloudService.fetchAll(),
       catalog ? Promise.resolve([]) : playerEvaluationCloudService.fetchAll(),
-      operationalCloudService.fetchAll(),
+      catalog?.sessions ? operationalWithCatalog(catalog) : operationalCloudService.fetchAll(),
       championshipCloudService.fetchAll(),
     ]);
 
@@ -1749,11 +1588,13 @@ export const syncService = {
       communities: local.communities,
       players: local.players,
       rules: local.rules,
+      sessions: local.sessions,
+      teams: local.teams,
+      games: local.games,
+      pointEvents: local.pointEvents,
+      gameReports: local.gameReports,
+      sessionReports: local.sessionReports,
     });
-    const sessionsAfterTargetCohortMerge = await mergeTargetCohortSessionReads(
-      repairedLocal.sessions,
-      options.onIssue,
-    );
     const merged: LocalSyncPayload = {
       communities: local.communities,
       players: local.players,
@@ -1761,20 +1602,12 @@ export const syncService = {
       templates: mergeEntityLists(repairedLocal.templates, cloud.templates, {
         getId: (item) => item.id,
       }),
-      sessions: mergeEntityLists(sessionsAfterTargetCohortMerge, cloud.sessions, {
-        getId: (item) => item.id,
-      }),
-      teams: mergeEntityLists(repairedLocal.teams, cloud.teams, { getId: (item) => item.id }),
-      games: mergeEntityLists(repairedLocal.games, cloud.games, { getId: (item) => item.id }),
-      pointEvents: mergeEntityLists(repairedLocal.pointEvents, cloud.pointEvents, {
-        getId: (item) => item.id,
-      }),
-      gameReports: mergeEntityLists(repairedLocal.gameReports, cloud.gameReports, {
-        getId: (item) => item.id,
-      }),
-      sessionReports: mergeEntityLists(repairedLocal.sessionReports, cloud.sessionReports, {
-        getId: (item) => item.id,
-      }),
+      sessions: local.sessions,
+      teams: local.teams,
+      games: local.games,
+      pointEvents: local.pointEvents,
+      gameReports: local.gameReports,
+      sessionReports: local.sessionReports,
       presenceRecords: mergeEntityLists(repairedLocal.presenceRecords, cloud.presenceRecords, {
         getId: (item) => `${item.communityId}:${item.date}`,
       }),

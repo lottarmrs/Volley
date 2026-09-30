@@ -5,7 +5,13 @@ export type RealtimeTable =
   | 'community_members'
   | 'community_players'
   | 'players'
-  | 'community_rules';
+  | 'community_rules'
+  | 'sessions'
+  | 'teams'
+  | 'games'
+  | 'point_events'
+  | 'game_reports'
+  | 'session_reports';
 
 export interface RealtimeContext {
   userId: string;
@@ -19,6 +25,12 @@ export const REALTIME_TABLES: ReadonlyArray<{ table: RealtimeTable; filterColumn
     { table: 'community_players', filterColumn: 'community_id' },
     { table: 'players', filterColumn: null },
     { table: 'community_rules', filterColumn: 'community_id' },
+    { table: 'sessions', filterColumn: 'community_id' },
+    { table: 'teams', filterColumn: 'community_id' },
+    { table: 'games', filterColumn: 'community_id' },
+    { table: 'point_events', filterColumn: 'community_id' },
+    { table: 'game_reports', filterColumn: 'community_id' },
+    { table: 'session_reports', filterColumn: 'community_id' },
   ];
 
 export function invalidationKeysFor(
@@ -35,6 +47,13 @@ export function invalidationKeysFor(
       return [queryKeys.atletas(userId)];
     case 'community_rules':
       return [queryKeys.regras(userId)];
+    case 'sessions':
+    case 'teams':
+    case 'games':
+    case 'point_events':
+    case 'game_reports':
+    case 'session_reports':
+      return [queryKeys.peladas(userId)];
   }
 }
 
@@ -47,5 +66,6 @@ export function allCommunityKeys({
     queryKeys.membros(communityCloudId),
     queryKeys.atletas(userId),
     queryKeys.regras(userId),
+    queryKeys.peladas(userId),
   ];
 }

@@ -2,6 +2,7 @@ import type { SessionType } from '@shared/types';
 import { generateUUID } from '@logic/uuid';
 import { registrationCloudService } from '@infra/supabase/registrationCloudService';
 import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
+import { targetSessionLifecycleCloudService } from '@infra/supabase/targetSessionLifecycleCloudService';
 import type { RegistrationGateway } from './authorizedFormationGateways';
 import type { SessionCohortCreationGateway } from './sessionCohortCutover';
 import { appOk, productError, type AppResult } from './appResult';
@@ -17,7 +18,12 @@ export type PeladaFlowGateway = SessionCohortCreationGateway &
     | 'lockWindow'
     | 'finalizeRoster'
     | 'readWindow'
-  >;
+  > & {
+    setDetails(
+      sessionId: string,
+      details: { location: string | null; notes: string | null },
+    ): Promise<void>;
+  };
 
 const defaultGateway: PeladaFlowGateway = {
   createTargetSession: (input) => sessionCohortCloudService.createTargetSession(input),
@@ -28,6 +34,8 @@ const defaultGateway: PeladaFlowGateway = {
   lockWindow: (input) => registrationCloudService.lockWindow(input),
   finalizeRoster: (input) => registrationCloudService.finalizeRoster(input),
   readWindow: (windowId) => registrationCloudService.readWindow(windowId),
+  setDetails: (sessionId, details) =>
+    targetSessionLifecycleCloudService.setDetails(sessionId, details),
 };
 
 const playMode = (type: SessionType) =>
@@ -97,6 +105,9 @@ export async function markPelada(
   }
   try {
     const { sessionId, windowId } = await createWithOpenList(input, gateway);
+    if (input.location?.trim()) {
+      await gateway.setDetails(sessionId, { location: input.location.trim(), notes: null });
+    }
     return appOk({ sessionId, windowId });
   } catch (error) {
     return { ok: false, error: toOnlineError(error) };

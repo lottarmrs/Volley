@@ -43,7 +43,11 @@ const POSITION_LABELS: Record<Position, string> = {
   'all-rounder': 'Versátil',
 };
 
+import { PeladaNextStepCard } from './PeladaNextStepCard';
+import type { PeladaActionKind, PeladaNextStep } from '@app/peladaNextStep';
+
 interface RegistrationBoardViewProps {
+  nextStep?: { step: PeladaNextStep; busy: boolean; onAction: (kind: PeladaActionKind) => void };
   api: RegistrationBoardApi;
   players: Player[];
   frequentPlayerIds?: ReadonlySet<string>;
@@ -159,6 +163,7 @@ function situacaoDoAtleta(board: RegistrationBoard): SituacaoVisual {
 }
 
 export function RegistrationBoardView({
+  nextStep,
   api,
   players,
   frequentPlayerIds,
@@ -293,6 +298,14 @@ export function RegistrationBoardView({
         </div>
       )}
 
+      {nextStep && (
+        <PeladaNextStepCard
+          step={nextStep.step}
+          busy={nextStep.busy || busy}
+          onAction={nextStep.onAction}
+        />
+      )}
+
       <div className={`rounded-box border p-5 transition-colors ${situacao.cor}`}>
         <Cabecalho nome={nome} data={data} />
         {organizerName && (
@@ -416,10 +429,15 @@ export function RegistrationBoardView({
       )}
 
       {board.viewerCanManage && (
-        <BarraDoOrganizador api={api} board={board} disponiveis={disponiveis} />
+        <BarraDoOrganizador
+          api={api}
+          board={board}
+          disponiveis={disponiveis}
+          semAbrirFechar={!!nextStep}
+        />
       )}
 
-      {board.viewerCanManage && drawUrl && board.status !== 'OPEN' && !jaComecou && (
+      {!nextStep && board.viewerCanManage && drawUrl && board.status !== 'OPEN' && !jaComecou && (
         <Link to={drawUrl} className="btn btn-primary w-full">
           <Shuffle className="h-4 w-4" /> Sortear os times
         </Link>
@@ -667,10 +685,12 @@ function BarraDoOrganizador({
   api,
   board,
   disponiveis,
+  semAbrirFechar = false,
 }: {
   api: RegistrationBoardApi;
   board: RegistrationBoard;
   disponiveis: Player[];
+  semAbrirFechar?: boolean;
 }) {
   const prazoAtual = board.paymentDueAt ? board.paymentDueAt.slice(0, 16) : '';
   const [vagas, setVagas] = useState(String(board.capacity));
@@ -771,7 +791,7 @@ function BarraDoOrganizador({
         </button>
       </div>
 
-      {board.status !== 'LOCKED' && (
+      {!semAbrirFechar && board.status !== 'LOCKED' && (
         <button
           type="button"
           className="btn btn-sm btn-ghost border-base-content/20"

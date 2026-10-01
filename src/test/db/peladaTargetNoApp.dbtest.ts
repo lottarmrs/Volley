@@ -317,4 +317,59 @@ if (!isTestDatabaseConfigured()) {
     await comando(owner, 'start_target_session', sessionId);
     assert.equal(await estado(sessionId), 'IN_PROGRESS');
   });
+
+  test('reabrir a lista fechada, incluir alguem e fechar de novo gera elenco novo', async () => {
+    const { owner, communityId } = await montarDono();
+    const sessionId = await criarPelada(owner, communityId);
+    await elencoFechado(owner, communityId, sessionId);
+    const { rows: janelas } = await client.query<{ id: string; revision: number }>(
+      'select id, revision from public.registration_windows where session_id = $1',
+      [sessionId],
+    );
+    const windowId = janelas[0].id;
+    const reaberta = await call<{ window_revision: number }>(
+      owner,
+      'select * from public.reopen_registration($1, $2, $3)',
+      [randomUUID(), windowId, janelas[0].revision],
+    );
+    let revision = reaberta.rows[0].window_revision;
+    await client.query(
+      'update public.registration_windows set capacity = capacity + 1 where id = $1',
+      [windowId],
+    );
+    revision = (
+      await client.query<{ revision: number }>(
+        'select revision from public.registration_windows where id = $1',
+        [windowId],
+      )
+    ).rows[0].revision;
+    const novo = await atletaNoElenco(communityId, owner, 'Chegou tarde');
+    const entrou = await call<{ window_revision: number }>(
+      owner,
+      'select * from public.add_registration_entry($1, $2, $3, $4)',
+      [randomUUID(), randomUUID(), windowId, novo],
+    );
+    revision = entrou.rows[0].window_revision;
+    for (const cmd of ['close_registration', 'lock_registration']) {
+      const r = await call<{ window_revision: number }>(
+        owner,
+        `select * from public.${cmd}($1, $2, $3)`,
+        [randomUUID(), windowId, revision],
+      );
+      revision = r.rows[0].window_revision;
+    }
+    const final = await call<{ roster_revision_number: number }>(
+      owner,
+      'select * from public.finalize_session_roster($1, $2, $3)',
+      [randomUUID(), windowId, revision],
+    );
+    assert.equal(final.rows[0].roster_revision_number, 2);
+    const { rows: entradas } = await client.query(
+      `select e.player_id from public.roster_revision_entries e
+         join public.roster_revisions r on r.id = e.roster_revision_id
+        where r.session_id = $1 and r.revision_number = 2`,
+      [sessionId],
+    );
+    assert.equal(entradas.length, 5);
+  });
 }

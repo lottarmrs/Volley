@@ -30,6 +30,9 @@ function gateway(falha?: { em: string; erro: unknown }) {
       await passo('finalize', String(input.expectedRevision));
       return { rosterRevisionId: 'r1', rosterRevisionNumber: 1 };
     },
+    setDetails: async (sessionId, details) => {
+      chamadas.push(`details ${details.location}`);
+    },
     readWindow: async (windowId) => {
       chamadas.push(`read ${windowId}`);
       return {
@@ -59,6 +62,12 @@ test('marcar cria a pelada com horario, cria a lista com as vagas e abre', async
   const resultado = await markPelada(marcar, g);
   assert.equal(resultado.ok, true);
   assert.deepEqual(chamadas, ['create c1 2026-10-02T20:00:00.000Z', 'window 12', 'open 3']);
+});
+
+test('marcar com local grava o local da pelada', async () => {
+  const { g, chamadas } = gateway();
+  await markPelada({ ...marcar, location: ' Bolão da Breves ' }, g);
+  assert.equal(chamadas.at(-1), 'details Bolão da Breves');
 });
 
 test('marcar sem horario ou com menos de 2 vagas recusa sem chamar o servidor', async () => {

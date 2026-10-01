@@ -517,6 +517,8 @@ export function CommunityHistoryRoute() {
   const [searchParams] = useSearchParams();
   const selectedSessionId = searchParams.get('sessao');
 
+  if (sess.status.loading) return <OnlineLoading label="Carregando o histórico…" />;
+
   return (
     <div className="space-y-5">
       <DesempenhoTabs communityId={community.id} ativa="historico" />

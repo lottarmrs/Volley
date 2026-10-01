@@ -34,6 +34,7 @@ import { closeListAndFinalize, markPelada } from '@app/peladaFlowUseCases';
 import { markPeladaDefaults, peladaName, plannedStartIso } from '@app/markPeladaDefaults';
 import { MarkPeladaView } from '../../components/session/MarkPeladaView';
 import { useToast } from '../../ui/common/useToast';
+import { OnlineLoading } from '@ui/common/OnlineDataState';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -144,6 +145,8 @@ export function CommunitySessionsRoute() {
   const navigate = useNavigate();
   const { canClearHistory } = useCommunityPermissions(community);
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
+
+  if (sess.status.loading) return <OnlineLoading label="Carregando peladas…" />;
 
   return (
     <div className="space-y-5">
@@ -303,6 +306,7 @@ export function CommunityRegistrationRoute() {
     };
   }, [alvoCloudId]);
 
+  if (sess.status.loading) return <OnlineLoading label="Carregando a pelada…" />;
   if (!alvo) return <Navigate to={paths.sessoes(community.id)} replace />;
 
   const sessionCloudId = alvo.sessionCloudId;
@@ -420,6 +424,8 @@ export function CommunitySessionDetailRoute() {
   const { canClearHistory } = useCommunityPermissions(community);
   const { sessionId } = useParams();
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
+
+  if (sess.status.loading) return <OnlineLoading label="Carregando a pelada…" />;
 
   return (
     <HistoryView

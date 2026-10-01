@@ -76,7 +76,7 @@ export function PainelRoute() {
   // proximo passo util e montar a lista e sortear. Nao ha laco aqui porque
   // /comecar nunca devolve para /painel.
   const online = onlineDataState(shell);
-  if (comm.status.loading || play.status.loading) {
+  if (comm.status.loading || play.status.loading || sess.status.loading) {
     return <OnlineLoading label="Carregando seu painel…" />;
   }
   const semNada =
@@ -158,9 +158,11 @@ export function PainelRoute() {
 }
 
 export function AgendaRoute() {
-  const { sess, comm, championships } = useShell();
+  const shell = useShell();
+  const { sess, comm, championships } = shell;
   const navigate = useNavigate();
   const today = formatLocalDateInput(new Date());
+  const online = onlineDataState(shell);
   const items = buildAgendaItems({
     today,
     communities: comm.communities,
@@ -169,6 +171,13 @@ export function AgendaRoute() {
     championshipTeams: championships.championshipTeams,
     championshipRounds: championships.championshipRounds,
   });
+
+  if (comm.status.loading || sess.status.loading) {
+    return <OnlineLoading label="Carregando a agenda…" />;
+  }
+  if (online.readError) {
+    return <OnlineReadError error={online.readError} onRetry={online.retry} />;
+  }
 
   return (
     <AgendaView

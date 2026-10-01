@@ -35,6 +35,9 @@ import { markPeladaDefaults, peladaName, plannedStartIso } from '@app/markPelada
 import { MarkPeladaView } from '../../components/session/MarkPeladaView';
 import { useToast } from '../../ui/common/useToast';
 import { OnlineLoading } from '@ui/common/OnlineDataState';
+import { openPeladas } from '@app/openPeladas';
+import { formatLocalDateInput } from '@logic/date';
+import { OpenPeladasList } from '../../components/session/OpenPeladasList';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -151,6 +154,11 @@ export function CommunitySessionsRoute() {
   return (
     <div className="space-y-5">
       <SessoesTabs communityId={community.id} ativa="lista" />
+      <OpenPeladasList
+        communityId={community.id}
+        sessions={openPeladas(sess.sessions, community.id)}
+        today={formatLocalDateInput(new Date())}
+      />
       <HistoryView
         contract={buildHistoryViewContract({
           sessions: communitySessions,
@@ -369,52 +377,82 @@ export function CommunityRegistrationRoute() {
         }
       : undefined;
 
+  const podeCancelar =
+    !!session && podeOrganizar.allowed && !['finished', 'cancelled'].includes(session.status);
+  const cancelar = () => {
+    if (!session) return;
+    if (!window.confirm('Cancelar esta pelada? Ela sai da agenda e a lista fecha para todos.')) {
+      return;
+    }
+    const agora = new Date().toISOString();
+    sess.setSessions((atuais) =>
+      atuais.map((item) =>
+        item.id === session.id ? { ...item, status: 'cancelled', updatedAt: agora } : item,
+      ),
+    );
+    toasts.push('Pelada cancelada.', 'success');
+    navigate(paths.sessoes(community.id));
+  };
+
   return (
-    <RegistrationBoardView
-      nextStep={nextStep}
-      api={api}
-      players={getCommunityPlayers(community.id, play.players)}
-      frequentPlayerIds={frequentPlayerIds(getCommunitySessions(community.id, sess.sessions))}
-      organizerName={organizador}
-      sessionName={alvo.name ?? nomeDaNuvem}
-      sessionDate={alvo.date}
-      canOpen={!!session && podeOrganizar.allowed && !podeOrganizar.pending}
-      pixKey={pixKey}
-      shareUrl={buildRegistrationShareUrl({
-        origin: window.location.origin,
-        communityId: community.id,
-        sessionId: alvo.sessionCloudId,
-      })}
-      drawUrl={paths.sortear(community.id, sessionId ?? alvo.sessionCloudId)}
-      inviteUrl={buildInviteShareUrl({
-        origin: window.location.origin,
-        code: community.joinCode,
-        sessionId: alvo.sessionCloudId,
-      })}
-      organizerHandover={
-        sessionCloudId
-          ? {
-              podeTransferir: permissions.canManageMembers,
-              currentUserId: auth.user?.id ?? null,
-              membros: members
-                .filter((membro) => (membro.status ?? 'active') === 'active')
-                .map((membro) => ({
-                  userId: membro.userId,
-                  nome: membro.name || membro.email || 'Membro',
-                })),
-              onTransfer: (organizerUserId: string) =>
-                transferSessionOrganizer({
-                  sessionCloudId,
-                  communityCloudId,
-                  organizerUserId,
-                  commandId: generateUUID(),
-                  assignmentId: generateUUID(),
-                  granterUserId: auth.user?.id ?? undefined,
-                }),
-            }
-          : undefined
-      }
-    />
+    <>
+      <RegistrationBoardView
+        nextStep={nextStep}
+        api={api}
+        players={getCommunityPlayers(community.id, play.players)}
+        frequentPlayerIds={frequentPlayerIds(getCommunitySessions(community.id, sess.sessions))}
+        organizerName={organizador}
+        sessionName={alvo.name ?? nomeDaNuvem}
+        sessionDate={alvo.date}
+        canOpen={!!session && podeOrganizar.allowed && !podeOrganizar.pending}
+        pixKey={pixKey}
+        shareUrl={buildRegistrationShareUrl({
+          origin: window.location.origin,
+          communityId: community.id,
+          sessionId: alvo.sessionCloudId,
+        })}
+        drawUrl={paths.sortear(community.id, sessionId ?? alvo.sessionCloudId)}
+        inviteUrl={buildInviteShareUrl({
+          origin: window.location.origin,
+          code: community.joinCode,
+          sessionId: alvo.sessionCloudId,
+        })}
+        organizerHandover={
+          sessionCloudId
+            ? {
+                podeTransferir: permissions.canManageMembers,
+                currentUserId: auth.user?.id ?? null,
+                membros: members
+                  .filter((membro) => (membro.status ?? 'active') === 'active')
+                  .map((membro) => ({
+                    userId: membro.userId,
+                    nome: membro.name || membro.email || 'Membro',
+                  })),
+                onTransfer: (organizerUserId: string) =>
+                  transferSessionOrganizer({
+                    sessionCloudId,
+                    communityCloudId,
+                    organizerUserId,
+                    commandId: generateUUID(),
+                    assignmentId: generateUUID(),
+                    granterUserId: auth.user?.id ?? undefined,
+                  }),
+              }
+            : undefined
+        }
+      />
+      {podeCancelar && (
+        <div className="mx-auto mt-6 flex max-w-3xl justify-center">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm min-h-11 text-error"
+            onClick={cancelar}
+          >
+            Cancelar a pelada
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

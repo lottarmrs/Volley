@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
@@ -508,6 +508,20 @@ describe('AppRouter — sessões da comunidade', () => {
     expect(screen.queryByText(/sessão de outra/i)).toBeNull();
   });
 
+  it('pelada em aberto de dia passado aparece em "Em aberto", acima das encerradas', async () => {
+    seedLocalDb({
+      communities: [community],
+      sessions: [
+        finished,
+        { ...finished, id: 's3', name: 'Marcada e esquecida', date: '2026-09-30', status: 'draft' },
+      ],
+    });
+    renderApp('/comunidades/c1/sessoes');
+    const abertas = await screen.findByRole('list', { name: /peladas em aberto/i });
+    expect(within(abertas).getByText(/marcada e esquecida/i)).toBeTruthy();
+    expect(within(abertas).queryByText(/sessão de quarta/i)).toBeNull();
+  });
+
   it('abre o detalhe da sessão da URL', async () => {
     seedLocalDb({ communities: [community], sessions: [finished] });
     renderApp('/comunidades/c1/sessoes/s1');
@@ -527,7 +541,7 @@ describe('AppRouter — sessões da comunidade', () => {
 });
 
 const WIZARD_MARKER = 'Ex: Vôlei de Domingo';
-const SESSION_LIST_EMPTY_MARKER = /nenhuma sessão registrada ainda/i;
+const SESSION_LIST_EMPTY_MARKER = /nenhuma pelada encerrada ainda/i;
 const SESSION_ACTIVE_MARKER = /sessão iniciada/i;
 
 function readActiveSession(): Session | null {

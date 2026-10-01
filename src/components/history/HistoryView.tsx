@@ -185,7 +185,7 @@ function SessionList({
     return (
       <div className="text-center py-20 card card-border border-dashed bg-base-200">
         <p className="text-base-content/60 uppercase text-xs font-bold italic">
-          Nenhuma sessão registrada ainda.
+          Nenhuma pelada encerrada ainda.
         </p>
       </div>
     );

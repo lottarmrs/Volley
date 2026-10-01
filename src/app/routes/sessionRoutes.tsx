@@ -30,7 +30,9 @@ import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudSer
 import { useScoringOffline } from '@hooks/useScoringOffline';
 import { useSessionRealtime } from '@hooks/useSessionRealtime';
 import { peladaNextStep, type PeladaActionKind } from '@app/peladaNextStep';
-import { closeListAndFinalize } from '@app/peladaFlowUseCases';
+import { closeListAndFinalize, markPelada } from '@app/peladaFlowUseCases';
+import { markPeladaDefaults, peladaName, plannedStartIso } from '@app/markPeladaDefaults';
+import { MarkPeladaView } from '../../components/session/MarkPeladaView';
 import { useToast } from '../../ui/common/useToast';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
@@ -169,6 +171,68 @@ export function CommunitySessionsRoute() {
         })}
       />
     </div>
+  );
+}
+
+export function SessionNewRoute() {
+  const { sess } = useCommunityShell();
+  return sess.online ? <MarkPeladaRoute /> : <SessionWizardRoute />;
+}
+
+function hojeIso(): string {
+  const agora = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${agora.getFullYear()}-${pad(agora.getMonth() + 1)}-${pad(agora.getDate())}`;
+}
+
+export function MarkPeladaRoute() {
+  const { community, sess } = useCommunityShell();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const podeOrganizar = useCanManageSessions(community);
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [sugestao] = useState(() => {
+    const base = markPeladaDefaults(community, new Date());
+    return searchParams.get('tipo') === 'torneio' ? { ...base, type: 'tournament' as const } : base;
+  });
+
+  if (!podeOrganizar.pending && !podeOrganizar.allowed) {
+    return <SessionCreationBlocked onBack={() => navigate(paths.comunidade(community.id))} />;
+  }
+
+  return (
+    <MarkPeladaView
+      communityName={community.name}
+      defaults={sugestao}
+      today={hojeIso()}
+      busy={busy}
+      error={erro}
+      onCancel={() => navigate(paths.comunidade(community.id))}
+      onSubmit={async (valores) => {
+        if (!community.cloudId) {
+          setErro('A comunidade ainda não está salva. Tente em instantes.');
+          return;
+        }
+        setBusy(true);
+        setErro(null);
+        const marcada = await markPelada({
+          communityCloudId: community.cloudId,
+          name: peladaName(community.name, valores.date),
+          plannedStartAt: plannedStartIso(valores.date, valores.time),
+          location: valores.location.trim() || null,
+          capacity: valores.capacity,
+          type: valores.type,
+        });
+        if (marcada.ok === false) {
+          setErro(marcada.error.message);
+          setBusy(false);
+          return;
+        }
+        await sess.refresh();
+        navigate(paths.inscricao(community.id, marcada.value.sessionId));
+      }}
+    />
   );
 }
 

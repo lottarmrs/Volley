@@ -51,7 +51,7 @@ import {
   CommunityTournamentsRoute,
   CommunityWhatsAppRoute,
   SessionActiveRoute,
-  SessionWizardRoute,
+  SessionNewRoute,
 } from './routes/sessionRoutes';
 
 export function AppRouter() {
@@ -79,7 +79,7 @@ export function AppRouter() {
           <Route path="/sessao/ativa" element={<LegacyActiveSessionRoute />} />
 
           <Route path="/comunidades/:communityId" element={<CommunityShell />}>
-            <Route path="sessoes/nova" element={<SessionWizardRoute />} />
+            <Route path="sessoes/nova" element={<SessionNewRoute />} />
             <Route path="sessoes/ativa" element={<SessionActiveRoute />} />
             <Route element={<AccountGate />}>
               <Route index element={<CommunityOverviewRoute />} />

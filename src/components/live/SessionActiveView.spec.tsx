@@ -19,7 +19,7 @@ const pelada = makeSession('s1', {
 });
 const jogo = makeGame('g1', 's1', { teamAId: 'ta', teamBId: 'tb', status: 'active' });
 
-function renderPlacar(offline: boolean) {
+function renderPlacar(offline: boolean, readOnly = false) {
   const noop = () => {};
   return render(
     <MemoryRouter>
@@ -33,6 +33,7 @@ function renderPlacar(offline: boolean) {
           gameReports: [],
           currentDeviceId: 'aparelho',
           offline,
+          readOnly,
           setGames: noop,
           setPointEvents: noop,
           setGameReports: noop,
@@ -65,5 +66,26 @@ describe('SessionActiveView sem sinal', () => {
     expect(
       (screen.getByRole('button', { name: /desfazer ponto/i }) as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+});
+
+describe('SessionActiveView para quem acompanha', () => {
+  it('membro ve o placar sem os botoes de marcar, e sabe por que', () => {
+    renderPlacar(false, true);
+    expect(screen.getByRole('status').textContent).toContain(
+      'Você está acompanhando ao vivo. Só quem organiza marca o placar.',
+    );
+    expect(
+      (screen.getByRole('button', { name: /desfazer ponto/i }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    for (const botao of screen.getAllByRole('button', { name: /encerrar/i })) {
+      expect((botao as HTMLButtonElement).disabled).toBe(true);
+    }
+    const marcar = screen.getAllByRole('button', { name: /\+1/ });
+    expect(marcar.length).toBeGreaterThan(0);
+    for (const botao of marcar) {
+      expect((botao as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

@@ -38,7 +38,7 @@ import {
 } from '@app/sessionOwnershipUseCases';
 import { isAppOk } from '@app/appResult';
 import { useAuth } from '../../hooks/useAuth';
-import { SCORING_OFFLINE_MESSAGE } from '@app/scoringLock';
+import { SCORING_OFFLINE_MESSAGE, SCORING_READ_ONLY_MESSAGE } from '@app/scoringLock';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { SessionActiveViewModel } from '@app/screens/sessionActiveView/sessionActiveViewModel';
 import type { SessionActiveViewIntent } from '@app/screens/sessionActiveView/sessionActiveViewIntents';
@@ -58,6 +58,7 @@ export const SessionActiveView = ({
     gameReports,
     currentDeviceId,
     offline,
+    readOnly,
     setGames,
     setPointEvents,
     setGameReports,
@@ -116,7 +117,7 @@ export const SessionActiveView = ({
   // reivindicamos — porque reivindicar grava o meu device_id, e a partir daí o caso
   // "minha sessão em outro aparelho" some e o aviso nunca apareceria.
   useEffect(() => {
-    if (!activeSession?.cloudId) return;
+    if (!activeSession?.cloudId || readOnly) return;
     if (!usesLegacySessionControl(activeSession)) {
       setControl({ canScore: true, reason: 'mine', message: '', holderName: null });
       return;
@@ -164,7 +165,7 @@ export const SessionActiveView = ({
     const deveBater = shouldHeartbeatSessionControl({
       sessionCloudId: activeSession?.cloudId,
       sessionStatus: activeSession?.status ?? '',
-      canScore: control.canScore,
+      canScore: control.canScore && !readOnly,
       authorityModel: activeSession?.authorityModel,
     });
     if (!deveBater) return;
@@ -241,19 +242,28 @@ export const SessionActiveView = ({
     if (ok) alert('Próxima partida copiada!');
   };
 
+  const locked = offline || readOnly;
   const offlineNotice = offline ? (
     <div role="alert" className="alert alert-warning alert-soft text-sm font-bold">
       {SCORING_OFFLINE_MESSAGE}
     </div>
+  ) : readOnly ? (
+    <div role="status" className="alert alert-info alert-soft text-sm font-bold">
+      {SCORING_READ_ONLY_MESSAGE}
+    </div>
   ) : null;
-  const canScore = control.canScore && !offline;
-  const blockedReason = offline ? SCORING_OFFLINE_MESSAGE : control.message;
+  const canScore = control.canScore && !locked;
+  const blockedReason = offline
+    ? SCORING_OFFLINE_MESSAGE
+    : readOnly
+      ? SCORING_READ_ONLY_MESSAGE
+      : control.message;
 
   if (activeSession.type === 'tournament' && tournamentStandings) {
     return (
       <div className="space-y-3">
         {offlineNotice}
-        <fieldset disabled={offline} className="contents">
+        <fieldset disabled={locked} className="contents">
           <TournamentActiveView
             activeSession={activeSession}
             sessionGames={sessionGames}
@@ -363,7 +373,7 @@ export const SessionActiveView = ({
             </button>
             <button
               onClick={() => setShowFinishModal(true)}
-              disabled={offline}
+              disabled={locked}
               className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
             >
               Encerrar pelada
@@ -417,6 +427,7 @@ export const SessionActiveView = ({
                 };
                 setGames([...games, newGame]);
               }}
+              disabled={locked}
               className="btn btn-primary w-full"
             >
               Começar Primeira Partida
@@ -487,7 +498,7 @@ export const SessionActiveView = ({
           </button>
           <button
             onClick={() => setShowFinishModal(true)}
-            disabled={offline}
+            disabled={locked}
             className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
           >
             Encerrar pelada
@@ -676,7 +687,7 @@ export const SessionActiveView = ({
             <div className="flex flex-wrap justify-center gap-3 w-full">
               <button
                 onClick={() => startNextGame(setActiveSession)}
-                disabled={offline}
+                disabled={locked}
                 className="btn btn-accent w-full sm:flex-1 sm:min-w-[200px]"
               >
                 Iniciar Próximo Jogo

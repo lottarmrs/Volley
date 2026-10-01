@@ -11,6 +11,7 @@ export interface SessionActiveViewModel {
   gameReports: GameReport[];
   currentDeviceId: string;
   offline: boolean;
+  readOnly: boolean;
   // ponytail: setters no model p/ shallow contract alimentar o hook interno sem extraí-lo ao shell.
   // sync-safe: NÃO são functional updaters — são pass-through. Os 19 (prev)=>… ficam DENTRO do hook.
   setGames: Dispatch<SetStateAction<Game[]>>;

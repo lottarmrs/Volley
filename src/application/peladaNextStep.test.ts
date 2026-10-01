@@ -44,7 +44,7 @@ test('quem nao organiza ve o estado sem as acoes de quem organiza', () => {
   const passo = peladaNextStep({ ...base, status: 'draft', canManage: false });
   assert.equal(passo.action, null);
   const rolando = peladaNextStep({ ...base, status: 'active', canManage: false });
-  assert.equal(rolando.action?.kind, 'abrir_placar');
+  assert.deepEqual(rolando.action, { kind: 'abrir_placar', label: 'Acompanhar o placar' });
 });
 
 test('um so confirmado no singular', () => {

@@ -585,6 +585,7 @@ export function SessionActiveRoute() {
   const navigate = useNavigate();
   const { community, sess, play } = shell;
   const scoringOffline = useScoringOffline(sess);
+  const podeOrganizar = useCanManageSessions(community);
   const phase = derivePhase(sess.activeSession, sess.games);
   if (sess.status.loading) return <OnlineLoading label="Carregando a pelada…" />;
   const resolution = resolveLiveSessionRoute({
@@ -606,6 +607,7 @@ export function SessionActiveRoute() {
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
         offline: scoringOffline,
+        readOnly: !podeOrganizar.pending && !podeOrganizar.allowed,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,
         setGameReports: sess.setGameReports,

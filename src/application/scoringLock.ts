@@ -1,3 +1,6 @@
+export const SCORING_READ_ONLY_MESSAGE =
+  'Você está acompanhando ao vivo. Só quem organiza marca o placar.';
+
 export const SCORING_OFFLINE_MESSAGE = 'Sem conexão. O placar volta quando o sinal voltar.';
 
 export function scoringOfflineFor(input: {

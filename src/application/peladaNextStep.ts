@@ -54,7 +54,10 @@ export function peladaNextStep(input: {
     return {
       stage: 'em_andamento',
       line: input.gameNumber ? `Rolando agora · Jogo ${input.gameNumber}` : 'Rolando agora',
-      action: { kind: 'abrir_placar', label: 'Abrir o placar' },
+      action: {
+        kind: 'abrir_placar',
+        label: input.canManage ? 'Abrir o placar' : 'Acompanhar o placar',
+      },
     };
   }
   if (input.status === 'teams_generated') {

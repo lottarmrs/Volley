@@ -93,7 +93,7 @@ export function PainelRoute() {
       <Dashboard
         contract={buildDashboardContract({
           activeSession: sess.activeSession,
-          sessionDraft: shell.sessionDraft,
+          sessionDraft: sess.online ? null : shell.sessionDraft,
           games: sess.games,
           sessions: sess.sessions,
           communities: comm.communities,
@@ -106,6 +106,7 @@ export function PainelRoute() {
             navigate(
               communityIds.length === 0 ? paths.comecar : resolveNewSessionPath({ communityIds }),
             ),
+          onQuickPelada: () => navigate(paths.comecar),
           onResumeSession: () =>
             navigate(
               shell.activeSessionCommunityId
@@ -172,6 +173,9 @@ export function AgendaRoute() {
   return (
     <AgendaView
       items={items}
+      markPath={
+        comm.communities.length === 1 ? paths.sessaoNova(comm.communities[0].id) : paths.comunidades
+      }
       onOpen={(item) =>
         navigate(
           item.kind === 'session'

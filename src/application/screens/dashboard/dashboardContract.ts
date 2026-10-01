@@ -11,6 +11,7 @@ export interface DashboardContractInput {
   sessionDraft: SessionDraft | null;
   games: Game[];
   onNewSession: () => void;
+  onQuickPelada?: () => void;
   onResumeSession: () => void;
   onResumeDraft: (draft: SessionDraft) => void;
   onClearDraft: () => void;
@@ -42,10 +43,18 @@ function proximaPelada(input: DashboardContractInput): DashboardModel['proximaPe
     championshipRounds: [],
   }).find((item) => item.kind === 'session');
   if (!proxima) return null;
+  const sessao = input.sessions.find((item) => item.id === proxima.refId);
+  const hora = sessao?.plannedStartAt
+    ? new Date(sessao.plannedStartAt).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+  const partes = [formatarDia(proxima.date), hora, sessao?.location || null].filter(Boolean);
   return {
     to: paths.inscricao(proxima.communityId, proxima.refId),
     title: proxima.title,
-    subtitle: formatarDia(proxima.date),
+    subtitle: partes.join(' · '),
   };
 }
 
@@ -67,6 +76,9 @@ export function buildDashboardContract(
     switch (intent.kind) {
       case 'newSession':
         input.onNewSession();
+        return;
+      case 'quickPelada':
+        input.onQuickPelada?.();
         return;
       case 'resumeSession':
         input.onResumeSession();

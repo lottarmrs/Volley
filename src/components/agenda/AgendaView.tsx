@@ -78,9 +78,11 @@ export type CalendarViewMode = 'Day' | 'Week' | 'Month' | 'List';
 export function AgendaView({
   items,
   onOpen,
+  markPath = paths.comunidades,
 }: {
   items: AgendaItem[];
   onOpen: (item: AgendaItem) => void;
+  markPath?: string;
 }) {
   const [viewMode, setViewMode] = useState<CalendarViewMode>('Week');
   const [startDate, setStartDate] = useState<string>(() => {
@@ -120,14 +122,14 @@ export function AgendaView({
       <EmptyState
         icon={CalendarDays}
         title="Nada marcado por enquanto"
-        description="A agenda junta num calendário só as sessões marcadas das suas comunidades e as rodadas das ligas em andamento — de todas elas ao mesmo tempo. É como o grupo sabe quando é o próximo jogo sem perguntar no WhatsApp."
+        description="A agenda junta num calendário só as peladas marcadas das suas comunidades e as rodadas das ligas em andamento — de todas elas ao mesmo tempo. É como o grupo sabe quando é o próximo jogo sem perguntar no WhatsApp."
       >
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
-            to={paths.comunidades}
+            to={markPath}
             className="btn btn-primary min-h-[48px] flex-1 gap-2 px-6 font-black uppercase tracking-wider"
           >
-            <Volleyball className="h-5 w-5" /> Marcar uma pelada
+            <Volleyball className="h-5 w-5" /> Marcar pelada
           </Link>
           <Link
             to={paths.ligas}

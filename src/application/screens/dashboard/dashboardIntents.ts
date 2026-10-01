@@ -2,6 +2,7 @@ import type { SessionDraft } from '@logic/sessionDraft';
 
 export type DashboardIntent =
   | { kind: 'newSession' }
+  | { kind: 'quickPelada' }
   | { kind: 'resumeSession' }
   | { kind: 'resumeDraft'; draft: SessionDraft }
   | { kind: 'clearDraft' }

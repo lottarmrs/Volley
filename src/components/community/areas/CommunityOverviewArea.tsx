@@ -66,7 +66,14 @@ export function CommunityOverviewArea({
   // Comunidade recém-criada: um painel de zeros e quatro "Sem dados" não contam
   // o que fazer. A ordem aqui é real — sem elenco não há sorteio.
   if (summary.totalAthletes === 0) {
-    return <CommunityFirstRun community={community} canManageRoster={canManageRoster} />;
+    return (
+      <CommunityFirstRun
+        community={community}
+        canManageRoster={canManageRoster}
+        canCreateSession={canCreateSession}
+        onCreateSession={onCreateSession}
+      />
+    );
   }
 
   return (
@@ -127,7 +134,7 @@ export function CommunityOverviewArea({
           disabled={!canCreateSession}
           className="btn btn-primary btn-block"
         >
-          <Plus className="w-4 h-4" /> Criar sessão
+          <Plus className="w-4 h-4" /> Marcar pelada
         </button>
         <GuardedLink to={paths.listaWhatsapp(community.id)} className="btn btn-outline btn-block">
           <FileText className="w-4 h-4" /> Lista WhatsApp
@@ -147,9 +154,13 @@ export function CommunityOverviewArea({
 function CommunityFirstRun({
   community,
   canManageRoster,
+  canCreateSession,
+  onCreateSession,
 }: {
   community: Community;
   canManageRoster: boolean;
+  canCreateSession: boolean;
+  onCreateSession: () => void;
 }) {
   const passos = [
     {
@@ -159,14 +170,15 @@ function CommunityFirstRun({
     },
     {
       estado: 'agora' as const,
-      titulo: 'Chamar o elenco',
+      titulo: 'Marcar a primeira pelada',
       detalhe:
-        'Traga pelo @ quem tem conta, que preenche a própria ficha, e cadastre quem joga sem conta. Os fundamentos de cada atleta alimentam o sorteio equilibrado.',
+        'Escolha dia e horário: a lista abre junto, e quem é do grupo garante a vaga pelo link.',
     },
     {
       estado: 'depois' as const,
-      titulo: 'Marcar a primeira pelada',
-      detalhe: 'Com elenco na mão, o sorteio monta os times e o placar entra no ar.',
+      titulo: 'Completar o elenco',
+      detalhe:
+        'Cadastre quem joga sem conta e traga pelo @ quem tem. Os fundamentos de cada atleta alimentam o sorteio equilibrado.',
     },
   ];
 
@@ -174,7 +186,7 @@ function CommunityFirstRun({
     <EmptyState
       icon={Volleyball}
       title="Sua comunidade está de pé"
-      description="Falta o que faz ela existir: gente. Assim que o elenco entrar, o sorteio equilibrado, o placar ao vivo e o ranking passam a funcionar sozinhos."
+      description="Falta o que faz ela existir: a primeira pelada. A lista traz as pessoas, e o sorteio, o placar e o ranking passam a funcionar sozinhos."
     >
       <ol className="flex flex-col gap-3">
         {passos.map((passo) => (
@@ -209,14 +221,24 @@ function CommunityFirstRun({
         ))}
       </ol>
 
-      <GuardedLink
-        to={paths.convidados(community.id)}
-        className={`btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider ${
-          canManageRoster ? '' : 'btn-disabled'
-        }`}
-      >
-        <Users className="h-5 w-5" /> Montar o elenco
-      </GuardedLink>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onCreateSession}
+          disabled={!canCreateSession}
+          className="btn btn-primary min-h-[48px] w-fit gap-2 px-6 font-black uppercase tracking-wider"
+        >
+          <Plus className="h-5 w-5" /> Marcar a primeira pelada
+        </button>
+        <GuardedLink
+          to={paths.convidados(community.id)}
+          className={`btn btn-ghost min-h-[48px] w-fit gap-2 border-base-content/20 ${
+            canManageRoster ? '' : 'btn-disabled'
+          }`}
+        >
+          <Users className="h-5 w-5" /> Completar o elenco
+        </GuardedLink>
+      </div>
       {!canManageRoster && (
         <p className="text-xs leading-relaxed text-base-content/60">
           Seu papel nesta comunidade ainda não permite montar o elenco. Peça a quem administra.

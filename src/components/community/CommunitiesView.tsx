@@ -551,7 +551,7 @@ function CommunityCard({
             disabled={!podeOrganizar.allowed || podeOrganizar.pending}
             className="btn btn-primary btn-sm"
           >
-            Criar sessão
+            Marcar pelada
           </button>
         </div>
       </div>

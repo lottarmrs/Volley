@@ -77,7 +77,7 @@ function SessoesTabs({
   return (
     <CommunityAreaTabs
       items={[
-        { to: paths.sessoes(communityId), label: 'Sessões', active: ativa === 'lista' },
+        { to: paths.sessoes(communityId), label: 'Peladas', active: ativa === 'lista' },
         { to: paths.presenca(communityId), label: 'Presença', active: ativa === 'presenca' },
         {
           to: paths.listaWhatsapp(communityId),

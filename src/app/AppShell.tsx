@@ -326,7 +326,7 @@ export function AppShell() {
         // Go to dashboard to reload fresh data
         navigate(paths.painel);
 
-        toasts.push('Backup restaurado. Seus atletas e sessões voltaram.', 'success');
+        toasts.push('Backup restaurado. Seus atletas e peladas voltaram.', 'success');
       } catch (e) {
         console.error('Erro ao importar backup:', e);
         toasts.push(
@@ -399,7 +399,7 @@ export function AppShell() {
   ): Promise<AppResult<{ sessionId: string }>> => {
     const round = championships.championshipRounds.find((item) => item.id === roundId);
     if (!round) return productError('not_found', 'Rodada da liga não encontrada.');
-    if (round.sessionId) return productError('conflict', 'Esta rodada já possui uma sessão.');
+    if (round.sessionId) return productError('conflict', 'Esta rodada já virou pelada.');
     const guard = ensureNoOtherActiveSession(sess.activeSession);
     if (guard.ok === false) return guard;
 

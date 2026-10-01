@@ -18,6 +18,7 @@ import { CaptchaField } from '../../app/auth/CaptchaField';
 import { captchaSiteKey } from '../../app/auth/captchaEnv';
 import { validatePasswordLength } from '../../app/auth/passwordPolicy';
 import { searchPlayerByUsernameQuery } from '../../application/communityPlayerSearchUseCases';
+import { authErrorMessage } from '@app/authErrorMessage';
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/;
 const BLOCKLIST = [
@@ -234,7 +235,7 @@ export function AuthForm({
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Ocorreu um erro ao processar a autenticação.');
+      setError(authErrorMessage(err));
     }
   };
 
@@ -245,7 +246,7 @@ export function AuthForm({
       await onGoogle();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Ocorreu um erro ao processar a autenticação.');
+      setError(authErrorMessage(err));
     }
   };
 

@@ -79,20 +79,10 @@ export function SessionWizard({ contract, firstStep = 0, title, exitLabel }: Ses
           className="btn btn-ghost btn-sm"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>{exitLabel ?? 'Cancelar Criação'}</span>
+          <span>{exitLabel ?? 'Cancelar'}</span>
         </button>
 
-        {title ? (
-          <h1 className="text-lg font-black text-base-content">{title}</h1>
-        ) : (
-          <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-accent animate-pulse" />
-            <span className="text-[10px] font-bold uppercase text-base-content tracking-[0.3em]">
-              Setup de Sessão
-            </span>
-            <div className="badge badge-neutral font-mono text-[8px]"> v1.2</div>
-          </div>
-        )}
+        <h1 className="text-lg font-black text-base-content">{title ?? 'Nova pelada'}</h1>
       </div>
 
       <SessionWizardProgress

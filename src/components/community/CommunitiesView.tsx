@@ -319,9 +319,7 @@ export function CommunitiesView({
 
       <div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Comunidades</h2>
-        <p className="text-sm text-base-content/60">
-          Central local dos grupos recorrentes de vôlei.
-        </p>
+        <p className="text-sm text-base-content/60">Os grupos com que você joga.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -363,7 +361,7 @@ export function CommunitiesView({
         <EmptyState
           icon={Volleyball}
           title="A comunidade é a sua pelada por inteiro"
-          description="É onde moram o elenco, as presenças, as regras da casa e o histórico de todas as sessões. Quem organiza cria a sua; quem foi chamado entra na do grupo e já aparece na lista da próxima."
+          description="É onde moram o elenco, as presenças, as regras da casa e o histórico de todas as peladas. Quem organiza cria a sua; quem foi chamado entra na do grupo e já aparece na lista da próxima."
         >
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
@@ -528,11 +526,11 @@ function CommunityCard({
 
         <div className="stats stats-vertical sm:stats-horizontal bg-base-100">
           <div className="stat">
-            <div className="stat-title">Sessões</div>
+            <div className="stat-title">Peladas</div>
             <div className="stat-value text-lg">{summary.totalSessions}</div>
           </div>
           <div className="stat">
-            <div className="stat-title">Última sessão</div>
+            <div className="stat-title">Última pelada</div>
             <div className="stat-value text-lg">{formatDate(summary.lastSession?.date)}</div>
           </div>
           <div className="stat">

@@ -220,22 +220,22 @@ export function getPageTitleForPath(pathname: string): string {
   if (segments[0] === 'perfil')
     return segments[1] === 'sync' ? 'Sincronização & Backup Nuvem' : 'Meu Perfil';
   if (segments[0] === 'plataforma') return 'Administração da plataforma';
-  if (segments[0] === 'sessao' && segments[1] === 'ativa') return 'Sessão em Andamento';
+  if (segments[0] === 'sessao' && segments[1] === 'ativa') return 'Pelada em andamento';
   if (segments[0] !== 'comunidades') return 'Panelinha';
   if (segments.length === 1) return 'Comunidades';
   if (segments.length === 2) return 'Visão Geral da Comunidade';
 
   switch (segments[2]) {
     case 'sessoes':
-      if (segments.length === 3) return 'Sessões';
-      if (segments[3] === 'nova') return 'Configuração da Sessão';
-      if (segments[3] === 'ativa') return 'Sessão em Andamento';
+      if (segments.length === 3) return 'Peladas';
+      if (segments[3] === 'nova') return 'Marcar pelada';
+      if (segments[3] === 'ativa') return 'Pelada em andamento';
       if (segments[3] === 'torneios') return 'Torneios & Campeonatos';
       if (segments[3] === 'presenca') return 'Presença';
       if (segments[3] === 'lista-whatsapp') return 'Lista de WhatsApp';
       if (segments[4] === 'inscricao') return 'Inscrição';
       if (segments[4] === 'sortear') return 'Sortear os Times';
-      return 'Detalhe da Sessão';
+      return 'Pelada';
     case 'pessoas':
       return 'Pessoas';
     case 'ligas':
@@ -344,7 +344,7 @@ export function getShellNavigationItems(input: {
       },
       {
         id: 'comunidade-sessoes',
-        label: 'Sessões',
+        label: 'Peladas',
         icon: 'tournament',
         to: paths.sessoes(communityId),
         active: area === 'sessoes',

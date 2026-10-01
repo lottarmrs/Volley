@@ -86,7 +86,7 @@ export function resolveSessionControl(input: {
     return {
       canScore: true,
       reason: 'mine_other_device',
-      message: 'Você está com esta sessão aberta em outro aparelho.',
+      message: 'Você está com esta pelada aberta em outro aparelho.',
       holderName: input.holderName,
     };
   }
@@ -108,7 +108,7 @@ async function executarPosse(
     if (classifySyncError(error) === 'authorization' && bruto?.message?.trim()) {
       return productError('permission_denied', bruto.message.trim());
     }
-    return technicalError('Não foi possível atualizar o controle da sessão.', error);
+    return technicalError('Não deu para atualizar quem controla a pelada.', error);
   }
 }
 

@@ -564,7 +564,7 @@ export function CommunityLeaguesArea({
                               )}
                             </div>
                             {round.sessionId ? (
-                              <span className="badge badge-success badge-soft">Sessão criada</span>
+                              <span className="badge badge-success badge-soft">Pelada criada</span>
                             ) : (
                               <div className="flex flex-wrap justify-end gap-1">
                                 <button
@@ -597,7 +597,7 @@ export function CommunityLeaguesArea({
                                     } else {
                                       setRoundMessage({
                                         kind: 'success',
-                                        text: `Rodada ${round.round} materializada como sessão.`,
+                                        text: `Rodada ${round.round} virou pelada.`,
                                       });
                                     }
                                   }}

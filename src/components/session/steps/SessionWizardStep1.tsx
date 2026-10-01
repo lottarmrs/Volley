@@ -56,7 +56,7 @@ export function SessionWizardStep1({ screen }: { screen: SessionWizardScreen }) 
             icon: <Users className="w-5 h-5 text-primary" />,
           },
           {
-            label: 'Média Power',
+            label: 'Nível médio',
             val: avgOverall,
             color: 'text-accent',
             icon: <Zap className="w-5 h-5 text-accent" />,

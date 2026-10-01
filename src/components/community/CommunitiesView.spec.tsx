@@ -183,6 +183,6 @@ describe('CommunityLeaguesArea', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Materializar rodada' }));
 
     expect(onMaterializeRound).toHaveBeenCalledWith('round-1');
-    expect(await screen.findByText('Rodada 1 materializada como sessão.')).toBeTruthy();
+    expect(await screen.findByText('Rodada 1 virou pelada.')).toBeTruthy();
   });
 });

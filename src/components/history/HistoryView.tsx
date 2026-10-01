@@ -121,7 +121,7 @@ export const HistoryView = ({ contract }: HistoryViewProps) => {
             <ChevronLeft className="w-5 h-5" />
             <span className="font-bold uppercase text-xs">Voltar</span>
           </button>
-          <h2 className="text-xl font-black uppercase tracking-tight">Histórico de Sessões</h2>
+          <h2 className="text-xl font-black uppercase tracking-tight">Histórico de peladas</h2>
           <div className="w-16" />
         </div>
       )}
@@ -131,7 +131,7 @@ export const HistoryView = ({ contract }: HistoryViewProps) => {
         <div className="flex gap-1 p-1 bg-surface-muted rounded-xl border border-border">
           {(
             [
-              ['sessions', 'Sessões', <HistoryIcon className="w-3.5 h-3.5" />],
+              ['sessions', 'Peladas', <HistoryIcon className="w-3.5 h-3.5" />],
               ['stats', 'Estatísticas', <BarChart3 className="w-3.5 h-3.5" />],
             ] as const
           ).map(([id, label, icon]) => (
@@ -359,7 +359,7 @@ function GlobalStats({
       {/* Totals */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Sessões', val: sessions.filter((s) => s.status === 'finished').length },
+          { label: 'Peladas', val: sessions.filter((s) => s.status === 'finished').length },
           { label: 'Partidas', val: registeredGames.length },
           {
             label: 'Pontos',
@@ -404,7 +404,7 @@ function GlobalStats({
       {sessionsData.length >= 2 && (
         <div className="card card-border bg-base-200 p-6 rounded-xl min-w-0 overflow-hidden">
           <h3 className="text-[10px] font-black uppercase text-base-content/60 mb-6 flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5" /> Evolução por Sessão
+            <Activity className="w-3.5 h-3.5" /> Evolução por pelada
           </h3>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={sessionsData} margin={{ top: 0, right: 10, bottom: 0, left: -20 }}>

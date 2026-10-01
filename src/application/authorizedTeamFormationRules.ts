@@ -146,9 +146,7 @@ export function classifyAuthorizedFormationFailure(
     failure.reason instanceof TypeError ||
     NETWORK_FAILURE.test(message)
   ) {
-    return offlineError(
-      'Sem conexão com a nuvem. Sessões de comunidade precisam de internet para gerar os times.',
-    );
+    return offlineError('Sem conexão. A pelada precisa de internet para gerar os times.');
   }
   if (code === '42501') {
     if (failure.step.startsWith('addEntry:') && failure.player) {
@@ -174,7 +172,7 @@ export function classifyAuthorizedFormationFailure(
   if (code === '23514') {
     return productError(
       'invalid_input',
-      'A sessão ou o elenco não estão prontos para formar times.',
+      'A pelada ou o elenco não estão prontos para formar times.',
     );
   }
   if (code === 'PGRST202' || code === '42883') {

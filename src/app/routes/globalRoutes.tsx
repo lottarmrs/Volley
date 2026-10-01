@@ -135,9 +135,7 @@ export function PainelRoute() {
           onClearActiveSession: () => {
             if (
               sess.activeSession &&
-              window.confirm(
-                'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
-              )
+              window.confirm('Descartar a pelada em andamento? Os jogos dela serão perdidos.')
             ) {
               const result = buildActiveSessionClearResult(sess.activeSession);
               if (!result) return;

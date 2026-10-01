@@ -75,7 +75,7 @@ export function useSessionWizardScreen(
 
   const handleShareSorteio = () => {
     if (bestDivisions.length === 0) return;
-    const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players, {
+    const text = formatDrawForWhatsApp(activeSession?.name || 'Pelada', bestDivisions, players, {
       includePositions: shareIncludePositions,
       includeRatings: shareIncludeRatings,
       playerPositions,
@@ -85,7 +85,7 @@ export function useSessionWizardScreen(
 
   const handleCopySorteio = async () => {
     if (bestDivisions.length === 0) return;
-    const text = formatDrawForWhatsApp(activeSession?.name || 'Sessão', bestDivisions, players, {
+    const text = formatDrawForWhatsApp(activeSession?.name || 'Pelada', bestDivisions, players, {
       includePositions: shareIncludePositions,
       includeRatings: shareIncludeRatings,
       playerPositions,

@@ -274,7 +274,7 @@ describe('AppRouter — rotas globais', () => {
   });
 });
 
-const COMMUNITY_LIST_MARKER = /central local dos grupos recorrentes/i;
+const COMMUNITY_LIST_MARKER = /os grupos com que você joga/i;
 
 describe('AppRouter — comunidade', () => {
   it('expulsa id inexistente para a lista de comunidades', async () => {
@@ -296,7 +296,7 @@ describe('AppRouter — comunidade', () => {
   it('abre a visão geral da comunidade da URL, sem barra de abas', async () => {
     seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
     renderApp('/comunidades/c1');
-    expect(await screen.findByRole('link', { name: /sessões/i })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: /^peladas$/i })).toBeTruthy();
     expect(screen.queryByRole('tab', { name: 'Resumo' })).toBeNull();
     expect(screen.queryByText(COMMUNITY_LIST_MARKER)).toBeNull();
   });

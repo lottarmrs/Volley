@@ -85,7 +85,7 @@ export function CommunityOverviewArea({
           <div className="stat-desc">{summary.activeAthletes} ativos</div>
         </div>
         <div className="stat">
-          <div className="stat-title">Sessões</div>
+          <div className="stat-title">Peladas</div>
           <div className="stat-value">{summary.totalSessions}</div>
           <div className="stat-desc">{summary.totalMatches} partidas</div>
         </div>
@@ -98,11 +98,11 @@ export function CommunityOverviewArea({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InfoCard
-          title="Última sessão"
+          title="Última pelada"
           value={
             summary.lastSession
               ? `${summary.lastSession.name} - ${formatDate(summary.lastSession.date)}`
-              : 'Sem sessões'
+              : 'Sem peladas'
           }
           icon={<Calendar className="w-4 h-4" />}
         />

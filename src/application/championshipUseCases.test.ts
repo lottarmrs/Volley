@@ -326,7 +326,7 @@ test('ensureNoOtherActiveSession refuses when a Session is active, so it is neve
 
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.match(result.error.message, /já existe uma sessão em andamento/i);
+  assert.match(result.error.message, /já existe uma pelada em andamento/i);
 });
 
 // ─── getSeasonAwards ───────────────────────────────────────────────────────

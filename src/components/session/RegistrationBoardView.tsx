@@ -639,7 +639,9 @@ const Linha: React.FC<LinhaProps> = ({
       {overall !== null && (
         <div className={`shrink-0 text-right ${board.viewerCanManage ? 'hidden sm:block' : ''}`}>
           <p className="font-mono text-lg font-black leading-none text-secondary">{overall}</p>
-          <p className="text-[8px] font-bold uppercase tracking-wider text-base-content/55">Over</p>
+          <p className="text-[8px] font-bold uppercase tracking-wider text-base-content/55">
+            Nível
+          </p>
         </div>
       )}
       {board.viewerCanManage && (

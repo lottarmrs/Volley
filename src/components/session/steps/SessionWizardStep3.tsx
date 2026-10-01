@@ -469,7 +469,7 @@ export function SessionWizardStep3({ screen }: { screen: SessionWizardScreen }) 
           Voltar
         </button>
         <button onClick={() => dispatch({ kind: 'next' })} className="btn btn-primary flex-[2]">
-          Revisar Sessão
+          Revisar
         </button>
       </div>
     </div>

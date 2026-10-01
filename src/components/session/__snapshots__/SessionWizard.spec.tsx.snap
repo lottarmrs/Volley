@@ -3,13 +3,14 @@
 exports[`SessionWizard — caracterizacao antes da quebra > passo 0 com nuvem: marcar e o primario 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "Marcar pelada",
     "Cancelar",
     "Marcar pelada",
     "Prefiro escolher os atletas na mão",
   ],
   "titulos": [
+    "Nova pelada",
     "Informações da Sessão",
     "Resumo da Sessão",
   ],
@@ -26,12 +27,13 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 0 com nuvem: m
 exports[`SessionWizard — caracterizacao antes da quebra > passo 0 ja marcada: o caminho e abrir a lista 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "Cancelar",
     "Marcar pelada",
     "Prefiro escolher os atletas na mão",
   ],
   "titulos": [
+    "Nova pelada",
     "Informações da Sessão",
     "Resumo da Sessão",
   ],
@@ -41,12 +43,13 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 0 ja marcada: 
 exports[`SessionWizard — caracterizacao antes da quebra > passo 0 sem nuvem: o manual e o caminho 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "Marcar pelada",
     "Cancelar",
     "Escolher Atletas",
   ],
   "titulos": [
+    "Nova pelada",
     "Informações da Sessão",
     "Resumo da Sessão",
   ],
@@ -56,7 +59,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 0 sem nuvem: o
 exports[`SessionWizard — caracterizacao antes da quebra > passo 1: atletas escolhidos, selecionar e limpar 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "+ Convidado",
     "Todos",
     "Masc",
@@ -69,6 +72,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 1: atletas esc
     "Continuar",
   ],
   "titulos": [
+    "Nova pelada",
     "Resumo da Sessão",
   ],
 }
@@ -88,12 +92,13 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 1: atletas esc
 exports[`SessionWizard — caracterizacao antes da quebra > passo 2: formato 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "Jogo LivreRecomendadoIdeal para noite dinâmica. Dois times jogam, os demais ficam em fila. O sistema controla rotação, vitórias e pontuação.",
     "TorneioNovoTabela de classificação, rodadas completas em rodízio e campeão da noite. Todos jogam contra todos.",
     "Voltar para Seleção de Atletas",
   ],
   "titulos": [
+    "Nova pelada",
     "ESCOLHA O FORMATO DO EVENTO",
     "Jogo Livre",
     "Torneio",
@@ -146,7 +151,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 2: formato 2`]
 exports[`SessionWizard — caracterizacao antes da quebra > passo 3: regras, com o erro de atletas de menos 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "2",
     "3",
     "4",
@@ -162,9 +167,10 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 3: regras, com
     "Limite de VitóriasSai após atingir limite de vitórias consecutivas.",
     "Marcar pelada",
     "Voltar",
-    "Revisar Sessão",
+    "Revisar",
   ],
   "titulos": [
+    "Nova pelada",
     "Regras do Jogo Livre",
     "Resumo da Sessão",
   ],
@@ -174,7 +180,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 3: regras, com
 exports[`SessionWizard — caracterizacao antes da quebra > passo 4: revisao 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "EquilibradoDistribuição geral",
     "CompetitivoFoco técnico total",
     "SocialGênero e tamanho",
@@ -185,6 +191,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 4: revisao 1`]
     "Gerar Times Equilibrados",
   ],
   "titulos": [
+    "Nova pelada",
     "Revisão Final",
     "Resumo da Sessão",
   ],
@@ -202,7 +209,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 4: revisao 2`]
 exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorteados 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "Opção 190pts",
     "",
     "Configurações e Vínculos",
@@ -222,6 +229,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorte
     "Começar a pelada",
   ],
   "titulos": [
+    "Nova pelada",
     "Time t1",
     "Time t2",
     "Resumo da Sessão",
@@ -240,13 +248,14 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorte
 exports[`SessionWizard — caracterizacao antes da quebra > passo 6: tabela do torneio 1`] = `
 {
   "botoes": [
-    "Cancelar Criação",
+    "Cancelar",
     "Compartilhar Tabela",
     "Copiar Tabela",
     "Voltar aos times",
     "Começar o torneio",
   ],
   "titulos": [
+    "Nova pelada",
     "Tabela gerada",
     "Resumo da Sessão",
   ],

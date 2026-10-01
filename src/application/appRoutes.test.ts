@@ -244,11 +244,11 @@ test('getPageTitleForPath deriva o título da URL', () => {
   assert.equal(getPageTitleForPath('/pelada/resumo'), 'Resumo da Pelada');
   assert.equal(getPageTitleForPath('/comunidades'), 'Comunidades');
   assert.equal(getPageTitleForPath('/comunidades/c1'), 'Visão Geral da Comunidade');
-  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes'), 'Sessões');
-  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/nova'), 'Configuração da Sessão');
-  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/ativa'), 'Sessão em Andamento');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes'), 'Peladas');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/nova'), 'Marcar pelada');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/ativa'), 'Pelada em andamento');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/torneios'), 'Torneios & Campeonatos');
-  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9'), 'Detalhe da Sessão');
+  assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9'), 'Pelada');
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9/inscricao'), 'Inscrição');
   assert.equal(getPageTitleForPath('/comunidades/c1/pessoas'), 'Pessoas');
   assert.equal(getPageTitleForPath('/comunidades/c1/pessoas/editar-atleta/p7'), 'Pessoas');
@@ -257,7 +257,7 @@ test('getPageTitleForPath deriva o título da URL', () => {
   assert.equal(getPageTitleForPath('/perfil'), 'Meu Perfil');
   assert.equal(getPageTitleForPath('/perfil/sync'), 'Sincronização & Backup Nuvem');
   assert.equal(getPageTitleForPath('/plataforma'), 'Administração da plataforma');
-  assert.equal(getPageTitleForPath('/sessao/ativa'), 'Sessão em Andamento');
+  assert.equal(getPageTitleForPath('/sessao/ativa'), 'Pelada em andamento');
   assert.equal(getPageTitleForPath('/rota/que/nao/existe'), 'Panelinha');
 });
 
@@ -432,7 +432,7 @@ test('a lateral da comunidade lista as seis areas e marca a ativa', () => {
   });
   assert.deepEqual(
     items.map((item) => item.label),
-    ['Visão geral', 'Sessões', 'Pessoas', 'Ligas', 'Desempenho', 'Gestão', 'Trocar comunidade'],
+    ['Visão geral', 'Peladas', 'Pessoas', 'Ligas', 'Desempenho', 'Gestão', 'Trocar comunidade'],
   );
   assert.deepEqual(
     items.filter((item) => item.active).map((item) => item.id),
@@ -475,7 +475,7 @@ test('o sorteio tem caminho e titulo proprios: e um momento, nao um passo do wiz
   assert.equal(getPageTitleForPath('/comunidades/c1/sessoes/s9/sortear'), 'Sortear os Times');
   assert.equal(
     getPageTitleForPath('/comunidades/c1/sessoes/s9'),
-    'Detalhe da Sessão',
+    'Pelada',
     'a rota irma nao e afetada',
   );
 });

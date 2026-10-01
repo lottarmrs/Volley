@@ -133,7 +133,7 @@ export function buildManualSessionDraft(input: {
   createId: () => string;
 }): Session {
   const type = input.type;
-  const label = type === 'tournament' ? 'Torneio' : 'Sessão';
+  const label = type === 'tournament' ? 'Torneio' : 'Pelada';
   const session: Session = {
     id: input.createId(),
     communityId: input.communityId ?? null,
@@ -457,7 +457,7 @@ export function buildWizardCancelRequestResult(): {
   confirmationMessage: string;
 } {
   return {
-    confirmationMessage: 'Deseja cancelar a criação da sessão? O progresso será perdido.',
+    confirmationMessage: 'Cancelar esta pelada? O que foi escolhido até aqui se perde.',
   };
 }
 

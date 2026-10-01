@@ -336,7 +336,7 @@ export const SessionActiveView = ({
             </h2>
             <div className="flex gap-3 items-center">
               <span className="badge badge-success badge-soft badge-xs font-bold uppercase tracking-wider">
-                <Activity className="w-2.5 h-2.5 mr-1" /> Sessão Ativa
+                <Activity className="w-2.5 h-2.5 mr-1" /> Pelada em andamento
               </span>
               <span className="text-[9px] font-bold text-text-muted uppercase">
                 {activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}
@@ -455,7 +455,7 @@ export const SessionActiveView = ({
           </h2>
           <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
             <span className="badge badge-success badge-soft badge-xs font-bold uppercase tracking-wider">
-              <Activity className="w-2.5 h-2.5 mr-1" /> Sessão Ativa
+              <Activity className="w-2.5 h-2.5 mr-1" /> Pelada em andamento
             </span>
             <span className="text-[9px] font-bold text-text-muted uppercase">
               {activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}

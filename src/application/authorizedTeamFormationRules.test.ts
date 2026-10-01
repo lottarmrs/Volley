@@ -129,7 +129,7 @@ test('failure classification maps every row of the error table', () => {
   );
   assert.equal(
     fail('captureSnapshot', { message: 'TypeError: Failed to fetch' }).message,
-    'Sem conexão com a nuvem. Sessões de comunidade precisam de internet para gerar os times.',
+    'Sem conexão. A pelada precisa de internet para gerar os times.',
   );
   assert.equal(
     fail('createSession', coded('42501')).message,
@@ -152,7 +152,7 @@ test('failure classification maps every row of the error table', () => {
   );
   assert.equal(
     fail('finalizeRoster', coded('23514')).message,
-    'A sessão ou o elenco não estão prontos para formar times.',
+    'A pelada ou o elenco não estão prontos para formar times.',
   );
   assert.equal(
     fail('reopenWindow', coded('42883')).message,

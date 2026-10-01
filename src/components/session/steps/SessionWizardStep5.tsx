@@ -315,7 +315,7 @@ export function SessionWizardStep5({ screen }: { screen: SessionWizardScreen }) 
                             className={`text-[8px] font-bold uppercase ${overridden ? 'text-accent/80' : 'text-base-content/40'}`}
                             title={
                               overridden
-                                ? `Função nesta sessão · cadastro: ${
+                                ? `Função nesta pelada · cadastro: ${
                                     p.posicaoPrincipal ? positionLabels[p.posicaoPrincipal] : '--'
                                   }`
                                 : undefined

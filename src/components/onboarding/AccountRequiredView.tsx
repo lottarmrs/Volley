@@ -33,7 +33,7 @@ export function AccountRequiredView({ pathname }: AccountRequiredViewProps) {
       <div className="flex gap-3 rounded-2xl border border-base-300 bg-base-200 p-4 shadow-card">
         <HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-success" />
         <p className="text-xs leading-relaxed text-base-content/70">
-          Sua pelada continua salva neste aparelho. Ao criar a conta, os atletas, as sessões e o
+          Sua pelada continua salva neste aparelho. Ao criar a conta, os atletas, as peladas e o
           histórico que você já montou aqui sobem junto — você não recomeça nada.
         </p>
       </div>

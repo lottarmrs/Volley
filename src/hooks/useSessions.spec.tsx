@@ -165,6 +165,46 @@ describe('useSessions com conta', () => {
     expect(result.current.games.map((g) => g.id)).toEqual(['g1']);
   });
 
+  it('releitura espera a gravacao do placar terminar, para o ponto nao voltar', async () => {
+    const jogo = makeGame('g1', 's1', { status: 'active', scoreA: 0 });
+    vi.mocked(fetchMySessions).mockResolvedValue({
+      ...emptySessionBundle(),
+      sessions: [emAndamento],
+      games: [jogo],
+    });
+    const { result } = render();
+    await waitFor(() => expect(result.current.games).toHaveLength(1));
+    let terminar: () => void = () => {};
+    vi.mocked(persistSessionBundleChanges).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          terminar = resolve;
+        }),
+    );
+    const chamadas = vi.mocked(fetchMySessions).mock.calls.length;
+    act(() => {
+      result.current.setGames((prev) => prev.map((g) => ({ ...g, scoreA: 1 })));
+    });
+    act(() => {
+      void result.current.refresh();
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(vi.mocked(fetchMySessions).mock.calls.length).toBe(chamadas);
+    expect(result.current.games[0].scoreA).toBe(1);
+    vi.mocked(fetchMySessions).mockResolvedValue({
+      ...emptySessionBundle(),
+      sessions: [emAndamento],
+      games: [{ ...jogo, scoreA: 1 }],
+    });
+    await act(async () => {
+      terminar();
+    });
+    await waitFor(() =>
+      expect(vi.mocked(fetchMySessions).mock.calls.length).toBeGreaterThan(chamadas),
+    );
+    expect(result.current.games[0].scoreA).toBe(1);
+  });
+
   it('recusa do banco avisa e rele do servidor', async () => {
     vi.mocked(persistSessionBundleChanges).mockRejectedValue({ code: '42501', message: 'nao' });
     const { result } = render();

@@ -37,6 +37,7 @@ import {
 } from '../application/sessionWrites';
 import { queryKeys } from '../application/queryKeys';
 import { createInvalidationBatcher } from '../application/invalidationBatcher';
+import { readAfterWrites } from '../application/readAfterWrites';
 import { OFFLINE_MESSAGE, toOnlineError } from '../application/onlineErrors';
 import { offlineError, type AppError } from '../application/appResult';
 import { ToastContext } from '../ui/common/useToast';
@@ -98,6 +99,8 @@ export function useSessions() {
     if (local) saveToStorage(STORAGE_KEYS.sessionReports, sessionReports);
   }, [sessionReports, local]);
 
+  const writeChain = useRef<Promise<void>>(Promise.resolve());
+  const writeVersion = useRef(0);
   const query = useQuery({
     queryKey: key,
     enabled: online,
@@ -106,13 +109,16 @@ export function useSessions() {
         queryKey: queryKeys.comunidades(userId ?? ''),
         queryFn: fetchMyCommunities,
       });
-      return fetchMySessions(communities);
+      return readAfterWrites({
+        fetch: () => fetchMySessions(communities),
+        settled: () => writeChain.current,
+        version: () => writeVersion.current,
+      });
     },
   });
   const remote = query.data ?? emptySessionBundle();
 
   const [writeError, setWriteError] = useState<AppError | null>(null);
-  const writeChain = useRef<Promise<void>>(Promise.resolve());
   const conferir = useRef(
     createInvalidationBatcher(
       (keys) => {
@@ -154,6 +160,7 @@ export function useSessions() {
       const nextField = resolve(value, prev[field]);
       if (nextField === prev[field]) return;
       const next = { ...prev, [field]: nextField } as SessionBundle;
+      writeVersion.current += 1;
       void queryClient.cancelQueries({ queryKey: key });
       queryClient.setQueryData(key, next);
       writeChain.current = writeChain.current

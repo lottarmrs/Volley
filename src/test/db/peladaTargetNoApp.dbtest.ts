@@ -327,29 +327,22 @@ if (!isTestDatabaseConfigured()) {
       [sessionId],
     );
     const windowId = janelas[0].id;
-    const reaberta = await call<{ window_revision: number }>(
-      owner,
-      'select * from public.reopen_registration($1, $2, $3)',
-      [randomUUID(), windowId, janelas[0].revision],
-    );
-    let revision = reaberta.rows[0].window_revision;
+    await call(owner, 'select * from public.reopen_registration($1, $2, $3)', [
+      randomUUID(),
+      windowId,
+      janelas[0].revision,
+    ]);
     await client.query(
       'update public.registration_windows set capacity = capacity + 1 where id = $1',
       [windowId],
     );
-    revision = (
-      await client.query<{ revision: number }>(
-        'select revision from public.registration_windows where id = $1',
-        [windowId],
-      )
-    ).rows[0].revision;
     const novo = await atletaNoElenco(communityId, owner, 'Chegou tarde');
     const entrou = await call<{ window_revision: number }>(
       owner,
       'select * from public.add_registration_entry($1, $2, $3, $4)',
       [randomUUID(), randomUUID(), windowId, novo],
     );
-    revision = entrou.rows[0].window_revision;
+    let revision = entrou.rows[0].window_revision;
     for (const cmd of ['close_registration', 'lock_registration']) {
       const r = await call<{ window_revision: number }>(
         owner,

@@ -267,7 +267,9 @@ destino da autoavaliação, exclusão de conta e privacidade do bucket de avatar
 ### Projeto tempo real (desde 2026-09-30)
 
 O sync sai em cinco partes, nesta ordem: **1** comunidade, elenco, membros e regras online
-(feita); **2** peladas e histórico; **3** pelada ao vivo com membros acompanhando (só o placar
+(feita); **2** peladas e histórico (feita: toda pelada com conta nasce marcada com horário e
+lista, a tela da pelada mostra o próximo passo, o sortear parte dos confirmados e a pelada rápida
+escolhe do elenco; ver `docs/JORNADA.md`, etapas 4 a 10); **3** pelada ao vivo com membros acompanhando (só o placar
 guarda fila sem sinal); **4** ligas, presença, listas de WhatsApp e modelos; **5** remoção do
 `syncService` e do `localStorage` de dados de conta, deixando sem conta só a pelada rápida.
 

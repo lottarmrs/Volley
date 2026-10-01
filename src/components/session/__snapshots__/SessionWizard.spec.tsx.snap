@@ -1,0 +1,262 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 0 com nuvem: marcar e o primario 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "Marcar pelada",
+    "Cancelar",
+    "Marcar pelada",
+    "Prefiro escolher os atletas na mão",
+  ],
+  "titulos": [
+    "Informações da Sessão",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 0 com nuvem: marcar e o primario 2`] = `
+[
+  "scheduleSession",
+  "next",
+]
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 0 ja marcada: o caminho e abrir a lista 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "Cancelar",
+    "Marcar pelada",
+    "Prefiro escolher os atletas na mão",
+  ],
+  "titulos": [
+    "Informações da Sessão",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 0 sem nuvem: o manual e o caminho 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "Marcar pelada",
+    "Cancelar",
+    "Escolher Atletas",
+  ],
+  "titulos": [
+    "Informações da Sessão",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 1: atletas escolhidos, selecionar e limpar 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "+ Convidado",
+    "Todos",
+    "Masc",
+    "Fem",
+    "Lesionados",
+    "Selecionar Filtrados",
+    "Última Lista",
+    "Limpar",
+    "Dados Básicos",
+    "Continuar",
+  ],
+  "titulos": [
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 1: atletas escolhidos, selecionar e limpar 2`] = `
+[
+  {
+    "kind": "clearSelection",
+  },
+  {
+    "kind": "next",
+  },
+]
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 2: formato 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "Jogo LivreRecomendadoIdeal para noite dinâmica. Dois times jogam, os demais ficam em fila. O sistema controla rotação, vitórias e pontuação.",
+    "TorneioNovoTabela de classificação, rodadas completas em rodízio e campeão da noite. Todos jogam contra todos.",
+    "Voltar para Seleção de Atletas",
+  ],
+  "titulos": [
+    "ESCOLHA O FORMATO DO EVENTO",
+    "Jogo Livre",
+    "Torneio",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 2: formato 2`] = `
+[
+  {
+    "kind": "updateSession",
+    "patch": {
+      "config": {
+        "balanceSpeed": "advanced",
+        "classificationPoints": {
+          "loss": 0,
+          "walkoverLoss": 0,
+          "walkoverWin": 3,
+          "win": 3,
+        },
+        "format": "round_robin",
+        "hasFinal": false,
+        "hasThirdPlaceMatch": false,
+        "maxPoints": 15,
+        "roundTrip": false,
+        "standingsRules": [
+          "classificationPoints",
+          "wins",
+          "pointDifference",
+          "pointsFor",
+          "headToHead",
+          "pointsAgainst",
+        ],
+        "teamCount": 3,
+        "tieBreakMethod": "direct_3",
+        "type": "tournament",
+        "useGroupStage": false,
+        "victoryRule": "direct_3",
+      },
+      "type": "tournament",
+    },
+  },
+  {
+    "kind": "next",
+  },
+]
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 3: regras, com o erro de atletas de menos 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "12 Pts",
+    "15 Pts",
+    "21 Pts",
+    "25 Pts",
+    "3 DiretoEmpate no set point encerra ao abrir 3 pontos extras ou atingir o limite.",
+    "Vai a 2 (Vantagem)Set point exige 2 pontos consecutivos de vantagem para finalizar.",
+    "Ganhou FicaVencedor permanece até perder.",
+    "Limite de VitóriasSai após atingir limite de vitórias consecutivas.",
+    "Marcar pelada",
+    "Voltar",
+    "Revisar Sessão",
+  ],
+  "titulos": [
+    "Regras do Jogo Livre",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 4: revisao 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "EquilibradoDistribuição geral",
+    "CompetitivoFoco técnico total",
+    "SocialGênero e tamanho",
+    "MistoCota de gênero",
+    "6x0Todos levantam",
+    "5x1Levantador fixo",
+    "Voltar às Regras",
+    "Gerar Times Equilibrados",
+  ],
+  "titulos": [
+    "Revisão Final",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 4: revisao 2`] = `
+[
+  {
+    "kind": "generateDivisions",
+  },
+]
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorteados 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "Opção 190pts",
+    "",
+    "Configurações e Vínculos",
+    "Compartilhar",
+    "Copiar",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Voltar",
+    "Gerar tabela",
+  ],
+  "titulos": [
+    "Time t1",
+    "Time t2",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorteados 2`] = `
+[
+  {
+    "kind": "confirmDivision",
+  },
+]
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 6: tabela do torneio 1`] = `
+{
+  "botoes": [
+    "Cancelar Criação",
+    "Compartilhar Tabela",
+    "Copiar Tabela",
+    "Voltar aos times",
+    "Iniciar Torneio",
+  ],
+  "titulos": [
+    "Tabela gerada",
+    "Resumo da Sessão",
+  ],
+}
+`;
+
+exports[`SessionWizard — caracterizacao antes da quebra > passo 6: tabela do torneio 2`] = `
+[
+  {
+    "kind": "startGeneratedTournament",
+  },
+]
+`;

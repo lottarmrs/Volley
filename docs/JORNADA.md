@@ -217,7 +217,7 @@ horário e local) e a lista de peladas da comunidade também.
 | 9.2b | O placar perde ponto com toques rápidos? | ✅ **Corrigido em 2026-10-01.** A conferência pegou o ponto da vitória entrando como evento sem subir o placar: uma releitura terminava com gravações na fila. A leitura agora espera a fila (`readAfterWrites`, `useSessions.spec.tsx`). |
 | 9.2c | Quem marca ponto na pelada do modelo novo? | ✅ **Corrigido em 2026-10-01.** O placar pedia o controle antigo de dono (`claim_session_ownership`), que o servidor recusa para a pelada nova, e travava em "Assumir controle". Agora quem grava é decidido pelas policies (`usesLegacySessionControl`). |
 | 9.3 | Dois aparelhos na mesma pelada? | ❓ **Não verificado.** |
-| 9.4 | O membro acompanha a pelada ao vivo? | ❓ **Parte 3.** Hoje a pelada chega por tempo real, mas não há tela de acompanhar. |
+| 9.4 | O membro acompanha a pelada ao vivo? | ✅ **Desde 2026-10-01, em modo acompanhamento:** a tela da pelada oferece "Acompanhar o placar" a quem não organiza; o placar abre com tudo que grava travado e o aviso de que só quem organiza marca, e o tempo real atualiza (`SessionActiveView.spec.tsx`). No banco, o membro lê jogo e pontos enquanto rola e é recusado ao marcar (`jornadaDaPelada.dbtest.ts`). ❓ Não conferido no ar com uma segunda conta. |
 
 ---
 
@@ -243,6 +243,19 @@ com data passada invisível; sem "Cancelar a pelada"; sorteio que tentava criar 
 pelada rápida com menos atletas que o formato aceita; placar travado pelo controle antigo; jogo
 recém-criado sumindo; ponto perdido com toques rápidos; recarregar o placar mandando para a
 lista; releituras em excesso (o tempo real agora agrupa); tela da pelada sem horário e local.
+
+### Jornada com várias contas — 2026-10-01
+
+`jornadaDaPelada.dbtest.ts` encadeia, contra Postgres real e com seis membros de conta própria:
+entrar (4 confirmados, 2 na reserva), quem não é do grupo recusado, sair (a primeira da reserva
+sobe), pagamento e corte por prazo (quem não pagou desce, quem pagou na reserva sobe), membro sem
+poder fechar, elenco finalizado só com os confirmados, foto do sorteio, início, um membro com a
+responsabilidade de organizar marcando o placar, membro comum acompanhando ao vivo e recusado ao
+marcar, quem não é do grupo sem ver o jogo, encerrar e o histórico. Achou e corrigiu: **a carreira
+de quem joga com a própria conta ficava vazia** na pelada de outra pessoa (migration
+`20261001120000_carreira_de_quem_tem_conta`, aplicada; nenhuma pelada encerrada tinha sido
+afetada). No ar, pelo lado de quem organiza: incluir além das vagas, pagar na reserva, tirar um
+confirmado e ver a reserva subir.
 
 Ainda aberto: o sync antigo continua relendo listas de WhatsApp, presença e ligas em loop (some
 na parte 5); o banco aceita evento de ponto sem o placar do jogo acompanhar (o app agora não deixa

@@ -42,7 +42,7 @@ function montar(communities: Community[]) {
   shell.current = {
     comm: { communities, status: { loading: false } },
     play: { players: ELENCO, addPlayersAndWait },
-    communityRules: { getRules: () => ({ defaultFormat: 'free_play' }) },
+    communityRules: { getRules: () => ({ defaultFormat: 'tournament' }) },
     sess: { online: true, refresh },
     toasts: { push: vi.fn() },
   };
@@ -85,18 +85,22 @@ describe('pelada rápida com conta', () => {
     }
     fireEvent.click(screen.getByRole('button', { name: /colar lista do whatsapp/i }));
     fireEvent.change(screen.getByRole('textbox', { name: /lista colada/i }), {
-      target: { value: 'Joana' },
+      target: { value: 'Joana\nKiko\nLeo' },
     });
     fireEvent.click(screen.getByRole('button', { name: /usar esta lista/i }));
     fireEvent.click(screen.getByRole('button', { name: /sortear os times/i }));
 
     await screen.findByText('Sortear');
-    expect(addPlayersAndWait.mock.calls[0][0].map((p: Player) => p.nome)).toEqual(['Joana']);
+    expect(addPlayersAndWait.mock.calls[0][0].map((p: Player) => p.nome)).toEqual([
+      'Joana',
+      'Kiko',
+      'Leo',
+    ]);
     expect(fluxo.startQuickPelada).toHaveBeenCalledWith(
       expect.objectContaining({
         communityCloudId: 'cloud-c1',
-        playerCloudIds: ['cp1', 'cp2', 'cp3', 'nuvem-Joana'],
-        type: 'free_play',
+        playerCloudIds: ['cp1', 'cp2', 'cp3', 'nuvem-Joana', 'nuvem-Kiko', 'nuvem-Leo'],
+        type: 'tournament',
       }),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());

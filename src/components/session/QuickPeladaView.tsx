@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Shuffle } from 'lucide-react';
 import type { Player } from '@shared/types';
-import { describeRosterReadiness, type QuickStartEntry } from '@app/quickStart';
+import { describeQuickPeladaReadiness, type QuickStartEntry } from '@app/quickStart';
 import { PlayerPicker } from './PlayerPicker';
 
 export function QuickPeladaView({
   communities,
   communityId,
+  format = 'free_play',
   onCommunityChange,
   roster,
   busy,
@@ -16,6 +17,7 @@ export function QuickPeladaView({
 }: {
   communities: Array<{ id: string; name: string }>;
   communityId: string;
+  format?: 'free_play' | 'tournament';
   onCommunityChange: (communityId: string) => void;
   roster: Player[];
   busy: boolean;
@@ -26,7 +28,7 @@ export function QuickPeladaView({
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [novos, setNovos] = useState<QuickStartEntry[]>([]);
   const total = selecionados.length + novos.length;
-  const prontidao = describeRosterReadiness(total);
+  const prontidao = describeQuickPeladaReadiness(total, format);
   const atual = communities.find((item) => item.id === communityId);
 
   return (
@@ -81,7 +83,7 @@ export function QuickPeladaView({
           aria-live="polite"
           className={`text-sm font-semibold ${prontidao.ready ? 'text-success' : 'text-base-content/70'}`}
         >
-          {total === 0 ? 'Marque quem veio ou cole a lista do grupo.' : prontidao.message}
+          {prontidao.message}
         </p>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <button type="button" className="btn btn-ghost min-h-11" onClick={onCancel}>

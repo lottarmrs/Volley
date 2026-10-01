@@ -504,3 +504,42 @@ test('com inscrição aberta, o elenco sai dos confirmados e a seleção local n
     'não tira quem a inscrição confirmou só porque o wizard não o selecionou',
   );
 });
+
+test('com a lista ja travada pelo fluxo da pelada, so finaliza: nao cria lista nem mexe na inscricao', async () => {
+  const { gateway, windows, calls } = fakeGateway({ sessionExists: true });
+  const windowId = 'lista-da-pelada';
+  windows.set(windowId, {
+    sessionId: CLOUD,
+    status: 'LOCKED',
+    revision: 6,
+    capacity: 2,
+    confirmed: ['cloud-a', 'cloud-b'],
+    finalized: new Map(),
+  });
+
+  const output = await prepareAuthorizedTeamFormation(
+    {
+      session: makeSession('session-1', {
+        communityId: 'community-1',
+        cloudId: CLOUD,
+        authorityModel: 'target',
+        authorizedFormation: { windowId, pendingCommandIds: {} },
+      }),
+      communityCloudId: CLOUD,
+      players: [makePlayer('a', { cloudId: 'cloud-a' }), makePlayer('b', { cloudId: 'cloud-b' })],
+      teamCount: 2,
+      config: makeFreePlayConfig(),
+      createId,
+    },
+    gateway,
+  );
+
+  assert.equal(output.result?.ok, true);
+  const naInscricao = calls.filter((call) =>
+    /createWindow|openWindow|reopenWindow|closeWindow|lockWindow|addEntry|removeEntry|changeCapacity/.test(
+      call,
+    ),
+  );
+  assert.deepEqual(naInscricao, []);
+  assert.ok(calls.includes('finalizeRoster'));
+});

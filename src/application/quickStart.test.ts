@@ -5,7 +5,9 @@ import {
   buildQuickStartPlayers,
   describeRosterReadiness,
   parseRosterInput,
+  describeQuickPeladaReadiness,
   matchRosterNames,
+  quickPeladaMinPlayers,
   QUICK_START_MIN_PLAYERS,
 } from './quickStart';
 
@@ -103,4 +105,15 @@ test('nome que bate com dois atletas fica como novo para ninguem jogar no lugar 
   const resultado = matchRosterNames(['Ana'], elenco);
   assert.deepEqual(resultado.matchedIds, []);
   assert.deepEqual(resultado.unknownNames, ['Ana']);
+});
+
+test('a pelada rapida pede o minimo que o formato aceita', () => {
+  assert.equal(quickPeladaMinPlayers('free_play'), 9);
+  assert.equal(quickPeladaMinPlayers('tournament'), 6);
+  assert.equal(describeQuickPeladaReadiness(0, 'free_play').ready, false);
+  const faltam = describeQuickPeladaReadiness(4, 'free_play');
+  assert.equal(faltam.ready, false);
+  assert.match(faltam.message, /faltam 5 atletas/i);
+  assert.match(describeQuickPeladaReadiness(5, 'tournament').message, /falta 1 atleta/i);
+  assert.equal(describeQuickPeladaReadiness(9, 'free_play').ready, true);
 });

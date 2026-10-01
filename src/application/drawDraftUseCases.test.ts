@@ -105,3 +105,16 @@ test('a tabela nao sobrevive a recarregar: volta aos times', () => {
   assert.equal(estado.wizardStep, DRAW_TEAMS_STEP);
   assert.equal(estado.bestDivisions, times);
 });
+
+test('o sorteio usa a lista que ja existe, em vez de a formacao criar outra', () => {
+  const estado = initialDrawState({
+    session: pelada({
+      authorizedFormation: { windowId: 'velha', pendingCommandIds: { createWindow: 'x' } },
+    }),
+    confirmedPlayerIds: ['a'],
+    draft: null,
+    windowId: 'w1',
+  });
+  assert.equal(estado.session.authorizedFormation?.windowId, 'w1');
+  assert.deepEqual(estado.session.authorizedFormation?.pendingCommandIds, {});
+});

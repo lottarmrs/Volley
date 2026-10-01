@@ -176,7 +176,11 @@ export function PlayerPicker({
           );
         })}
         {visiveis.length === 0 && (
-          <li className="text-sm text-base-content/60">Ninguém no elenco com esse nome.</li>
+          <li className="text-sm text-base-content/60">
+            {roster.length === 0
+              ? 'O elenco desta comunidade está vazio. Cole a lista do grupo.'
+              : 'Ninguém no elenco com esse nome.'}
+          </li>
         )}
       </ul>
     </div>

@@ -148,6 +148,7 @@ describe('sortear a pelada', () => {
     const rascunho = loadPeladaDrawDraft('s-1');
     expect(rascunho?.wizardStep).toBe(2);
     expect(rascunho?.session.selectedPlayerIds).toEqual(CONFIRMADOS);
+    expect(rascunho?.session.authorizedFormation?.windowId).toBe('w1');
   });
 
   it('voltar do formato leva para a tela da pelada', () => {

@@ -127,6 +127,7 @@ export function CommunityDrawRoute() {
       session,
       confirmedPlayerIds: locais,
       draft: loadPeladaDrawDraft(session.id),
+      windowId: api.board?.windowId ?? null,
     });
     wizard.resumeDraft(inicio);
   }, [portao, session, elenco, wizard]);

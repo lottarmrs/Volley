@@ -27,12 +27,19 @@ export function initialDrawState(input: {
   session: Session;
   confirmedPlayerIds: string[];
   draft: DrawDraft | null;
+  windowId?: string | null;
 }): DrawState {
   const doRascunho = input.draft?.session.id === input.session.id ? input.draft : null;
   const base = doRascunho
     ? { ...input.session, config: doRascunho.session.config, type: doRascunho.session.type }
     : input.session;
-  const session = { ...base, selectedPlayerIds: input.confirmedPlayerIds };
+  const session: Session = {
+    ...base,
+    selectedPlayerIds: input.confirmedPlayerIds,
+    ...(input.windowId
+      ? { authorizedFormation: { windowId: input.windowId, pendingCommandIds: {} } }
+      : {}),
+  };
 
   const retoma =
     doRascunho &&

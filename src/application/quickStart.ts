@@ -139,3 +139,29 @@ export function matchRosterNames(
   }
   return { matchedIds, unknownNames };
 }
+
+export function quickPeladaMinPlayers(type: 'free_play' | 'tournament'): number {
+  return type === 'tournament' ? 6 : 9;
+}
+
+export function describeQuickPeladaReadiness(
+  count: number,
+  type: 'free_play' | 'tournament',
+): { ready: boolean; message: string } {
+  if (count === 0) {
+    return { ready: false, message: 'Marque quem veio ou cole a lista do grupo.' };
+  }
+  const minimo = quickPeladaMinPlayers(type);
+  if (count < minimo) {
+    const faltam = minimo - count;
+    const regra =
+      type === 'tournament'
+        ? 'o torneio precisa de 2 times de 3'
+        : 'o jogo livre precisa de 3 times de 3';
+    return {
+      ready: false,
+      message: `${faltam === 1 ? 'Falta 1 atleta' : `Faltam ${faltam} atletas`}: ${regra}.`,
+    };
+  }
+  return { ready: true, message: `${count} atletas prontos para o sorteio.` };
+}

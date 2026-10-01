@@ -55,11 +55,14 @@ function QuickPeladaRoute() {
 
   const community = opcoes.find((item) => item.id === escolhida) ?? opcoes[0];
   const elenco = getCommunityPlayers(community.id, play.players).filter((p) => p.ativo !== false);
+  const formato =
+    communityRules.getRules(community)?.defaultFormat === 'tournament' ? 'tournament' : 'free_play';
 
   return (
     <QuickPeladaView
       communities={opcoes.map((item) => ({ id: item.id, name: item.name }))}
       communityId={community.id}
+      format={formato}
       onCommunityChange={setEscolhida}
       roster={elenco}
       busy={busy}
@@ -90,12 +93,11 @@ function QuickPeladaRoute() {
           ...criados.value.map((player) => player.cloudId),
         ].filter((id): id is string => !!id);
         const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        const regras = communityRules.getRules(community);
         const criada = await startQuickPelada({
           communityCloudId: community.cloudId,
           name: `${community.name} · ${hoje}`,
           playerCloudIds,
-          type: regras?.defaultFormat === 'tournament' ? 'tournament' : 'free_play',
+          type: formato,
         });
         if (criada.ok === false) {
           setErro(criada.error.message);

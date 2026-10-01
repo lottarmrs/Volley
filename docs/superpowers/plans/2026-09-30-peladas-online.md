@@ -151,6 +151,38 @@ $$;
 
 ---
 
+### Task 2b: Servidor — quem organiza grava, local da pelada e carreira ao encerrar
+
+**Files:**
+- Create: `supabase/migrations/20260930170000_peladas_servidor.sql`,
+  `src/test/db/peladasServidor.dbtest.ts`
+- Modify: `src/infra/supabase/targetSessionLifecycleCloudService.ts` (+ teste) —
+  `setDetails(sessionId, { location, notes })`
+
+- [ ] **Step 1: dbtest que falha** (helpers de `peladaTargetNoApp.dbtest.ts`):
+  1. membro com a responsabilidade `ORGANIZER` (cargo `member`) grava time, jogo, ponto e
+     relatórios da pelada da comunidade; membro comum sem a responsabilidade continua recusado
+     (42501); quem não é da comunidade continua recusado;
+  2. `set_target_session_details` grava local e observações para quem organiza e recusa para
+     membro comum (42501) e para pelada encerrada (23514);
+  3. encerrar uma pelada com jogos já terminados gera `career_events` do tipo `session_played`
+     para quem jogou, sem nenhuma gravação de jogo ou ponto depois do encerramento.
+- [ ] **Step 2: ver falhar.**
+- [ ] **Step 3: Migration** — policies de insert/update/delete das cinco tabelas passam a aceitar
+  também `public.current_user_has_community_capability(community_id, 'session.manage')` (manter o
+  `owner_id = auth.uid()` do insert); função `public.set_target_session_details` (security
+  definer, `search_path = ''`, `assert_target_session_write_authorized`, revisão esperada, recusa
+  `COMPLETED`/`CANCELLED`, incrementa `revision`; grants a `authenticated`, revoke de
+  `public, anon`); gatilho `zz_regenerate_career_on_session_finish` (after update of `status` em
+  `sessions`, quando passa a `'finished'`) chamando `regenerate_career_events_for_sessions` e
+  `regenerate_player_milestones` dos jogadores afetados, como `regenerate_career_events()` faz.
+  Conferir a última definição de cada função tocada (regra "a última definição vence").
+- [ ] **Step 4:** ver passar; bateria inteira em segundo plano; `get_advisors` só na publicação.
+- [ ] **Step 5:** `setDetails` no serviço de ciclo de vida, com teste.
+- [ ] **Step 6: Commit** — `feat(db): quem organiza grava a pelada, local da pelada e carreira ao encerrar`.
+
+---
+
 ### Task 3: Leitura das peladas, com a raiz target reconstruída
 
 **Files:**
@@ -363,47 +395,75 @@ $$;
 
 ---
 
-### Task 9: Telas — o fluxo novo, os estados online e os textos
+### Task 9a: Specs de caracterização do assistente atual
 
-**Files (a confirmar no shape):** `src/components/session/MarkPeladaView.tsx` (novo), a pelada
-rápida (evolução de `QuickStartView`), `src/components/session/RegistrationBoardView.tsx` (vira a
-tela da pelada), `src/app/routes/sessionRoutes.tsx`, `src/app/routes/CommunityDrawRoute.tsx`,
-`src/app/routes/onboardingRoutes.tsx`, `src/app/routes/globalRoutes.tsx` (painel e agenda),
-`src/components/dashboard/Dashboard.tsx`, `src/components/community/areas/CommunityOverviewArea.tsx`,
-a lista de peladas da comunidade, `src/components/session/SessionWizard.tsx` (sai da entrada; os
-passos de formato em diante servem ao sortear), `src/components/history/HistoryView.tsx`,
-`src/components/live/*`, `src/components/account/AuthForm.tsx`, `src/application/appRoutes.ts`,
-`preview/`.
+**Files:** Create `src/components/session/SessionWizard.spec.tsx` (dados da bancada
+`preview/wizard.tsx`).
 
-- [ ] **Step 1: `/impeccable shape` do fluxo** — marcar (tela curta: data, horário, local, vagas,
-  formato; "Marcar e abrir a lista"; termina na tela da pelada com o link), tela da pelada (lista →
-  Fechar a lista → Sortear → Iniciar → placar → Encerrar; estado atual e próximo passo em destaque;
-  quem organiza; cancelar pelada), pelada rápida (escolher comunidade quando houver mais de uma,
-  escolher do elenco ou colar nomes, "Sortear"), entradas (painel com a próxima pelada e o estado
-  da lista, "Marcar pelada" e "Pelada rápida"; agenda com "Marcar pelada" direto; comunidade com as
-  duas ações; comunidade nova com "Marcar a primeira pelada" primeiro). Confirmar o brief com o
-  usuário.
-- [ ] **Step 2: `/impeccable shape` dos estados online** (pode ir no mesmo brief) — histórico,
-  agenda e painel com `OnlineLoading`/`OnlineReadError`; placar travado sem sinal; placar em
-  leitura para quem não controla; recusas target ("Feche a lista antes de iniciar a pelada.", "Só
-  quem organiza esta pelada pode iniciar.").
-- [ ] **Step 3: `/impeccable clarify`** — "sessão" → "pelada" em toda a interface; "Setup de sessão
-  v1.2", "Média Power", "Over", o texto do painel ("local-first… Web Worker"), "Central local dos
-  grupos"; erro de login em português ("E-mail ou senha incorretos."); os que falam de sincronizar
-  pelada (`SessionWizard` ~582, `ChampionshipWizardView` no que toca a pelada, título de pendentes
-  do `AppShell` ~903); toasts de sync sem ação ("Download da nuvem concluído", "Uma sincronização
-  já está em andamento") saem.
-- [ ] **Step 4: Specs que falham** — marcar exige horário e chama `markPelada`; a tela da pelada
-  mostra o próximo passo certo em cada estado (lista aberta, fechada, sorteada, em andamento,
-  encerrada); a pelada rápida chama `startQuickPelada` com a comunidade escolhida; o painel mostra a
-  próxima pelada; as entradas antigas ("Nova sessão", "Criar sessão") levam ao marcar; histórico e
-  painel esperam o carregamento.
-- [ ] **Step 5: Implementar** conforme o brief; `paths.sessaoNova` passa a ser o marcar; a bancada
-  em `preview/` ganha marcar, a tela da pelada em cada estado, a pelada rápida, o placar travado e o
-  placar em leitura.
-- [ ] **Step 6:** specs, `npm run lint`, `npm test`, `npm run build`; bancada em 375px e desktop;
-  `impeccable detect` nos arquivos de tela alterados.
-- [ ] **Step 7: Commit(s)** — por tela ou grupo, `feat: <tela> da pelada ...`.
+- [ ] Um caso por passo (0 a 6): o que aparece e o que cada ação principal manda gravar
+  (`updateSession`, sorteio, iniciar). Rodar e ver passar no código atual — é a rede para a 9b.
+- [ ] Commit — `test: caracteriza o assistente de pelada antes de quebrar`.
+
+### Task 9b: Extração mecânica do assistente
+
+**Files:** `src/components/session/SessionWizard.tsx` → um componente por passo em
+`src/components/session/steps/` com as mesmas props; o estado de `useSessionWizard` sai do
+`AppShell`/`ShellApi` e fica num provedor da rota de sortear; `src/architecture/currentStateLedger.ts`
+atualizado com os caminhos novos.
+
+- [ ] Specs da 9a e `useSessionWizard.spec.tsx` verdes sem mudar asserções; nada visível muda.
+- [ ] Commit — `refactor: assistente de pelada em passos separados`.
+
+### Task 9c: Dados e criadores de pelada
+
+**Files:** `src/shared/types/session.ts` (`plannedStartAt?: string | null`),
+`src/infra/supabase/operationalCloudService.ts` (`mapDbToSession` lê `planned_start_at` e
+`location`), `src/hooks/usePlayers.ts` (`addPlayersAndWait(novos): Promise<AppResult<Player[]>>`
+que espera o banco e devolve os ids da nuvem), `src/app/AppShell.tsx` (`handleFinishSession`
+grava jogos antes da pelada; `createSessionFromCommunity` e `materializeChampionshipRound` passam
+por `startQuickPelada`; a rodada de liga vai direto ao "Começar"), `src/app/routes/onboardingRoutes.tsx`.
+
+- [ ] Specs/testes que falham: mapeamento de horário e local; `addPlayersAndWait` espera e
+  devolve ids; encerrar grava jogos antes; materializar rodada com conta chama
+  `startQuickPelada` com os atletas dos dois times.
+- [ ] Implementar, ver passar; commit — `feat: horario e local da pelada, e toda pelada nasce com lista`.
+
+### Task 9d: Marcar pelada, tela da pelada e entradas
+
+**Files:** `src/components/session/MarkPeladaView.tsx` (novo), rota `paths.sessaoNova` →
+marcar; `RegistrationBoardView.tsx` vira a tela da pelada (cartão do próximo passo, linha de
+etapas, "Reabrir a lista" no estado fechado, cancelar no menu secundário, `setDetails` para o
+local); painel com a próxima pelada (sai "retomar rascunho"); agenda e comunidade com as ações;
+comunidade nova com "Marcar a primeira pelada" primeiro.
+
+- [ ] `/impeccable shape` já confirmado (brief na conversa de 2026-09-30); specs por estado do
+  cartão; implementar; bancada; commit(s) `feat: marcar pelada e tela da pelada`.
+
+### Task 9e: Sortear com as peças
+
+**Files:** `src/app/routes/CommunityDrawRoute.tsx` monta formato e regras → times → tabela com os
+passos extraídos; parte dos confirmados; sem passo de atletas (ajuste = reabrir a lista); rascunho
+por pelada (`vpg_sorteio_<sessionId>`) até "Começar".
+
+- [ ] Specs: parte dos confirmados; rascunho sobrevive a recarregar; "Começar" congela as regras e
+  inicia; commit `feat: sortear com formato, times e tabela`.
+
+### Task 9f: Pelada rápida e seletor de atletas
+
+**Files:** seletor reutilizável (elenco com busca + "Colar lista do WhatsApp"); a pelada rápida
+com conta escolhe a comunidade e usa `addPlayersAndWait` + `startQuickPelada`; o convidado rápido
+entra selecionado; sem conta continua como hoje.
+
+- [ ] Specs; implementar; commit `feat: pelada rapida com o elenco e colar lista`.
+
+### Task 9g: Estados online, textos e E2E
+
+- [ ] Estados online de histórico, agenda e painel; `/impeccable clarify` dos textos (lista do
+  brief: "sessão" → "pelada", "Setup de sessão v1.2", "Média Power", "Over", painel técnico,
+  "Central local", erro de login em português, toasts de sync sem ação); reescrever
+  `e2e/01-onboarding.spec.ts` e `e2e/05-session-wizard.spec.ts` para o fluxo novo;
+  `impeccable detect`; bancada em 375px e desktop.
+- [ ] Commit(s) — `feat: estados online e textos das peladas`.
 
 ---
 

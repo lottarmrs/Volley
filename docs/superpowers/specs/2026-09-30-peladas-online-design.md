@@ -83,6 +83,75 @@ incluindo a pelada ao vivo.
 - A pelada presa em `DRAFT` em produção (Inimigos do Vôlei, 30/09) passa a aparecer e pode ter a
   lista aberta ou ser cancelada pela tela da pelada.
 
+## Análise de dependências (2026-09-30, grafo do código + Postgres de teste)
+
+Feita antes de quebrar o assistente de pelada ("Setup de Sessão v1.2"), cruzando o grafo do
+código (`graphify-out/`), as migrations e sondas no Postgres de teste.
+
+### Banco de dados
+
+- **Quem organiza sem ser dono, admin ou moderador não grava a pelada.** Sonda: um membro com a
+  responsabilidade `ORGANIZER` cria a pelada (`create_target_session` passa), mas gravar time e
+  ponto dá 42501. As policies de `teams`, `games`, `point_events`, `game_reports` e
+  `session_reports` usam `current_user_has_community_role` com o padrão
+  `['owner','admin','moderator']` (`20260624203424_community_model_v2.sql`); o cargo
+  `organizador` e a responsabilidade ficam de fora. O sync escondia a recusa.
+- **Pelada target sem local nem observações.** `create_target_session` e
+  `update_target_session_draft` só aceitam nome e horários; a raiz target não aceita gravação
+  direta.
+- **Carreira só é recalculada quando jogos ou pontos mudam.** Os gatilhos
+  `regenerate_career_after_*` (por comando) existem em `games` e `point_events`, não em
+  `sessions`; `regenerate_career_events_for_sessions` (última definição em
+  `20260730120000_scope_career_points_by_owner.sql`) só conta pelada com `status = 'finished'`.
+  `finish_target_session` grava `status = 'finished'` (via
+  `target_session_compatibility_status`), mas se nada for gravado depois, a pelada não entra na
+  carreira.
+- **Custo medido:** um ponto (insert + placar do jogo, com auditoria `log_table_changes` e dois
+  recálculos de carreira) leva ~30 ms no banco local. Aceitável.
+- **Sem mudança necessária:** ciclo target completo; regras congeladas legíveis por membros;
+  elenco pela lista; exclusão só lógica (as FKs para `sessions` não atrapalham); candidatos do
+  sorteio só publicados como registro (`publish_team_candidate_set`), times continuam por
+  insert direto.
+
+### Frontend
+
+- `Session` não tem horário nem lê o local de uma target: falta `plannedStartAt` (de
+  `planned_start_at`) e o local da pelada target.
+- O sortear guarda formato e regras num rascunho **por pelada** no aparelho até começar (o
+  congelamento só acontece no "Começar").
+- Quatro lugares criam pelada sem lista e travariam ao começar: `SessionWizardRoute`,
+  `QuickStartRoute`, `createSessionFromCommunity` ("criar pelada com estes atletas") e
+  `materializeChampionshipRound` (rodada de liga).
+- Pelada rápida com nomes colados: os convidados novos precisam existir no banco (com id da
+  nuvem) antes de `add_registration_entry`; a gravação de atletas hoje não espera o banco.
+- Encerrar grava hoje a pelada antes dos jogos (`handleFinishSession`); a ordem certa é jogos
+  primeiro.
+- O assistente (`SessionWizard.tsx`, 3.047 linhas, 7 passos num `switch`) não tem spec próprio;
+  `useSessionWizard` (626 linhas) vive no `AppShell`; o registro de arquitetura
+  (`currentStateLedger.ts`) cita os arquivos pelo caminho; os E2E `01-onboarding` e
+  `05-session-wizard` percorrem o fluxo antigo.
+- Os leitores de peladas (7 arquivos, todos via `sess.*`) não mudam de formato.
+
+### Outras ligações
+
+- Liga (abrir e materializar rodada) aponta para peladas e segue no sync até a parte 4.
+- A aba "Presença" (`community_presence`) e a "Lista de WhatsApp" ficam redundantes com a lista
+  nova — **decidido: fica para a parte 4**.
+- Ranking e card são calculados no app a partir das peladas lidas; a carreira oficial depende da
+  correção de "carreira ao encerrar".
+
+### Decisões da análise
+
+- **Ajustar quem joga depois de fechar a lista = reabrir a lista** (`reopen_registration`):
+  tirar ou incluir, fechar de novo. A lista oficial sempre bate com quem jogou.
+- **Quebrar o assistente** em peças: marcar (tela curta), sortear (formato e regras → times →
+  tabela, estado preso à rota), seletor de atletas (pelada rápida e convidado rápido).
+  Extração mecânica primeiro, protegida por specs de caracterização; a lógica de times
+  (`prepareAuthorizedTeamFormation`, balanceamento, candidatos, `sessionLifecycleUseCases`) não
+  muda, só quem a chama.
+- **Rodada de liga** usa a pelada rápida com os atletas dos dois times e vai direto ao
+  "Começar", sem sorteio.
+
 ## Por quê
 
 - Hoje `useSessions` guarda tudo no `localStorage` e o `syncService` sobe e baixa. Quarenta e dois
@@ -183,7 +252,15 @@ Migration nova `20260930160000_peladas_online.sql`:
 
 - acrescenta `sessions`, `teams`, `games`, `point_events`, `game_reports`, `session_reports` e
   `registration_windows` à publicação `supabase_realtime` (idempotente, como a da parte 1);
-- a medição da Parte 2 não pediu ajuste de servidor; o dbtest do fluxo target fica como prova;
+- a medição da Parte 2 não pediu ajuste no ciclo target; o dbtest do fluxo target fica como prova;
+- migration `20260930170000_peladas_servidor.sql` (análise de dependências):
+  - quem tem `session.manage` na comunidade (dono, admin, moderador e quem tem a
+    responsabilidade `ORGANIZER`) grava `teams`, `games`, `point_events`, `game_reports` e
+    `session_reports` da comunidade;
+  - `set_target_session_details(p_session_id, p_expected_revision, p_location, p_notes)` para quem
+    organiza a pelada, enquanto não encerrada nem cancelada;
+  - gatilho em `sessions`: ao passar para `status = 'finished'`, recalcula a carreira daquela
+    pelada e os marcos de quem jogou;
 - sem mudança de RLS prevista (leitura de histórico já aberta em `membro_le_o_historico`).
 
 A ponte `useCommunityRealtime` passa a escutar as seis tabelas (filtradas por `community_id`) e

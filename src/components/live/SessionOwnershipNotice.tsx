@@ -33,7 +33,7 @@ export function SessionOwnershipNotice({
       {podeAssumir && confirmando && (
         <div className="flex flex-col gap-2">
           <span className="text-xs">
-            {control.holderName ?? 'A outra pessoa'} perde o controle e passa a ver a sessão em modo
+            {control.holderName ?? 'A outra pessoa'} perde o controle e passa a ver a pelada em modo
             leitura. O placar já marcado não é perdido.
           </span>
           <div className="flex gap-2">

@@ -403,7 +403,7 @@ export function SessionWizardStep5({ screen }: { screen: SessionWizardScreen }) 
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span className="text-[9px] font-bold uppercase leading-relaxed tracking-tighter block text-left">
                 {authorizedDraw.estimatedCount} de {authorizedDraw.participantCount} atletas sem
-                avaliação — sorteio com notas estimadas. Avalie pelo perfil do atleta.
+                avaliação — sorteio com notas estimadas. Avalie na área Avaliação da comunidade.
               </span>
             </div>
           )}

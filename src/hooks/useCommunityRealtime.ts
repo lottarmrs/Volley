@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { allCommunityKeys, invalidationKeysFor, REALTIME_TABLES } from '@app/realtimeInvalidation';
+import { createInvalidationBatcher } from '@app/invalidationBatcher';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { useAuth } from './useAuth';
 
@@ -13,9 +14,13 @@ export function useCommunityRealtime(communityCloudId: string | null): void {
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !userId || !communityCloudId) return;
     const ctx = { userId, communityCloudId };
-    const invalidar = (keys: ReadonlyArray<readonly string[]>) => {
-      for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
-    };
+    const lote = createInvalidationBatcher(
+      (keys) => {
+        for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
+      },
+      { delayMs: 400, maxWaitMs: 1500 },
+    );
+    const invalidar = (keys: ReadonlyArray<readonly string[]>) => lote.add(keys);
     let caiu = false;
     let channel = supabase.channel(`comunidade:${communityCloudId}`);
     for (const { table, filterColumn } of REALTIME_TABLES) {
@@ -41,6 +46,7 @@ export function useCommunityRealtime(communityCloudId: string | null): void {
       }
     });
     return () => {
+      lote.cancel();
       void supabase.removeChannel(channel);
     };
   }, [communityCloudId, queryClient, userId]);

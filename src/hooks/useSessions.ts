@@ -36,6 +36,7 @@ import {
   persistSessionBundleChanges,
 } from '../application/sessionWrites';
 import { queryKeys } from '../application/queryKeys';
+import { createInvalidationBatcher } from '../application/invalidationBatcher';
 import { OFFLINE_MESSAGE, toOnlineError } from '../application/onlineErrors';
 import { offlineError, type AppError } from '../application/appResult';
 import { ToastContext } from '../ui/common/useToast';
@@ -112,6 +113,18 @@ export function useSessions() {
 
   const [writeError, setWriteError] = useState<AppError | null>(null);
   const writeChain = useRef<Promise<void>>(Promise.resolve());
+  const conferir = useRef(
+    createInvalidationBatcher(
+      (keys) => {
+        for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
+      },
+      { delayMs: 800, maxWaitMs: 3000 },
+    ),
+  );
+  useEffect(() => {
+    const lote = conferir.current;
+    return () => lote.cancel();
+  }, []);
 
   const report = useCallback(
     (error: AppError) => {
@@ -141,6 +154,7 @@ export function useSessions() {
       const nextField = resolve(value, prev[field]);
       if (nextField === prev[field]) return;
       const next = { ...prev, [field]: nextField } as SessionBundle;
+      void queryClient.cancelQueries({ queryKey: key });
       queryClient.setQueryData(key, next);
       writeChain.current = writeChain.current
         .then(() =>
@@ -151,7 +165,10 @@ export function useSessions() {
             defaultSessionWriteGateway,
           ),
         )
-        .then(() => setWriteError(null))
+        .then(() => {
+          setWriteError(null);
+          conferir.current.add([key]);
+        })
         .catch((error) => {
           report(toOnlineError(error));
           void queryClient.invalidateQueries({ queryKey: key });

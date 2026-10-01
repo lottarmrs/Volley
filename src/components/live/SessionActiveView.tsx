@@ -33,6 +33,7 @@ import {
   transferSessionControlCommand,
   SESSION_CONTROL_HEARTBEAT_MS,
   shouldHeartbeatSessionControl,
+  usesLegacySessionControl,
   type SessionControlView,
 } from '@app/sessionOwnershipUseCases';
 import { isAppOk } from '@app/appResult';
@@ -116,6 +117,10 @@ export const SessionActiveView = ({
   // "minha sessão em outro aparelho" some e o aviso nunca apareceria.
   useEffect(() => {
     if (!activeSession?.cloudId) return;
+    if (!usesLegacySessionControl(activeSession)) {
+      setControl({ canScore: true, reason: 'mine', message: '', holderName: null });
+      return;
+    }
 
     const visao = resolveSessionControl({
       controlledByUserId: activeSession.controlledByUserId ?? null,
@@ -143,7 +148,7 @@ export const SessionActiveView = ({
         });
       }
     });
-  }, [activeSession?.cloudId, auth.user?.id]);
+  }, [activeSession?.cloudId, activeSession?.authorityModel, auth.user?.id]);
 
   // Heartbeat da posse.
   //
@@ -160,6 +165,7 @@ export const SessionActiveView = ({
       sessionCloudId: activeSession?.cloudId,
       sessionStatus: activeSession?.status ?? '',
       canScore: control.canScore,
+      authorityModel: activeSession?.authorityModel,
     });
     if (!deveBater) return;
 
@@ -168,7 +174,12 @@ export const SessionActiveView = ({
       SESSION_CONTROL_HEARTBEAT_MS,
     );
     return () => clearInterval(id);
-  }, [activeSession?.cloudId, activeSession?.status, control.canScore]);
+  }, [
+    activeSession?.cloudId,
+    activeSession?.status,
+    activeSession?.authorityModel,
+    control.canScore,
+  ]);
 
   // Notas ao vivo do jogo corrente (aparecem no card do time, inclusive p/ facilitadores).
   const liveRatings = useMemo(() => {
@@ -355,7 +366,7 @@ export const SessionActiveView = ({
               disabled={offline}
               className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
             >
-              Encerrar Sessão
+              Encerrar pelada
             </button>
           </div>
         </div>
@@ -367,7 +378,7 @@ export const SessionActiveView = ({
             </div>
             <div>
               <h3 className="card-title text-sm font-bold uppercase tracking-widest text-accent justify-center">
-                Sessão Iniciada
+                Pelada começou
               </h3>
               <p className="text-xs text-text-muted mt-2 max-w-xs leading-relaxed uppercase font-bold">
                 Pronto para os jogos. Toque no botão abaixo para iniciar a primeira partida.
@@ -432,7 +443,7 @@ export const SessionActiveView = ({
             </h3>
             <p className="text-xs text-text-muted mt-2 max-w-xs leading-relaxed uppercase font-bold">
               Não foi possível localizar os times desta partida. Tente voltar ao dashboard e retomar
-              a sessão.
+              a pelada.
             </p>
           </div>
           <button
@@ -479,7 +490,7 @@ export const SessionActiveView = ({
             disabled={offline}
             className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
           >
-            Encerrar Sessão
+            Encerrar pelada
           </button>
         </div>
       </div>
@@ -747,7 +758,7 @@ export const SessionActiveView = ({
                   </div>
                   <div>
                     <h3 className="text-base font-bold uppercase tracking-tight text-base-content">
-                      Encerrar Sessão Ativa?
+                      Encerrar a pelada?
                     </h3>
                     <p className="text-xs text-base-content/60 mt-0.5">
                       Os resultados dos jogos, estatísticas dos times e pontuações individuais serão
@@ -865,7 +876,7 @@ export const SessionActiveView = ({
           >
             <div className="p-4 bg-base-300/40 border-b border-base-300 flex items-center justify-between">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">
-                Histórico de Pontos da Sessão
+                Pontos da pelada
               </h4>
               <span className="badge badge-accent badge-soft font-bold uppercase">Tempo Real</span>
             </div>
@@ -929,7 +940,7 @@ export const SessionActiveView = ({
                 })}
               {sessionPoints.length === 0 && (
                 <div className="text-center py-12 text-xs text-text-muted opacity-30 italic uppercase border border-dashed border-base-300 rounded-xl">
-                  Nenhum evento registrado nesta sessão ainda.
+                  Nenhum ponto marcado nesta pelada ainda.
                 </div>
               )}
             </div>

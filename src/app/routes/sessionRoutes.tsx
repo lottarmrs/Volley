@@ -573,6 +573,7 @@ export function SessionActiveRoute() {
   const { community, sess, play } = shell;
   const scoringOffline = useScoringOffline(sess);
   const phase = derivePhase(sess.activeSession, sess.games);
+  if (sess.status.loading) return <OnlineLoading label="Carregando a pelada…" />;
   const resolution = resolveLiveSessionRoute({
     communityId: community.id,
     activeSessionCommunityId: shell.activeSessionCommunityId,

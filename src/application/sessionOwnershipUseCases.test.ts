@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   resolveSessionControl,
   shouldHeartbeatSessionControl,
+  usesLegacySessionControl,
   SESSION_CONTROL_HEARTBEAT_MS,
 } from './sessionOwnershipUseCases';
 
@@ -124,4 +125,19 @@ test('o intervalo cobre a janela de expiracao com folga', () => {
   // e uma sessao real de 45 min recebe 22 batidas sem depender de sync nenhum.
   assert.equal(SESSION_CONTROL_HEARTBEAT_MS, 120000);
   assert.ok(SESSION_CONTROL_HEARTBEAT_MS * 5 <= 10 * 60 * 1000);
+});
+
+test('pelada do modelo novo nao usa o controle antigo: quem grava o servidor decide', () => {
+  assert.equal(usesLegacySessionControl({ authorityModel: 'target' }), false);
+  assert.equal(usesLegacySessionControl({ authorityModel: 'legacy' }), true);
+  assert.equal(usesLegacySessionControl({}), true);
+  assert.equal(
+    shouldHeartbeatSessionControl({
+      sessionCloudId: 'c-1',
+      sessionStatus: 'active',
+      canScore: true,
+      authorityModel: 'target',
+    }),
+    false,
+  );
 });

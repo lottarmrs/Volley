@@ -542,7 +542,7 @@ describe('AppRouter — sessões da comunidade', () => {
 
 const WIZARD_MARKER = 'Ex: Vôlei de Domingo';
 const SESSION_LIST_EMPTY_MARKER = /nenhuma pelada encerrada ainda/i;
-const SESSION_ACTIVE_MARKER = /sessão iniciada/i;
+const SESSION_ACTIVE_MARKER = /pelada começou/i;
 
 function readActiveSession(): Session | null {
   return JSON.parse(localStorage.getItem('vpg_active_session') ?? 'null');

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCommunityRealtime } from './useCommunityRealtime';
 
 type Handler = (payload: unknown) => void;
@@ -54,7 +54,10 @@ function avisar(table: string) {
 }
 
 describe('useCommunityRealtime', () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
+    vi.useFakeTimers();
     canal.handlers = [];
     canal.onStatus = null;
     canal.removed = 0;
@@ -84,6 +87,9 @@ describe('useCommunityRealtime', () => {
   it('aviso de players invalida so o elenco e nao usa o payload', () => {
     const { invalidate, setData } = montar();
     avisar('players');
+    avisar('players');
+    expect(invalidate).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(400);
     expect(invalidate).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['atletas', 'u1'] });
     expect(setData).not.toHaveBeenCalled();
@@ -95,6 +101,7 @@ describe('useCommunityRealtime', () => {
     expect(invalidate).not.toHaveBeenCalled();
     canal.onStatus!('CHANNEL_ERROR');
     canal.onStatus!('SUBSCRIBED');
+    vi.advanceTimersByTime(400);
     expect(invalidate).toHaveBeenCalledTimes(5);
   });
 

@@ -140,6 +140,31 @@ describe('useSessions com conta', () => {
     expect(depois.pointEvents).toEqual([ponto]);
   });
 
+  it('leitura que ja estava a caminho nao apaga o jogo recem-criado', async () => {
+    const { result } = render();
+    await waitFor(() => expect(result.current.status.loading).toBe(false));
+    let soltar: (valor: ReturnType<typeof emptySessionBundle>) => void = () => {};
+    vi.mocked(fetchMySessions).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          soltar = resolve;
+        }),
+    );
+    const chamadas = vi.mocked(fetchMySessions).mock.calls.length;
+    act(() => {
+      void result.current.refresh();
+    });
+    await waitFor(() => expect(vi.mocked(fetchMySessions).mock.calls.length).toBe(chamadas + 1));
+    const jogo = makeGame('g1', 's1', { status: 'active' });
+    act(() => {
+      result.current.setGames((prev) => [...prev, jogo]);
+    });
+    await act(async () => {
+      soltar({ ...emptySessionBundle(), sessions: [emAndamento] });
+    });
+    expect(result.current.games.map((g) => g.id)).toEqual(['g1']);
+  });
+
   it('recusa do banco avisa e rele do servidor', async () => {
     vi.mocked(persistSessionBundleChanges).mockRejectedValue({ code: '42501', message: 'nao' });
     const { result } = render();

@@ -18,12 +18,18 @@ export const SESSION_CONTROL_HEARTBEAT_MS = 2 * 60 * 1000;
  * Mora aqui, e nao dentro do efeito no componente, para o teste exercitar a REGRA de
  * verdade em vez de uma copia dela — copia diverge do original sem ninguem notar.
  */
+export function usesLegacySessionControl(session: { authorityModel?: string | null }): boolean {
+  return session.authorityModel !== 'target';
+}
+
 export function shouldHeartbeatSessionControl(input: {
   sessionCloudId: string | null | undefined;
   sessionStatus: string;
   canScore: boolean;
+  authorityModel?: string | null;
 }): boolean {
   if (!input.sessionCloudId) return false;
+  if (!usesLegacySessionControl(input)) return false;
   // Sessao encerrada nao tem placar a marcar.
   if (input.sessionStatus === 'finished') return false;
   // Se outra pessoa detem o controle, nao ha posse minha para renovar — e insistir

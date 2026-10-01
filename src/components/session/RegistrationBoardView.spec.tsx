@@ -98,9 +98,11 @@ function renderView(
     onShare?: (texto: string) => void;
     sessionName?: string | null;
     sessionDate?: string | null;
+    sessionDetails?: string | null;
   } = {},
 ) {
-  const { shareUrl, drawUrl, onShare, sessionName, sessionDate, ...apiOverrides } = overrides;
+  const { shareUrl, drawUrl, onShare, sessionName, sessionDate, sessionDetails, ...apiOverrides } =
+    overrides;
   const contrato = api(apiOverrides);
   render(
     <MemoryRouter>
@@ -109,6 +111,7 @@ function renderView(
         players={players}
         sessionName={sessionName === undefined ? 'Pelada de quinta' : sessionName}
         sessionDate={sessionDate === undefined ? '2026-09-24' : sessionDate}
+        sessionDetails={sessionDetails}
         shareUrl={shareUrl}
         drawUrl={drawUrl}
         onShare={onShare}
@@ -394,6 +397,17 @@ describe('RegistrationBoardView', () => {
     });
     expect(screen.getByRole('alert').textContent).toMatch(/começou/i);
     expect(screen.queryByRole('button', { name: /quero jogar/i })).toBeNull();
+  });
+
+  it('pelada encerrada diz que terminou, não que começou', () => {
+    renderView({ board: board({ status: 'LOCKED', sessionLifecycleStatus: 'COMPLETED' }) });
+    expect(screen.getByRole('alert').textContent).toMatch(/terminou/i);
+    expect(screen.queryByText(/já começou/i)).toBeNull();
+  });
+
+  it('o cabeçalho mostra o horário e o local', () => {
+    renderView({ sessionDetails: '20:00 · Arena Pro' });
+    expect(screen.getByText('20:00 · Arena Pro')).toBeDefined();
   });
 
   it('pelada em rascunho não mostra esse aviso', () => {

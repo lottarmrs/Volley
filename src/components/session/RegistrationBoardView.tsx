@@ -53,6 +53,7 @@ interface RegistrationBoardViewProps {
   frequentPlayerIds?: ReadonlySet<string>;
   sessionName: string | null;
   sessionDate: string | null;
+  sessionDetails?: string | null;
   canOpen?: boolean;
   /** Link absoluto da inscricao. Sem ele nao ha o que compartilhar. */
   shareUrl?: string;
@@ -169,6 +170,7 @@ export function RegistrationBoardView({
   frequentPlayerIds,
   sessionName,
   sessionDate,
+  sessionDetails = null,
   canOpen = false,
   pixKey,
   shareUrl,
@@ -184,7 +186,11 @@ export function RegistrationBoardView({
   if (!board && loading) {
     return (
       <section className="space-y-4" aria-busy>
-        <Cabecalho nome={sessionName ?? 'Pelada da comunidade'} data={sessionDate} />
+        <Cabecalho
+          nome={sessionName ?? 'Pelada da comunidade'}
+          data={sessionDate}
+          detalhes={sessionDetails}
+        />
         <p className="sr-only" role="status">
           Carregando a inscrição.
         </p>
@@ -210,7 +216,11 @@ export function RegistrationBoardView({
   if (!board && error) {
     return (
       <section className="space-y-4">
-        <Cabecalho nome={sessionName ?? 'Pelada da comunidade'} data={sessionDate} />
+        <Cabecalho
+          nome={sessionName ?? 'Pelada da comunidade'}
+          data={sessionDate}
+          detalhes={sessionDetails}
+        />
         <div
           role="alert"
           className="rounded-box border border-error/30 bg-error/10 p-6 text-center"
@@ -234,7 +244,11 @@ export function RegistrationBoardView({
   if (!board) {
     return (
       <section className="space-y-4">
-        <Cabecalho nome={sessionName ?? 'Pelada da comunidade'} data={sessionDate} />
+        <Cabecalho
+          nome={sessionName ?? 'Pelada da comunidade'}
+          data={sessionDate}
+          detalhes={sessionDetails}
+        />
         <EmptyState
           icon={DoorOpen}
           size="compact"
@@ -293,7 +307,9 @@ export function RegistrationBoardView({
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <p className="text-sm font-semibold leading-relaxed text-base-content/85">
-            A pelada já começou. A lista fica aqui para consulta, mas ninguém entra nem sai.
+            {board.sessionLifecycleStatus === 'COMPLETED'
+              ? 'A pelada terminou. A lista fica aqui para consulta.'
+              : 'A pelada já começou. A lista fica aqui para consulta, mas ninguém entra nem sai.'}
           </p>
         </div>
       )}
@@ -307,7 +323,7 @@ export function RegistrationBoardView({
       )}
 
       <div className={`rounded-box border p-5 transition-colors ${situacao.cor}`}>
-        <Cabecalho nome={nome} data={data} />
+        <Cabecalho nome={nome} data={data} detalhes={sessionDetails} />
         {organizerName && (
           <p className="mt-1 text-sm text-base-content/70">Organiza: {organizerName}</p>
         )}
@@ -536,7 +552,15 @@ export function RegistrationBoardView({
   );
 }
 
-function Cabecalho({ nome, data }: { nome: string; data: string | null }) {
+function Cabecalho({
+  nome,
+  data,
+  detalhes = null,
+}: {
+  nome: string;
+  data: string | null;
+  detalhes?: string | null;
+}) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-base-content/60">
       <CalendarDays className="h-4 w-4 shrink-0" />
@@ -547,6 +571,9 @@ function Cabecalho({ nome, data }: { nome: string; data: string | null }) {
         <span className="w-full sm:w-auto sm:before:mr-2 sm:before:content-['·']">
           {formatarData(data)}
         </span>
+      )}
+      {detalhes && (
+        <span className="w-full sm:w-auto sm:before:mr-2 sm:before:content-['·']">{detalhes}</span>
       )}
     </div>
   );

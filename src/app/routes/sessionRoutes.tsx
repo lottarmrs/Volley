@@ -404,6 +404,19 @@ export function CommunityRegistrationRoute() {
         organizerName={organizador}
         sessionName={alvo.name ?? nomeDaNuvem}
         sessionDate={alvo.date}
+        sessionDetails={
+          [
+            session?.plannedStartAt
+              ? new Date(session.plannedStartAt).toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : null,
+            session?.location || null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || null
+        }
         canOpen={!!session && podeOrganizar.allowed && !podeOrganizar.pending}
         pixKey={pixKey}
         shareUrl={buildRegistrationShareUrl({

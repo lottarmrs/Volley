@@ -73,7 +73,7 @@ export interface CommunitiesViewModel {
   addCommunity: (input: Partial<Community>) => Community;
   updateCommunity: (communityId: string, patch: Partial<Community>, allowed?: boolean) => boolean;
   createChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
-  materializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  materializeRound: (roundId: string) => Promise<AppResult<{ sessionId: string }>>;
   rescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
   setRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;
   updateChampionshipRecurrence: (

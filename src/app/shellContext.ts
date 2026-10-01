@@ -38,7 +38,7 @@ export interface ShellApi {
     playerIds: string[],
     rules: CommunityRules,
   ) => void;
-  materializeChampionshipRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  materializeChampionshipRound: (roundId: string) => Promise<AppResult<{ sessionId: string }>>;
   openChampionshipRoundSession: (roundId: string) => AppResult<void>;
   deleteChampionshipAggregate: (championshipId: string) => void;
   deleteCommunityAggregate: (communityId: string) => void;

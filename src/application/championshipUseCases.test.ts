@@ -4,6 +4,7 @@ import {
   createChampionship,
   getSeasonStandings,
   materializeRound,
+  bindMaterializedRoundToSession,
   getSeasonAwards,
   detachChampionshipTeamBridges,
   getRoundPlayStatus,
@@ -439,4 +440,30 @@ test('getSeasonAwards reflects players across two different sessions point event
   assert.equal(result.awards.attack?.teamName, 'Time A');
   const p1TopScorer = result.topScorers.find((s) => s.playerId === 'p1')!;
   assert.equal(p1TopScorer.totalPoints, 4);
+});
+
+test('a rodada materializada amarra times, jogo e regras a pelada criada no banco', () => {
+  const sessao = { id: 'old', type: 'tournament', config: { type: 'tournament' } } as never;
+  const times = [
+    { id: 't1', sessionId: 'old', playerIds: ['a', 'b'] },
+    { id: 't2', sessionId: 'old', playerIds: ['b', 'c'] },
+  ] as never;
+  const jogo = { id: 'g1', sessionId: 'old' } as never;
+  const amarrada = bindMaterializedRoundToSession(
+    { session: sessao, teams: times, game: jogo },
+    'nova',
+    '2026-10-01T00:00:00.000Z',
+  );
+  assert.deepEqual(amarrada.playerIds, ['a', 'b', 'c']);
+  assert.deepEqual(
+    amarrada.teams.map((t) => t.sessionId),
+    ['nova', 'nova'],
+  );
+  assert.equal(amarrada.game.sessionId, 'nova');
+  assert.deepEqual(amarrada.sessionPatch, {
+    type: 'tournament',
+    config: { type: 'tournament' },
+    teamIds: ['t1', 't2'],
+    status: 'active',
+  });
 });

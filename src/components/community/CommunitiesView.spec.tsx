@@ -171,8 +171,8 @@ describe('CommunityLeaguesArea', () => {
     });
   });
 
-  it('materializes an unmaterialized round through the supplied command', () => {
-    const onMaterializeRound = vi.fn(() => appOk({ sessionId: 'session-new' }));
+  it('materializes an unmaterialized round through the supplied command', async () => {
+    const onMaterializeRound = vi.fn(async () => appOk({ sessionId: 'session-new' }));
     renderTab({
       championships: [championship],
       championshipTeams,
@@ -183,6 +183,6 @@ describe('CommunityLeaguesArea', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Materializar rodada' }));
 
     expect(onMaterializeRound).toHaveBeenCalledWith('round-1');
-    expect(screen.getByText('Rodada 1 materializada como sessão.')).toBeTruthy();
+    expect(await screen.findByText('Rodada 1 materializada como sessão.')).toBeTruthy();
   });
 });

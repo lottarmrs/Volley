@@ -71,13 +71,15 @@ import {
 import { buildVutRevealItems } from '../application/vutRevealUseCases';
 import { planStartupCloudDownload } from '../application/cloudSyncStartupUseCases';
 import {
+  bindMaterializedRoundToSession,
   detachChampionshipTeamBridges,
   materializeRound,
   ensureNoOtherActiveSession,
   resolveRoundSessionOpening,
 } from '../application/championshipUseCases';
-import { appOk, productError } from '@app/appResult';
+import { appOk, productError, type AppResult } from '@app/appResult';
 import { UnsavedGuardHost } from '../components/common/GuardedLink';
+import { startQuickPelada } from '../application/peladaFlowUseCases';
 import { clearAccountEntitiesFromStorage } from '../application/accountStorageCleanup';
 import { useCommunityRealtime } from '../hooks/useCommunityRealtime';
 
@@ -336,11 +338,50 @@ export function AppShell() {
     reader.readAsText(file);
   };
 
+  const peladaRapidaNoBanco = async (
+    community: Community,
+    playerIds: string[],
+    type: 'free_play' | 'tournament',
+  ): Promise<AppResult<{ sessionId: string }>> => {
+    if (!community.cloudId) {
+      return productError(
+        'cloud_unavailable',
+        'A comunidade ainda não está salva. Tente em instantes.',
+      );
+    }
+    const playerCloudIds = playerIds
+      .map((id) => play.players.find((player) => player.id === id)?.cloudId)
+      .filter((id): id is string => !!id);
+    const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const criada = await startQuickPelada({
+      communityCloudId: community.cloudId,
+      name: `${community.name} · ${hoje}`,
+      playerCloudIds,
+      type,
+    });
+    if (criada.ok === false) {
+      toasts.push(criada.error.message, 'error');
+      return criada;
+    }
+    await sess.refresh();
+    return appOk({ sessionId: criada.value.sessionId });
+  };
+
   const createSessionFromCommunity = (
     community: Community,
     playerIds: string[],
     rules: CommunityRules,
   ) => {
+    if (sess.online) {
+      void peladaRapidaNoBanco(
+        community,
+        playerIds,
+        rules.defaultFormat === 'tournament' ? 'tournament' : 'free_play',
+      ).then((result) => {
+        if (result.ok) navigate(paths.sortear(community.id, result.value.sessionId));
+      });
+      return;
+    }
     const result = buildSessionFromCommunity({
       community,
       playerIds,
@@ -353,7 +394,9 @@ export function AppShell() {
     navigate(paths.sessaoNova(community.id));
   };
 
-  const materializeChampionshipRound = (roundId: string) => {
+  const materializeChampionshipRound = async (
+    roundId: string,
+  ): Promise<AppResult<{ sessionId: string }>> => {
     const round = championships.championshipRounds.find((item) => item.id === roundId);
     if (!round) return productError('not_found', 'Rodada da liga não encontrada.');
     if (round.sessionId) return productError('conflict', 'Esta rodada já possui uma sessão.');
@@ -371,6 +414,26 @@ export function AppShell() {
     const now = new Date().toISOString();
     const result = materializeRound(round, roster, championship.communityId, now);
     if (result.ok === false) return result;
+
+    if (sess.online) {
+      const community = comm.communities.find((item) => item.id === championship.communityId);
+      if (!community) return productError('not_found', 'Comunidade da liga não encontrada.');
+      const amarrada = bindMaterializedRoundToSession(result.value, '', now);
+      const criada = await peladaRapidaNoBanco(community, amarrada.playerIds, 'tournament');
+      if (criada.ok === false) return criada;
+      const sessionId = criada.value.sessionId;
+      const rodada = bindMaterializedRoundToSession(result.value, sessionId, now);
+      sess.setTeams((current) => [...current, ...rodada.teams]);
+      sess.setGames((current) => [...current, rodada.game]);
+      sess.setSessions((current) =>
+        current.map((item) => (item.id === sessionId ? { ...item, ...rodada.sessionPatch } : item)),
+      );
+      await sess.flush();
+      championships.markRoundMaterialized(round.id, sessionId);
+      sess.setActiveSession({ ...result.value.session, id: sessionId, status: 'active' });
+      navigate(paths.sessaoAtiva(championship.communityId));
+      return appOk({ sessionId });
+    }
 
     const session = { ...result.value.session, syncStatus: 'local' as const };
     const teams = result.value.teams.map((team) => ({
@@ -519,8 +582,8 @@ export function AppShell() {
       // 4. Update states
       void play.applyProgression(result.updatedPlayers);
       sess.setSessionReports(result.updatedReports);
-      sess.setSessions(result.updatedSessions);
       sess.setGames(result.updatedGames);
+      sess.setSessions(result.updatedSessions);
       sess.setActiveSession(null);
 
       // Trigger modal reveal queue if any

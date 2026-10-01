@@ -171,7 +171,7 @@ interface CommunitiesViewProps {
   onViewSession: (sessionId: string) => void;
   onClearCommunityHistory: (communityId: string) => void;
   onCreateChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
-  onMaterializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  onMaterializeRound: (roundId: string) => Promise<AppResult<{ sessionId: string }>>;
   onDeleteChampionship: (championshipId: string) => void;
   onRescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
   onSetRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;

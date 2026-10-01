@@ -113,6 +113,7 @@ export function mapDbToSession(db: DbRecord): Session {
     name: db.name,
     date: db.date,
     location: db.location || null,
+    plannedStartAt: db.planned_start_at ?? null,
     notes: db.notes || null,
     status: db.status,
     type: db.type,

@@ -373,6 +373,7 @@ export function useSessions() {
     online,
     status,
     refresh: () => queryClient.invalidateQueries({ queryKey: key }),
+    flush: () => writeChain.current,
     replaceLocal,
   };
 }

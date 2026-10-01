@@ -90,7 +90,7 @@ export function CommunityLeaguesArea({
   championshipRounds: ChampionshipRound[];
   canManage: boolean;
   onCreateChampionship: (input: CreateChampionshipInput) => AppResult<unknown>;
-  onMaterializeRound: (roundId: string) => AppResult<{ sessionId: string }>;
+  onMaterializeRound: (roundId: string) => Promise<AppResult<{ sessionId: string }>>;
   onDeleteChampionship: (championshipId: string) => void;
   onRescheduleRound: (roundId: string, scheduledDate: string) => AppResult<unknown>;
   onSetRoundSkipped: (roundId: string, skipped: boolean) => AppResult<unknown>;
@@ -587,8 +587,8 @@ export function CommunityLeaguesArea({
                                   type="button"
                                   className="btn btn-primary btn-xs"
                                   disabled={!canManage || round.skipped}
-                                  onClick={() => {
-                                    const result = onMaterializeRound(round.id);
+                                  onClick={async () => {
+                                    const result = await onMaterializeRound(round.id);
                                     if (result.ok === false) {
                                       setRoundMessage({
                                         kind: 'error',

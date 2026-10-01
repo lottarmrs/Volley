@@ -127,15 +127,15 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
   );
 
   const persistPlayer = useCallback(
-    async (player: Player, before: Player | undefined) => {
-      if (!userId) return;
+    async (player: Player, before: Player | undefined): Promise<Player | null> => {
+      if (!userId) return null;
       if (player.deletedAt) {
         if (player.cloudId && !(await playerCloudService.softDelete(player.cloudId))) {
           throw { code: '42501', message: 'Só o dono da comunidade pode excluir este convidado.' };
         }
-        return;
+        return null;
       }
-      if (player.userId && player.userId !== userId) return;
+      if (player.userId && player.userId !== userId) return null;
       const saved = await playerCloudService.upsert(player, player.cloudOwnerId ?? userId);
       const known = new Set(before?.communityIds ?? []);
       for (const communityId of player.communityIds ?? []) {
@@ -144,6 +144,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
         if (!cloudCommunityId || !saved.cloudId) continue;
         await communityPlayerCloudService.linkPlayer(cloudCommunityId, saved.cloudId, userId);
       }
+      return { ...player, cloudId: saved.cloudId };
     },
     [communityCloudId, userId],
   );
@@ -307,6 +308,30 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     [commit, players],
   );
 
+  const addPlayersAndWait = useCallback(
+    async (novos: Player[]): Promise<AppResult<Player[]>> => {
+      if (!online) {
+        setLocalPlayers((prev) => [...prev, ...novos]);
+        return appOk(novos);
+      }
+      const saved = await remote.write(
+        (list) => [...list, ...novos],
+        async () => {
+          const out: Player[] = [];
+          for (const player of novos) {
+            const stored = await persistPlayer(player, undefined);
+            if (stored) out.push(stored);
+          }
+          return out;
+        },
+      );
+      return saved
+        ? appOk(saved)
+        : productError('cloud_unavailable', 'Não deu para salvar os atletas. Tente de novo.');
+    },
+    [online, persistPlayer, remote],
+  );
+
   const upsertQuickGuest = useCallback(
     (guest: Player, communityId: string) => {
       const result = applyGuestPlayerUpsert(players, guest, communityId);
@@ -405,6 +430,7 @@ export function usePlayers(games: Game[], pointEvents: PointEvent[], teams: Team
     handleRestoreDemoPlayers,
     replaceLocalPlayers: setLocalPlayers,
     addPlayers,
+    addPlayersAndWait,
     upsertQuickGuest,
     applyProgression,
     linkCloudPlayer,

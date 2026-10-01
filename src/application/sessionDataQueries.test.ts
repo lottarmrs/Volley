@@ -106,3 +106,20 @@ test('pelada target encerrada e cancelada', () => {
     ['finished', 'cancelled'],
   );
 });
+
+test('horario e local da pelada vem do banco', () => {
+  const bundle = assembleSessionBundle({
+    rows: linhas({
+      sessions: [
+        sessao({
+          planned_start_at: '2026-10-02T23:00:00+00:00',
+          location: 'Bolão da Breves',
+        }),
+      ],
+    }),
+    snapshots: [],
+    communities: comunidades,
+  });
+  assert.equal(bundle.sessions[0].plannedStartAt, '2026-10-02T23:00:00+00:00');
+  assert.equal(bundle.sessions[0].location, 'Bolão da Breves');
+});

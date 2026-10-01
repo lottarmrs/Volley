@@ -291,7 +291,7 @@ export function Bancada() {
             championshipRounds={RODADAS}
             canManage
             onCreateChampionship={() => appOk(null)}
-            onMaterializeRound={() => appOk({ sessionId: 's1' })}
+            onMaterializeRound={async () => appOk({ sessionId: 's1' })}
             onDeleteChampionship={nada}
             onRescheduleRound={() => appOk(null)}
             onSetRoundSkipped={() => appOk(null)}

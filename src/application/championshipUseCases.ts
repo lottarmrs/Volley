@@ -129,6 +129,25 @@ export interface MaterializedRound {
   game: Game;
 }
 
+export function bindMaterializedRoundToSession(
+  materialized: MaterializedRound,
+  sessionId: string,
+  now: string,
+): { playerIds: string[]; teams: Team[]; game: Game; sessionPatch: Partial<Session> } {
+  const teams = materialized.teams.map((team) => ({ ...team, sessionId, updatedAt: now }));
+  return {
+    playerIds: [...new Set(teams.flatMap((team) => team.playerIds))],
+    teams,
+    game: { ...materialized.game, sessionId, updatedAt: now },
+    sessionPatch: {
+      type: materialized.session.type,
+      config: materialized.session.config,
+      teamIds: teams.map((team) => team.id),
+      status: 'active',
+    },
+  };
+}
+
 export function detachChampionshipTeamBridges(
   teams: Team[],
   championshipTeamIds: ReadonlySet<string>,

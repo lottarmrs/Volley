@@ -174,4 +174,21 @@ describe('usePlayers com conta', () => {
     expect(playerCloudService.upsert).toHaveBeenCalledTimes(2);
     expect(result.current.status.error).toBeNull();
   });
+
+  it('adicionar e esperar devolve os atletas com o id da nuvem', async () => {
+    vi.mocked(playerCloudService.upsert).mockImplementation(async (player) => ({
+      ...player,
+      cloudId: `nuvem-${player.id}`,
+    }));
+    const { result } = render();
+    await waitFor(() => expect(result.current.players).toHaveLength(1));
+    let resposta: Awaited<ReturnType<typeof result.current.addPlayersAndWait>> | undefined;
+    await act(async () => {
+      resposta = await result.current.addPlayersAndWait([
+        atleta('a9', 'Zeca', { communityIds: ['c1'] }),
+      ]);
+    });
+    expect(resposta?.ok && resposta.value.map((p) => p.cloudId)).toEqual(['nuvem-a9']);
+    expect(communityPlayerCloudService.linkPlayer).toHaveBeenCalledWith('nc1', 'nuvem-a9', 'u1');
+  });
 });

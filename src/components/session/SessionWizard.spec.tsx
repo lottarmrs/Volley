@@ -190,7 +190,7 @@ describe('SessionWizard — caracterizacao antes da quebra', () => {
       bestDivisions: [DIVISAO],
     });
     expect(contratoVisivel()).toMatchSnapshot();
-    fireEvent.click(screen.getByRole('button', { name: /gerar tabela/i }));
+    fireEvent.click(screen.getByRole('button', { name: /começar a pelada/i }));
     expect(intents).toMatchSnapshot();
   });
 
@@ -207,7 +207,7 @@ describe('SessionWizard — caracterizacao antes da quebra', () => {
       bestDivisions: [DIVISAO],
     });
     expect(contratoVisivel()).toMatchSnapshot();
-    fireEvent.click(screen.getByRole('button', { name: /iniciar torneio/i }));
+    fireEvent.click(screen.getByRole('button', { name: /começar o torneio/i }));
     expect(intents).toMatchSnapshot();
   });
 

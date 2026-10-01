@@ -160,7 +160,7 @@ export function SessionWizardStep6({ screen }: { screen: SessionWizardScreen }) 
           onClick={() => dispatch({ kind: 'startGeneratedTournament' })}
           className="btn btn-primary flex-[2] font-bold uppercase tracking-wider min-h-[44px] shadow-lg shadow-primary/20"
         >
-          Iniciar Torneio
+          Começar o torneio
         </button>
       </div>
     </div>

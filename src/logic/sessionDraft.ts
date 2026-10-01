@@ -23,3 +23,29 @@ export function loadSessionDraft(): SessionDraft | null {
 export function clearSessionDraft() {
   localStorage.removeItem(STORAGE_KEYS.sessionDraft);
 }
+
+export interface SessionDraftStore {
+  save: (draft: SessionDraft) => void;
+  clear: () => void;
+}
+
+export function peladaDrawDraftKey(sessionId: string): string {
+  return `vpg_sorteio_${sessionId}`;
+}
+
+export function loadPeladaDrawDraft(sessionId: string): SessionDraft | null {
+  try {
+    return normalizeSessionDraft(
+      loadFromStorage<SessionDraft | null>(peladaDrawDraftKey(sessionId), null),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function peladaDrawDraftStore(sessionId: string): SessionDraftStore {
+  return {
+    save: (draft) => saveToStorage(peladaDrawDraftKey(sessionId), draft),
+    clear: () => localStorage.removeItem(peladaDrawDraftKey(sessionId)),
+  };
+}

@@ -670,7 +670,7 @@ export function SessionWizardStep5({ screen }: { screen: SessionWizardScreen }) 
           disabled={rosterIssues.length > 0}
           className="btn btn-primary flex-[2]"
         >
-          Gerar tabela
+          {activeSession.type === 'tournament' ? 'Gerar tabela' : 'Começar a pelada'}
         </button>
       </div>
     </div>

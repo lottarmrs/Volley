@@ -219,7 +219,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorte
     "",
     "",
     "Voltar",
-    "Gerar tabela",
+    "Começar a pelada",
   ],
   "titulos": [
     "Time t1",
@@ -244,7 +244,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 6: tabela do t
     "Compartilhar Tabela",
     "Copiar Tabela",
     "Voltar aos times",
-    "Iniciar Torneio",
+    "Começar o torneio",
   ],
   "titulos": [
     "Tabela gerada",

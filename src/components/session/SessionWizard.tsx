@@ -17,9 +17,12 @@ import { SessionWizardStep6 } from './steps/SessionWizardStep6';
 
 interface SessionWizardProps {
   contract: ScreenContract<SessionWizardModel, SessionWizardIntent>;
+  firstStep?: number;
+  title?: string;
+  exitLabel?: string;
 }
 
-export function SessionWizard({ contract }: SessionWizardProps) {
+export function SessionWizard({ contract, firstStep = 0, title, exitLabel }: SessionWizardProps) {
   const screen = useSessionWizardScreen(contract);
   const {
     model,
@@ -76,21 +79,27 @@ export function SessionWizard({ contract }: SessionWizardProps) {
           className="btn btn-ghost btn-sm"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>Cancelar Criação</span>
+          <span>{exitLabel ?? 'Cancelar Criação'}</span>
         </button>
 
-        <div className="flex items-center gap-3">
-          <Sparkles className="w-4 h-4 text-accent animate-pulse" />
-          <span className="text-[10px] font-bold uppercase text-base-content tracking-[0.3em]">
-            Setup de Sessão
-          </span>
-          <div className="badge badge-neutral font-mono text-[8px]"> v1.2</div>
-        </div>
+        {title ? (
+          <h1 className="text-lg font-black text-base-content">{title}</h1>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-4 h-4 text-accent animate-pulse" />
+            <span className="text-[10px] font-bold uppercase text-base-content tracking-[0.3em]">
+              Setup de Sessão
+            </span>
+            <div className="badge badge-neutral font-mono text-[8px]"> v1.2</div>
+          </div>
+        )}
       </div>
 
       <SessionWizardProgress
         currentStep={wizardStep}
-        steps={stepLabels.map((label, i) => ({ id: i, label }))}
+        steps={stepLabels
+          .map((label, i) => ({ id: i, label }))
+          .filter((step) => step.id >= firstStep)}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">

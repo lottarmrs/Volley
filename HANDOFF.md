@@ -1,7 +1,9 @@
 # HANDOFF — Panelinha
 
 > **2026-09-30 — projeto tempo real, parte 2 (peladas e histórico online).** Branch
-> `exec/peladas-online` (worktree `C:\Volley-peladas`), ainda **não publicada**. Peladas, times,
+> `exec/peladas-online` (worktree `C:\Volley-peladas`), **publicada em 2026-10-01** com as migrations
+> `peladas_online` e `peladas_servidor`, seguida de quatro correções achadas na conferência no ar
+> (ver `docs/JORNADA.md`, "Conferência no ar — 2026-10-01"). Peladas, times,
 > jogos, pontos e relatórios são lidos e gravados no banco (`sessionDataQueries`, `sessionWrites`);
 > a raiz de pelada do modelo novo só muda por comandos. O fluxo virou: marcar com horário (a lista
 > abre junto) → tela da pelada com o próximo passo → fechar → sortear a partir dos confirmados →

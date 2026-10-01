@@ -164,7 +164,7 @@ horário e local) e a lista de peladas da comunidade também.
 | 5.2 | Quem pode abrir e fechar a lista? | ✅ Quem tem `session.manage`. Fechar pergunta antes e finaliza o elenco no servidor (`closeListAndFinalize`). |
 | 5.3 | E para ajustar quem joga depois de fechar? | ✅ Reabrir a lista. Fechar de novo gera uma nova revisão do elenco (`peladaTargetNoApp.dbtest.ts`). |
 | 5.4 | O link funciona no aparelho de outra pessoa? | ✅ Para quem já é do grupo; quem não é cai no convite. |
-| 5.5 | A pelada aparece em outro aparelho? | ✅ **Sim, desde a parte 2:** as peladas são lidas do banco, não do sync, e mudanças chegam por tempo real (`peladasOnline.dbtest.ts`, `useSessionRealtime`). ❓ **Falta conferir no ar** com dois aparelhos. |
+| 5.5 | A pelada aparece em outro aparelho? | ✅ **Sim, desde a parte 2:** as peladas são lidas do banco, não do sync, e mudanças chegam por tempo real (`peladasOnline.dbtest.ts`, `useSessionRealtime`). ✅ **Conferido no ar em 2026-10-01** com duas abas: a segunda passou de "Rolando agora" para "Encerrada" sozinha. ❓ Dois aparelhos físicos ainda não. |
 | 5.6 | A mensagem diz onde e quando? | ✅ Nome, dia, horário e local. |
 | 5.7 | E sem sinal? | ✅ Agenda, histórico e painel esperam o banco ("Carregando…") e mostram a faixa de erro com "Tentar de novo" em vez de uma tela vazia (`onlineStates.spec.tsx`). |
 
@@ -213,7 +213,9 @@ horário e local) e a lista de peladas da comunidade também.
 | # | Pergunta | Resposta |
 |---|----------|----------|
 | 9.1 | Funciona sem sinal? | ✅ **Com conta, não, de propósito:** cada ponto grava no banco. Sem sinal o placar trava com "Sem conexão. O placar volta quando o sinal voltar." (`scoringLock.test.ts`, `SessionActiveView`). A fila do placar sem sinal é a parte 3. Sem conta, segue local. |
-| 9.2 | Quanto custa cada ponto? | ✅ ~30 ms medidos contra Postgres local. ❓ **Falta medir no ar.** |
+| 9.2 | Quanto custa cada ponto? | ✅ ~30 ms contra Postgres local. No ar (2026-10-01), 15 toques a cada 0,7 s gravaram sem travar. |
+| 9.2b | O placar perde ponto com toques rápidos? | ✅ **Corrigido em 2026-10-01.** A conferência pegou o ponto da vitória entrando como evento sem subir o placar: uma releitura terminava com gravações na fila. A leitura agora espera a fila (`readAfterWrites`, `useSessions.spec.tsx`). |
+| 9.2c | Quem marca ponto na pelada do modelo novo? | ✅ **Corrigido em 2026-10-01.** O placar pedia o controle antigo de dono (`claim_session_ownership`), que o servidor recusa para a pelada nova, e travava em "Assumir controle". Agora quem grava é decidido pelas policies (`usesLegacySessionControl`). |
 | 9.3 | Dois aparelhos na mesma pelada? | ❓ **Não verificado.** |
 | 9.4 | O membro acompanha a pelada ao vivo? | ❓ **Parte 3.** Hoje a pelada chega por tempo real, mas não há tela de acompanhar. |
 
@@ -231,6 +233,20 @@ horário e local) e a lista de peladas da comunidade também.
 ❓ `AvatarApprovalInbox` não tem tela; o conjunto de candidatos publicado não tem leitor.
 
 ---
+
+### Conferência no ar — 2026-10-01
+
+Percurso feito em produção, na comunidade "Teste de fluxo": marcar com horário (a lista abriu
+junto), pelada rápida colando nomes (4 reconhecidos, 5 novos), sortear, começar, 15 pontos,
+encerrar, histórico em outra aba e cancelar. A conferência achou e corrigiu: pelada em aberto
+com data passada invisível; sem "Cancelar a pelada"; sorteio que tentava criar uma segunda lista;
+pelada rápida com menos atletas que o formato aceita; placar travado pelo controle antigo; jogo
+recém-criado sumindo; ponto perdido com toques rápidos; recarregar o placar mandando para a
+lista; releituras em excesso (o tempo real agora agrupa); tela da pelada sem horário e local.
+
+Ainda aberto: o sync antigo continua relendo listas de WhatsApp, presença e ligas em loop (some
+na parte 5); o banco aceita evento de ponto sem o placar do jogo acompanhar (o app agora não deixa
+acontecer, mas o servidor não impede).
 
 ## O que bloqueia, em ordem
 

@@ -273,7 +273,7 @@ export function SessionWizardStep4({ screen }: { screen: SessionWizardScreen }) 
                     Posições dos Atletas
                   </label>
                   <p className="text-[8px] font-bold uppercase text-text-muted/70 tracking-wider mb-2 leading-relaxed">
-                    Defina a função de cada atleta apenas para esta sessão. O padrão vem do
+                    Defina a função de cada atleta apenas para esta pelada. O padrão vem do
                     cadastro.
                   </p>
                   {selectedPlayers.length === 0 ? (
@@ -358,7 +358,7 @@ export function SessionWizardStep4({ screen }: { screen: SessionWizardScreen }) 
                 <CheckCircle2 className="w-6 h-6 text-success" />
               </div>
               <p className="text-[10px] font-bold text-success uppercase tracking-widest">
-                Sessão estruturada com sucesso!
+                Pelada pronta para o sorteio!
               </p>
             </div>
           )}

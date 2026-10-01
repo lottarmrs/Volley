@@ -15,7 +15,7 @@ export function SessionSetupSummary({ session, selectedPlayers }: SessionSetupSu
     <div className="card card-border bg-base-200 h-fit lg:sticky lg:top-8">
       <div className="card-body p-6 space-y-4">
         <h3 className="card-title text-xs font-bold uppercase tracking-[0.2em] text-accent border-b border-base-300 pb-4">
-          Resumo da Sessão
+          Resumo da pelada
         </h3>
 
         <div className="space-y-4">

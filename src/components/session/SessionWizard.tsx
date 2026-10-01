@@ -82,7 +82,7 @@ export function SessionWizard({ contract, firstStep = 0, title, exitLabel }: Ses
           <span>{exitLabel ?? 'Cancelar'}</span>
         </button>
 
-        <h1 className="text-lg font-black text-base-content">{title ?? 'Nova pelada'}</h1>
+        <h2 className="text-lg font-black text-base-content">{title ?? 'Nova pelada'}</h2>
       </div>
 
       <SessionWizardProgress

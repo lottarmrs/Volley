@@ -76,12 +76,12 @@ export function QuickPeladaView({
         </p>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:rounded-box sm:border">
+      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-base-300 bg-base-100 px-4 py-3 sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:rounded-box sm:border">
         <p
           aria-live="polite"
           className={`text-sm font-semibold ${prontidao.ready ? 'text-success' : 'text-base-content/70'}`}
         >
-          {prontidao.message}
+          {total === 0 ? 'Marque quem veio ou cole a lista do grupo.' : prontidao.message}
         </p>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <button type="button" className="btn btn-ghost min-h-11" onClick={onCancel}>

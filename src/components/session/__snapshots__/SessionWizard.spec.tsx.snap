@@ -11,8 +11,8 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 0 com nuvem: m
   ],
   "titulos": [
     "Nova pelada",
-    "Informações da Sessão",
-    "Resumo da Sessão",
+    "Informações da pelada",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -34,8 +34,8 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 0 ja marcada: 
   ],
   "titulos": [
     "Nova pelada",
-    "Informações da Sessão",
-    "Resumo da Sessão",
+    "Informações da pelada",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -50,8 +50,8 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 0 sem nuvem: o
   ],
   "titulos": [
     "Nova pelada",
-    "Informações da Sessão",
-    "Resumo da Sessão",
+    "Informações da pelada",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -73,7 +73,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 1: atletas esc
   ],
   "titulos": [
     "Nova pelada",
-    "Resumo da Sessão",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -102,7 +102,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 2: formato 1`]
     "ESCOLHA O FORMATO DO EVENTO",
     "Jogo Livre",
     "Torneio",
-    "Resumo da Sessão",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -172,7 +172,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 3: regras, com
   "titulos": [
     "Nova pelada",
     "Regras do Jogo Livre",
-    "Resumo da Sessão",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -193,7 +193,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 4: revisao 1`]
   "titulos": [
     "Nova pelada",
     "Revisão Final",
-    "Resumo da Sessão",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -232,7 +232,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 5: times sorte
     "Nova pelada",
     "Time t1",
     "Time t2",
-    "Resumo da Sessão",
+    "Resumo da pelada",
   ],
 }
 `;
@@ -257,7 +257,7 @@ exports[`SessionWizard — caracterizacao antes da quebra > passo 6: tabela do t
   "titulos": [
     "Nova pelada",
     "Tabela gerada",
-    "Resumo da Sessão",
+    "Resumo da pelada",
   ],
 }
 `;

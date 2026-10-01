@@ -10,12 +10,12 @@ export function SessionWizardStep0({ screen }: { screen: SessionWizardScreen }) 
       <div className="card card-border bg-base-200">
         <div className="card-body space-y-6">
           <h3 className="card-title text-sm font-bold uppercase text-base-content tracking-[0.2em] border-b border-base-300 pb-4">
-            Informações da Sessão
+            Informações da pelada
           </h3>
           <div className="space-y-6">
             <div className="fieldset">
               <label className="fieldset-legend text-[10px] font-bold uppercase text-text-muted tracking-widest">
-                Nome da Sessão
+                Nome da pelada
               </label>
               <input
                 type="text"

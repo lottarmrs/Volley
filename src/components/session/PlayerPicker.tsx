@@ -165,7 +165,7 @@ export function PlayerPicker({
               >
                 <input
                   type="checkbox"
-                  className="checkbox checkbox-primary checkbox-sm"
+                  className="checkbox checkbox-primary checkbox-sm min-h-0 shrink-0"
                   aria-label={nome}
                   checked={marcado}
                   onChange={() => alternar(player.id)}

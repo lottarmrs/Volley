@@ -186,9 +186,9 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
   };
 
   // O shell abre a sessao ao vivo; aqui so resta mostrar a recusa, que antes era engolida.
-  const handleMaterializeRound = (round: ChampionshipRound) => {
+  const handleMaterializeRound = async (round: ChampionshipRound) => {
     setErroRodada(null);
-    const result = materializeChampionshipRound(round.id);
+    const result = await materializeChampionshipRound(round.id);
     if (result.ok === false) setErroRodada(result.error.message);
   };
 

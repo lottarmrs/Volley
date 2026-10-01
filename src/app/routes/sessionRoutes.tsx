@@ -27,6 +27,14 @@ import {
 import { buildInviteShareUrl } from '@app/communityInviteUseCases';
 import { suggestedRegistrationCapacity } from '@app/scheduleSessionUseCases';
 import { sessionCohortCloudService } from '@infra/supabase/sessionCohortCloudService';
+import { useScoringOffline } from '@hooks/useScoringOffline';
+import { useSessionRealtime } from '@hooks/useSessionRealtime';
+import { peladaNextStep, type PeladaActionKind } from '@app/peladaNextStep';
+import { closeListAndFinalize, markPelada } from '@app/peladaFlowUseCases';
+import { markPeladaDefaults, peladaName, plannedStartIso } from '@app/markPeladaDefaults';
+import { MarkPeladaView } from '../../components/session/MarkPeladaView';
+import { useToast } from '../../ui/common/useToast';
+import { OnlineLoading } from '@ui/common/OnlineDataState';
 import { useCommunityShell } from '../shellContext';
 import { CommunityAreaTabs } from '../../components/community/areas/CommunityAreaTabs';
 import { CommunityPresenceArea } from '../../components/community/areas/CommunityPresenceArea';
@@ -69,7 +77,7 @@ function SessoesTabs({
   return (
     <CommunityAreaTabs
       items={[
-        { to: paths.sessoes(communityId), label: 'Sessões', active: ativa === 'lista' },
+        { to: paths.sessoes(communityId), label: 'Peladas', active: ativa === 'lista' },
         { to: paths.presenca(communityId), label: 'Presença', active: ativa === 'presenca' },
         {
           to: paths.listaWhatsapp(communityId),
@@ -138,6 +146,8 @@ export function CommunitySessionsRoute() {
   const { canClearHistory } = useCommunityPermissions(community);
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
 
+  if (sess.status.loading) return <OnlineLoading label="Carregando peladas…" />;
+
   return (
     <div className="space-y-5">
       <SessoesTabs communityId={community.id} ativa="lista" />
@@ -167,9 +177,74 @@ export function CommunitySessionsRoute() {
   );
 }
 
+export function SessionNewRoute() {
+  const { sess } = useCommunityShell();
+  return sess.online ? <MarkPeladaRoute /> : <SessionWizardRoute />;
+}
+
+function hojeIso(): string {
+  const agora = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${agora.getFullYear()}-${pad(agora.getMonth() + 1)}-${pad(agora.getDate())}`;
+}
+
+export function MarkPeladaRoute() {
+  const { community, sess } = useCommunityShell();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const podeOrganizar = useCanManageSessions(community);
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [sugestao] = useState(() => {
+    const base = markPeladaDefaults(community, new Date());
+    return searchParams.get('tipo') === 'torneio' ? { ...base, type: 'tournament' as const } : base;
+  });
+
+  if (!podeOrganizar.pending && !podeOrganizar.allowed) {
+    return <SessionCreationBlocked onBack={() => navigate(paths.comunidade(community.id))} />;
+  }
+
+  return (
+    <MarkPeladaView
+      communityName={community.name}
+      defaults={sugestao}
+      today={hojeIso()}
+      busy={busy}
+      error={erro}
+      onCancel={() => navigate(paths.comunidade(community.id))}
+      onSubmit={async (valores) => {
+        if (!community.cloudId) {
+          setErro('A comunidade ainda não está salva. Tente em instantes.');
+          return;
+        }
+        setBusy(true);
+        setErro(null);
+        const marcada = await markPelada({
+          communityCloudId: community.cloudId,
+          name: peladaName(community.name, valores.date),
+          plannedStartAt: plannedStartIso(valores.date, valores.time),
+          location: valores.location.trim() || null,
+          capacity: valores.capacity,
+          type: valores.type,
+        });
+        if (marcada.ok === false) {
+          setErro(marcada.error.message);
+          setBusy(false);
+          return;
+        }
+        await sess.refresh();
+        navigate(paths.inscricao(community.id, marcada.value.sessionId));
+      }}
+    />
+  );
+}
+
 export function CommunityRegistrationRoute() {
   const { community, play, sess, comm, whatsAppLists, auth } = useCommunityShell();
   const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const toasts = useToast();
+  const [passoOcupado, setPassoOcupado] = useState(false);
   const permissions = useCommunityPermissions(community);
   const podeOrganizar = useCanManageSessions(community);
   const { members } = useCommunityMembers({
@@ -194,6 +269,10 @@ export function CommunityRegistrationRoute() {
     onSessionChange: (next) =>
       sess.setSessions((prev) => prev.map((item) => (item.id === next.id ? next : item))),
   });
+  useSessionRealtime(
+    (session?.authorityModel === 'target' ? session.cloudId : null) ?? alvo?.sessionCloudId ?? null,
+    () => void api.reload(),
+  );
 
   // Quem abre pelo link nao tem a sessao aqui; o nome vem da nuvem.
   const [nomeDaNuvem, setNomeDaNuvem] = useState<string | null>(null);
@@ -227,12 +306,72 @@ export function CommunityRegistrationRoute() {
     };
   }, [alvoCloudId]);
 
+  if (sess.status.loading) return <OnlineLoading label="Carregando a pelada…" />;
   if (!alvo) return <Navigate to={paths.sessoes(community.id)} replace />;
 
   const sessionCloudId = alvo.sessionCloudId;
+  const board = api.board;
+  const jogoAtual = session
+    ? sess.games.find((game) => game.sessionId === session.id && game.status === 'active')
+    : undefined;
+
+  const agirNoPasso = async (kind: PeladaActionKind) => {
+    if (!session || !board) return;
+    if (kind === 'sortear' || kind === 'comecar') {
+      navigate(paths.sortear(community.id, session.id));
+      return;
+    }
+    if (kind === 'abrir_placar') {
+      sess.setActiveSession(session);
+      navigate(paths.sessaoAtiva(community.id));
+      return;
+    }
+    if (kind === 'ver_resumo') {
+      navigate(paths.historico(community.id, { sessao: session.id }));
+      return;
+    }
+    if (
+      kind === 'fechar_lista' &&
+      !window.confirm(
+        'Fechar a lista? Quem confirmou joga; quem não entrou fica de fora até você reabrir.',
+      )
+    ) {
+      return;
+    }
+    setPassoOcupado(true);
+    try {
+      if (kind === 'abrir_lista') await api.open();
+      if (kind === 'reabrir_lista') await api.setOpen(true);
+      if (kind === 'fechar_lista') {
+        const fechada = await closeListAndFinalize({ windowId: board.windowId });
+        if (fechada.ok === false) toasts.push(fechada.error.message, 'error');
+        await api.reload();
+        await sess.refresh();
+      }
+    } finally {
+      setPassoOcupado(false);
+    }
+  };
+
+  const nextStep =
+    session && board
+      ? {
+          step: peladaNextStep({
+            status: session.status,
+            windowStatus: board.status,
+            confirmed: board.confirmedCount,
+            capacity: board.capacity,
+            canManage: board.viewerCanManage,
+            gameNumber: jogoAtual?.sequenceNumber,
+          }),
+          busy: passoOcupado,
+          onAction: (kind: PeladaActionKind) => void agirNoPasso(kind),
+        }
+      : undefined;
 
   return (
     <RegistrationBoardView
+      nextStep={nextStep}
       api={api}
       players={getCommunityPlayers(community.id, play.players)}
       frequentPlayerIds={frequentPlayerIds(getCommunitySessions(community.id, sess.sessions))}
@@ -285,6 +424,8 @@ export function CommunitySessionDetailRoute() {
   const { canClearHistory } = useCommunityPermissions(community);
   const { sessionId } = useParams();
   const communitySessions = getCommunitySessions(community.id, sess.sessions);
+
+  if (sess.status.loading) return <OnlineLoading label="Carregando a pelada…" />;
 
   return (
     <HistoryView
@@ -392,6 +533,7 @@ export function SessionActiveRoute() {
   const shell = useCommunityShell();
   const navigate = useNavigate();
   const { community, sess, play } = shell;
+  const scoringOffline = useScoringOffline(sess);
   const phase = derivePhase(sess.activeSession, sess.games);
   const resolution = resolveLiveSessionRoute({
     communityId: community.id,
@@ -411,6 +553,7 @@ export function SessionActiveRoute() {
         sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
+        offline: scoringOffline,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,
         setGameReports: sess.setGameReports,

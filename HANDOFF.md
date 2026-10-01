@@ -1,5 +1,17 @@
 # HANDOFF — Panelinha
 
+> **2026-09-30 — projeto tempo real, parte 2 (peladas e histórico online).** Branch
+> `exec/peladas-online` (worktree `C:\Volley-peladas`), ainda **não publicada**. Peladas, times,
+> jogos, pontos e relatórios são lidos e gravados no banco (`sessionDataQueries`, `sessionWrites`);
+> a raiz de pelada do modelo novo só muda por comandos. O fluxo virou: marcar com horário (a lista
+> abre junto) → tela da pelada com o próximo passo → fechar → sortear a partir dos confirmados →
+> começar. Pelada rápida escolhe do elenco ou cola a lista. Com conta, o placar trava sem sinal.
+> Migrations novas: `20260930160000_peladas_online` (publicação) e
+> `20260930170000_peladas_servidor` (organizador grava times/jogos/pontos/relatórios, local da
+> pelada, carreira ao encerrar). Para publicar: migrations primeiro, depois merge e push, e a
+> conferência no ar descrita na Task 10 do plano `docs/superpowers/plans/2026-09-30-peladas-online.md`.
+> Estado das perguntas em `docs/JORNADA.md`, etapas 4 a 10.
+>
 > **2026-09-30 — projeto tempo real, parte 1 (dados online).** O app deixa o sync em cinco
 > partes (memória `volley-next-realtime-replaces-sync`; spec e plano em `docs/superpowers/` com
 > data de 2026-09-30). A parte 1 fez comunidade, elenco, membros e regras serem lidos e gravados

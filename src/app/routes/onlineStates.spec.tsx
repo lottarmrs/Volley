@@ -19,14 +19,19 @@ vi.mock('@hooks/useCommunitiesWithCapability', () => ({
   useCommunitiesWithCapability: () => ({ allowedIds: new Set(), pending: false }),
 }));
 
-import { PainelRoute } from './globalRoutes';
+import { AgendaRoute, PainelRoute } from './globalRoutes';
 import { CommunityShell } from './communityRoutes';
 
 const refresh = vi.fn();
 const refreshRoster = vi.fn();
 const refreshRules = vi.fn();
+const refreshPeladas = vi.fn();
 
-function montarShell(opcoes: { loading?: boolean; readError?: unknown }) {
+function montarShell(opcoes: {
+  loading?: boolean;
+  readError?: unknown;
+  peladas?: { loading?: boolean; readError?: unknown };
+}) {
   const status = {
     loading: !!opcoes.loading,
     error: opcoes.readError ?? null,
@@ -37,7 +42,17 @@ function montarShell(opcoes: { loading?: boolean; readError?: unknown }) {
     comm: { communities: [], status, refresh },
     play: { players: [], status, refreshRoster },
     communityRules: { status: { ...status, loading: false }, refresh: refreshRules },
-    sess: { activeSession: null },
+    sess: {
+      activeSession: null,
+      sessions: [],
+      status: {
+        ...status,
+        loading: !!opcoes.peladas?.loading,
+        readError: opcoes.peladas?.readError ?? status.readError,
+      },
+      refresh: refreshPeladas,
+    },
+    championships: { championships: [], championshipTeams: [], championshipRounds: [] },
     wizard: {},
   };
 }
@@ -47,6 +62,7 @@ function renderAt(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/painel" element={<PainelRoute />} />
+        <Route path="/agenda" element={<AgendaRoute />} />
         <Route path="/comunidades/:communityId" element={<CommunityShell />} />
         <Route path="/comecar" element={<p>Comecar</p>} />
         <Route path="/comunidades" element={<p>Lista</p>} />
@@ -93,6 +109,30 @@ describe('estados online nas rotas', () => {
     expect(refresh).toHaveBeenCalled();
     expect(refreshRoster).toHaveBeenCalled();
     expect(refreshRules).toHaveBeenCalled();
+    expect(refreshPeladas).toHaveBeenCalled();
+  });
+
+  it('a agenda espera as peladas antes de dizer que nada foi marcado', () => {
+    montarShell({ peladas: { loading: true } });
+    renderAt('/agenda');
+    expect(screen.getByRole('status').textContent).toMatch(/carregando a agenda/i);
+    expect(screen.queryByText(/nada marcado/i)).toBeNull();
+  });
+
+  it('sem conseguir ler as peladas, a agenda mostra o erro e tenta de novo', () => {
+    montarShell({
+      peladas: {
+        readError: {
+          kind: 'offline_unavailable',
+          message: 'Sem conexão. Tente de novo quando o sinal voltar.',
+          recoverable: true,
+        },
+      },
+    });
+    renderAt('/agenda');
+    expect(screen.getByRole('alert').textContent).toContain('Sem conexão.');
+    fireEvent.click(screen.getByRole('button', { name: /tentar de novo/i }));
+    expect(refreshPeladas).toHaveBeenCalled();
   });
 
   it('erro que nao e de rede pede para tentar de novo sem culpar o sinal', () => {

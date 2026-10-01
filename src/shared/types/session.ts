@@ -310,6 +310,7 @@ export interface Session {
   name: string;
   date: string;
   location?: string | null;
+  plannedStartAt?: string | null;
   notes?: string | null;
   status: SessionStatus;
   /** Vagas da lista de presenca. Mora na Session, nao no config: config e

@@ -2,7 +2,7 @@ import { Sparkles, X } from 'lucide-react';
 import type { AuthorizedFormationStage } from '../../types';
 
 const STAGE_TEXT: Record<AuthorizedFormationStage, string> = {
-  session: 'Preparando a sessão na nuvem…',
+  session: 'Preparando a pelada…',
   roster: 'Confirmando o elenco…',
   snapshot: 'Congelando as notas dos atletas…',
 };

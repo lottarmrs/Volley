@@ -5,6 +5,7 @@ import {
   buildQuickStartPlayers,
   describeRosterReadiness,
   parseRosterInput,
+  matchRosterNames,
   QUICK_START_MIN_PLAYERS,
 } from './quickStart';
 
@@ -81,4 +82,25 @@ test('a prontidao do elenco diz o que falta, nao so que esta invalido', () => {
 
   assert.equal(describeRosterReadiness(QUICK_START_MIN_PLAYERS).ready, true);
   assert.match(describeRosterReadiness(8).message, /8 atletas prontos/);
+});
+
+test('a lista colada marca quem ja esta no elenco e separa quem e novo', () => {
+  const elenco = [
+    { id: 'p1', nome: 'Rafael Souza', apelido: 'Rafa' },
+    { id: 'p2', nome: 'Beatriz Lima', apelido: '' },
+    { id: 'p3', nome: 'Gustavo', apelido: 'Gus' },
+  ];
+  const resultado = matchRosterNames(['rafa', 'Beatriz Lima', 'Joao', 'GÚS'], elenco);
+  assert.deepEqual(resultado.matchedIds, ['p1', 'p2', 'p3']);
+  assert.deepEqual(resultado.unknownNames, ['Joao']);
+});
+
+test('nome que bate com dois atletas fica como novo para ninguem jogar no lugar do outro', () => {
+  const elenco = [
+    { id: 'p1', nome: 'Ana Prado', apelido: 'Ana' },
+    { id: 'p2', nome: 'Ana Lopes', apelido: 'Ana' },
+  ];
+  const resultado = matchRosterNames(['Ana'], elenco);
+  assert.deepEqual(resultado.matchedIds, []);
+  assert.deepEqual(resultado.unknownNames, ['Ana']);
 });

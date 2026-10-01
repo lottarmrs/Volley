@@ -37,6 +37,7 @@ import {
 } from '@app/sessionOwnershipUseCases';
 import { isAppOk } from '@app/appResult';
 import { useAuth } from '../../hooks/useAuth';
+import { SCORING_OFFLINE_MESSAGE } from '@app/scoringLock';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { SessionActiveViewModel } from '@app/screens/sessionActiveView/sessionActiveViewModel';
 import type { SessionActiveViewIntent } from '@app/screens/sessionActiveView/sessionActiveViewIntents';
@@ -55,6 +56,7 @@ export const SessionActiveView = ({
     sessionTeams,
     gameReports,
     currentDeviceId,
+    offline,
     setGames,
     setPointEvents,
     setGameReports,
@@ -228,38 +230,51 @@ export const SessionActiveView = ({
     if (ok) alert('Próxima partida copiada!');
   };
 
+  const offlineNotice = offline ? (
+    <div role="alert" className="alert alert-warning alert-soft text-sm font-bold">
+      {SCORING_OFFLINE_MESSAGE}
+    </div>
+  ) : null;
+  const canScore = control.canScore && !offline;
+  const blockedReason = offline ? SCORING_OFFLINE_MESSAGE : control.message;
+
   if (activeSession.type === 'tournament' && tournamentStandings) {
     return (
-      <TournamentActiveView
-        activeSession={activeSession}
-        sessionGames={sessionGames}
-        sessionPoints={sessionPoints}
-        currentGame={currentGame}
-        standings={tournamentStandings}
-        sessionTeams={sessionTeams}
-        players={players}
-        scoringRanking={scoringRanking}
-        pointModalTeamId={pointModalTeamId}
-        setPointModalTeamId={setPointModalTeamId}
-        registerPoint={registerPoint}
-        registerHighlight={registerHighlight}
-        deleteHighlight={deleteHighlight}
-        finishCurrentGameManually={finishCurrentGameManually}
-        startNextGame={startNextGame}
-        undoLastPoint={undoLastPoint}
-        registerWalkover={registerWalkover}
-        pauseGame={pauseGame}
-        reopenGame={reopenGame}
-        cancelGame={cancelGame}
-        updateFinalScore={updateFinalScore}
-        reorderScheduledGame={reorderScheduledGame}
-        onFinishSession={() => dispatch({ kind: 'finishSession' })}
-        onExit={() => dispatch({ kind: 'exit' })}
-        setActiveSession={setActiveSession}
-        shareGameToWhatsApp={shareGameToWhatsApp}
-        copyGameToClipboard={copyGameToClipboard}
-        games={games}
-      />
+      <div className="space-y-3">
+        {offlineNotice}
+        <fieldset disabled={offline} className="contents">
+          <TournamentActiveView
+            activeSession={activeSession}
+            sessionGames={sessionGames}
+            sessionPoints={sessionPoints}
+            currentGame={currentGame}
+            standings={tournamentStandings}
+            sessionTeams={sessionTeams}
+            players={players}
+            scoringRanking={scoringRanking}
+            pointModalTeamId={pointModalTeamId}
+            setPointModalTeamId={setPointModalTeamId}
+            registerPoint={registerPoint}
+            registerHighlight={registerHighlight}
+            deleteHighlight={deleteHighlight}
+            finishCurrentGameManually={finishCurrentGameManually}
+            startNextGame={startNextGame}
+            undoLastPoint={undoLastPoint}
+            registerWalkover={registerWalkover}
+            pauseGame={pauseGame}
+            reopenGame={reopenGame}
+            cancelGame={cancelGame}
+            updateFinalScore={updateFinalScore}
+            reorderScheduledGame={reorderScheduledGame}
+            onFinishSession={() => dispatch({ kind: 'finishSession' })}
+            onExit={() => dispatch({ kind: 'exit' })}
+            setActiveSession={setActiveSession}
+            shareGameToWhatsApp={shareGameToWhatsApp}
+            copyGameToClipboard={copyGameToClipboard}
+            games={games}
+          />
+        </fieldset>
+      </div>
     );
   }
 
@@ -321,7 +336,7 @@ export const SessionActiveView = ({
             </h2>
             <div className="flex gap-3 items-center">
               <span className="badge badge-success badge-soft badge-xs font-bold uppercase tracking-wider">
-                <Activity className="w-2.5 h-2.5 mr-1" /> Sessão Ativa
+                <Activity className="w-2.5 h-2.5 mr-1" /> Pelada em andamento
               </span>
               <span className="text-[9px] font-bold text-text-muted uppercase">
                 {activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}
@@ -337,6 +352,7 @@ export const SessionActiveView = ({
             </button>
             <button
               onClick={() => setShowFinishModal(true)}
+              disabled={offline}
               className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
             >
               Encerrar Sessão
@@ -439,7 +455,7 @@ export const SessionActiveView = ({
           </h2>
           <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
             <span className="badge badge-success badge-soft badge-xs font-bold uppercase tracking-wider">
-              <Activity className="w-2.5 h-2.5 mr-1" /> Sessão Ativa
+              <Activity className="w-2.5 h-2.5 mr-1" /> Pelada em andamento
             </span>
             <span className="text-[9px] font-bold text-text-muted uppercase">
               {activeSession.type === 'free_play' ? 'Jogo Livre' : 'Torneio'}
@@ -460,12 +476,15 @@ export const SessionActiveView = ({
           </button>
           <button
             onClick={() => setShowFinishModal(true)}
+            disabled={offline}
             className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
           >
             Encerrar Sessão
           </button>
         </div>
       </div>
+
+      {offlineNotice}
 
       <SessionOwnershipNotice
         control={control}
@@ -530,8 +549,8 @@ export const SessionActiveView = ({
             sets={currentGame.sets}
             setTargets={currentGame.setTargets}
             isTeamA={true}
-            canScore={control.canScore}
-            blockedReason={control.message}
+            canScore={canScore}
+            blockedReason={blockedReason}
             onRegisterPoint={() => registerPoint(currentGame.teamAId)}
             onOpenDetailModal={(pid) => {
               setPointModalTeamId(currentGame.teamAId);
@@ -554,8 +573,8 @@ export const SessionActiveView = ({
             sets={currentGame.sets}
             setTargets={currentGame.setTargets}
             isTeamA={false}
-            canScore={control.canScore}
-            blockedReason={control.message}
+            canScore={canScore}
+            blockedReason={blockedReason}
             onRegisterPoint={() => registerPoint(currentGame.teamBId)}
             onOpenDetailModal={(pid) => {
               setPointModalTeamId(currentGame.teamBId);
@@ -570,7 +589,7 @@ export const SessionActiveView = ({
         <div className="flex justify-center relative z-10">
           <button
             onClick={undoLastPoint}
-            disabled={!control.canScore}
+            disabled={!canScore}
             className="btn btn-outline min-h-[44px] rounded-full bg-base-200 px-5 text-xs font-bold uppercase tracking-wider disabled:opacity-40"
           >
             <RotateCcw className="w-4 h-4" /> Desfazer Ponto
@@ -646,6 +665,7 @@ export const SessionActiveView = ({
             <div className="flex flex-wrap justify-center gap-3 w-full">
               <button
                 onClick={() => startNextGame(setActiveSession)}
+                disabled={offline}
                 className="btn btn-accent w-full sm:flex-1 sm:min-w-[200px]"
               >
                 Iniciar Próximo Jogo

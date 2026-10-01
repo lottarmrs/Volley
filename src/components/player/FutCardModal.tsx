@@ -382,7 +382,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     )
       return 'jogos';
     if (id.includes('presenca') || id.includes('sempre') || id.includes('lib_passe_a'))
-      return 'sessões';
+      return 'peladas';
     if (id.includes('mvp') || id.includes('craque')) return 'MVPs';
     if (
       id.includes('maestro') ||

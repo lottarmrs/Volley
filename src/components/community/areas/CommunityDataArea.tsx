@@ -158,7 +158,7 @@ export function CommunityDataArea({
             <p className="py-4">
               {confirm === 'delete'
                 ? 'Essa ação exclui a comunidade deste aparelho. Os atletas podem ser mantidos no elenco geral.'
-                : 'Essa ação remove o vínculo de histórico das sessões desta comunidade.'}
+                : 'Essa ação remove o vínculo de histórico das peladas desta comunidade.'}
             </p>
             <div className="modal-action">
               <button type="button" className="btn" onClick={() => setConfirm(null)}>

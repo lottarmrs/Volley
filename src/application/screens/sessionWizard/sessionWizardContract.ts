@@ -99,7 +99,7 @@ function buildModel(input: SessionWizardContractInput): SessionWizardModel {
     primaryAction: resolvePrimaryAction(input),
     isScheduled: h.isScheduled,
     scheduleError: h.scheduleError,
-    stepLabels: ['Sessão', 'Atletas', 'Formato', 'Regras', 'Revisão', 'Times', 'Tabela'],
+    stepLabels: ['Pelada', 'Atletas', 'Formato', 'Regras', 'Revisão', 'Times', 'Tabela'],
     positionLabels: {
       levantador: 'Levantador',
       ponteiro: 'Ponteiro',

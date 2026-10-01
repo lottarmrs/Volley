@@ -104,7 +104,7 @@ test('a failed publish keeps the command id so the retry replays it', async () =
   if (!first.result.ok) {
     assert.equal(
       first.result.error.message,
-      'Sem conexão com a nuvem. Sessões de comunidade precisam de internet para gerar os times.',
+      'Sem conexão. A pelada precisa de internet para gerar os times.',
     );
   }
 

@@ -27,6 +27,7 @@ import { useHandleAvailability } from '@hooks/useHandleAvailability';
 import { useGoogleAuthEnabled } from '@hooks/useGoogleAuthEnabled';
 import { clearSessionDraft } from '../../logic/sessionDraft';
 import { useShell } from '../shellContext';
+import { useScoringOffline } from '@hooks/useScoringOffline';
 import { onlineDataState } from './onlineDataState';
 import { OnlineLoading, OnlineReadError } from '@ui/common/OnlineDataState';
 import { useAuthSession } from '../auth/useAuthSession';
@@ -75,7 +76,7 @@ export function PainelRoute() {
   // proximo passo util e montar a lista e sortear. Nao ha laco aqui porque
   // /comecar nunca devolve para /painel.
   const online = onlineDataState(shell);
-  if (comm.status.loading || play.status.loading) {
+  if (comm.status.loading || play.status.loading || sess.status.loading) {
     return <OnlineLoading label="Carregando seu painel…" />;
   }
   const semNada =
@@ -92,7 +93,7 @@ export function PainelRoute() {
       <Dashboard
         contract={buildDashboardContract({
           activeSession: sess.activeSession,
-          sessionDraft: shell.sessionDraft,
+          sessionDraft: sess.online ? null : shell.sessionDraft,
           games: sess.games,
           sessions: sess.sessions,
           communities: comm.communities,
@@ -105,6 +106,7 @@ export function PainelRoute() {
             navigate(
               communityIds.length === 0 ? paths.comecar : resolveNewSessionPath({ communityIds }),
             ),
+          onQuickPelada: () => navigate(paths.comecar),
           onResumeSession: () =>
             navigate(
               shell.activeSessionCommunityId
@@ -133,9 +135,7 @@ export function PainelRoute() {
           onClearActiveSession: () => {
             if (
               sess.activeSession &&
-              window.confirm(
-                'Deseja realmente descartar a sessão ativa? Todo o progresso e jogos gerados serão perdidos permanentemente.',
-              )
+              window.confirm('Descartar a pelada em andamento? Os jogos dela serão perdidos.')
             ) {
               const result = buildActiveSessionClearResult(sess.activeSession);
               if (!result) return;
@@ -156,9 +156,11 @@ export function PainelRoute() {
 }
 
 export function AgendaRoute() {
-  const { sess, comm, championships } = useShell();
+  const shell = useShell();
+  const { sess, comm, championships } = shell;
   const navigate = useNavigate();
   const today = formatLocalDateInput(new Date());
+  const online = onlineDataState(shell);
   const items = buildAgendaItems({
     today,
     communities: comm.communities,
@@ -168,9 +170,19 @@ export function AgendaRoute() {
     championshipRounds: championships.championshipRounds,
   });
 
+  if (comm.status.loading || sess.status.loading) {
+    return <OnlineLoading label="Carregando a agenda…" />;
+  }
+  if (online.readError) {
+    return <OnlineReadError error={online.readError} onRetry={online.retry} />;
+  }
+
   return (
     <AgendaView
       items={items}
+      markPath={
+        comm.communities.length === 1 ? paths.sessaoNova(comm.communities[0].id) : paths.comunidades
+      }
       onOpen={(item) =>
         navigate(
           item.kind === 'session'
@@ -373,6 +385,7 @@ export function LegacyActiveSessionRoute() {
   const shell = useShell();
   const navigate = useNavigate();
   const { sess, play } = shell;
+  const scoringOffline = useScoringOffline(sess);
   const phase = derivePhase(sess.activeSession, sess.games);
   const resolution = resolveLegacyLiveSessionRoute({
     activeSessionCommunityId: shell.activeSessionCommunityId,
@@ -391,6 +404,7 @@ export function LegacyActiveSessionRoute() {
         sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
+        offline: scoringOffline,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,
         setGameReports: sess.setGameReports,

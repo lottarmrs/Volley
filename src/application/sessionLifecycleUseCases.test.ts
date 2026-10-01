@@ -157,7 +157,7 @@ test('buildManualSessionDraft creates a default free-play draft', () => {
   });
 
   assert.equal(session.id, 'session-1');
-  assert.equal(session.name, 'Sessão — 14/07/2026');
+  assert.equal(session.name, 'Pelada — 14/07/2026');
   assert.equal(session.date, '2026-07-14');
   assert.equal(session.status, 'draft');
   assert.deepEqual(session.selectedPlayerIds, []);
@@ -619,7 +619,7 @@ test('buildWizardCancelResult clears draft state and returns to dashboard', () =
 
 test('buildWizardCancelRequestResult exposes confirmation copy', () => {
   assert.deepEqual(buildWizardCancelRequestResult(), {
-    confirmationMessage: 'Deseja cancelar a criação da sessão? O progresso será perdido.',
+    confirmationMessage: 'Cancelar esta pelada? O que foi escolhido até aqui se perde.',
   });
 });
 

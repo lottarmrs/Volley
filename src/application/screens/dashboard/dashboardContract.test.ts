@@ -206,3 +206,23 @@ test('canStartSession vem da entrada e vale verdadeiro por padrao', () => {
     false,
   );
 });
+
+test('a proxima pelada diz o horario e o local quando houver', () => {
+  const inicio = new Date(2026, 8, 24, 20, 30).toISOString();
+  const c = buildDashboardContract(
+    makeInput({
+      communities: [{ id: 'c1', name: 'Panelinha' } as never],
+      sessions: [
+        makeSession({
+          id: 's1',
+          name: 'Pelada de quinta',
+          date: '2026-09-24',
+          communityId: 'c1',
+          plannedStartAt: inicio,
+          location: 'Bolão',
+        }),
+      ],
+    }),
+  );
+  assert.equal(c.model.proximaPelada?.subtitle, 'quinta-feira, 24 de setembro · 20:30 · Bolão');
+});

@@ -2,11 +2,9 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSyncIssueLedger, recordStoredSyncIssue } from '../logic/syncIssueLedger';
 import { syncService, type LocalSyncPayload } from '@infra/supabase/syncService';
-import { LOCAL_CACHE_OWNER_KEY, STORAGE_KEYS } from '../storage/localStorageRepository';
-import { makeSession } from '../test/fixtures';
+import { LOCAL_CACHE_OWNER_KEY } from '../storage/localStorageRepository';
 import type { CloudSyncDeps } from './useCloudSync';
 import { useCloudSync } from './useCloudSync';
-import { useSessions } from './useSessions';
 
 function emptyPayload(): LocalSyncPayload {
   return {
@@ -39,18 +37,11 @@ function deps(overrides: Partial<CloudSyncDeps> = {}): CloudSyncDeps {
     drafts: [],
     setDrafts: vi.fn(),
     sessions: [],
-    setSessions: vi.fn(),
-    setActiveSession: vi.fn(),
     teams: [],
-    setTeams: vi.fn(),
     games: [],
-    setGames: vi.fn(),
     pointEvents: [],
-    setPointEvents: vi.fn(),
     gameReports: [],
-    setGameReports: vi.fn(),
     sessionReports: [],
-    setSessionReports: vi.fn(),
     presenceRecords: [],
     setPresenceRecords: vi.fn(),
     ...overrides,
@@ -326,10 +317,10 @@ describe('useCloudSync cross-account leak guard', () => {
     localStorage.setItem('vpg_sessions', JSON.stringify([{ id: 's-b' }]));
     syncService.downloadCloudDataToLocal = async () => emptyPayload();
 
-    const setSessionsSpy = vi.fn();
+    const setPresenceSpy = vi.fn();
     const baseDeps = deps({
       userId: 'user-a',
-      setSessions: setSessionsSpy,
+      setPresenceRecords: setPresenceSpy,
     });
 
     const { result } = renderHook(() => useCloudSync(baseDeps));
@@ -338,7 +329,7 @@ describe('useCloudSync cross-account leak guard', () => {
       await result.current.downloadFromCloud();
     });
 
-    expect(setSessionsSpy).toHaveBeenCalledWith([]);
+    expect(setPresenceSpy).toHaveBeenCalledWith([]);
     expect(localStorage.getItem('vpg_players')).toBeNull();
     expect(localStorage.getItem('vpg_sessions')).toBeNull();
     expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
@@ -571,165 +562,5 @@ describe('sincronizacao automatica', () => {
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
     });
     expect(chamadas).toBe(0);
-  });
-});
-
-describe('deteccao de conflito no caminho real do sync', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    syncService.downloadCloudDataToLocal = originalDownload;
-  });
-
-  const originalDownload = syncService.downloadCloudDataToLocal;
-
-  // Teste de INTEGRACAO, nao de funcao pura. A deteccao de conflito tem teste
-  // unitario verde em syncConflicts.test.ts e mesmo assim nunca dispara no app,
-  // porque o unitario usa chaves consistentes e o caminho real mistura id LOCAL
-  // com id de NUVEM. So um teste que atravessa applyResult pega isso.
-  it('marca os eventos locais quando a sessao esta controlada por outra pessoa', async () => {
-    // Sessao criada no app: id local != cloudId. E o caso normal, nao a excecao.
-    const sessaoDaNuvem = {
-      id: 'sess-local-1',
-      cloudId: '11111111-1111-1111-1111-111111111111',
-      name: 'Terça 19h',
-      controlledByUserId: 'user-ana',
-      controlClaimedAt: '2026-07-31T12:00:00.000Z',
-      controlDeviceId: 'dev-ana',
-    } as any;
-
-    // Um evento que ja veio da nuvem (tem cloudId) = placar da Ana.
-    const eventoDaAna = {
-      id: 'ev-ana',
-      cloudId: 'cloud-ev-ana',
-      sessionId: 'sess-local-1',
-      syncStatus: 'synced',
-    } as any;
-    // E o meu, marcado offline, ainda nao enviado.
-    const meuEvento = {
-      id: 'ev-meu',
-      sessionId: 'sess-local-1',
-      syncStatus: 'pending',
-    } as any;
-
-    syncService.downloadCloudDataToLocal = async () => ({
-      ...emptyPayload(),
-      sessions: [sessaoDaNuvem],
-      pointEvents: [eventoDaAna, meuEvento],
-    });
-
-    const setPointEvents = vi.fn();
-    const { result } = renderHook(() =>
-      useCloudSync(
-        deps({
-          userId: 'user-eu',
-          pointEvents: [meuEvento],
-          setPointEvents,
-          players: [{ id: 'p-ana', userId: 'user-ana', nome: 'Ana' }] as any,
-        }),
-      ),
-    );
-
-    await act(async () => {
-      await result.current.downloadFromCloud();
-    });
-
-    const aplicados = setPointEvents.mock.calls.at(-1)?.[0] ?? [];
-    const meuAplicado = aplicados.find((e: any) => e.id === 'ev-meu');
-    expect(meuAplicado?.conflictStatus).toBe('pending_decision');
-    // O evento da Ana nao e meu conflito: nao pode ser carimbado.
-    expect(aplicados.find((e: any) => e.id === 'ev-ana')?.conflictStatus).toBeUndefined();
-  });
-});
-
-describe('useCloudSync com Session ao vivo', () => {
-  const originalSyncNow = syncService.syncNow;
-  const syncedAt = '2026-09-14T12:00:00.000Z';
-
-  beforeEach(() => {
-    localStorage.clear();
-    const live = makeSession('s1', { communityId: 'c1', name: 'Ao vivo' });
-    localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify([live]));
-    localStorage.setItem(STORAGE_KEYS.activeSession, JSON.stringify(live));
-  });
-
-  afterEach(() => {
-    syncService.syncNow = originalSyncNow;
-  });
-
-  function renderLiveSync() {
-    return renderHook(() => {
-      const sess = useSessions();
-      const cloud = useCloudSync(
-        deps({
-          sessions: sess.rawSessions,
-          setSessions: sess.setSessions,
-          setActiveSession: sess.setActiveSession,
-        }),
-      );
-      return { sess, cloud };
-    });
-  }
-
-  it('mantém a identidade de sync quando a Session ao vivo é atualizada depois do sync', async () => {
-    syncService.syncNow = async (payload) => ({
-      ...payload,
-      sessions: payload.sessions.map((session) => ({
-        ...session,
-        cloudId: 'cloud-s1',
-        syncStatus: 'synced' as const,
-        lastSyncedAt: syncedAt,
-        authorityModel: 'target' as const,
-      })),
-    });
-    const { result } = renderLiveSync();
-
-    await act(async () => {
-      await result.current.cloud.sync();
-    });
-    act(() => {
-      result.current.sess.updateActiveSession({
-        ...result.current.sess.activeSession!,
-        name: 'Editada ao vivo',
-      });
-    });
-
-    const identity = {
-      cloudId: 'cloud-s1',
-      syncStatus: 'synced',
-      lastSyncedAt: syncedAt,
-      authorityModel: 'target',
-    };
-    expect(result.current.sess.sessions[0]).toMatchObject({ name: 'Editada ao vivo', ...identity });
-    expect(result.current.sess.activeSession).toMatchObject({
-      name: 'Editada ao vivo',
-      ...identity,
-    });
-  });
-
-  it('não sobrescreve campos ao vivo da Session ativa com os do resultado do sync', async () => {
-    syncService.syncNow = async (payload) => ({
-      ...payload,
-      sessions: payload.sessions.map((session) => ({
-        ...session,
-        name: 'Nome da nuvem',
-        status: 'finished' as const,
-        cloudId: 'cloud-s1',
-      })),
-    });
-    const { result } = renderLiveSync();
-
-    await act(async () => {
-      await result.current.cloud.sync();
-    });
-
-    expect(result.current.sess.activeSession).toMatchObject({
-      name: 'Ao vivo',
-      status: 'active',
-      cloudId: 'cloud-s1',
-    });
   });
 });

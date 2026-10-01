@@ -19,23 +19,22 @@ function createMockContract(modelOverrides: Partial<DashboardModel> = {}) {
 }
 
 describe('Dashboard', () => {
-  it('renders hero title and nova sessao button', () => {
+  it('mostra marcar pelada e pelada rapida', () => {
     const { contract, dispatch } = createMockContract();
     render(<Dashboard contract={contract} />);
 
     expect(screen.getByRole('heading', { name: /bem-vindo ao panelinha/i })).toBeDefined();
 
-    const newSessionBtn = screen.getByRole('button', { name: /nova sessão/i });
-    expect(newSessionBtn).toBeDefined();
-
-    fireEvent.click(newSessionBtn);
+    fireEvent.click(screen.getByRole('button', { name: /marcar pelada/i }));
     expect(dispatch).toHaveBeenCalledWith({ kind: 'newSession' });
+    fireEvent.click(screen.getByRole('button', { name: /pelada rápida/i }));
+    expect(dispatch).toHaveBeenCalledWith({ kind: 'quickPelada' });
   });
 
   it('quem nao organiza em nenhuma comunidade nao ve Nova Sessao', () => {
     const { contract } = createMockContract({ canStartSession: false });
     render(<Dashboard contract={contract} />);
-    expect(screen.queryByRole('button', { name: /nova sessão/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /marcar pelada/i })).toBeNull();
   });
 
   it('renders active session alert when a session is active', () => {

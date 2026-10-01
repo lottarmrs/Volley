@@ -274,7 +274,7 @@ describe('AppRouter — rotas globais', () => {
   });
 });
 
-const COMMUNITY_LIST_MARKER = /central local dos grupos recorrentes/i;
+const COMMUNITY_LIST_MARKER = /os grupos com que você joga/i;
 
 describe('AppRouter — comunidade', () => {
   it('expulsa id inexistente para a lista de comunidades', async () => {
@@ -296,7 +296,7 @@ describe('AppRouter — comunidade', () => {
   it('abre a visão geral da comunidade da URL, sem barra de abas', async () => {
     seedLocalDb({ communities: [{ id: 'c1', name: 'Panelinha' }] });
     renderApp('/comunidades/c1');
-    expect(await screen.findByRole('link', { name: /sessões/i })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: /^peladas$/i })).toBeTruthy();
     expect(screen.queryByRole('tab', { name: 'Resumo' })).toBeNull();
     expect(screen.queryByText(COMMUNITY_LIST_MARKER)).toBeNull();
   });
@@ -365,7 +365,7 @@ describe('AppRouter — agenda', () => {
   it('sem nada marcado, a agenda explica o que a preenche em vez do calendário vazio', async () => {
     renderApp('/agenda');
     expect(await screen.findByRole('heading', { name: /nada marcado por enquanto/i })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /marcar uma pelada/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /marcar pelada/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /semana/i })).toBeNull();
   });
 });
@@ -386,7 +386,8 @@ describe('AppRouter — primeiro uso das áreas com conta', () => {
     renderApp(paths.comunidade('c1'));
 
     expect(await screen.findByRole('heading', { name: /sua comunidade está de pé/i })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /montar o elenco/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /marcar a primeira pelada/i })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /completar o elenco/i })).toBeTruthy();
     // O painel de estatísticas zeradas não pode aparecer no primeiro uso.
     expect(screen.queryByText(/^Pontos$/)).toBeNull();
   });

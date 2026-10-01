@@ -54,7 +54,10 @@ export function useCommunitiesContract(input: {
     onDuplicateCommunity: (communityId) => {
       comm.duplicateCommunity(communityId);
     },
-    onCreateSession: shell.createSessionFromCommunity,
+    onCreateSession: (community, playerIds, rules) =>
+      sess.online
+        ? navigate(paths.sessaoNova(community.id))
+        : shell.createSessionFromCommunity(community, playerIds, rules),
     onViewSession: (sessionId) => {
       const session = sess.sessions.find((item) => item.id === sessionId);
       const communityId = session?.communityId ?? input.selectedCommunityId;

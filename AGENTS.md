@@ -102,8 +102,22 @@ optimistic and roll back on refusal; offline means the write does not happen
 (`src/application/onlineErrors.ts`). `useCommunityRealtime` subscribes to the open community and
 only invalidates queries — the payload never reaches the UI (ADR-RT-001). Without an account the
 same hooks keep using `localStorage`. `syncService` no longer uploads or downloads these entities;
-it receives them from the cache to translate ids. Sessions, leagues, presence and WhatsApp still go
-through sync until parts 2–5.
+it receives them from the cache to translate ids. Leagues, presence and WhatsApp still go through
+sync until parts 4–5.
+
+Part 2 (2026-09-30) put sessions ("peladas"), teams, games, points and reports online the same
+way: one query `['peladas', userId]` holding a `SessionBundle` (`src/application/sessionDataQueries.ts`),
+the `set*` setters of `useSessions` diff against the cache and write
+(`src/application/sessionWrites.ts`), serialized by a write chain; `useSessionRealtime` and the
+community bridge only invalidate. **A target-model session root never takes a direct update** —
+it changes through commands (`create_target_session`, `freeze_target_session_rules_snapshot`,
+`schedule/start/finish/cancel_target_session`, `set_target_session_details`), mapped from status
+transitions by `targetStepFor`. Organizers write teams, games, point events and reports directly
+(policies in `20260930170000_peladas_servidor.sql`). With an account, scoring needs a connection:
+the live screen locks with a banner when offline (`scoringLock.ts`); the offline queue is part 3.
+The flow: mark (`MarkPeladaRoute`, list opens with it) → pelada screen with the next step
+(`peladaNextStep.ts`) → close list → draw from the confirmed (`CommunityDrawRoute`, its own wizard
+state and a per-pelada draft) → "Começar" writes teams, games and the session, in that order.
 
 ### Optional data backfill
 

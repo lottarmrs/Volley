@@ -112,3 +112,30 @@ export function describeRosterReadiness(count: number): {
   }
   return { ready: true, message: `${count} atletas prontos para o sorteio.` };
 }
+
+export function matchRosterNames(
+  names: string[],
+  roster: Array<{ id: string; nome: string; apelido?: string | null }>,
+): { matchedIds: string[]; unknownNames: string[] } {
+  const porNome = new Map<string, Set<string>>();
+  const indexar = (chave: string, id: string) => {
+    if (!chave) return;
+    const ids = porNome.get(chave) ?? new Set<string>();
+    ids.add(id);
+    porNome.set(chave, ids);
+  };
+  for (const player of roster) {
+    indexar(normalizeForComparison(player.nome.trim()), player.id);
+    indexar(normalizeForComparison((player.apelido ?? '').trim()), player.id);
+  }
+
+  const matchedIds: string[] = [];
+  const unknownNames: string[] = [];
+  for (const name of names) {
+    const ids = porNome.get(normalizeForComparison(name.trim()));
+    const id = ids && ids.size === 1 ? [...ids][0] : null;
+    if (id && !matchedIds.includes(id)) matchedIds.push(id);
+    else if (!id) unknownNames.push(name);
+  }
+  return { matchedIds, unknownNames };
+}

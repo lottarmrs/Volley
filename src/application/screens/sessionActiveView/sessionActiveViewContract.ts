@@ -20,6 +20,7 @@ export interface SessionActiveViewContractInput {
   sessionTeams: Team[];
   gameReports: GameReport[];
   currentDeviceId: string;
+  offline?: boolean;
   setGames: Dispatch<SetStateAction<Game[]>>;
   setPointEvents: Dispatch<SetStateAction<PointEvent[]>>;
   setGameReports: Dispatch<SetStateAction<GameReport[]>>;
@@ -39,6 +40,7 @@ export function buildSessionActiveViewContract(
     sessionTeams: input.sessionTeams,
     gameReports: input.gameReports,
     currentDeviceId: input.currentDeviceId,
+    offline: input.offline ?? false,
     setGames: input.setGames,
     setPointEvents: input.setPointEvents,
     setGameReports: input.setGameReports,

@@ -1,49 +1,22 @@
 import { test, expect } from './fixtures/auth';
-import { seedLocalStorage } from './fixtures/seed';
 
-test.describe('Session Wizard & Balancing Flow', () => {
-  const communityId = 'comm_wizard_test';
+test.describe('Pelada sem conta: da lista colada ao placar', () => {
+  test('cola a lista, avalia, sorteia e começa a pelada', async ({ page }) => {
+    await page.goto('/comecar');
 
-  test.beforeEach(async ({ page }) => {
-    // Seed community and 12 players for balancing
-    const players = Array.from({ length: 12 }).map((_, i) => ({
-      id: `player_w_${i + 1}`,
-      nome: `Atleta ${i + 1}`,
-      apelido: `P${i + 1}`,
-      genero: i % 2 === 0 ? 'M' : 'F',
-      posicaoPrincipal:
-        i % 4 === 0 ? 'levantador' : i % 4 === 1 ? 'ponteiro' : i % 4 === 2 ? 'central' : 'oposto',
-      ativo: true,
-      communityIds: [communityId],
-      atributos: {
-        saque: 70 + (i % 20),
-        recepcao: 70 + (i % 20),
-        levantamento: 70,
-        ataque: 75,
-        defesa: 70,
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }));
+    await page.getByRole('button', { name: /usar uma pelada de exemplo/i }).click();
+    await page.getByRole('button', { name: /continuar com/i }).click();
+    await expect(page.getByRole('heading', { name: /como cada um joga\?/i })).toBeVisible();
+    await page.getByRole('button', { name: /sortear times equilibrados/i }).click();
 
-    await seedLocalStorage(page, {
-      communities: [
-        {
-          id: communityId,
-          name: 'Comunidade Wizard',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-      players,
-      activeCommunityId: communityId,
-    });
-  });
+    await expect(page.getByRole('heading', { name: 'Nova pelada' })).toBeVisible();
+    await page.getByRole('button', { name: /gerar times equilibrados/i }).click();
 
-  test('navigates through wizard steps', async ({ page }) => {
-    await page.goto(`/comunidades/${communityId}/sessao/nova`);
+    const comecar = page.getByRole('button', { name: /começar a pelada/i });
+    await expect(comecar).toBeVisible({ timeout: 20_000 });
+    await comecar.click();
 
-    // Verify Wizard rendered
-    await expect(page.locator('body')).toContainText(/Sessão|Atletas Presentes|Presenças/i);
+    await page.waitForURL((url) => url.pathname.endsWith('/sessoes/ativa'));
+    await expect(page.getByText(/pelada em andamento/i).first()).toBeVisible();
   });
 });

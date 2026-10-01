@@ -7,9 +7,9 @@ describe('SessionCreationBlocked', () => {
     const onBack = vi.fn();
     render(<SessionCreationBlocked onBack={onBack} />);
 
-    expect(screen.getByRole('heading', { name: 'Nova sessão indisponível' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Nova pelada indisponível' })).toBeDefined();
     expect(screen.getByRole('alert').textContent).toBe(
-      'Só dono, admin, moderador ou Organizador criam sessões nesta comunidade.',
+      'Só dono, admin, moderador ou Organizador marcam peladas nesta comunidade.',
     );
     fireEvent.click(screen.getByRole('button', { name: 'Voltar à comunidade' }));
     expect(onBack).toHaveBeenCalledTimes(1);

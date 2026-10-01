@@ -18,6 +18,7 @@ import type { DivisionGenerationPlan } from '../application/sessionLifecycleUseC
 import { buildBalanceErrorResponse } from '../logic/balancerMessages';
 import type { BalanceResponse } from '../logic/balancerMessages';
 import { saveSessionDraft, clearSessionDraft } from '../logic/sessionDraft';
+import type { SessionDraftStore } from '../logic/sessionDraft';
 import { generateTournamentSchedule } from '../logic/tournament';
 import { generateUUID } from '../logic/uuid';
 import { buildScheduledSessionResult } from '@app/scheduleSessionUseCases';
@@ -63,6 +64,7 @@ interface UseSessionWizardProps {
   communities?: Community[];
   authorizedFormationGateway?: AuthorizedFormationGateway;
   teamCandidateSetGateway?: TeamCandidateSetGateway;
+  draftStore?: SessionDraftStore;
 }
 
 export function useSessionWizard({
@@ -79,7 +81,10 @@ export function useSessionWizard({
   communities = [],
   authorizedFormationGateway,
   teamCandidateSetGateway,
+  draftStore,
 }: UseSessionWizardProps) {
+  const saveDraft = draftStore?.save ?? saveSessionDraft;
+  const clearDraft = draftStore?.clear ?? clearSessionDraft;
   const [wizardStep, setWizardStep] = useState(0);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -133,7 +138,7 @@ export function useSessionWizard({
       selectedDivisionIndex,
       now: new Date().toISOString(),
     });
-    if (result.draft) saveSessionDraft(result.draft);
+    if (result.draft) saveDraft(result.draft);
   }, [activeSession, wizardStep, bestDivisions, selectedDivisionIndex]);
 
   const updateSession = (patch: Partial<Session>) => {
@@ -517,7 +522,7 @@ export function useSessionWizard({
       localStorage.setItem(STORAGE_KEYS[write.target], write.value);
     });
 
-    if (completion.shouldClearSessionDraft) clearSessionDraft();
+    if (completion.shouldClearSessionDraft) clearDraft();
     if (completion.shouldAdvanceStep) {
       nextStep();
     } else if (completion.nextPage) {
@@ -571,7 +576,7 @@ export function useSessionWizard({
     const request = buildWizardCancelRequestResult();
     const result = buildWizardCancelApplicationResult(confirm(request.confirmationMessage));
     if (!result) return;
-    if (result.shouldClearSessionDraft) clearSessionDraft();
+    if (result.shouldClearSessionDraft) clearDraft();
     setActiveSession(result.nextActiveSession);
     setPage(result.nextPage);
   };

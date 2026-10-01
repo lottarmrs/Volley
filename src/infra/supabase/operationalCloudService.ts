@@ -23,7 +23,7 @@ export interface OperationalSyncPayload {
   drafts: WhatsAppListDraft[];
 }
 
-type OperationalTable =
+export type OperationalTable =
   | 'sessions'
   | 'teams'
   | 'games'
@@ -113,6 +113,7 @@ export function mapDbToSession(db: DbRecord): Session {
     name: db.name,
     date: db.date,
     location: db.location || null,
+    plannedStartAt: db.planned_start_at ?? null,
     notes: db.notes || null,
     status: db.status,
     type: db.type,
@@ -129,6 +130,7 @@ export function mapDbToSession(db: DbRecord): Session {
     controlledByUserId: db.controlled_by_user_id ?? null,
     controlClaimedAt: db.control_claimed_at ?? null,
     controlDeviceId: db.control_device_id ?? null,
+    authorityModel: db.authority_model === 'target' ? 'target' : 'legacy',
   };
 }
 
@@ -457,9 +459,37 @@ export function mapDbToDraft(db: DbRecord): WhatsAppListDraft {
   };
 }
 
-export async function fetchRows(
+export function fetchRows(
   table: OperationalTable,
   client: OperationalClient = supabase,
+): Promise<DbRecord[]> {
+  return fetchPagedRows(table, client, true);
+}
+
+export function fetchOnlineRows(
+  table: OperationalTable,
+  client: OperationalClient = supabase,
+): Promise<DbRecord[]> {
+  return fetchPagedRows(table, client, false);
+}
+
+export async function fetchRulesSnapshots(
+  sessionIds: string[],
+  client: OperationalClient = supabase,
+): Promise<{ session_id: string; rules_payload: unknown }[]> {
+  if (sessionIds.length === 0) return [];
+  const { data, error } = await client
+    .from('session_rules_snapshots')
+    .select('session_id, rules_payload')
+    .in('session_id', sessionIds);
+  if (error) throw error;
+  return (data ?? []) as { session_id: string; rules_payload: unknown }[];
+}
+
+async function fetchPagedRows(
+  table: OperationalTable,
+  client: OperationalClient,
+  scoped: boolean,
 ): Promise<DbRecord[]> {
   const pageSize = 1000;
   let allData: DbRecord[] = [];
@@ -468,7 +498,8 @@ export async function fetchRows(
   let hasMore = true;
 
   while (hasMore) {
-    const query = scopeOperationalFetch(table, client.from(table).select('*'));
+    const base = client.from(table).select('*');
+    const query = scoped ? scopeOperationalFetch(table, base) : base;
     const { data, error } = await query.range(from, to);
 
     if (error) throw error;
@@ -690,6 +721,20 @@ export const operationalCloudService = {
       pointEvents: pointRows.map(mapDbToPointEvent),
       gameReports: gameReportRows.map(mapDbToGameReport),
       sessionReports: sessionReportRows.map(mapDbToSessionReport),
+      presenceRecords: presenceRows.map(mapDbToPresence),
+      drafts: draftRows.map(mapDbToDraft),
+    };
+  },
+
+  async fetchPresenceAndDrafts(): Promise<{
+    presenceRecords: CommunityPresence[];
+    drafts: WhatsAppListDraft[];
+  }> {
+    const [presenceRows, draftRows] = await Promise.all([
+      fetchRows('community_presence'),
+      fetchRows('whatsapp_list_drafts'),
+    ]);
+    return {
       presenceRecords: presenceRows.map(mapDbToPresence),
       drafts: draftRows.map(mapDbToDraft),
     };

@@ -124,8 +124,11 @@ Sensitive membership mutations go through RPCs (`set_community_member_role`, `re
 
 `src/infra/supabase/` holds per-entity cloud services plus `syncService.ts` (orchestrator); `authClient.ts` is the shared client.
 
-**Online data layer (since 2026-09-30):** with an account, communities, roster, members and rules
-are TanStack Query reads/writes against Supabase, not sync — see `AGENTS.md` → "Online data layer".
+**Online data layer (since 2026-09-30):** with an account, communities, roster, members, rules and
+— since part 2 — peladas (sessions, teams, games, points, reports) are TanStack Query reads/writes
+against Supabase, not sync — see `AGENTS.md` → "Online data layer". A target-model session root
+changes **only by commands** (`targetStepFor` in `src/application/targetSessionLifecycle.ts`), never
+by a direct update.
 Specs that render hooks using it need a `QueryClientProvider`.
 
 ## Known tech debt

@@ -130,7 +130,7 @@ export function CommunityPresenceArea({
           onClick={onCreateSession}
           disabled={!canCreateSession}
         >
-          Criar sessão
+          Marcar pelada
         </button>
       </div>
 

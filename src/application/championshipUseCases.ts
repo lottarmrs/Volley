@@ -129,6 +129,25 @@ export interface MaterializedRound {
   game: Game;
 }
 
+export function bindMaterializedRoundToSession(
+  materialized: MaterializedRound,
+  sessionId: string,
+  now: string,
+): { playerIds: string[]; teams: Team[]; game: Game; sessionPatch: Partial<Session> } {
+  const teams = materialized.teams.map((team) => ({ ...team, sessionId, updatedAt: now }));
+  return {
+    playerIds: [...new Set(teams.flatMap((team) => team.playerIds))],
+    teams,
+    game: { ...materialized.game, sessionId, updatedAt: now },
+    sessionPatch: {
+      type: materialized.session.type,
+      config: materialized.session.config,
+      teamIds: teams.map((team) => team.id),
+      status: 'active',
+    },
+  };
+}
+
 export function detachChampionshipTeamBridges(
   teams: Team[],
   championshipTeamIds: ReadonlySet<string>,
@@ -277,7 +296,7 @@ export function materializeRound(
 export type RoundPlayStatus = 'scheduled' | 'in_progress' | 'played';
 
 export const ACTIVE_SESSION_CONFLICT_MESSAGE =
-  'Já existe uma sessão em andamento. Encerre-a antes de jogar esta rodada.';
+  'Já existe uma pelada em andamento. Encerre-a antes de jogar esta rodada.';
 
 function findRoundSession(round: ChampionshipRound, sessions: Session[]): Session | undefined {
   return round.sessionId ? sessions.find((session) => session.id === round.sessionId) : undefined;
@@ -314,7 +333,7 @@ export function resolveRoundSessionOpening(input: {
   activeSession: Session | null;
 }): AppResult<RoundSessionOpening> {
   const session = findRoundSession(input.round, input.sessions);
-  if (!session) return productError('not_found', 'Esta rodada ainda não tem sessão.');
+  if (!session) return productError('not_found', 'Esta rodada ainda não virou pelada.');
   if (isClosedSession(session)) return appOk({ kind: 'history', sessionId: session.id });
 
   const guard = ensureNoOtherActiveSession(input.activeSession, session.id);

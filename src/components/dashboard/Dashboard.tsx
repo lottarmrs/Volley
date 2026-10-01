@@ -6,7 +6,6 @@ import {
   RotateCcw,
   Users,
   Zap,
-  Sparkles,
   ChevronRight,
   Shield,
   CalendarDays,
@@ -32,24 +31,26 @@ export function Dashboard({ contract }: DashboardProps) {
       {/* 1. HERO / BANNER PRINCIPAL */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary/15 via-base-200 to-base-300 border border-primary/25 shadow-xl p-6 sm:p-8 flex flex-col sm:flex-row justify-between sm:items-center gap-6">
         <div className="space-y-2 max-w-2xl">
-          <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-            <Sparkles className="w-4 h-4" /> Central de Comando
-          </div>
           <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
             Bem-vindo ao Panelinha
           </h2>
           <p className="text-xs sm:text-sm text-base-content/70 leading-relaxed">
-            Plataforma local-first de gerenciamento de campeonatos, partidas e equilíbrio de equipes
-            com algoritmo Web Worker.
+            Marque a pelada, a lista enche sozinha e os times saem equilibrados.
           </p>
         </div>
         {model.canStartSession && (
-          <div className="flex gap-3 shrink-0 w-full sm:w-auto">
+          <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto sm:flex-row">
             <button
               onClick={() => dispatch({ kind: 'newSession' })}
               className="btn btn-primary btn-md font-black uppercase tracking-wider px-6 shadow-lg shadow-primary/20 gap-2 min-h-[48px] w-full sm:w-auto"
             >
-              <Plus className="w-5 h-5" /> Nova Sessão
+              <Plus className="w-5 h-5" /> Marcar pelada
+            </button>
+            <button
+              onClick={() => dispatch({ kind: 'quickPelada' })}
+              className="btn btn-ghost btn-md border-base-content/20 font-bold gap-2 min-h-[48px] w-full sm:w-auto"
+            >
+              <Zap className="w-5 h-5" /> Pelada rápida
             </button>
           </div>
         )}
@@ -143,9 +144,7 @@ export function Dashboard({ contract }: DashboardProps) {
                 <h2 className="mt-1 text-base font-black uppercase tracking-tight text-white">
                   {proximaPelada.title}
                 </h2>
-                <p className="text-xs font-medium text-base-content/60">
-                  {proximaPelada.subtitle} · garanta sua vaga
-                </p>
+                <p className="text-xs font-medium text-base-content/60">{proximaPelada.subtitle}</p>
               </div>
             </div>
             <ChevronRight className="h-5 w-5 shrink-0 text-base-content/40" />
@@ -160,9 +159,8 @@ export function Dashboard({ contract }: DashboardProps) {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* CARD 1: NOVA SESSÃO / SORTED TRIPLE */}
           <div
-            onClick={() => dispatch({ kind: 'newSession' })}
+            onClick={() => dispatch({ kind: 'quickPelada' })}
             className="card bg-base-200 border border-base-300 p-5 rounded-2xl hover:border-primary hover:bg-base-200/80 transition-all duration-200 hover:shadow-xl group cursor-pointer flex flex-col justify-between"
           >
             <div className="space-y-3">
@@ -171,16 +169,16 @@ export function Dashboard({ contract }: DashboardProps) {
               </div>
               <div>
                 <h3 className="text-base font-black uppercase text-white tracking-tight flex items-center justify-between">
-                  Nova Pelada{' '}
+                  Pelada rápida{' '}
                   <ChevronRight className="w-4 h-4 text-base-content/40 group-hover:text-primary transition-colors" />
                 </h3>
                 <p className="text-xs text-base-content/60 mt-1 leading-relaxed">
-                  Criar sessão, selecionar elenco e sortear equipes em 1 clique.
+                  Sem lista: escolha quem veio e sorteie na hora.
                 </p>
               </div>
             </div>
             <div className="pt-4 border-t border-base-300/50 mt-4 flex items-center justify-between text-[11px] font-bold text-primary">
-              <span>Sortear Equipes</span>
+              <span>Jogar agora</span>
               <span>→</span>
             </div>
           </div>

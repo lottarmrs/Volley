@@ -37,6 +37,7 @@ export interface CreateTargetSessionInput {
   readonly communityId: string;
   readonly name: string;
   readonly playMode: TargetSessionPlayMode;
+  readonly plannedStartAt?: string | null;
 }
 
 export interface SessionCohortCreationGateway {

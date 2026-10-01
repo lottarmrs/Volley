@@ -60,8 +60,8 @@ export const COMMUNITY_ROLE_LABELS: Record<CommunityMemberRole, string> = {
 export const COMMUNITY_ROLE_POWERS: Record<CommunityMemberRole, string> = {
   owner: 'Controla tudo, inclusive excluir a comunidade e limpar o histórico.',
   admin: 'Pode gerenciar membros, editar as regras e avaliar atletas.',
-  moderator: 'Pode aprovar quem pede para entrar e criar sessões.',
-  organizador: 'Pode criar sessões e tocar a pelada.',
+  moderator: 'Pode aprovar quem pede para entrar e marcar peladas.',
+  organizador: 'Pode marcar peladas e tocar o jogo.',
   member: 'Participa da comunidade, sem poder de administração.',
 };
 

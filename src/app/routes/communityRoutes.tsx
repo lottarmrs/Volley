@@ -129,11 +129,13 @@ export function CommunityOverviewRoute() {
         canCreateSession={podeOrganizar.allowed && !podeOrganizar.pending}
         canManageRoster={permissions.canEditPlayerProfile}
         onCreateSession={() =>
-          shell.createSessionFromCommunity(
-            community,
-            communityPlayers.filter((player) => player.ativo).map((player) => player.id),
-            communityRules.getRules(community),
-          )
+          sess.online
+            ? navigate(paths.sessaoNova(community.id))
+            : shell.createSessionFromCommunity(
+                community,
+                communityPlayers.filter((player) => player.ativo).map((player) => player.id),
+                communityRules.getRules(community),
+              )
         }
       />
       {podeSairAqui && (
@@ -514,6 +516,8 @@ export function CommunityHistoryRoute() {
   const { canClearHistory } = useCommunityPermissions(community);
   const [searchParams] = useSearchParams();
   const selectedSessionId = searchParams.get('sessao');
+
+  if (sess.status.loading) return <OnlineLoading label="Carregando o histórico…" />;
 
   return (
     <div className="space-y-5">

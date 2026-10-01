@@ -106,45 +106,29 @@ Uma pessoa só joga quando tem **três**, e elas são independentes:
 
 ---
 
-## Etapa 4 — Marcar a pelada (o wizard)
+## Etapa 4 — Marcar a pelada
 
-**De onde veio:** cinco entradas, todas em `paths.sessaoNova` — botão do
-AppShell, ranking da comunidade, cartão de rascunho, `resolveNewSessionPath`,
-`pathForLegacyPage`.
+> Reescrita em **2026-09-30** com a parte 2 do tempo real
+> ([spec](superpowers/specs/2026-09-30-peladas-online-design.md), seção "Fluxo da pelada").
+> Toda pelada com conta nasce marcada e com lista; a exceção é a pelada rápida.
+
+**De onde veio:** "Marcar pelada" no painel, na comunidade (inclusive a recém-criada, onde é o
+primeiro passo), na área de presença e na agenda vazia. Com conta, todas levam a
+`paths.sessaoNova`, que monta a tela curta (`MarkPeladaRoute`); sem conta, o assistente antigo.
 
 ### Perguntas gerais
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
-| 4.0 | Quem marca pelada? | ✅ **Desde 2026-09-30, quem o servidor diz que organiza** (`session.manage`, a responsabilidade `ORGANIZER`): dono, admin e moderador ganham ao assumir o cargo, e "Deixar organizar" em Membros liga ou desliga para qualquer um, inclusive um membro. A interface segue o servidor (`useCanManageSessions`, `communityPermissions.test.ts`); sem nuvem, vale o cargo. |
-| 4.1 | Em que passo a pessoa cai? | Passo 0 (`Sessão`). |
-| 4.2 | Quais passos exigem atleta? | 1 (≥4) e 3 (`teamCount × 3`). O passo 0 não. |
-| 4.3 | **É a hora certa de escolher atletas?** | 🔴 **Não.** Com a inscrição decidindo quem joga, escolher atletas no ato de marcar é pedir a resposta antes da pergunta. |
-| 4.4 | Se não é a hora, qual é? | Depois que a lista fecha — e fechar é passo separado do sorteio. [Spec](superpowers/specs/2026-09-24-dividir-o-wizard-design.md) fechada, [plano](superpowers/plans/2026-09-24-dividir-o-wizard.md) escrito. |
-| 4.5 | E se a comunidade não tem elenco nenhum? | 🔴 Era beco sem saída até `048455d`. Hoje a saída "Marcar pelada" aparece ao lado do erro. |
-
-### Campo a campo — passo 0 (`Sessão`)
-
-| Campo | Perguntas |
-|---|---|
-| **Nome da Sessão** | Obrigatório ✅. Nasce como "Comunidade - DD/MM". ❓ Duas peladas no mesmo dia geram nomes iguais — isso confunde na agenda e no link? |
-| **Data do Evento** | Obrigatório ✅. ❓ Aceita data muito distante? Há limite? **Não verificado.** ✅ Data no passado é recusada ao marcar. |
-| **Local (Opcional)** | ❓ Se é opcional, quem recebe o link sabe onde jogar? Hoje o link **não carrega o local**. |
-| **Observações (Opcional)** | ❓ Aparece para quem recebe o convite? **Não.** Deveria? |
-
-### Campo a campo — passos de formato e regras
-
-| Campo | Perguntas |
-|---|---|
-| **Quantidade de Times** | Define a exigência de atletas (`× 3`) e hoje também a capacidade da lista (`× 6`). ✅ **Decidido:** a capacidade vira campo próprio ao marcar, com `× 6` como sugestão — a vaga é o que o grupo disputa e não pode depender de uma decisão de sorteio. |
-| **Formato do Torneio** / **Fases do Mata-Mata** / **Playoffs** | Só para torneio. ❓ Uma pelada marcada com lista pode virar torneio depois? **Não verificado.** |
-| **Pontos por Jogo**, **Formato de Vitória** | ❓ É a hora certa? São regras de jogo — poderiam esperar o sorteio, que é quando importam. |
-| **Sistema de Rotação em Fila**, **Vitórias máximas consecutivas** | ❓ Idem. |
-| **Perfil Técnico**, **Posições dos Atletas** | 🔴 Dependem do elenco, então pertencem ao sorteio, não ao marcar. |
-| **Atleta A / Atleta B / Tipo de Vínculo** (duplas) | 🔴 Idem — exigem atletas escolhidos. |
-
-**A pergunta que organiza todas:** *este campo precisa de gente?* Se precisa,
-pertence ao sorteio. Se não, pertence ao marcar. É exatamente a costura da spec.
+| 4.0 | Quem marca pelada? | ✅ Quem o servidor diz que organiza (`session.manage`, responsabilidade `ORGANIZER`). Sem a capacidade, `SessionCreationBlocked`. |
+| 4.1 | O que se pede ao marcar? | ✅ Data, **horário (obrigatório)**, local, vagas e formato. Nada que dependa de gente. `MarkPeladaView.spec.tsx`. |
+| 4.2 | O que acontece ao tocar "Marcar e abrir a lista"? | ✅ Cria a pelada no modelo do servidor, abre a lista e grava o local, numa vez (`markPelada`, `peladaFlowUseCases.test.ts`), e leva para a tela da pelada. |
+| 4.3 | **É a hora certa de escolher atletas?** | ✅ **Não se escolhe.** Quem joga sai da lista; formato, regras e times ficam no sortear. |
+| 4.4 | A sugestão de dia e horário vem de onde? | ✅ Do dia, horário, local e formato padrão da comunidade (`markPeladaDefaults.test.ts`). |
+| 4.5 | E se não há sinal? | ✅ Marcar exige conexão; a falha aparece na tela e nada fica pela metade no aparelho. |
+| 4.6 | Pelada rápida — o que é? | ✅ "Jogar agora", sem lista: escolhe a comunidade (sozinha se for uma), marca do elenco ou cola a lista do WhatsApp; nomes novos viram atletas antes de a pelada nascer (`quickPeladaRoute.spec.tsx`). Entra no histórico. |
+| 4.7 | Pelada rápida sem comunidade para organizar? | ✅ Leva a `/comunidades`, para criar ou entrar numa. Sem conta, segue o caminho local de colar nomes. |
+| 4.8 | Duas peladas no mesmo dia com o mesmo nome? | ❓ O nome é "Comunidade · sex 02/10"; duas no mesmo dia empatam. O horário aparece ao lado na agenda e no painel. **Não decidido** se precisa distinguir. |
 
 ---
 
@@ -169,16 +153,20 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 
 ---
 
-## Etapa 5 — Abrir a lista e compartilhar
+## Etapa 5 — A tela da pelada e a lista
+
+**De onde veio:** marcar leva direto para ela; a agenda, o painel ("próxima pelada", com dia,
+horário e local) e a lista de peladas da comunidade também.
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
-| 5.1 | Quem pode abrir? | Quem tem `session.manage`, que vem da responsabilidade ORGANIZER. |
-| 5.2 | E sem nuvem? | Recusa com frase clara: sincronize antes. |
-| 5.3 | O link funciona no aparelho de outra pessoa? | ✅ Para quem **já é do grupo**, mesmo sem a pelada no aparelho. |
-| 5.4 | E para quem não é do grupo? | ✅ Cai no convite, pede entrada em um toque. |
-| 5.5 | A pelada aparece na agenda de outro aparelho? | 🔴 **Não.** Dois portões: o filtro do cliente (`AF-TARGET-005`) e a policy, que exclui `member`. |
-| 5.6 | A mensagem diz onde e quando? | Nome e dia ✅. **Local, não** — ver 4.x. |
+| 5.1 | O que a tela mostra primeiro? | ✅ O **próximo passo em destaque**: lista não aberta → aberta → fechada → sorteada → rolando → encerrada, com a ação certa para quem organiza e só a situação para quem joga (`peladaNextStep.test.ts`, `PeladaNextStepCard.spec.tsx`). |
+| 5.2 | Quem pode abrir e fechar a lista? | ✅ Quem tem `session.manage`. Fechar pergunta antes e finaliza o elenco no servidor (`closeListAndFinalize`). |
+| 5.3 | E para ajustar quem joga depois de fechar? | ✅ Reabrir a lista. Fechar de novo gera uma nova revisão do elenco (`peladaTargetNoApp.dbtest.ts`). |
+| 5.4 | O link funciona no aparelho de outra pessoa? | ✅ Para quem já é do grupo; quem não é cai no convite. |
+| 5.5 | A pelada aparece em outro aparelho? | ✅ **Sim, desde a parte 2:** as peladas são lidas do banco, não do sync, e mudanças chegam por tempo real (`peladasOnline.dbtest.ts`, `useSessionRealtime`). ❓ **Falta conferir no ar** com dois aparelhos. |
+| 5.6 | A mensagem diz onde e quando? | ✅ Nome, dia, horário e local. |
+| 5.7 | E sem sinal? | ✅ Agenda, histórico e painel esperam o banco ("Carregando…") e mostram a faixa de erro com "Tentar de novo" em vez de uma tela vazia (`onlineStates.spec.tsx`). |
 
 ---
 
@@ -210,10 +198,13 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
-| 8.1 | O sorteio parte de quem? | 🔴 Da **seleção manual**, reconciliando a lista por cima. Invertido. |
-| 8.2 | Deveria partir de quem? | Dos confirmados; o ajuste é exceção. **Decidido**, na spec. |
-| 8.3 | E sem nuvem? | Cai no sorteio legado, que não consulta lista. |
-| 8.4 | A lista precisa estar travada? | ❓ **Aberta na spec.** |
+| 8.1 | O sorteio parte de quem? | ✅ **Dos confirmados da lista fechada.** Não há passo de atletas no sortear (`CommunityDrawRoute.spec.tsx`). |
+| 8.2 | E quem chegou de última hora? | ✅ Reabrir a lista, incluir, fechar de novo. |
+| 8.3 | A lista precisa estar fechada? | ✅ Sim: com a lista aberta o sortear explica e devolve para a pelada (`drawGateUseCases`). |
+| 8.4 | O que o sortear pede? | ✅ Formato → regras → revisão → times (→ tabela, no torneio), com as peças do antigo assistente. |
+| 8.5 | E se a pessoa sai no meio? | ✅ O rascunho fica guardado por pelada (`vpg_sorteio_<id>`) e volta ao recarregar; se a lista mudou, as regras ficam e os times são refeitos (`drawDraftUseCases.test.ts`). |
+| 8.6 | Quando o banco fica sabendo? | ✅ Só em "Começar a pelada": times, jogos e a pelada, nessa ordem, o que congela as regras e inicia no servidor (`targetSessionLifecycle.test.ts`). Antes disso nada é gravado. |
+| 8.7 | E sem conta? | ✅ O assistente local, a partir da lista colada em `/comecar` (E2E `05-session-wizard.spec.ts`). |
 
 ---
 
@@ -221,10 +212,10 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
-| 9.1 | Funciona sem sinal? | ✅ É o princípio declarado. |
-| 9.2 | Dois aparelhos na mesma pelada? | ❓ **Não verificado.** Há `claim_session_ownership` e heartbeat de 10 min, mas não simulei a disputa. |
-| 9.3 | Quem chegou de última hora entra? | Depende de 8.2. |
-| 9.4 | O membro acompanha a pelada ao vivo? | ❓ **Ainda não.** Próximo projeto (decidido em 2026-09-30): remover o sync e trabalhar em tempo real, com membros acompanhando a pelada enquanto acontece. |
+| 9.1 | Funciona sem sinal? | ✅ **Com conta, não, de propósito:** cada ponto grava no banco. Sem sinal o placar trava com "Sem conexão. O placar volta quando o sinal voltar." (`scoringLock.test.ts`, `SessionActiveView`). A fila do placar sem sinal é a parte 3. Sem conta, segue local. |
+| 9.2 | Quanto custa cada ponto? | ✅ ~30 ms medidos contra Postgres local. ❓ **Falta medir no ar.** |
+| 9.3 | Dois aparelhos na mesma pelada? | ❓ **Não verificado.** |
+| 9.4 | O membro acompanha a pelada ao vivo? | ❓ **Parte 3.** Hoje a pelada chega por tempo real, mas não há tela de acompanhar. |
 
 ---
 
@@ -232,27 +223,22 @@ Levantado em 2026-09-25 — [spec](superpowers/specs/2026-09-25-avaliacao-da-com
 
 | # | Pergunta | Resposta |
 |---|----------|----------|
-| 10.1 | O membro vê o histórico da comunidade? | ✅ **Sim, desde 2026-09-30:** toda pelada que não é rascunho, com times, jogos, pontos e relatórios. Rascunho é só de quem organiza e de quem criou. `membroLeOHistorico.dbtest.ts`. |
-| 10.2 | Quem apaga histórico e convidado? | ✅ **O dono da comunidade**, no servidor (gatilhos `zz_guard_history_delete_owner_only` e `zz_guard_guest_delete_owner_only`). Rascunho, quem pode editá-lo descarta; convidado, o admin desativa. |
+| 10.1 | O membro vê o histórico da comunidade? | ✅ Toda pelada que não é rascunho, com times, jogos, pontos e relatórios. `membroLeOHistorico.dbtest.ts`. |
+| 10.2 | Encerrar faz o quê no servidor? | ✅ Cancela jogos abertos, encerra pelo comando e o gatilho `zz_regenerate_career_on_session_finish` recalcula a carreira (`peladasServidor.dbtest.ts`). |
+| 10.3 | Quem apaga histórico e convidado? | ✅ O dono da comunidade, no servidor. |
+| 10.4 | Pelada do modelo novo aceita edição direta? | ✅ **Não:** a raiz só muda por comandos (agendar, iniciar, encerrar, cancelar, `set_target_session_details`). Times, jogos, pontos e relatórios quem organiza grava direto. |
 
-❓ **O resto não foi investigado.** O que se sabe: a autoavaliação (nota provisória do
-único avaliador de uma comunidade, item 4b.4) segue existindo — só ela, não
-a **ficha** do atleta; a pergunta sobre o **destino de um perfil de
-autoavaliação próprio** (tela dedicada, edição pelo atleta) está
-✅ **descontinuada em 2026-09-28**: quem se avalia usa o mesmo formulário de
-Avaliação, e os dados do atleta (gênero, posição, altura, mão) moram na ficha,
-não numa autoavaliação — ver Etapa 1 (1.4–1.7). `AvatarApprovalInbox` não tem
-tela; o conjunto de candidatos publicado não tem leitor.
+❓ `AvatarApprovalInbox` não tem tela; o conjunto de candidatos publicado não tem leitor.
 
 ---
 
 ## O que bloqueia, em ordem
 
-1. ✅ ~~**Etapa 3 — quem cria a comunidade não vira atleta.**~~ Corrigido em
-   2026-09-24. Era o bloqueio que tornava tudo o resto irrelevante para quem
-   monta a própria pelada.
-2. 🔴 **Etapa 4/8 — a inversão do wizard.** Spec fechada e
-   [plano escrito](superpowers/plans/2026-09-24-dividir-o-wizard.md).
-3. 🔴 **Etapa 5 — a pelada invisível em outro aparelho.** Dois portões.
-4. ⚠️ **Etapa 6 — sem fila offline.**
-5. ❓ **Etapas 9 e 10 — não verificadas.**
+1. ✅ ~~**Etapa 3 — quem cria a comunidade não vira atleta.**~~ Corrigido em 2026-09-24.
+2. ✅ ~~**Etapa 4/8 — a inversão do wizard.**~~ Marcar e sortear separados em 2026-09-30.
+3. ✅ ~~**Etapa 5 — a pelada invisível em outro aparelho.**~~ Peladas online na parte 2;
+   falta a conferência no ar com dois aparelhos.
+4. ⚠️ **Etapa 6 — sem fila offline** para entrar na lista.
+5. ❓ **Etapa 9 — dois aparelhos e o acompanhar ao vivo** ficam para a parte 3.
+6. ⚠️ **Dívida visual dos passos antigos do sortear:** texto de 7 a 10 px, caixa-alta em texto
+   corrido e cartões aninhados (`impeccable detect` na bancada `preview/pelada.html`).

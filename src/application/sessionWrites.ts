@@ -108,6 +108,16 @@ async function persistRoot(
       await gateway.lifecycle.cancel(cloudId, 'Cancelada no app');
       return;
     default:
+      if (
+        prev &&
+        ((prev.location ?? null) !== (next.location ?? null) ||
+          (prev.notes ?? null) !== (next.notes ?? null))
+      ) {
+        await gateway.lifecycle.setDetails(cloudId, {
+          location: next.location ?? null,
+          notes: next.notes ?? null,
+        });
+      }
       return;
   }
 }

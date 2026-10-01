@@ -50,3 +50,13 @@ test('o erro do servidor sobe como veio', async () => {
   });
   await assert.rejects(() => service.finish('s1'), { code: '42501' });
 });
+
+test('local e observacoes vao pelo comando proprio com a revisao lida', async () => {
+  const c = cliente(4);
+  const service = createTargetSessionLifecycleCloudService(c);
+  await service.setDetails('s1', { location: 'Quadra', notes: null });
+  assert.deepEqual(c.chamadas[1], [
+    'set_target_session_details',
+    { p_session_id: 's1', p_expected_revision: 4, p_location: 'Quadra', p_notes: null },
+  ]);
+});

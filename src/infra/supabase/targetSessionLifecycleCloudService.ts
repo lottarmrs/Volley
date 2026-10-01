@@ -8,6 +8,10 @@ export interface TargetSessionLifecycleService {
   start(sessionId: string): Promise<void>;
   finish(sessionId: string): Promise<void>;
   cancel(sessionId: string, reason: string): Promise<void>;
+  setDetails(
+    sessionId: string,
+    details: { location: string | null; notes: string | null },
+  ): Promise<void>;
 }
 
 export function createTargetSessionLifecycleCloudService(
@@ -39,6 +43,14 @@ export function createTargetSessionLifecycleCloudService(
 
   return {
     readRevision,
+    async setDetails(sessionId, details) {
+      await call('set_target_session_details', {
+        p_session_id: sessionId,
+        p_expected_revision: await readRevision(sessionId),
+        p_location: details.location,
+        p_notes: details.notes,
+      });
+    },
     async freezeRules(sessionId, payload) {
       await call('freeze_target_session_rules_snapshot', {
         p_snapshot_id: createId(),

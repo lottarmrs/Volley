@@ -85,6 +85,9 @@ function gateway() {
       cancel: async (id) => {
         chamadas.push(`cancel ${id}`);
       },
+      setDetails: async (id, details) => {
+        chamadas.push(`details ${id} ${details.location} ${details.notes}`);
+      },
     },
   };
   return { g, chamadas };
@@ -190,4 +193,15 @@ test('o erro do gateway sobe', async () => {
       ),
     { code: '42501' },
   );
+});
+
+test('target com local ou observacoes trocados grava pelo comando proprio', async () => {
+  const { g, chamadas } = gateway();
+  await persistSessionBundleChanges(
+    pacote({ sessions: [pelada()] }),
+    pacote({ sessions: [pelada({ location: 'Quadra 2', notes: 'Levar bola' })] }),
+    ctx,
+    g,
+  );
+  assert.deepEqual(chamadas, ['details s1 Quadra 2 Levar bola']);
 });

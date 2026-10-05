@@ -61,9 +61,9 @@ leitura e escrita:
 - a **foto da pelada ativa** (sessão, times, jogos, pontos e relatórios de jogo dela) e os ids de
   pontos conhecidos no momento em que o sinal caiu.
 
-É a única exceção à regra "dados da conta não ficam no aparelho" (parte 5 apaga o resto). A foto
-existe para o placar reabrir se o app for fechado sem sinal; ela é descartada quando a fila
-esvazia e a releitura confirma.
+É a única exceção à regra "dados da conta não ficam no aparelho" (parte 5 apaga o resto). A fila
+e a foto sobrevivem a fechar o app; reabrir o app com sinal envia os pontos guardados. A foto é
+descartada quando a fila esvazia e a releitura confirma.
 
 ### O `writeField`
 
@@ -124,3 +124,4 @@ no aparelho.
 - Encerrar a pelada sem sinal.
 - Fila para qualquer outra tela (lista, sorteio, comunidade).
 - Remoção do `syncService` e das chaves locais (parte 5).
+- Reabrir o app sem sinal nenhum (precisa de service worker).

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { API_URL, entrarPelaTela, api } from './atores';
+import { entrarPelaTela, api } from './atores';
 import { MEMBRO, ORGANIZA, elencoDaComunidade, encerrarPelaApi, peladaComecada } from './pelada';
 
 function placar(a: number, b: number) {
@@ -44,38 +44,33 @@ test('sem sinal o placar segue, guarda os pontos e envia quando volta', async ({
     await expect(ana.getByText(placar(0, 0)).first()).toBeVisible();
   });
 
-  await test.step('recarrega sem sinal e o placar volta do aparelho', async () => {
-    await marca.addInitScript(() => {
-      if (sessionStorage.getItem('e2e-sem-sinal') === '1') {
-        Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
-      }
-    });
-    await marca.evaluate(() => sessionStorage.setItem('e2e-sem-sinal', '1'));
-    await ctx.route(`${API_URL}/**`, (rota) => rota.abort('internetdisconnected'));
+  await test.step('fecha o app sem sinal e reabre com sinal: os pontos guardados vao', async () => {
+    await marca.close();
     await ctx.setOffline(false);
-    await marca.reload();
-    await ctx.setOffline(true);
-    await ctx.unroute(`${API_URL}/**`);
-    await marca.evaluate(() => {
-      sessionStorage.removeItem('e2e-sem-sinal');
-      delete (navigator as { onLine?: boolean }).onLine;
-    });
-    await expect(marca.getByText(placar(2, 0)).first()).toBeVisible({ timeout: 15_000 });
-    await expect(marca.getByText('Sem sinal · 2 pontos guardados no aparelho')).toBeVisible();
-  });
-
-  await test.step('o sinal volta, a fila vai e a membro ve', async () => {
-    await ctx.setOffline(false);
-    await expect(marca.getByText(/sem sinal|enviando/i)).toHaveCount(0, { timeout: 20_000 });
+    const reaberta = await ctx.newPage();
+    await reaberta.goto(urlPelada);
+    await reaberta.getByRole('button', { name: /abrir o placar/i }).click();
+    await expect(reaberta.getByText(placar(2, 0)).first()).toBeVisible({ timeout: 20_000 });
+    await expect(reaberta.getByText(/sem sinal|enviando/i)).toHaveCount(0, { timeout: 20_000 });
     await expect(ana.getByText(placar(2, 0)).first()).toBeVisible({ timeout: 20_000 });
     const org = await api('Organizador');
-    const { data: pontos } = await org
-      .from('point_events')
-      .select('id, deleted_at')
-      .eq('session_id', sessionId);
-    expect((pontos ?? []).filter((p) => !p.deleted_at)).toHaveLength(2);
-    expect((pontos ?? []).filter((p) => p.deleted_at)).toHaveLength(1);
-    await expect(marca.getByRole('button', { name: /encerrar pelada/i }).first()).toBeEnabled();
+    await expect
+      .poll(
+        async () => {
+          const { data: pontos } = await org
+            .from('point_events')
+            .select('id, deleted_at')
+            .eq('session_id', sessionId);
+          const lista = pontos ?? [];
+          return [
+            lista.filter((p) => !p.deleted_at).length,
+            lista.filter((p) => p.deleted_at).length,
+          ];
+        },
+        { timeout: 20_000 },
+      )
+      .toEqual([2, 1]);
+    await expect(reaberta.getByRole('button', { name: /encerrar pelada/i }).first()).toBeEnabled();
   });
 
   await encerrarPelaApi(sessionId);

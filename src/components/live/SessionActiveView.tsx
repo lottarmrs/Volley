@@ -465,6 +465,7 @@ export const SessionActiveView = ({
             </button>
           </div>
         </div>
+        {offlineNotice}
         {conflictDialog}
       </div>
     );
@@ -496,6 +497,7 @@ export const SessionActiveView = ({
             Voltar ao Menu
           </button>
         </div>
+        {conflictDialog}
       </div>
     );
   }
@@ -830,6 +832,12 @@ export const SessionActiveView = ({
                   </div>
                 </div>
 
+                {finishLocked && !readOnly && (
+                  <p role="status" className="text-xs font-bold text-warning">
+                    {FINISH_NEEDS_SIGNAL_MESSAGE}
+                  </p>
+                )}
+
                 <div className="flex gap-3 justify-end pt-2">
                   <button
                     type="button"
@@ -840,7 +848,9 @@ export const SessionActiveView = ({
                   </button>
                   <button
                     type="button"
+                    disabled={finishLocked}
                     onClick={() => {
+                      if (finishLocked) return;
                       setShowFinishModal(false);
                       dispatch({ kind: 'finishSession' });
                     }}

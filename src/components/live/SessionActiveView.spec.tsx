@@ -112,6 +112,46 @@ describe('SessionActiveView sem sinal', () => {
   });
 });
 
+describe('SessionActiveView encerrar com modal aberto', () => {
+  it('perde o sinal com o modal aberto e o confirmar fica travado', () => {
+    const noop = () => {};
+    const onFinishSession = vi.fn();
+    const contract = (offline: boolean, scoreQueue?: Parameters<typeof renderPlacar>[3]) =>
+      buildSessionActiveViewContract({
+        activeSession: pelada,
+        games: [jogo],
+        pointEvents: [],
+        players: [],
+        sessionTeams: [teamA, teamB],
+        gameReports: [],
+        currentDeviceId: 'aparelho',
+        offline,
+        scoreQueue,
+        setGames: noop,
+        setPointEvents: noop,
+        setGameReports: noop,
+        setActiveSession: noop,
+        onExit: noop,
+        onFinishSession,
+      });
+    const tela = (c: ReturnType<typeof contract>) => (
+      <MemoryRouter>
+        <SessionActiveView contract={c} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(tela(contract(false, fila())));
+    fireEvent.click(screen.getAllByRole('button', { name: /encerrar pelada/i })[0]);
+    rerender(tela(contract(true, fila({ pending: 2, queued: true }))));
+    const confirmar = screen.getByRole('button', { name: /confirmar & encerrar/i });
+    expect((confirmar as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(confirmar);
+    expect(onFinishSession).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByText('Encerre quando o sinal voltar e os pontos forem enviados.').length,
+    ).toBeGreaterThan(1);
+  });
+});
+
 describe('SessionActiveView para quem acompanha', () => {
   it('membro ve o placar sem os botoes de marcar, e sabe por que', () => {
     renderPlacar(false, true);

@@ -120,6 +120,22 @@ function situacaoDoPagamento(board: RegistrationBoard): string | null {
 }
 
 function situacaoDoAtleta(board: RegistrationBoard): SituacaoVisual {
+  if (board.sessionLifecycleStatus === 'COMPLETED') {
+    return {
+      titulo: 'Pelada encerrada',
+      detalhe: 'O placar e o histórico ficam guardados na comunidade.',
+      cor: 'border-base-content/15 bg-base-200',
+      icone: Lock,
+    };
+  }
+  if (board.sessionLifecycleStatus === 'IN_PROGRESS') {
+    return {
+      titulo: 'Pelada em andamento',
+      detalhe: 'A lista é a desta pelada; ela não muda mais.',
+      cor: 'border-base-content/15 bg-base-200',
+      icone: Lock,
+    };
+  }
   if (board.status === 'LOCKED') {
     return {
       titulo: 'Lista travada para o sorteio',

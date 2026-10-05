@@ -78,7 +78,7 @@ test('liga de 6 times de 6 em pontos corridos gera as 15 partidas', async ({ bro
   });
 
   await test.step('a primeira partida vira pelada, e jogada ate o fim e entra na classificacao', async () => {
-    const jogar = page.getByRole('button', { name: /materializar & jogar/i }).first();
+    const jogar = page.getByRole('button', { name: /jogar esta partida/i }).first();
     if (!(await jogar.isVisible())) {
       await page
         .getByRole('button', { name: /rodadas|calendário|jogos|partidas/i })
@@ -88,12 +88,12 @@ test('liga de 6 times de 6 em pontos corridos gera as 15 partidas', async ({ bro
     await jogar.click();
     await page.waitForURL(/\/sessoes\/ativa$/, { timeout: 15_000 }).catch(async () => {
       await page
-        .getByRole('button', { name: /ver sessão/i })
+        .getByRole('button', { name: /ver pelada/i })
         .first()
         .click();
       await page.waitForURL(/\/sessoes\/ativa$/, { timeout: 30_000 });
     });
-    await page.getByRole('button', { name: /iniciar torneio/i }).click();
+    await page.getByRole('button', { name: /começar o torneio/i }).click();
     for (let ponto = 0; ponto < 15; ponto += 1) {
       await page.getByRole('button', { name: /\+1/ }).first().click();
       await page.waitForTimeout(500);

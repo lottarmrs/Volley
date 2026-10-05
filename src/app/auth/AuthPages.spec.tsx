@@ -356,7 +356,7 @@ describe('MfaSetupPage', () => {
       undefined,
       <MfaSetupPage />,
     );
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/already exists/i));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/tente de novo/i));
     expect(screen.queryByText(/carregando sess/i)).toBeNull();
     expect(screen.getByRole('button', { name: /tentar novamente/i })).toBeTruthy();
   });

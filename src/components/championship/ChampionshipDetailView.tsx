@@ -453,7 +453,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
                         className="btn btn-primary min-h-[44px] px-4 text-xs font-bold uppercase tracking-wider shadow-md shadow-primary/20"
                         onClick={() => handleOpenRoundSession(match)}
                       >
-                        Ver Sessão
+                        Ver pelada
                       </button>
                     ) : (
                       <button
@@ -461,7 +461,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
                         className="btn btn-success min-h-[44px] px-4 text-xs font-bold uppercase tracking-wider gap-1.5 shadow-md shadow-success/20"
                         onClick={() => handleMaterializeRound(match)}
                       >
-                        <Play className="w-4 h-4 fill-current" /> Materializar & Jogar
+                        <Play className="w-4 h-4 fill-current" /> Jogar esta partida
                       </button>
                     )}
                   </div>

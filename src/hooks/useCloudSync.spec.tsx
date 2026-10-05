@@ -335,6 +335,18 @@ describe('useCloudSync cross-account leak guard', () => {
     expect(localStorage.getItem('vpg_cache_owner_id')).toBe('user-a');
   });
 
+  it('baixa calado quando o download e automatico, ao abrir o app', async () => {
+    syncService.downloadCloudDataToLocal = async () => emptyPayload();
+    const onToast = vi.fn();
+    const { result } = renderHook(() => useCloudSync(deps({ userId: 'user-a', onToast })));
+
+    await act(async () => {
+      await result.current.downloadFromCloud({ silent: true });
+    });
+
+    expect(onToast).not.toHaveBeenCalled();
+  });
+
   it('refuses to upload while the local cache still belongs to another account', async () => {
     localStorage.setItem('vpg_cache_owner_id', 'user-b');
     let uploaded = false;

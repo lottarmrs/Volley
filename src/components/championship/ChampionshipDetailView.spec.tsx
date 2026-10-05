@@ -245,7 +245,7 @@ describe('ChampionshipDetailView', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
-    await user.click(screen.getByRole('button', { name: /materializar & jogar/i }));
+    await user.click(screen.getByRole('button', { name: /jogar esta partida/i }));
 
     expect(spies.materializeChampionshipRound).toHaveBeenCalledWith('r1');
     expect(screen.getByRole('alert').textContent).toMatch(/já existe uma sessão em andamento/i);
@@ -260,7 +260,7 @@ describe('ChampionshipDetailView', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
-    await user.click(screen.getByRole('button', { name: /materializar & jogar/i }));
+    await user.click(screen.getByRole('button', { name: /jogar esta partida/i }));
 
     expect(spies.materializeChampionshipRound).toHaveBeenCalledWith('r1');
     expect(window.location.pathname).not.toMatch(/\/sessoes\//);
@@ -275,7 +275,7 @@ describe('ChampionshipDetailView', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
-    await user.click(screen.getAllByRole('button', { name: /ver sessão/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /ver pelada/i })[0]);
 
     expect(spies.openChampionshipRoundSession).toHaveBeenCalledWith('r2');
     expect(window.location.pathname).not.toMatch(/\/sessoes\//);
@@ -294,7 +294,7 @@ describe('ChampionshipDetailView', () => {
     expect(screen.queryByRole('button', { name: /aprovar e remarcar/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /recusar/i })).toBeNull();
     await user.click(screen.getByRole('button', { name: /calendário de rodadas/i }));
-    expect(screen.queryByRole('button', { name: /ver sessão/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /materializar/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ver pelada/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /jogar esta partida/i })).toBeNull();
   });
 });

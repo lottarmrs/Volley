@@ -403,6 +403,8 @@ describe('RegistrationBoardView', () => {
     renderView({ board: board({ status: 'LOCKED', sessionLifecycleStatus: 'COMPLETED' }) });
     expect(screen.getByRole('alert').textContent).toMatch(/terminou/i);
     expect(screen.queryByText(/já começou/i)).toBeNull();
+    expect(screen.queryByText(/lista travada para o sorteio/i)).toBeNull();
+    expect(screen.getByText('Pelada encerrada')).toBeDefined();
   });
 
   it('o cabeçalho mostra o horário e o local', () => {

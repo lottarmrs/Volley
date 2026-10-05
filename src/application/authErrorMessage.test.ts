@@ -32,3 +32,17 @@ test('mensagem nossa passa como esta e o resto vira generica', () => {
     'Não deu para entrar agora. Tente de novo.',
   );
 });
+
+test('erros da verificacao em duas etapas chegam em portugues', () => {
+  assert.match(
+    authErrorMessage({ message: 'Invalid TOTP code entered', code: 'mfa_verification_failed' }),
+    /código incorreto ou vencido/i,
+  );
+  assert.match(
+    authErrorMessage({
+      message: 'MFA enroll is disabled for TOTP',
+      code: 'mfa_totp_enroll_not_enabled',
+    }),
+    /duas etapas/i,
+  );
+});

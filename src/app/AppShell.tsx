@@ -230,7 +230,7 @@ export function AppShell() {
       pendingChanges,
     });
     autoSyncedForUser.current = plan.nextAutoSyncedForUserId;
-    if (plan.shouldDownload) cloudSync.downloadFromCloud().catch(() => {});
+    if (plan.shouldDownload) cloudSync.downloadFromCloud({ silent: true }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.state.kind, auth.isSupabaseConfigured, auth.user?.id, pendingChanges]);
 
@@ -796,7 +796,7 @@ export function AppShell() {
               </h1>
               {liveSessionVisible && (
                 <p className="truncate text-xs text-base-content/60 font-medium mt-0.5">
-                  Sessão Ativa:{' '}
+                  Pelada em andamento:{' '}
                   <span className="text-primary font-bold">{sess.activeSession?.name}</span>
                 </p>
               )}

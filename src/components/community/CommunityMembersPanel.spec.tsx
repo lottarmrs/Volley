@@ -113,7 +113,7 @@ describe('CommunityMembersPanel', () => {
         onLinkedPlayer={onLinkedPlayer}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Aprovar' }));
+    fireEvent.click(screen.getByRole('button', { name: /^aprovar/i }));
     await waitFor(() =>
       expect(onLinkedPlayer).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'athlete', communityIds: ['community-local'] }),

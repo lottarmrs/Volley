@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { authErrorMessage } from '@app/authErrorMessage';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import {
@@ -551,9 +552,7 @@ export function MfaSetupPage() {
       .enrollTotp()
       .then(setEnrollment)
       .catch((cause) => {
-        setError(
-          cause instanceof Error ? cause.message : 'Não foi possível iniciar a configuração.',
-        );
+        setError(authErrorMessage(cause));
       });
   }, []);
 
@@ -565,7 +564,7 @@ export function MfaSetupPage() {
       await retry();
       navigate(destinationFromLocationState(location.state, location.search), { replace: true });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Código inválido.');
+      setError(authErrorMessage(cause));
     }
   };
 
@@ -594,11 +593,7 @@ export function MfaSetupPage() {
                 .enrollTotp()
                 .then(setEnrollment)
                 .catch((cause) => {
-                  setError(
-                    cause instanceof Error
-                      ? cause.message
-                      : 'Não foi possível iniciar a configuração.',
-                  );
+                  setError(authErrorMessage(cause));
                 });
             }}
           >
@@ -698,15 +693,11 @@ export function MfaChallengePage() {
         try {
           setEnrollment(await authClient.enrollTotp());
         } catch (enrollCause) {
-          setError(
-            enrollCause instanceof Error
-              ? enrollCause.message
-              : 'Não foi possível iniciar a configuração.',
-          );
+          setError(authErrorMessage(enrollCause));
         }
         return;
       }
-      setError(cause instanceof Error ? cause.message : 'Código inválido.');
+      setError(authErrorMessage(cause));
     }
   };
 
@@ -716,7 +707,7 @@ export function MfaChallengePage() {
     try {
       await proceed(enrollment?.factorId);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Código inválido.');
+      setError(authErrorMessage(cause));
     }
   };
 

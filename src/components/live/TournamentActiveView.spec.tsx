@@ -47,7 +47,7 @@ describe('TournamentActiveView por fase', () => {
     expect(screen.getByRole('button', { name: /pausar/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /encerrar/i })).toBeTruthy();
 
-    const iniciar = screen.getByRole('button', { name: /iniciar torneio/i });
+    const iniciar = screen.getByRole('button', { name: /começar o torneio/i });
     expect((iniciar as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByRole('button', { name: /^retomar$/i })).toBeNull();
   });
@@ -59,7 +59,7 @@ describe('TournamentActiveView por fase', () => {
     expect(screen.getByRole('button', { name: /^retomar$/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^pausar$/i })).toBeNull();
 
-    const iniciar = screen.getByRole('button', { name: /iniciar torneio/i });
+    const iniciar = screen.getByRole('button', { name: /começar o torneio/i });
     expect((iniciar as HTMLButtonElement).disabled).toBe(true);
   });
 });

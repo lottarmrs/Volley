@@ -262,10 +262,10 @@ function getTieBreakerReason(
     return 'confronto direto';
   }
 
-  if (previous.wins !== current.wins) return 'vitorias';
+  if (previous.wins !== current.wins) return 'vitórias';
   if (previous.pointsFor !== current.pointsFor) return 'pontos pro';
   if (previous.pointsAgainst !== current.pointsAgainst) return 'menor número de pontos contra';
-  return tiedGroup.length > 2 ? 'criterios agregados' : 'criterio manual';
+  return tiedGroup.length > 2 ? 'critérios agregados' : 'critério manual';
 }
 
 export function getTournamentProgress(

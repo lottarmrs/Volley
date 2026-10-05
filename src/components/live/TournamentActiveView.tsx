@@ -598,7 +598,7 @@ export const TournamentActiveView = ({
             disabled={!perms.podeIniciar}
             className="btn btn-primary px-8 uppercase tracking-widest disabled:opacity-30"
           >
-            Iniciar Torneio
+            Começar o torneio
           </button>
         </div>
       )}

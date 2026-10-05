@@ -480,6 +480,7 @@ export function CommunityMembersPanel({
                       }
                       className="btn btn-success btn-sm"
                       disabled={busy}
+                      aria-label={`Aprovar ${row.displayName || 'solicitante'}`}
                     >
                       <Check className="w-4 h-4" /> Aprovar
                     </button>
@@ -490,6 +491,7 @@ export function CommunityMembersPanel({
                       }
                       className="btn btn-ghost btn-sm text-error"
                       disabled={busy}
+                      aria-label={`Recusar ${row.displayName || 'solicitante'}`}
                     >
                       <X className="w-4 h-4" />
                     </button>

@@ -263,7 +263,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
       uploadCloudDataCommand({ payload, userId, onIssue }),
     );
 
-  const downloadFromCloud = () =>
+  const downloadFromCloud = (options: { silent?: boolean } = {}) =>
     run(
       'Download da nuvem',
       () =>
@@ -283,6 +283,7 @@ export function useCloudSync(deps: CloudSyncDeps) {
         }),
       {
         writes: false,
+        silent: options.silent,
       },
     );
 

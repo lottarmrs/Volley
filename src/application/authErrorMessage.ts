@@ -10,6 +10,14 @@ const CONHECIDOS: Array<[RegExp, string]> = [
   [/rate[_ ]limit|too many requests/i, 'Muitas tentativas. Espere um minuto e tente de novo.'],
   [/captcha/i, 'Confirme que você não é um robô e tente de novo.'],
   [/failed to fetch|network/i, 'Sem conexão. Tente de novo quando o sinal voltar.'],
+  [
+    /invalid totp|mfa_verification_failed|totp.*(expired|invalid)/i,
+    'Código incorreto ou vencido. Confira o app autenticador e tente de novo.',
+  ],
+  [
+    /mfa.*(disabled|not[_ ]enabled)|totp_enroll_not_enabled/i,
+    'A verificação em duas etapas está desligada no servidor. Avise quem administra o Volley.',
+  ],
 ];
 
 const INGLES = /\b(the|error|user|invalid|database|failed|request|unable)\b/i;

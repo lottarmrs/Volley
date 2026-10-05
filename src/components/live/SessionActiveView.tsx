@@ -38,7 +38,12 @@ import {
 } from '@app/sessionOwnershipUseCases';
 import { isAppOk } from '@app/appResult';
 import { useAuth } from '../../hooks/useAuth';
-import { SCORING_OFFLINE_MESSAGE, SCORING_READ_ONLY_MESSAGE } from '@app/scoringLock';
+import {
+  FINISH_NEEDS_SIGNAL_MESSAGE,
+  SCORING_READ_ONLY_MESSAGE,
+  SCORING_SENDING_MESSAGE,
+} from '@app/scoringLock';
+import { conflictMessage, pendingLabel } from '@app/scoreQueue';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { SessionActiveViewModel } from '@app/screens/sessionActiveView/sessionActiveViewModel';
 import type { SessionActiveViewIntent } from '@app/screens/sessionActiveView/sessionActiveViewIntents';
@@ -59,6 +64,7 @@ export const SessionActiveView = ({
     currentDeviceId,
     offline,
     readOnly,
+    scoreQueue: fila,
     setGames,
     setPointEvents,
     setGameReports,
@@ -243,22 +249,43 @@ export const SessionActiveView = ({
     if (ok) alert('Próxima partida copiada!');
   };
 
-  const locked = offline || readOnly;
-  const offlineNotice = offline ? (
-    <div role="alert" className="alert alert-warning alert-soft text-sm font-bold">
-      {SCORING_OFFLINE_MESSAGE}
-    </div>
-  ) : readOnly ? (
+  const locked = readOnly;
+  const finishLocked = readOnly || offline || !!fila?.queued;
+  const offlineNotice = readOnly ? (
     <div role="status" className="alert alert-info alert-soft text-sm font-bold">
       {SCORING_READ_ONLY_MESSAGE}
     </div>
+  ) : offline || fila?.queued ? (
+    <div
+      role="status"
+      className="alert alert-warning alert-soft text-sm font-bold flex-col items-start gap-1"
+    >
+      <span>{offline ? pendingLabel(fila?.pending ?? 0) : SCORING_SENDING_MESSAGE}</span>
+      <span className="font-medium">{FINISH_NEEDS_SIGNAL_MESSAGE}</span>
+    </div>
   ) : null;
   const canScore = control.canScore && !locked;
-  const blockedReason = offline
-    ? SCORING_OFFLINE_MESSAGE
-    : readOnly
-      ? SCORING_READ_ONLY_MESSAGE
-      : control.message;
+  const blockedReason = readOnly ? SCORING_READ_ONLY_MESSAGE : control.message;
+  const conflictDialog = fila?.conflict ? (
+    <div className="modal modal-open" role="dialog" aria-labelledby="fila-conflito-titulo">
+      <div className="modal-box max-w-md space-y-5">
+        <h3 id="fila-conflito-titulo" className="text-lg font-black text-base-content">
+          Pontos guardados no aparelho
+        </h3>
+        <p className="text-sm leading-relaxed text-base-content/70">
+          {conflictMessage(fila.conflict)}
+        </p>
+        <div className="modal-action">
+          <button type="button" className="btn btn-ghost text-error" onClick={fila.discard}>
+            Descartar os meus
+          </button>
+          <button type="button" className="btn btn-primary" onClick={fila.sendAnyway}>
+            Enviar os meus mesmo assim
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   if (activeSession.type === 'tournament' && tournamentStandings) {
     return (
@@ -288,7 +315,9 @@ export const SessionActiveView = ({
             cancelGame={cancelGame}
             updateFinalScore={updateFinalScore}
             reorderScheduledGame={reorderScheduledGame}
-            onFinishSession={() => dispatch({ kind: 'finishSession' })}
+            onFinishSession={() => {
+              if (!finishLocked) dispatch({ kind: 'finishSession' });
+            }}
             onExit={() => dispatch({ kind: 'exit' })}
             setActiveSession={setActiveSession}
             shareGameToWhatsApp={shareGameToWhatsApp}
@@ -296,6 +325,7 @@ export const SessionActiveView = ({
             games={games}
           />
         </fieldset>
+        {conflictDialog}
       </div>
     );
   }
@@ -374,7 +404,7 @@ export const SessionActiveView = ({
             </button>
             <button
               onClick={() => setShowFinishModal(true)}
-              disabled={locked}
+              disabled={finishLocked}
               className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
             >
               Encerrar pelada
@@ -435,6 +465,7 @@ export const SessionActiveView = ({
             </button>
           </div>
         </div>
+        {conflictDialog}
       </div>
     );
   }
@@ -499,7 +530,7 @@ export const SessionActiveView = ({
           </button>
           <button
             onClick={() => setShowFinishModal(true)}
-            disabled={locked}
+            disabled={finishLocked}
             className="btn btn-xs sm:btn-sm btn-accent btn-soft font-bold uppercase tracking-wider"
           >
             Encerrar pelada
@@ -508,6 +539,7 @@ export const SessionActiveView = ({
       </div>
 
       {offlineNotice}
+      {conflictDialog}
 
       <SessionOwnershipNotice
         control={control}

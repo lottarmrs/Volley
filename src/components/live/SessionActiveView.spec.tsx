@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
@@ -20,7 +20,12 @@ const pelada = makeSession('s1', {
 });
 const jogo = makeGame('g1', 's1', { teamAId: 'ta', teamBId: 'tb', status: 'active' });
 
-function renderPlacar(offline: boolean, readOnly = false, pointEvents: PointEvent[] = []) {
+function renderPlacar(
+  offline: boolean,
+  readOnly = false,
+  pointEvents: PointEvent[] = [],
+  scoreQueue?: Parameters<typeof buildSessionActiveViewContract>[0]['scoreQueue'],
+) {
   const noop = () => {};
   return render(
     <MemoryRouter>
@@ -35,6 +40,7 @@ function renderPlacar(offline: boolean, readOnly = false, pointEvents: PointEven
           currentDeviceId: 'aparelho',
           offline,
           readOnly,
+          scoreQueue,
           setGames: noop,
           setPointEvents: noop,
           setGameReports: noop,
@@ -47,26 +53,62 @@ function renderPlacar(offline: boolean, readOnly = false, pointEvents: PointEven
   );
 }
 
+const fila = (over: Partial<NonNullable<Parameters<typeof renderPlacar>[3]>> = {}) => ({
+  pending: 0,
+  queued: false,
+  sending: false,
+  conflict: null,
+  sendAnyway: vi.fn(),
+  discard: vi.fn(),
+  ...over,
+});
+
 describe('SessionActiveView sem sinal', () => {
-  it('trava desfazer e encerrar e diz por que', () => {
-    renderPlacar(true);
-    expect(screen.getByRole('alert').textContent).toContain(
-      'Sem conexão. O placar volta quando o sinal voltar.',
-    );
+  it('marca e desfaz sem sinal, mostra quantos pontos estao guardados e trava so o encerrar', () => {
+    renderPlacar(true, false, [], fila({ pending: 4, queued: true }));
+    expect(screen.getByText('Sem sinal · 4 pontos guardados no aparelho')).toBeTruthy();
+    expect(
+      screen.getByText('Encerre quando o sinal voltar e os pontos forem enviados.'),
+    ).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: /desfazer ponto/i }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    for (const botao of screen.getAllByRole('button', { name: /encerrar/i })) {
+    ).toBe(false);
+    for (const botao of screen.getAllByRole('button', { name: /encerrar pelada/i })) {
       expect((botao as HTMLButtonElement).disabled).toBe(true);
     }
   });
 
-  it('com sinal, nada trava por conexao', () => {
-    renderPlacar(false);
-    expect(screen.queryByText(/O placar volta quando o sinal voltar/)).toBeNull();
-    expect(
-      (screen.getByRole('button', { name: /desfazer ponto/i }) as HTMLButtonElement).disabled,
-    ).toBe(false);
+  it('com sinal e fila, mostra Enviando e ainda trava o encerrar', () => {
+    renderPlacar(false, false, [], fila({ pending: 2, queued: true, sending: true }));
+    expect(screen.getByText('Enviando…')).toBeTruthy();
+    for (const botao of screen.getAllByRole('button', { name: /encerrar pelada/i })) {
+      expect((botao as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+
+  it('com sinal e sem fila, nada trava', () => {
+    renderPlacar(false, false, [], fila());
+    expect(screen.queryByText(/sem sinal/i)).toBeNull();
+    for (const botao of screen.getAllByRole('button', { name: /encerrar pelada/i })) {
+      expect((botao as HTMLButtonElement).disabled).toBe(false);
+    }
+  });
+
+  it('conflito pergunta e cada botao faz o que diz', () => {
+    const q = fila({
+      pending: 4,
+      queued: true,
+      conflict: { takenOverBy: 'Bia', foreignPoints: 3, myPoints: 4 },
+    });
+    renderPlacar(false, false, [], q);
+    const dialogo = screen.getByRole('dialog');
+    expect(dialogo.textContent).toContain(
+      'Enquanto você estava sem sinal, Bia assumiu o placar e marcou 3 pontos. Você tem 4 pontos guardados.',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar os meus mesmo assim' }));
+    expect(q.sendAnyway).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar os meus' }));
+    expect(q.discard).toHaveBeenCalledTimes(1);
   });
 });
 

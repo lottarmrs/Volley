@@ -612,6 +612,7 @@ export function SessionActiveRoute() {
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
         offline: scoringOffline,
+        scoreQueue: sess.scoreQueue,
         readOnly: !podeOrganizar.pending && !podeOrganizar.allowed,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,

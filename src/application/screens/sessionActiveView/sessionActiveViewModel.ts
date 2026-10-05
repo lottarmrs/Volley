@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import type { ScoreQueueConflict } from '@app/scoreQueue';
 import type { Game, GameReport, Player, PointEvent, Session, Team } from '@shared/types';
 
 export interface SessionActiveViewModel {
@@ -12,6 +13,14 @@ export interface SessionActiveViewModel {
   currentDeviceId: string;
   offline: boolean;
   readOnly: boolean;
+  scoreQueue?: {
+    pending: number;
+    queued: boolean;
+    sending: boolean;
+    conflict: ScoreQueueConflict | null;
+    sendAnyway: () => void;
+    discard: () => void;
+  };
   // ponytail: setters no model p/ shallow contract alimentar o hook interno sem extraí-lo ao shell.
   // sync-safe: NÃO são functional updaters — são pass-through. Os 19 (prev)=>… ficam DENTRO do hook.
   setGames: Dispatch<SetStateAction<Game[]>>;

@@ -405,6 +405,7 @@ export function LegacyActiveSessionRoute() {
         gameReports: sess.gameReports,
         currentDeviceId: shell.currentDeviceId,
         offline: scoringOffline,
+        scoreQueue: sess.scoreQueue,
         setGames: sess.setGames,
         setPointEvents: sess.setPointEvents,
         setGameReports: sess.setGameReports,

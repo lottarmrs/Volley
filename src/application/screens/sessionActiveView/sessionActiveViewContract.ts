@@ -22,6 +22,7 @@ export interface SessionActiveViewContractInput {
   currentDeviceId: string;
   offline?: boolean;
   readOnly?: boolean;
+  scoreQueue?: SessionActiveViewModel['scoreQueue'];
   setGames: Dispatch<SetStateAction<Game[]>>;
   setPointEvents: Dispatch<SetStateAction<PointEvent[]>>;
   setGameReports: Dispatch<SetStateAction<GameReport[]>>;
@@ -43,6 +44,7 @@ export function buildSessionActiveViewContract(
     currentDeviceId: input.currentDeviceId,
     offline: input.offline ?? false,
     readOnly: input.readOnly ?? false,
+    scoreQueue: input.scoreQueue,
     setGames: input.setGames,
     setPointEvents: input.setPointEvents,
     setGameReports: input.setGameReports,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { AccountGateway, AccountSnapshot } from '@app/accountUseCases';
@@ -6,6 +6,13 @@ import { ensureAccountReadyCommand } from '@app/accountUseCases';
 import { isAppOk } from '@app/appResult';
 import { resolveAuthSessionState, type AuthSessionState } from '@app/authSession';
 import type { AuthClient } from '@app/authClient';
+import { accountForOfflineBoot } from '@app/offlineAccountBoot';
+import {
+  clearAccountSnapshot,
+  loadAccountSnapshot,
+  saveAccountSnapshot,
+} from '@storage/accountSnapshotStore';
+import { loadScoreQueue } from '@storage/scoreQueueStore';
 import { AuthSessionContext, type AuthSessionContextValue } from './useAuthSession';
 
 export function AuthSessionProvider({
@@ -20,11 +27,14 @@ export function AuthSessionProvider({
   const [state, setState] = useState<AuthSessionState>({ kind: 'initializing' });
   const [session, setSession] = useState<Session | null>(null);
   const [account, setAccount] = useState<AccountSnapshot | null>(null);
+  const lastUserId = useRef<string | null>(null);
 
   const reconcile = useCallback(
     async (nextSession: Session | null, username?: string) => {
       setSession(nextSession);
       if (!nextSession) {
+        if (lastUserId.current) clearAccountSnapshot(lastUserId.current);
+        lastUserId.current = null;
         setAccount(null);
         setState({ kind: 'anonymous' });
         return;
@@ -33,8 +43,14 @@ export function AuthSessionProvider({
         setState({ kind: 'email_verification', userId: nextSession.user.id });
         return;
       }
+      const userId = nextSession.user.id;
+      lastUserId.current = userId;
       const result = await ensureAccountReadyCommand(accountGateway, username);
-      if (!isAppOk(result)) {
+      let ready: AccountSnapshot;
+      if (isAppOk(result)) {
+        ready = result.value;
+        saveAccountSnapshot(userId, ready);
+      } else {
         // Handle tomado entre a checagem e o submit e erro de campo, nao falha de
         // bootstrap: virar 'recoverable_error' aqui arrancaria a pessoa do
         // formulario para /auth/recuperar-sessao. Quem chamou com username tem
@@ -46,19 +62,23 @@ export function AuthSessionProvider({
         ) {
           throw new Error(result.error.message);
         }
-        setState({
-          kind: 'recoverable_error',
-          userId: nextSession.user.id,
-          message: result.error.message,
+        const cached = accountForOfflineBoot({
+          error: result.error,
+          cached: loadAccountSnapshot(userId),
+          queue: loadScoreQueue(userId),
         });
-        return;
+        if (!cached) {
+          setState({ kind: 'recoverable_error', userId, message: result.error.message });
+          return;
+        }
+        ready = cached;
       }
-      setAccount(result.value);
+      setAccount(ready);
       const aal = await authClient.getAssuranceLevel().catch(() => null);
       setState(
         resolveAuthSessionState({
-          session: { userId: nextSession.user.id, emailConfirmed: true },
-          account: result.value,
+          session: { userId, emailConfirmed: true },
+          account: ready,
           aal,
         }),
       );

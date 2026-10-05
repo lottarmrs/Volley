@@ -127,9 +127,16 @@ export async function copyToClipboard(text: string) {
   }
 }
 
-export function openWhatsAppShare(text: string) {
-  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  window.open(url, '_blank');
+export async function openWhatsAppShare(text: string): Promise<void> {
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 
 export function formatTournamentFinalForWhatsApp(input: {

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { toPng } from 'html-to-image';
 import {
   X,
   Copy,
@@ -34,6 +33,7 @@ import {
 import { autoFormFromHistory, calculateSessionRating } from '../../logic/rating';
 import { calculatePlayerStats } from '../../logic/statistics';
 import { calculateSessionRecognition } from '../../logic/match';
+import { shareCardImage } from '../../logic/shareCardImage';
 
 interface FutCardModalProps {
   isOpen: boolean;
@@ -476,37 +476,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     if (!cardRef.current) return;
     setExporting(true);
     try {
-      // Ensure fonts are ready
-      await document.fonts.ready;
-
-      // Generate PNG with higher pixel ratio for crispness
-      const dataUrl = await toPng(cardRef.current, {
-        pixelRatio: 2.5,
-        cacheBust: true,
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-        },
-      });
-
-      // Try web share if sharing files is supported, otherwise fallback to download
-      const filename = `vut-${player.nome.toLowerCase().replace(/\s+/g, '-')}.png`;
-
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], filename, { type: 'image/png' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Carta VUT — ${player.nome}`,
-          text: `Confira minha carta no Volley Ultimate Team!`,
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = dataUrl;
-        link.click();
-      }
+      await shareCardImage(cardRef.current, player.nome);
     } catch (err) {
       console.error('Failed to export image', err);
     } finally {

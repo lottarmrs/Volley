@@ -188,55 +188,61 @@ export const FutCard: React.FC<FutCardProps> = ({ card, onClick, scale = 1 }) =>
           </div>
 
           {/* Stats Box (Horizontal FUT Style) */}
-          <div className="absolute top-[242px] left-[15px] w-[230px] z-20">
-            <div className="bg-black/55 backdrop-blur-md rounded-xl border border-white/10 px-1 py-1.5 shadow-lg flex justify-around items-center font-mono">
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] font-bold text-white/40 tracking-wider">ATQ</span>
-                <span className="text-[13px] font-black leading-none mt-0.5">
-                  {show(stats.atq)}
-                </span>
+          <div
+            className={`absolute ${stats.rated ? 'top-[242px]' : 'top-[238px]'} left-[15px] w-[230px] z-20`}
+          >
+            <div
+              className={`bg-black/55 backdrop-blur-md rounded-xl border border-white/10 px-1 shadow-lg font-mono ${stats.rated ? 'py-1.5' : 'pt-1 pb-0.5'}`}
+            >
+              <div className="flex justify-around items-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-white/40 tracking-wider">ATQ</span>
+                  <span className="text-[13px] font-black leading-none mt-0.5">
+                    {show(stats.atq)}
+                  </span>
+                </div>
+                <div className="w-[1px] h-[14px] bg-white/10" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-white/40 tracking-wider">LEV</span>
+                  <span className="text-[13px] font-black leading-none mt-0.5">
+                    {show(stats.lev)}
+                  </span>
+                </div>
+                <div className="w-[1px] h-[14px] bg-white/10" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-white/40 tracking-wider">BLO</span>
+                  <span className="text-[13px] font-black leading-none mt-0.5">
+                    {show(stats.blo)}
+                  </span>
+                </div>
+                <div className="w-[1px] h-[14px] bg-white/10" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-white/40 tracking-wider">DEF</span>
+                  <span className="text-[13px] font-black leading-none mt-0.5">
+                    {show(stats.def)}
+                  </span>
+                </div>
+                <div className="w-[1px] h-[14px] bg-white/10" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-white/40 tracking-wider">SAQ</span>
+                  <span className="text-[13px] font-black leading-none mt-0.5">
+                    {show(stats.saq)}
+                  </span>
+                </div>
+                <div className="w-[1px] h-[14px] bg-white/10" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-bold text-white/40 tracking-wider">FIS</span>
+                  <span className="text-[13px] font-black leading-none mt-0.5">
+                    {show(stats.fis)}
+                  </span>
+                </div>
               </div>
-              <div className="w-[1px] h-[14px] bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] font-bold text-white/40 tracking-wider">LEV</span>
-                <span className="text-[13px] font-black leading-none mt-0.5">
-                  {show(stats.lev)}
-                </span>
-              </div>
-              <div className="w-[1px] h-[14px] bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] font-bold text-white/40 tracking-wider">BLO</span>
-                <span className="text-[13px] font-black leading-none mt-0.5">
-                  {show(stats.blo)}
-                </span>
-              </div>
-              <div className="w-[1px] h-[14px] bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] font-bold text-white/40 tracking-wider">DEF</span>
-                <span className="text-[13px] font-black leading-none mt-0.5">
-                  {show(stats.def)}
-                </span>
-              </div>
-              <div className="w-[1px] h-[14px] bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] font-bold text-white/40 tracking-wider">SAQ</span>
-                <span className="text-[13px] font-black leading-none mt-0.5">
-                  {show(stats.saq)}
-                </span>
-              </div>
-              <div className="w-[1px] h-[14px] bg-white/10" />
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] font-bold text-white/40 tracking-wider">FIS</span>
-                <span className="text-[13px] font-black leading-none mt-0.5">
-                  {show(stats.fis)}
-                </span>
-              </div>
+              {!stats.rated && (
+                <p className="mt-0.5 border-t border-white/10 pt-[3px] text-center font-sans text-[8px] font-bold uppercase leading-none tracking-wider text-white/80">
+                  Aguardando avaliação
+                </p>
+              )}
             </div>
-            {!stats.rated && (
-              <p className="mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-white/80">
-                Aguardando avaliação
-              </p>
-            )}
           </div>
 
           {/* Chemistry & Footer Section */}

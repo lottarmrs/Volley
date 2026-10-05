@@ -676,6 +676,7 @@ export const AthleteNightReveal: React.FC<AthleteNightRevealProps> = ({
                   onClick={compartilhar}
                   disabled={compartilhando}
                   aria-busy={compartilhando}
+                  aria-label="Compartilhar"
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-primary text-sm font-black uppercase tracking-[0.1em] text-white transition-colors duration-150 hover:bg-primary-hover disabled:opacity-60"
                 >
                   <Share2 className="h-4 w-4" aria-hidden />

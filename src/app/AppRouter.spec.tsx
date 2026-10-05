@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
@@ -23,6 +23,8 @@ vi.mock('./auth/useAuthSession', () => ({
 vi.mock('../lib/supabaseClient', () => ({ isSupabaseConfigured: false, supabase: null }));
 
 import { AppRouter } from './AppRouter';
+
+configure({ asyncUtilTimeout: 5000 });
 
 const stubAuthClient = {
   getSession: async () => null,

@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../storage/localStorageRepository';
 import { makeGame, makeSession } from '../test/fixtures';
-import type { PointEvent } from '../types';
+import type { Community, PointEvent } from '../types';
+import { fetchMyCommunities } from '../application/communityDataQueries';
 import { fetchMySessions, emptySessionBundle } from '../application/sessionDataQueries';
 import { persistSessionBundleChanges } from '../application/sessionWrites';
 import { fetchLiveScoreState } from '../infra/supabase/liveScoreCloudService';
@@ -125,6 +126,7 @@ describe('useSessions com conta', () => {
       .mockReset()
       .mockResolvedValue({ ...emptySessionBundle(), sessions: [emAndamento] });
     vi.mocked(persistSessionBundleChanges).mockReset().mockResolvedValue();
+    vi.mocked(fetchMyCommunities).mockReset().mockResolvedValue([]);
   });
 
   it('le as peladas do banco e adota a que a pessoa controla', async () => {
@@ -460,6 +462,61 @@ describe('useSessions com conta', () => {
       act(() => result.current.scoreQueue.discard());
       await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
       expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+    });
+
+    it('reabrir com sinal so envia depois que as comunidades chegam', async () => {
+      const comComunidade = { ...emAndamento, communityId: 'c1' };
+      vi.mocked(fetchMySessions).mockResolvedValue({
+        ...emptySessionBundle(),
+        sessions: [comComunidade],
+      });
+      const primeira = render();
+      await waitFor(() => expect(primeira.result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => primeira.result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(localStorage.getItem('volley.placar.u1')).toContain('p1'));
+      primeira.unmount();
+
+      let entregar: (lista: Community[]) => void = () => {};
+      vi.mocked(fetchMyCommunities).mockImplementation(
+        () =>
+          new Promise<Community[]>((resolve) => {
+            entregar = resolve;
+          }),
+      );
+      const vistos: (string | null)[] = [];
+      vi.mocked(persistSessionBundleChanges).mockImplementation(async (_a, _b, contexto) => {
+        vistos.push(contexto.communityCloudId('c1'));
+      });
+      voltarSinal();
+      onlineManager.setOnline(true);
+      const outra = render();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+      await act(async () => {
+        entregar([{ id: 'c1', cloudId: 'nuvem-c1' } as Community]);
+      });
+      await waitFor(() => expect(outra.result.current.scoreQueue.queued).toBe(false));
+      expect(vistos).toEqual(['nuvem-c1']);
+    });
+
+    it('reabrir com sinal e falhar ao ler as comunidades guarda a fila', async () => {
+      const primeira = render();
+      await waitFor(() => expect(primeira.result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => primeira.result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(localStorage.getItem('volley.placar.u1')).toContain('p1'));
+      primeira.unmount();
+
+      vi.mocked(fetchMyCommunities).mockRejectedValue({ code: '', message: 'Bad Gateway' });
+      voltarSinal();
+      onlineManager.setOnline(true);
+      const outra = render();
+      await waitFor(() => expect(outra.result.current.scoreQueue.queued).toBe(true));
+      await new Promise((r) => setTimeout(r, 50));
+      await waitFor(() => expect(outra.result.current.scoreQueue.sending).toBe(false));
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+      expect(localStorage.getItem('volley.placar.u1')).toContain('p1');
     });
   });
 });

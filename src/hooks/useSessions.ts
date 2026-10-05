@@ -363,6 +363,14 @@ export function useSessions() {
       writeVersion.current += 1;
       writeChain.current = writeChain.current
         .then(async () => {
+          try {
+            await queryClient.ensureQueryData<Community[]>({
+              queryKey: queryKeys.comunidades(userId),
+              queryFn: fetchMyCommunities,
+            });
+          } catch {
+            return;
+          }
           const result = await drainScoreQueue({
             state: queueRef.current ?? state,
             force,

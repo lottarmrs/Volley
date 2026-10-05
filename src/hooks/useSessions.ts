@@ -218,6 +218,10 @@ export function useSessions() {
   const currentGames = online ? remote.games : games;
   const currentPointEvents = online ? remote.pointEvents : pointEvents;
   const currentGameReports = online ? remote.gameReports : gameReports;
+  const livePointEvents = useMemo(
+    () => currentPointEvents.filter((point) => !point.deletedAt),
+    [currentPointEvents],
+  );
   const currentSessionReports = online ? remote.sessionReports : sessionReports;
 
   const [activeId, setActiveId] = useState<string | null | undefined>(undefined);
@@ -388,7 +392,8 @@ export function useSessions() {
     setTeams,
     games: currentGames,
     setGames,
-    pointEvents: currentPointEvents,
+    pointEvents: livePointEvents,
+    rawPointEvents: currentPointEvents,
     setPointEvents,
     gameReports: currentGameReports,
     setGameReports,

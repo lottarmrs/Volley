@@ -191,7 +191,7 @@ export function AppShell() {
     sessions: sess.rawSessions,
     teams: sess.teams,
     games: sess.games,
-    pointEvents: sess.pointEvents,
+    pointEvents: sess.rawPointEvents,
     gameReports: sess.gameReports,
     sessionReports: sess.sessionReports,
     presenceRecords: communityPresence.presenceRecords,

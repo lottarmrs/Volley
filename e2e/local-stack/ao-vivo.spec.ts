@@ -100,6 +100,9 @@ test('placar ao vivo: quem marca, outra tela de quem organiza e a membro acompan
     await expect(ana.getByText(`Eventos (${deQuemMarca})`).first()).toBeVisible({
       timeout: 15_000,
     });
+    expect(deQuemMarca).toBe(String(a + b));
+    await expect(marca.getByText('Desfeito')).toHaveCount(1);
+    await expect(ana.getByText('Desfeito')).toHaveCount(1, { timeout: 15_000 });
   });
 
   console.log(`outra tela de quem organiza: ${resumo(naOutraTela)}`);

@@ -68,6 +68,7 @@ export const SessionActiveView = ({
     currentGame,
     sessionGames,
     sessionPoints,
+    undonePoints,
     teamStats,
     scoringRanking,
     tournamentStandings,
@@ -892,19 +893,20 @@ export const SessionActiveView = ({
               <span className="badge badge-accent badge-soft font-bold uppercase">Tempo Real</span>
             </div>
             <div className="sm:max-h-80 sm:overflow-y-auto p-2 space-y-1">
-              {sessionPoints
-                .slice()
+              {[...sessionPoints, ...undonePoints]
+                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
                 .reverse()
                 .map((p) => {
                   const label = getPointLabel(p, sessionTeams, players);
+                  const desfeito = !!p.deletedAt;
                   return (
                     <motion.div
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       key={p.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl hover:bg-base-100 transition-colors group"
+                      className={`flex items-center justify-between p-2.5 rounded-xl hover:bg-base-100 transition-colors group ${desfeito ? 'opacity-50' : ''}`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className={`flex items-center gap-3 ${desfeito ? 'line-through' : ''}`}>
                         <span className="text-[10px] font-mono text-accent opacity-50 w-14 shrink-0">
                           J{games.find((g) => g.id === p.gameId)?.sequenceNumber}•#
                           {p.sequenceNumber}
@@ -928,6 +930,9 @@ export const SessionActiveView = ({
                           >
                             {p.eventKind === 'highlight' ? '🌟' : label.score}
                           </p>
+                          {desfeito && (
+                            <p className="text-[8px] font-bold uppercase text-error">Desfeito</p>
+                          )}
                           <p className="text-[7px] text-text-muted font-mono uppercase">
                             {new Date(p.timestamp).toLocaleTimeString([], {
                               hour: '2-digit',
@@ -949,7 +954,7 @@ export const SessionActiveView = ({
                     </motion.div>
                   );
                 })}
-              {sessionPoints.length === 0 && (
+              {sessionPoints.length === 0 && undonePoints.length === 0 && (
                 <div className="text-center py-12 text-xs text-text-muted opacity-30 italic uppercase border border-dashed border-base-300 rounded-xl">
                   Nenhum ponto marcado nesta pelada ainda.
                 </div>

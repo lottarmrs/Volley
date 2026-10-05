@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { buildSessionActiveViewContract } from '@app/screens/sessionActiveView/sessionActiveViewContract';
 import { SessionActiveView } from './SessionActiveView';
+import type { PointEvent } from '@shared/types';
 import { makeFreePlayConfig, makeGame, makeSession, makeTeam } from '../../test/fixtures';
 
 vi.mock('../../hooks/useAuth', () => ({
@@ -19,7 +20,7 @@ const pelada = makeSession('s1', {
 });
 const jogo = makeGame('g1', 's1', { teamAId: 'ta', teamBId: 'tb', status: 'active' });
 
-function renderPlacar(offline: boolean, readOnly = false) {
+function renderPlacar(offline: boolean, readOnly = false, pointEvents: PointEvent[] = []) {
   const noop = () => {};
   return render(
     <MemoryRouter>
@@ -27,7 +28,7 @@ function renderPlacar(offline: boolean, readOnly = false) {
         contract={buildSessionActiveViewContract({
           activeSession: pelada,
           games: [jogo],
-          pointEvents: [],
+          pointEvents,
           players: [],
           sessionTeams: [teamA, teamB],
           gameReports: [],
@@ -87,5 +88,30 @@ describe('SessionActiveView para quem acompanha', () => {
       expect((botao as HTMLButtonElement).disabled).toBe(true);
     }
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('SessionActiveView eventos', () => {
+  const ponto = (id: string, segundos: number, antes: number, deletedAt?: string): PointEvent => ({
+    id,
+    sessionId: 's1',
+    gameId: 'g1',
+    sequenceNumber: antes + 1,
+    scoringTeamId: 'ta',
+    concedingTeamId: 'tb',
+    scoreBefore: { teamA: antes, teamB: 0 },
+    scoreAfter: { teamA: antes + 1, teamB: 0 },
+    timestamp: new Date(Date.UTC(2026, 9, 5, 20, 0, segundos)).toISOString(),
+    deletedAt,
+  });
+
+  it('o ponto desfeito aparece marcado e fica fora da contagem', () => {
+    renderPlacar(false, false, [
+      ponto('p1', 1, 0),
+      ponto('p2', 2, 1, '2026-10-05T20:00:03.000Z'),
+      ponto('p3', 4, 1),
+    ]);
+    expect(screen.getByRole('button', { name: /eventos \(2\)/i })).toBeDefined();
+    expect(screen.getAllByText('Desfeito')).toHaveLength(1);
   });
 });

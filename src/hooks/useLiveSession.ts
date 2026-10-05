@@ -35,7 +35,7 @@ export function useLiveSession(
   activeSession: Session | null,
   games: Game[],
   setGames: React.Dispatch<React.SetStateAction<Game[]>>,
-  pointEvents: PointEvent[],
+  allPointEvents: PointEvent[],
   setPointEvents: React.Dispatch<React.SetStateAction<PointEvent[]>>,
   players: Player[],
   sessionTeams: Team[],
@@ -76,9 +76,19 @@ export function useLiveSession(
   const currentGame =
     activeGame ?? (activeSession?.type === 'tournament' ? lastResultGame : lastGame);
 
+  const pointEvents = useMemo(() => allPointEvents.filter((p) => !p.deletedAt), [allPointEvents]);
+
   const sessionPoints = useMemo(
     () => pointEvents.filter((p) => p.sessionId === activeSession?.id),
     [pointEvents, activeSession?.id],
+  );
+
+  const undonePoints = useMemo(
+    () =>
+      allPointEvents.filter(
+        (p) => p.sessionId === activeSession?.id && !!p.deletedAt && p.eventKind !== 'highlight',
+      ),
+    [allPointEvents, activeSession?.id],
   );
 
   const teamStats = useMemo(
@@ -456,7 +466,10 @@ export function useLiveSession(
     if (currentGamePoints.length === 0) return;
     const lastPoint = currentGamePoints[currentGamePoints.length - 1];
 
-    setPointEvents((prev) => prev.filter((p) => p.id !== lastPoint.id));
+    const undoneAt = new Date().toISOString();
+    setPointEvents((prev) =>
+      prev.map((p) => (p.id === lastPoint.id ? { ...p, deletedAt: undoneAt } : p)),
+    );
     setGameReports((prev) => prev.filter((report) => report.gameId !== currentGame.id));
     setGames((prev) =>
       prev.map((g) => {
@@ -731,6 +744,7 @@ export function useLiveSession(
     finishCurrentGameManually,
     startNextGame,
     undoLastPoint,
+    undonePoints,
     registerWalkover,
     pauseGame,
     reopenGame,

@@ -606,7 +606,7 @@ export function SessionActiveRoute() {
       contract={buildSessionActiveViewContract({
         activeSession: sess.activeSession!,
         games: sess.games,
-        pointEvents: sess.pointEvents,
+        pointEvents: sess.rawPointEvents,
         players: play.players,
         sessionTeams: selectSessionTeams(sess.teams, sess.activeSession?.id),
         gameReports: sess.gameReports,

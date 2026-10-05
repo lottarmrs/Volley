@@ -218,7 +218,10 @@ describe('useLiveSession multi-set and tournament scheduling', () => {
       result.current.live.undoLastPoint();
     });
 
-    expect(result.current.pointEvents).toHaveLength(0);
+    expect(result.current.pointEvents).toHaveLength(1);
+    expect(result.current.pointEvents[0].deletedAt).toBeTruthy();
+    expect(result.current.live.sessionPoints).toHaveLength(0);
+    expect(result.current.live.undonePoints).toHaveLength(1);
     expect(result.current.gameReports).toHaveLength(0);
     expect(result.current.games[0]).toMatchObject({
       status: 'active',
@@ -229,6 +232,45 @@ describe('useLiveSession multi-set and tournament scheduling', () => {
       scoreB: 7,
       sets: [{ scoreA: 12, scoreB: 9 }],
     });
+  });
+
+  it('desfazer duas vezes seguidas desfaz dois pontos, nao o mesmo duas vezes', () => {
+    const { result } = renderHook(() => useHarness(buildFixture()));
+    act(() => {
+      result.current.live.registerPoint('team-a');
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+      result.current.live.registerPoint('team-b');
+    });
+    act(() => {
+      result.current.live.undoLastPoint();
+    });
+    act(() => {
+      result.current.live.undoLastPoint();
+    });
+
+    expect(result.current.games[0]).toMatchObject({ scoreA: 0, scoreB: 0 });
+    expect(result.current.live.sessionPoints).toHaveLength(0);
+    expect(result.current.live.undonePoints).toHaveLength(2);
+  });
+
+  it('ponto marcado depois do desfazer nao conta o desfeito', () => {
+    const { result } = renderHook(() => useHarness(buildFixture()));
+    act(() => {
+      result.current.live.registerPoint('team-a', 'p1', 'attack');
+    });
+    act(() => {
+      result.current.live.undoLastPoint();
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+      result.current.live.registerPoint('team-b', 'p2', 'attack');
+    });
+
+    expect(result.current.games[0]).toMatchObject({ scoreA: 0, scoreB: 1 });
+    expect(result.current.live.sessionPoints.map((p) => p.scoringTeamId)).toEqual(['team-b']);
+    expect(result.current.live.scoringRanking.map((r) => r.playerId)).toEqual(['p2']);
   });
 
   it('reordena partidas ativas ou pausadas dentro da tabela', () => {

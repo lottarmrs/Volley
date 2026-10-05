@@ -45,6 +45,7 @@ describe('FutCard', () => {
     });
     render(<FutCard card={card} />);
     expect(screen.queryByText('Aguardando avaliação')).toBeNull();
+    expect(screen.queryByText('?')).toBeNull();
     expect(screen.getAllByText(String(card.stats.atq)).length).toBeGreaterThan(0);
   });
 });

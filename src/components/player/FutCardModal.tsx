@@ -300,8 +300,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     text += `🟢 Forma: ${formVal !== null ? formVal.toFixed(1) : '—'} (${cardData.edition.label} ${cardData.edition.emoji})\n\n`;
 
     text += `── ATRIBUTOS ──────────\n`;
-    text += `ATQ ${cardData.stats.atq} | BLO ${cardData.stats.blo} | SAQ ${cardData.stats.saq}\n`;
-    text += `LEV ${cardData.stats.lev} | DEF ${cardData.stats.def} | FÍS ${cardData.stats.fis}\n\n`;
+    const num = (value: number) => (cardData.stats.rated ? value : '—');
+    text += `ATQ ${num(cardData.stats.atq)} | BLO ${num(cardData.stats.blo)} | SAQ ${num(cardData.stats.saq)}\n`;
+    text += `LEV ${num(cardData.stats.lev)} | DEF ${num(cardData.stats.def)} | FÍS ${num(cardData.stats.fis)}\n\n`;
 
     text += `── QUÍMICA ────────────\n`;
     if (cardData.chemistry.length > 0) {
@@ -935,7 +936,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           {
             label: 'Card individual',
             icon: <ImageIcon className="w-4 h-4" />,
-            text: `${player.nome} - Carta VUT\nOVR ${cardData.stats.ovr} | ${cardData.posLabel} | ${cardData.edition.label}\nMoldura: ${equippedFrame.name}`,
+            text: `${player.nome} - Carta VUT\nOVR ${cardData.stats.rated ? cardData.stats.ovr : '?'} | ${cardData.posLabel} | ${cardData.edition.label}\nMoldura: ${equippedFrame.name}`,
           },
           {
             label: 'Resumo atleta',

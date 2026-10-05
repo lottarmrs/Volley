@@ -23,7 +23,7 @@ import { CommunitySkillProfileResult } from './CommunitySkillProfilePanel';
 import { CareerTimeline } from './CareerTimeline';
 import { usePlayerCareer } from '../../hooks/usePlayerCareer';
 import { careerStatsFromTotals } from '../../logic/career';
-import { Player, Session, Team, Game, PointEvent } from '../../types';
+import { Attributes, Player, Session, Team, Game, PointEvent } from '../../types';
 import {
   buildVutCard,
   VutCard,
@@ -46,6 +46,7 @@ interface FutCardModalProps {
   pointEvents: PointEvent[];
   communityId?: string | null;
   canSeeEvaluation?: boolean;
+  skillValues?: Map<string, Partial<Attributes>>;
 }
 
 type MobileTab =
@@ -124,6 +125,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   pointEvents,
   communityId = null,
   canSeeEvaluation = false,
+  skillValues,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [includeHistory, setIncludeHistory] = useState(true);
@@ -168,8 +170,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
       pointEvents,
       players,
       sessionReports: [],
+      skillValues,
     });
-  }, [player, players, sessions, teams, games, pointEvents]);
+  }, [player, players, sessions, teams, games, pointEvents, skillValues]);
 
   // Technical stats calculated
   const playerStats = calculatePlayerStats(player, games, pointEvents, teams, sessions);

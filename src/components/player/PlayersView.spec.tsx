@@ -5,6 +5,10 @@ import { buildPlayersViewContract } from '@app/screens/playersView/playersViewCo
 import { makePlayer } from '../../test/fixtures';
 import { PlayersView } from './PlayersView';
 
+vi.mock('../../hooks/useCommunityCardStats', () => ({
+  useCommunityCardStats: () => new Map([['p2', { ataque: 9, saque: 9, defesa: 9 }]]),
+}));
+
 const community = { id: 'c1', name: 'Panelinha' } as Community;
 
 function renderView(
@@ -98,5 +102,16 @@ describe('PlayersView', () => {
       abrir();
       expect(screen.queryAllByRole('button', { name: /avaliação/i })).toHaveLength(0);
     });
+  });
+  it('membro comum ve o OVR da avaliacao na carta de outro atleta', () => {
+    const outro = makePlayer('p2', {
+      nome: 'Bruno Lima',
+      communityIds: ['c1'],
+      cloudId: 'cp2',
+      userId: 'u-bruno',
+    });
+    renderView([outro], { canEvaluate: false, currentUserId: 'u-outro', cloudId: 'cc1' });
+    fireEvent.click(screen.getByText('Bruno Lima'));
+    expect(screen.getAllByText('92').length).toBeGreaterThan(0);
   });
 });

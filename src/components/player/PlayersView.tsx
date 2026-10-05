@@ -4,6 +4,8 @@ import type { Player } from '@shared/types';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { PlayersViewModel } from '@app/screens/playersView/playersViewModel';
 import type { PlayersViewIntent } from '@app/screens/playersView/playersViewIntents';
+import { applySkillValues } from '@logic/futCards';
+import { useCommunityCardStats } from '../../hooks/useCommunityCardStats';
 import { PlayerItem } from './PlayerComponents';
 import { FutCardModal } from './FutCardModal';
 import { matchesSearch } from '../../logic/textNormalization';
@@ -26,6 +28,12 @@ export const PlayersView = ({
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVutPlayer, setSelectedVutPlayer] = useState<Player | null>(null);
+  const skillValues = useCommunityCardStats(roster?.community.cloudId ?? null, players);
+  const comAvaliacao = (player: Player) => {
+    if (!skillValues) return player;
+    const applied = applySkillValues(player, skillValues.get(player.id));
+    return applied.rated ? applied.player : player;
+  };
   const [rosterFilter, setRosterFilter] = useState<CommunityRosterFilter>('all');
   const communitySessions = roster ? getCommunitySessions(roster.community.id, sessions) : [];
   const frequentes = frequentPlayerIds(communitySessions);
@@ -114,7 +122,7 @@ export const PlayersView = ({
         {visiblePlayers.map((player) => (
           <PlayerItem
             key={player.id}
-            player={player}
+            player={comAvaliacao(player)}
             onToggle={() => setSelectedVutPlayer(player)}
             onViewVutCard={(p) => setSelectedVutPlayer(p)}
             isFrequent={frequentes.has(player.id)}
@@ -164,6 +172,7 @@ export const PlayersView = ({
           teams={teams}
           games={games}
           pointEvents={pointEvents}
+          skillValues={skillValues}
           communityId={roster?.community.cloudId ?? null}
           canSeeEvaluation={Boolean(
             roster &&

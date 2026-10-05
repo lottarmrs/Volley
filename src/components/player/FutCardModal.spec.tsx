@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { Attributes } from '@shared/types';
 import { makePlayer } from '../../test/fixtures';
 import { FutCardModal } from './FutCardModal';
 
@@ -22,6 +23,7 @@ function renderCarta(props: {
   cloudId?: string;
   communityId?: string | null;
   canSeeEvaluation?: boolean;
+  skillValues?: Map<string, Partial<Attributes>>;
 }) {
   const player = makePlayer('p1', { cloudId: props.cloudId });
   return render(
@@ -36,6 +38,7 @@ function renderCarta(props: {
       pointEvents={[]}
       communityId={props.communityId}
       canSeeEvaluation={props.canSeeEvaluation}
+      skillValues={props.skillValues}
     />,
   );
 }
@@ -59,5 +62,13 @@ describe('FutCardModal, aba Avaliação', () => {
     renderCarta({ communityId: 'cc1', canSeeEvaluation: true });
     expect(screen.queryAllByRole('button', { name: /avaliação/i })).toHaveLength(0);
     expect(screen.queryAllByRole('tab', { name: /avaliação/i })).toHaveLength(0);
+  });
+});
+
+describe('FutCardModal, carta sem avaliacao', () => {
+  it('o texto de exportar nao revela OVR quando o atleta nao tem avaliacao', () => {
+    renderCarta({ skillValues: new Map() });
+    fireEvent.click(screen.getAllByRole('button', { name: /exportar/i })[0]);
+    expect(screen.getAllByText(/OVR: \?/).length).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@app/queryKeys';
 import { buildAthleteNight, type AthleteNight } from '@app/athleteNight';
@@ -22,7 +22,7 @@ export function useAthleteNight(input: {
   const { userId, players, communities, history } = input;
   const queryClient = useQueryClient();
   const [dismissed, setDismissed] = useState<string[]>([]);
-  const [shown, setShown] = useState<AthleteNight | null>(null);
+  const shown = useRef<{ night: AthleteNight; cloudSessionId: string } | null>(null);
   const enabled = isSupabaseConfigured && !!userId;
 
   const pending = useQuery({
@@ -34,6 +34,8 @@ export function useAthleteNight(input: {
 
   const target = enabled ? (pending.data ?? null) : null;
   const skillValues = useCommunityCardStats(target?.communityId ?? null, players);
+
+  const targetSessionId = target?.sessionId ?? null;
 
   const community = target
     ? (communities.find((c) => (c.cloudId ?? c.id) === target.communityId) ?? null)
@@ -57,22 +59,20 @@ export function useAthleteNight(input: {
   });
 
   useEffect(() => {
-    if (built && !shown) setShown(built);
-  }, [built, shown]);
-
-  const targetSessionId = target?.sessionId ?? null;
+    if (built && targetSessionId) shown.current = { night: built, cloudSessionId: targetSessionId };
+  }, [built, targetSessionId]);
 
   const markSeen = useCallback(() => {
     if (targetSessionId) mutate(targetSessionId);
   }, [mutate, targetSessionId]);
 
   const dismiss = useCallback(() => {
-    const ids = [targetSessionId, shown?.sessionId].filter((id): id is string => !!id);
+    const ids = [targetSessionId, shown.current?.cloudSessionId].filter((id): id is string => !!id);
     setDismissed((current) => [...current, ...ids]);
-    setShown(null);
-  }, [targetSessionId, shown]);
+    shown.current = null;
+  }, [targetSessionId]);
 
-  const night = shown ?? built;
+  const night = built ?? shown.current?.night ?? null;
 
   return { night, communityName: community?.name ?? null, markSeen, dismiss };
 }

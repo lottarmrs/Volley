@@ -12,7 +12,8 @@ vi.mock('@infra/supabase/careerCloudService', () => ({
     markNightSeen: (id: string) => markNightSeen(id),
   },
 }));
-vi.mock('./useCommunityCardStats', () => ({ useCommunityCardStats: () => undefined }));
+let cardStats: Map<string, Record<string, number>> | undefined;
+vi.mock('./useCommunityCardStats', () => ({ useCommunityCardStats: () => cardStats }));
 vi.mock('../lib/supabaseClient', () => ({ isSupabaseConfigured: true, supabase: {} }));
 
 const ana = {
@@ -46,6 +47,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 describe('useAthleteNight', () => {
   beforeEach(() => {
+    cardStats = undefined;
     fetchPendingNight.mockReset();
     markNightSeen.mockReset().mockResolvedValue(undefined);
   });
@@ -108,6 +110,50 @@ describe('useAthleteNight', () => {
     });
     expect(result.current.night).toBe(shown);
     act(() => result.current.dismiss());
+    expect(result.current.night).toBeNull();
+  });
+
+  it('a noite se atualiza quando os numeros da carta chegam depois da primeira montagem', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result, rerender } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    const first = result.current.night;
+    cardStats = new Map([['ana', { saque: 99 }]]);
+    rerender();
+    await waitFor(() => expect(result.current.night).not.toBe(first));
+    expect(JSON.stringify(result.current.night?.card)).not.toBe(JSON.stringify(first?.card));
+  });
+
+  it('dispensada com o pendente ja vazio, nao reabre se o servidor devolver a mesma noite', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const client = new QueryClient();
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    fetchPendingNight.mockResolvedValue(null);
+    act(() => result.current.markSeen());
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => result.current.dismiss());
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['noite', 'conta-ana'] });
+    });
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(result.current.night).toBeNull();
   });
 });

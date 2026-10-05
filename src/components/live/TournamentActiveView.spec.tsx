@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { TournamentActiveView } from './TournamentActiveView';
 import { makeSession, makeTeam } from '../../test/fixtures';
 
@@ -61,5 +61,36 @@ describe('TournamentActiveView por fase', () => {
 
     const iniciar = screen.getByRole('button', { name: /começar o torneio/i });
     expect((iniciar as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('TournamentActiveView encerrar travado', () => {
+  it('com finishLocked, o botao de encerrar do torneio fica desabilitado', () => {
+    const onFinishSession = vi.fn();
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    try {
+      const activeSession = makeSession('tournament-1', { type: 'tournament', status: 'active' });
+      render(
+        <TournamentActiveView
+          {...baseProps}
+          activeSession={activeSession}
+          onFinishSession={onFinishSession}
+          finishLocked
+        />,
+      );
+      const encerrar = screen.getByRole('button', { name: /encerrar/i }) as HTMLButtonElement;
+      expect(encerrar.disabled).toBe(true);
+      fireEvent.click(encerrar);
+      expect(onFinishSession).not.toHaveBeenCalled();
+    } finally {
+      confirmar.mockRestore();
+    }
+  });
+
+  it('sem finishLocked, encerrar segue habilitado', () => {
+    const activeSession = makeSession('tournament-1', { type: 'tournament', status: 'active' });
+    render(<TournamentActiveView {...baseProps} activeSession={activeSession} />);
+    const encerrar = screen.getByRole('button', { name: /encerrar/i }) as HTMLButtonElement;
+    expect(encerrar.disabled).toBe(false);
   });
 });

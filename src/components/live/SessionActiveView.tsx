@@ -332,6 +332,7 @@ export const SessionActiveView = ({
             onFinishSession={() => {
               if (!finishLocked) dispatch({ kind: 'finishSession' });
             }}
+            finishLocked={finishLocked}
             onExit={() => dispatch({ kind: 'exit' })}
             setActiveSession={setActiveSession}
             shareGameToWhatsApp={shareGameToWhatsApp}

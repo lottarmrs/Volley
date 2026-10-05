@@ -240,3 +240,44 @@ describe('SessionActiveView quem acompanha', () => {
     vi.useRealTimers();
   });
 });
+
+describe('SessionActiveView torneio sem sinal', () => {
+  it('o encerrar do proprio torneio fica desabilitado sem sinal', () => {
+    const noop = () => {};
+    const torneio = makeSession('t1', {
+      status: 'active',
+      type: 'tournament',
+      teamIds: ['ta', 'tb'],
+      config: { type: 'tournament', format: 'round_robin' } as never,
+    });
+    render(
+      <MemoryRouter>
+        <SessionActiveView
+          contract={buildSessionActiveViewContract({
+            activeSession: torneio,
+            games: [],
+            pointEvents: [],
+            players: [],
+            sessionTeams: [makeTeam('ta', 't1', []), makeTeam('tb', 't1', [])],
+            gameReports: [],
+            currentDeviceId: 'aparelho',
+            offline: true,
+            readOnly: false,
+            scoreQueue: fila(),
+            setGames: noop,
+            setPointEvents: noop,
+            setGameReports: noop,
+            setActiveSession: noop,
+            onExit: noop,
+            onFinishSession: noop,
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const encerrar = screen.getAllByRole('button', { name: /^encerrar/i });
+    expect(encerrar.length).toBeGreaterThan(0);
+    for (const botao of encerrar) {
+      expect((botao as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+});

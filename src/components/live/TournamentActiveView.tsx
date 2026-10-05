@@ -78,6 +78,7 @@ interface Props {
   updateFinalScore: (gameId: string, scoreA: number, scoreB: number) => void;
   reorderScheduledGame: (gameId: string, direction: 'up' | 'down') => void;
   onFinishSession: () => void;
+  finishLocked?: boolean;
   onExit: () => void;
   setActiveSession: (s: Session) => void;
   shareGameToWhatsApp: (id: string) => void;
@@ -111,6 +112,7 @@ export const TournamentActiveView = ({
   updateFinalScore,
   reorderScheduledGame,
   onFinishSession,
+  finishLocked = false,
   onExit,
   setActiveSession,
   shareGameToWhatsApp,
@@ -268,6 +270,7 @@ export const TournamentActiveView = ({
           perms.podeEncerrar && (
             <button
               type="button"
+              disabled={finishLocked}
               onClick={onFinishSession}
               className="btn btn-accent btn-xs sm:btn-sm font-bold uppercase shrink-0"
             >
@@ -306,6 +309,7 @@ export const TournamentActiveView = ({
             {perms.podeEncerrar && (
               <button
                 type="button"
+                disabled={finishLocked}
                 onClick={() => {
                   if (
                     window.confirm(
@@ -537,6 +541,7 @@ export const TournamentActiveView = ({
                 </button>
               ) : (
                 <button
+                  disabled={finishLocked}
                   onClick={onFinishSession}
                   className="btn btn-primary w-full max-w-xs font-bold uppercase tracking-widest shadow-xl shadow-primary/20"
                 >

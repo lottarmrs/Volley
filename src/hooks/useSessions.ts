@@ -389,6 +389,7 @@ export function useSessions() {
           });
           if (result.kind === 'done') {
             keepQueue(null);
+            setWriteError(null);
             void queryClient.invalidateQueries({ queryKey: key });
           } else if (result.kind === 'conflict') {
             setConflict(result.conflict);
@@ -404,6 +405,10 @@ export function useSessions() {
     },
     [communityCloudId, keepQueue, key, queryClient, report, userId],
   );
+
+  useEffect(() => {
+    setWriteError(null);
+  }, [onlineAt]);
 
   const queued = (queue?.entries.length ?? 0) > 0;
   const lastAttempt = useRef<string | null>(null);

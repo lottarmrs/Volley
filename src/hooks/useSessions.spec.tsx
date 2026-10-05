@@ -518,5 +518,32 @@ describe('useSessions com conta', () => {
       expect(persistSessionBundleChanges).not.toHaveBeenCalled();
       expect(localStorage.getItem('volley.placar.u1')).toContain('p1');
     });
+
+    it('encerrar recusado sem sinal destrava quando o sinal volta e a fila zera', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      act(() =>
+        result.current.setSessions((prev) => prev.map((s) => ({ ...s, status: 'finished' }))),
+      );
+      await waitFor(() => expect(result.current.status.offline).toBe(true));
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      await waitFor(() => expect(result.current.status.offline).toBe(false));
+    });
+
+    it('aviso de sem sinal some quando o sinal volta, mesmo sem fila', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() =>
+        result.current.setSessions((prev) => prev.map((s) => ({ ...s, status: 'finished' }))),
+      );
+      await waitFor(() => expect(result.current.status.offline).toBe(true));
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.status.offline).toBe(false));
+    });
   });
 });

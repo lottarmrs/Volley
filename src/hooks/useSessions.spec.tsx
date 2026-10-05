@@ -392,6 +392,28 @@ describe('useSessions com conta', () => {
       );
       await waitFor(() => expect(result.current.status.offline).toBe(true));
       expect(result.current.scoreQueue.queued).toBe(false);
+      expect(result.current.sessions.find((s) => s.id === 's1')?.status).not.toBe('finished');
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+    });
+
+    it('recusa do servidor ao enviar a fila avisa, limpa a fila e rele', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      vi.mocked(persistSessionBundleChanges).mockRejectedValueOnce(
+        Object.assign(new Error('new row violates row-level security policy'), { code: '42501' }),
+      );
+      const leiturasAntes = vi.mocked(fetchMySessions).mock.calls.length;
+      act(() => voltarSinal());
+      await waitFor(() => expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      expect(localStorage.getItem('volley.placar.u1')).toBeNull();
+      expect(result.current.status.error?.kind).toBe('authorization');
+      await waitFor(() =>
+        expect(vi.mocked(fetchMySessions).mock.calls.length).toBeGreaterThan(leiturasAntes),
+      );
     });
   });
 });

@@ -386,6 +386,9 @@ export function useSessions() {
             setConflict(result.conflict);
           } else if (!result.network) {
             report(toOnlineError(result.error));
+            keepQueue(null);
+            setConflict(null);
+            void queryClient.invalidateQueries({ queryKey: key });
           }
         })
         .catch((error) => report(toOnlineError(error)))

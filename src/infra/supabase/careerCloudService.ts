@@ -51,4 +51,18 @@ export const careerCloudService = {
     if (error) throw error;
     return data ? mapDbToCareerTotals(data) : null;
   },
+
+  async fetchPendingNight(): Promise<{ sessionId: string; communityId: string } | null> {
+    const { data, error } = await supabase.rpc('get_my_pending_night');
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : null;
+    return row
+      ? { sessionId: String(row.session_id), communityId: String(row.community_id) }
+      : null;
+  },
+
+  async markNightSeen(sessionCloudId: string): Promise<void> {
+    const { error } = await supabase.rpc('mark_my_night_seen', { p_session_id: sessionCloudId });
+    if (error) throw error;
+  },
 };

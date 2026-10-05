@@ -6,4 +6,5 @@ export const queryKeys = {
   membros: (communityCloudId: string) => ['comunidade', communityCloudId, 'membros'] as const,
   numerosDaCarta: (communityCloudId: string) =>
     ['comunidade', communityCloudId, 'numeros-da-carta'] as const,
+  noite: (userId: string) => ['noite', userId] as const,
 };

@@ -124,5 +124,3 @@ no aparelho.
 - Encerrar a pelada sem sinal.
 - Fila para qualquer outra tela (lista, sorteio, comunidade).
 - Remoção do `syncService` e das chaves locais (parte 5).
-- Abrir o app do zero sem internet nenhuma: isso pede um service worker. A recarga sem sinal
-  reabre o placar quando a casca do app carrega e só o servidor não responde.

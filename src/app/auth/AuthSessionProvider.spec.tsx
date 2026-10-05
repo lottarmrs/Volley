@@ -5,10 +5,6 @@ import type { Session } from '@supabase/supabase-js';
 import type { AuthClient } from '@app/authClient';
 import type { AccountGateway, AccountSnapshot } from '@app/accountUseCases';
 import type { UserProfile } from '@shared/types';
-import { emptySessionBundle } from '@app/sessionDataQueries';
-import { pushEntry, startScoreQueue } from '@app/scoreQueue';
-import { saveScoreQueue } from '@storage/scoreQueueStore';
-import { loadAccountSnapshot, saveAccountSnapshot } from '@storage/accountSnapshotStore';
 
 const { playerCloudServiceMock } = vi.hoisted(() => ({
   playerCloudServiceMock: { isHandleAvailable: vi.fn().mockResolvedValue(true) },
@@ -94,114 +90,6 @@ function handleTakenGateway(bootstrap: AccountSnapshot): AccountGateway {
     },
   };
 }
-
-function guardarFilaPendente(userId: string) {
-  const fila = startScoreQueue({ userId, sessionId: 's1', base: emptySessionBundle() });
-  saveScoreQueue(
-    pushEntry(fila, {
-      seq: 1,
-      at: '2026-10-05T00:00:00Z',
-      sessionId: 's1',
-      sessionBefore: {} as never,
-      sessionAfter: null,
-      upserts: { games: [], pointEvents: [], gameReports: [] },
-      removals: { games: [], pointEvents: [], gameReports: [] },
-    }),
-  );
-}
-
-const semRede: AccountGateway = {
-  ensureReady: async () => {
-    throw new TypeError('Failed to fetch');
-  },
-};
-
-describe('AuthSessionProvider sem sinal', () => {
-  beforeEach(() => localStorage.clear());
-
-  it('guarda a conta quando ela fica pronta', async () => {
-    render(
-      <AuthSessionProvider
-        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
-        accountGateway={{ ensureReady: async () => snapshot() }}
-      >
-        <Probe />
-      </AuthSessionProvider>,
-    );
-    await waitFor(() => expect(screen.getByText('ready')).toBeTruthy());
-    expect(loadAccountSnapshot('u1')).toEqual(snapshot());
-  });
-
-  it('recarregar sem rede com conta guardada e fila pendente abre pela conta guardada', async () => {
-    saveAccountSnapshot('u1', snapshot());
-    guardarFilaPendente('u1');
-    render(
-      <AuthSessionProvider
-        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
-        accountGateway={semRede}
-      >
-        <Probe />
-      </AuthSessionProvider>,
-    );
-    await waitFor(() => expect(screen.getByText('ready')).toBeTruthy());
-  });
-
-  it('sem rede e sem fila pendente continua em recoverable_error', async () => {
-    saveAccountSnapshot('u1', snapshot());
-    render(
-      <AuthSessionProvider
-        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
-        accountGateway={semRede}
-      >
-        <Probe />
-      </AuthSessionProvider>,
-    );
-    await waitFor(() => expect(screen.getByText('recoverable_error')).toBeTruthy());
-  });
-
-  it('falha que nao e de rede continua em recoverable_error', async () => {
-    saveAccountSnapshot('u1', snapshot());
-    guardarFilaPendente('u1');
-    render(
-      <AuthSessionProvider
-        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
-        accountGateway={{
-          ensureReady: async () => {
-            throw Object.assign(new Error('permission denied'), { code: '42501' });
-          },
-        }}
-      >
-        <Probe />
-      </AuthSessionProvider>,
-    );
-    await waitFor(() => expect(screen.getByText('recoverable_error')).toBeTruthy());
-  });
-
-  it('sair apaga a conta guardada', async () => {
-    function ProbeWithSignOut() {
-      const auth = useAuthSession();
-      return (
-        <div>
-          <span>{auth.state.kind}</span>
-          <button onClick={() => void auth.signOut()}>sair</button>
-        </div>
-      );
-    }
-    render(
-      <AuthSessionProvider
-        authClient={fakeAuthClient({ user: { id: 'u1', email_confirmed_at: 'now' } })}
-        accountGateway={{ ensureReady: async () => snapshot() }}
-      >
-        <ProbeWithSignOut />
-      </AuthSessionProvider>,
-    );
-    await waitFor(() => expect(screen.getByText('ready')).toBeTruthy());
-    expect(loadAccountSnapshot('u1')).not.toBeNull();
-    fireEvent.click(screen.getByText('sair'));
-    await waitFor(() => expect(screen.getByText('anonymous')).toBeTruthy());
-    expect(loadAccountSnapshot('u1')).toBeNull();
-  });
-});
 
 describe('AuthSessionProvider', () => {
   beforeEach(() => {

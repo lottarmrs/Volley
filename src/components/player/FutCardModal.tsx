@@ -292,7 +292,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   const textExport = useMemo(() => {
     let text = `🏐 CARTA VUT — ${player.nome.toUpperCase()}\n`;
     text += `━━━━━━━━━━━━━━━━━━━\n`;
-    text += `📊 OVR: ${cardData.stats.ovr} | Tier: ${cardData.stats.tier.toUpperCase()} | Posição: ${cardData.posLabel}\n`;
+    text += cardData.stats.rated
+      ? `📊 OVR: ${cardData.stats.ovr} | Tier: ${cardData.stats.tier.toUpperCase()} | Posição: ${cardData.posLabel}\n`
+      : `📊 OVR: ? | Posição: ${cardData.posLabel}\n`;
     text += `🤚 Mão: ${cardData.stats.hand} | ⭐ Versatilidade: ${cardData.stats.versatility}/5\n`;
     const formVal = cardData.formBadge.value;
     text += `🟢 Forma: ${formVal !== null ? formVal.toFixed(1) : '—'} (${cardData.edition.label} ${cardData.edition.emoji})\n\n`;
@@ -740,8 +742,8 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
         {[
           {
             label: 'OVR atual',
-            value: cardData.stats.ovr,
-            desc: cardData.stats.tier.toUpperCase(),
+            value: cardData.stats.rated ? cardData.stats.ovr : '?',
+            desc: cardData.stats.rated ? cardData.stats.tier.toUpperCase() : 'Aguardando avaliação',
           },
           {
             label: 'Ultima nota',

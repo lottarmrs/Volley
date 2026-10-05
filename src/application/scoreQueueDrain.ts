@@ -5,12 +5,12 @@ import type {
   ScoreQueueEntry,
   ScoreQueueState,
 } from './scoreQueue';
-import { isNetworkError } from './onlineErrors';
+import { isDefinitiveRefusal } from './onlineErrors';
 
 export type DrainResult =
   | { kind: 'done' }
   | { kind: 'conflict'; conflict: ScoreQueueConflict }
-  | { kind: 'stopped'; network: boolean; error: unknown };
+  | { kind: 'stopped'; refused: boolean; error: unknown };
 
 export async function drainScoreQueue(input: {
   state: ScoreQueueState;
@@ -27,7 +27,7 @@ export async function drainScoreQueue(input: {
       const conflict = detectQueueConflict({ state, live });
       if (conflict) return { kind: 'conflict', conflict };
     } catch (error) {
-      return { kind: 'stopped', network: isNetworkError(error), error };
+      return { kind: 'stopped', refused: false, error };
     }
   }
   while (state.entries.length > 0) {
@@ -35,7 +35,7 @@ export async function drainScoreQueue(input: {
     try {
       await input.send(entry);
     } catch (error) {
-      return { kind: 'stopped', network: isNetworkError(error), error };
+      return { kind: 'stopped', refused: isDefinitiveRefusal(error), error };
     }
     state = {
       ...state,

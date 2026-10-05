@@ -384,7 +384,7 @@ export function useSessions() {
             void queryClient.invalidateQueries({ queryKey: key });
           } else if (result.kind === 'conflict') {
             setConflict(result.conflict);
-          } else if (!result.network) {
+          } else if (result.refused) {
             report(toOnlineError(result.error));
             keepQueue(null);
             setConflict(null);
@@ -547,6 +547,7 @@ export function useSessions() {
       sending,
       conflict,
       sendAnyway: () => {
+        if (!conflict || conflict.sessionEnded) return;
         setConflict(null);
         drain(true);
       },

@@ -24,22 +24,24 @@ export interface ScoreQueueState {
   base: SessionBundle;
   knownPointIds: string[];
   entries: ScoreQueueEntry[];
+  forced?: boolean;
 }
 
 export interface LiveScoreState {
   controlledByUserId: string | null;
   controllerName: string | null;
   pointIds: string[];
+  sessionEnded: boolean;
 }
 
 export interface ScoreQueueConflict {
   takenOverBy: string | null;
   foreignPoints: number;
   myPoints: number;
+  sessionEnded: boolean;
 }
 
 const SCORE_FIELDS = ['games', 'pointEvents', 'gameReports'] as const;
-type ScoreField = (typeof SCORE_FIELDS)[number];
 
 function emptyRows(): ScoreRows {
   return { games: [], pointEvents: [], gameReports: [] };
@@ -155,7 +157,11 @@ export function applyQueue(bundle: SessionBundle, entries: ScoreQueueEntry[]): S
       );
     }
     if (entry.sessionAfter) {
-      next.sessions = overlay(acc.sessions, [entry.sessionAfter], []);
+      const existing = acc.sessions.find((row) => row.id === entry.sessionAfter!.id);
+      const root = existing
+        ? { ...entry.sessionAfter, status: existing.status, deletedAt: existing.deletedAt }
+        : entry.sessionAfter;
+      next.sessions = overlay(acc.sessions, [root], []);
     }
     return next;
   }, bundle);
@@ -206,6 +212,14 @@ export function detectQueueConflict(input: {
   live: LiveScoreState;
 }): ScoreQueueConflict | null {
   const { state, live } = input;
+  if (live.sessionEnded) {
+    return {
+      takenOverBy: null,
+      foreignPoints: 0,
+      myPoints: queuedPointCount(state),
+      sessionEnded: true,
+    };
+  }
   const mine = latestQueuedPoints(state);
   const known = new Set(state.knownPointIds);
   const foreignPoints = live.pointIds.filter((id) => !known.has(id) && !mine.has(id)).length;
@@ -215,6 +229,7 @@ export function detectQueueConflict(input: {
     takenOverBy: tookOver ? (live.controllerName ?? 'outra pessoa') : null,
     foreignPoints,
     myPoints: queuedPointCount(state),
+    sessionEnded: false,
   };
 }
 
@@ -227,6 +242,9 @@ function guardados(n: number): string {
 }
 
 export function conflictMessage(conflict: ScoreQueueConflict): string {
+  if (conflict.sessionEnded) {
+    return `A pelada foi encerrada enquanto você estava sem sinal. Você tem ${guardados(conflict.myPoints)}.`;
+  }
   const quem = conflict.takenOverBy ?? 'outra pessoa';
   const feito = conflict.takenOverBy
     ? conflict.foreignPoints > 0

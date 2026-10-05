@@ -38,6 +38,7 @@ vi.mock('../infra/supabase/liveScoreCloudService', () => ({
     controlledByUserId: 'u1',
     controllerName: null,
     pointIds: [],
+    sessionEnded: false,
   })),
 }));
 
@@ -331,6 +332,7 @@ describe('useSessions com conta', () => {
         controlledByUserId: 'u2',
         controllerName: 'Bia',
         pointIds: ['x1'],
+        sessionEnded: false,
       });
       const { result } = render();
       await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
@@ -343,6 +345,7 @@ describe('useSessions com conta', () => {
           takenOverBy: 'Bia',
           foreignPoints: 1,
           myPoints: 1,
+          sessionEnded: false,
         }),
       );
       expect(persistSessionBundleChanges).not.toHaveBeenCalled();
@@ -356,6 +359,7 @@ describe('useSessions com conta', () => {
         controlledByUserId: 'u2',
         controllerName: 'Bia',
         pointIds: [],
+        sessionEnded: false,
       });
       const { result } = render();
       await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
@@ -414,6 +418,48 @@ describe('useSessions com conta', () => {
       await waitFor(() =>
         expect(vi.mocked(fetchMySessions).mock.calls.length).toBeGreaterThan(leiturasAntes),
       );
+    });
+
+    it('erro 5xx ao enviar a fila nao descarta: guarda e nao avisa recusa', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      vi.mocked(persistSessionBundleChanges).mockRejectedValueOnce({
+        code: '',
+        message: 'Internal Server Error',
+      });
+      act(() => voltarSinal());
+      await waitFor(() => expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(result.current.scoreQueue.sending).toBe(false));
+      expect(result.current.scoreQueue.queued).toBe(true);
+      expect(localStorage.getItem('volley.placar.u1')).toContain('p1');
+      expect(result.current.pointEvents.map((p) => p.id)).toEqual(['p1']);
+    });
+
+    it('pelada encerrada em outro lugar: pergunta so descartar, e enviar nao faz nada', async () => {
+      vi.mocked(fetchLiveScoreState).mockResolvedValueOnce({
+        controlledByUserId: 'u1',
+        controllerName: null,
+        pointIds: [],
+        sessionEnded: true,
+      });
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.scoreQueue.conflict?.sessionEnded).toBe(true));
+      act(() => result.current.scoreQueue.sendAnyway());
+      await new Promise((r) => setTimeout(r, 30));
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+      expect(result.current.scoreQueue.conflict?.sessionEnded).toBe(true);
+      expect(result.current.scoreQueue.queued).toBe(true);
+      act(() => result.current.scoreQueue.discard());
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
     });
   });
 });

@@ -98,7 +98,7 @@ describe('SessionActiveView sem sinal', () => {
     const q = fila({
       pending: 4,
       queued: true,
-      conflict: { takenOverBy: 'Bia', foreignPoints: 3, myPoints: 4 },
+      conflict: { takenOverBy: 'Bia', foreignPoints: 3, myPoints: 4, sessionEnded: false },
     });
     renderPlacar(false, false, [], q);
     const dialogo = screen.getByRole('dialog');

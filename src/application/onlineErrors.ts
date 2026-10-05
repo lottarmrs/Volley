@@ -17,6 +17,19 @@ export function isPermissionError(error: unknown): boolean {
   );
 }
 
+export function isDefinitiveRefusal(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== 'string') return false;
+  return (
+    code === '42501' ||
+    code.startsWith('23') ||
+    code.startsWith('22') ||
+    code.startsWith('PGRST1') ||
+    code.startsWith('PGRST2')
+  );
+}
+
 export function isNetworkError(error: unknown): boolean {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
   const message = errorMessage(error).toLowerCase();

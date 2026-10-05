@@ -37,6 +37,7 @@ const semConflito = async () => ({
   controlledByUserId: 'u1',
   controllerName: null,
   pointIds: [],
+  sessionEnded: false,
 });
 
 test('envia em ordem e zera', async () => {
@@ -76,6 +77,7 @@ test('conflito nao envia nada; com force envia sem conferir', async () => {
       controlledByUserId: 'u2',
       controllerName: 'Bia',
       pointIds: ['x'],
+      sessionEnded: false,
     }),
     send,
     onProgress: () => {},
@@ -114,9 +116,52 @@ test('falha de rede no meio para e guarda o resto', async () => {
     },
   });
   assert.equal(r.kind, 'stopped');
-  assert.equal((r as { network: boolean }).network, true);
+  assert.equal((r as { refused: boolean }).refused, false);
   assert.deepEqual(
     progresso.at(-1)?.entries.map((e) => e.seq),
     [2],
   );
+});
+
+test('recusa definitiva do servidor para com refused', async () => {
+  const r = await drainScoreQueue({
+    state: fila(entrada(1, 'p1')),
+    force: false,
+    sessionCloudId: 's1',
+    fetchLive: semConflito,
+    send: async () => {
+      throw { code: '42501', message: 'new row violates row-level security policy' };
+    },
+    onProgress: () => {},
+  });
+  assert.equal(r.kind, 'stopped');
+  assert.equal((r as { refused: boolean }).refused, true);
+});
+
+test('erro 5xx ao enviar ou falha ao ler o placar e parada temporaria', async () => {
+  const envio = await drainScoreQueue({
+    state: fila(entrada(1, 'p1')),
+    force: false,
+    sessionCloudId: 's1',
+    fetchLive: semConflito,
+    send: async () => {
+      throw { code: '', message: 'Internal Server Error' };
+    },
+    onProgress: () => {},
+  });
+  assert.equal(envio.kind, 'stopped');
+  assert.equal((envio as { refused: boolean }).refused, false);
+
+  const leitura = await drainScoreQueue({
+    state: fila(entrada(1, 'p1')),
+    force: false,
+    sessionCloudId: 's1',
+    fetchLive: async () => {
+      throw { code: '42501', message: 'leitura recusada' };
+    },
+    send: async () => {},
+    onProgress: () => {},
+  });
+  assert.equal(leitura.kind, 'stopped');
+  assert.equal((leitura as { refused: boolean }).refused, false);
 });

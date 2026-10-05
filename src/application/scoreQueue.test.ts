@@ -49,6 +49,9 @@ function marcar(antes: SessionBundle, p: PointEvent): SessionBundle {
   };
 }
 
+const filaDe = (s?: { config?: unknown } | null) =>
+  (s?.config as { initialQueue?: string[] } | undefined)?.initialQueue;
+
 const roundtrip = <T>(valor: T): T => JSON.parse(JSON.stringify(valor)) as T;
 
 test('ponto e jogo da pelada ativa sao mudanca do placar', () => {
@@ -158,39 +161,128 @@ test('conflito quando outra pessoa assumiu ou marcou; sem conflito com so os meu
   assert.equal(
     detectQueueConflict({
       state: fila,
-      live: { controlledByUserId: 'u1', controllerName: null, pointIds: ['p0', 'p1'] },
+      live: {
+        controlledByUserId: 'u1',
+        controllerName: null,
+        pointIds: ['p0', 'p1'],
+        sessionEnded: false,
+      },
     }),
     null,
   );
   assert.deepEqual(
     detectQueueConflict({
       state: fila,
-      live: { controlledByUserId: 'u2', controllerName: 'Bia', pointIds: ['p0', 'x1', 'x2', 'x3'] },
+      live: {
+        controlledByUserId: 'u2',
+        controllerName: 'Bia',
+        pointIds: ['p0', 'x1', 'x2', 'x3'],
+        sessionEnded: false,
+      },
     }),
-    { takenOverBy: 'Bia', foreignPoints: 3, myPoints: 1 },
+    { takenOverBy: 'Bia', foreignPoints: 3, myPoints: 1, sessionEnded: false },
   );
   assert.deepEqual(
     detectQueueConflict({
       state: fila,
-      live: { controlledByUserId: 'u1', controllerName: null, pointIds: ['p0', 'x1'] },
+      live: {
+        controlledByUserId: 'u1',
+        controllerName: null,
+        pointIds: ['p0', 'x1'],
+        sessionEnded: false,
+      },
     }),
-    { takenOverBy: null, foreignPoints: 1, myPoints: 1 },
+    { takenOverBy: null, foreignPoints: 1, myPoints: 1, sessionEnded: false },
   );
 });
 
 test('textos da pergunta e da faixa', () => {
   assert.equal(
-    conflictMessage({ takenOverBy: 'Bia', foreignPoints: 3, myPoints: 4 }),
+    conflictMessage({ takenOverBy: 'Bia', foreignPoints: 3, myPoints: 4, sessionEnded: false }),
     'Enquanto você estava sem sinal, Bia assumiu o placar e marcou 3 pontos. Você tem 4 pontos guardados.',
   );
   assert.equal(
-    conflictMessage({ takenOverBy: null, foreignPoints: 1, myPoints: 1 }),
+    conflictMessage({ takenOverBy: null, foreignPoints: 1, myPoints: 1, sessionEnded: false }),
     'Enquanto você estava sem sinal, outra pessoa marcou 1 ponto. Você tem 1 ponto guardado.',
   );
   assert.equal(
-    conflictMessage({ takenOverBy: 'Bia', foreignPoints: 0, myPoints: 2 }),
+    conflictMessage({ takenOverBy: 'Bia', foreignPoints: 0, myPoints: 2, sessionEnded: false }),
     'Enquanto você estava sem sinal, Bia assumiu o placar. Você tem 2 pontos guardados.',
   );
   assert.equal(pendingLabel(1), 'Sem sinal · 1 ponto guardado no aparelho');
   assert.equal(pendingLabel(4), 'Sem sinal · 4 pontos guardados no aparelho');
+});
+
+test('pelada encerrada em outro lugar vira conflito so de encerramento', () => {
+  const base = bundle();
+  const um = marcar(base, ponto('p1', 0));
+  let fila = startScoreQueue({ userId: 'u1', sessionId: 's1', base });
+  fila = pushEntry(fila, entryFromChange(base, um, 's1', 1, 'a'));
+  const conflito = detectQueueConflict({
+    state: fila,
+    live: { controlledByUserId: 'u1', controllerName: null, pointIds: [], sessionEnded: true },
+  });
+  assert.deepEqual(conflito, {
+    takenOverBy: null,
+    foreignPoints: 0,
+    myPoints: 1,
+    sessionEnded: true,
+  });
+  assert.equal(
+    conflictMessage(conflito!),
+    'A pelada foi encerrada enquanto você estava sem sinal. Você tem 1 ponto guardado.',
+  );
+  assert.equal(
+    conflictMessage({ takenOverBy: null, foreignPoints: 0, myPoints: 3, sessionEnded: true }),
+    'A pelada foi encerrada enquanto você estava sem sinal. Você tem 3 pontos guardados.',
+  );
+});
+
+test('rodizio na fila nao reabre a pelada que o banco ja encerrou', () => {
+  const base = bundle();
+  const rodizio = {
+    ...base,
+    sessions: [{ ...pelada, config: { ...pelada.config!, initialQueue: ['x'] } }, outra],
+  } as SessionBundle;
+  const entrada = roundtrip(entryFromChange(base, rodizio, 's1', 1, 'a'));
+  const relido = bundle({
+    sessions: [{ ...pelada, status: 'finished', deletedAt: '2026-10-05T21:00:00.000Z' }, outra],
+  });
+  const visto = applyQueue(relido, [entrada]);
+  const raiz = visto.sessions.find((s) => s.id === 's1')!;
+  assert.equal(raiz.status, 'finished');
+  assert.equal(raiz.deletedAt, '2026-10-05T21:00:00.000Z');
+  assert.deepEqual(filaDe(raiz), ['x']);
+});
+
+test('rodizio vira entrada com a raiz depois da mudanca e o envio grava a raiz nova', () => {
+  const base = bundle();
+  const depois = { ...pelada, config: { ...pelada.config!, initialQueue: ['x'] } };
+  const rodizio = { ...base, sessions: [depois, outra] } as SessionBundle;
+  const entrada = roundtrip(entryFromChange(base, rodizio, 's1', 1, 'a'));
+  assert.deepEqual(filaDe(entrada.sessionAfter), ['x']);
+  assert.equal(entrada.sessionBefore.id, 's1');
+  const { prev, next } = bundlesForEntry(entrada);
+  assert.deepEqual(filaDe(prev.sessions[0]), filaDe(pelada));
+  assert.deepEqual(filaDe(next.sessions[0]), ['x']);
+});
+
+test('remocao na fila sai do bundle e vira remocao no envio', () => {
+  const p1 = ponto('p1', 0);
+  const base = bundle({ pointEvents: [p1] });
+  const semPonto = { ...base, pointEvents: [] };
+  const entrada = roundtrip(entryFromChange(base, semPonto, 's1', 1, 'a'));
+  assert.deepEqual(
+    entrada.removals.pointEvents.map((p) => p.id),
+    ['p1'],
+  );
+  assert.deepEqual(entrada.upserts.pointEvents, []);
+  const visto = applyQueue(base, [entrada]);
+  assert.deepEqual(visto.pointEvents, []);
+  const { prev, next } = bundlesForEntry(entrada);
+  assert.deepEqual(
+    prev.pointEvents.map((p) => p.id),
+    ['p1'],
+  );
+  assert.deepEqual(next.pointEvents, []);
 });

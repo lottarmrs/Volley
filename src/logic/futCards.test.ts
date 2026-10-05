@@ -9,6 +9,8 @@ import {
   playerChemistry,
   resolveCardFrame,
   buildVutCard,
+  applySkillValues,
+  formHistoryFromSessions,
   EditionContext,
   BuildVutCardContext,
 } from './futCards';
@@ -264,4 +266,137 @@ test('buildVutCard runs end-to-end and returns complete structure', () => {
   assert.ok(card.stats.ovr > 0);
   assert.ok(Array.isArray(card.achievements));
   assert.ok(card.activeFrame);
+});
+
+test('applySkillValues: fundamento faltante usa a media dos avaliados do proprio atleta', () => {
+  const base = createPlayer('p1', 'ponteiro');
+  const { player, rated } = applySkillValues(base, { ataque: 9, saque: 7 });
+  assert.equal(rated, true);
+  assert.equal(player.atributos.ataque, 9);
+  assert.equal(player.atributos.saque, 7);
+  assert.equal(player.atributos.defesa, 8);
+  assert.equal(player.atributos.controleEmocional, 8);
+});
+
+test('applySkillValues: sem nenhum fundamento, nao avaliado e atributos intactos', () => {
+  const base = createPlayer('p1', 'ponteiro');
+  const { player, rated } = applySkillValues(base, {});
+  assert.equal(rated, false);
+  assert.equal(player, base);
+});
+
+test('generateFutStats usa a avaliacao quando passada', () => {
+  const base = createPlayer('p1', 'ponteiro');
+  const comAvaliacao = generateFutStats(base, {
+    saque: 9,
+    recepcao: 9,
+    levantamento: 9,
+    ataque: 9,
+    bloqueio: 9,
+    defesa: 9,
+    velocidade: 9,
+    resistencia: 9,
+    leituraDeJogo: 9,
+    regularidade: 9,
+    controleEmocional: 9,
+  });
+  const semAvaliacao = generateFutStats(base);
+  assert.equal(comAvaliacao.atq, toFut(9));
+  assert.equal(comAvaliacao.rated, true);
+  assert.ok(comAvaliacao.ovr > semAvaliacao.ovr);
+  assert.equal(semAvaliacao.rated, true);
+  assert.equal(semAvaliacao.atq, toFut(5));
+});
+
+test('generateFutStats com null: aguardando avaliacao', () => {
+  const stats = generateFutStats(createPlayer('p1', 'ponteiro'), null);
+  assert.equal(stats.rated, false);
+});
+
+test('buildVutCard: atleta fora do mapa de avaliacao fica aguardando avaliacao', () => {
+  const ctx: BuildVutCardContext = {
+    sessions: [],
+    teams: [],
+    games: [],
+    pointEvents: [],
+    players: [],
+    sessionReports: [],
+    skillValues: new Map([['outro', { ataque: 8 }]]),
+  };
+  const card = buildVutCard(createPlayer('p1', 'ponteiro'), ctx);
+  assert.equal(card.stats.rated, false);
+});
+
+test('formHistoryFromSessions: notas das peladas encerradas, em ordem, no maximo 10', () => {
+  const player = createPlayer('p1', 'ponteiro');
+  const sessions: Session[] = [];
+  const teams: Team[] = [];
+  const games: Game[] = [];
+  for (let i = 0; i < 12; i++) {
+    const sid = `s${i}`;
+    sessions.push({
+      id: sid,
+      name: sid,
+      date: `2026-06-${String(i + 1).padStart(2, '0')}`,
+      status: 'finished',
+    } as unknown as Session);
+    teams.push({ id: `ta${i}`, sessionId: sid, name: 'A', playerIds: ['p1'] } as unknown as Team);
+    teams.push({ id: `tb${i}`, sessionId: sid, name: 'B', playerIds: ['p2'] } as unknown as Team);
+    games.push({
+      id: `g${i}`,
+      sessionId: sid,
+      teamAId: `ta${i}`,
+      teamBId: `tb${i}`,
+      scoreA: 25,
+      scoreB: 20,
+      winnerTeamId: `ta${i}`,
+      status: 'finished',
+    } as unknown as Game);
+  }
+  sessions.push({
+    id: 'aberta',
+    name: 'aberta',
+    date: '2026-07-01',
+    status: 'active',
+  } as unknown as Session);
+
+  const hist = formHistoryFromSessions(player, { sessions, teams, games, pointEvents: [] });
+  assert.equal(hist.length, 10);
+  assert.ok(hist.every((nota) => typeof nota === 'number'));
+});
+
+test('buildVutCard: atleta com conta tem a forma reconstruida pelo historico', () => {
+  const player = { ...createPlayer('p1', 'ponteiro'), userId: 'conta-1' } as Player;
+  const session = {
+    id: 's1',
+    name: 's1',
+    date: '2026-06-01',
+    status: 'finished',
+  } as unknown as Session;
+  const teams = [
+    { id: 't1', sessionId: 's1', name: 'A', playerIds: ['p1'] },
+    { id: 't2', sessionId: 's1', name: 'B', playerIds: ['p2'] },
+  ] as unknown as Team[];
+  const games = [
+    {
+      id: 'g1',
+      sessionId: 's1',
+      teamAId: 't1',
+      teamBId: 't2',
+      scoreA: 25,
+      scoreB: 20,
+      winnerTeamId: 't1',
+      status: 'finished',
+    },
+  ] as unknown as Game[];
+  const card = buildVutCard(player, {
+    sessions: [session],
+    teams,
+    games,
+    pointEvents: [],
+    players: [player],
+    sessionReports: [],
+  });
+  assert.notEqual(card.formBadge.value, null);
+  assert.equal(card.player.formaAtual.ultimasPartidas.length, 1);
 });

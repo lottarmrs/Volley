@@ -58,7 +58,7 @@ Quadras de vôlei e ambientes dinâmicos de jogo, onde o organizador opera o cel
 ## Product Principles
 
 1. **Fricção Zero no Ao Vivo**: Operações de 1 toque durante o jogo — placar, substituição e rotação sem distração.
-2. **Funciona Sem Sinal**: A quadra não tem internet confiável. A sessão ao vivo opera offline e reconcilia depois; o modo local sem conta é a porta de entrada e o fallback, não o destino.
+2. **O Placar Não Para Sem Sinal**: A quadra não tem internet confiável. Com conta, o placar ao vivo continua marcando sem sinal, guarda os pontos no aparelho e envia quando o sinal volta; se alguém mexeu no placar nesse meio-tempo, quem marcou decide antes de enviar. O resto do app pede conexão. Sem conta, a pelada rápida roda inteira no aparelho.
 3. **Uma Verdade Para o Grupo Inteiro**: Comunidade, papéis e nuvem existem para que elenco, resultados e histórico não morram no celular de uma pessoa.
 4. **Balanceamento Transparente e Justo**: Distribuição multidimensional de fundamentos e gênero, explicável para quem reclama do sorteio.
 5. **Progressão Visível**: Ranking, avaliação em duas vias e cards VUT transformam o histórico da pelada em evolução que o atleta reconhece.

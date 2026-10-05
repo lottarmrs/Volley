@@ -48,6 +48,18 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+async function esperar(conferir: () => void) {
+  for (let tentativa = 0; tentativa < 100; tentativa += 1) {
+    try {
+      conferir();
+      return;
+    } catch {
+      await act(() => new Promise<void>((r) => setTimeout(r, 10)));
+    }
+  }
+  conferir();
+}
+
 function render() {
   return renderHook(() => useSessions(), { wrapper });
 }
@@ -544,6 +556,36 @@ describe('useSessions com conta', () => {
       await waitFor(() => expect(result.current.status.offline).toBe(true));
       act(() => voltarSinal());
       await waitFor(() => expect(result.current.status.offline).toBe(false));
+    });
+
+    it('parada temporaria tenta de novo a cada 20 s enquanto ha fila', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        const { result } = render();
+        await esperar(() => expect(result.current.activeSession?.id).toBe('s1'));
+        cairSinal();
+        act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+        await esperar(() => expect(result.current.scoreQueue.queued).toBe(true));
+        vi.mocked(persistSessionBundleChanges).mockRejectedValueOnce({
+          code: '',
+          message: 'Internal Server Error',
+        });
+        act(() => voltarSinal());
+        await esperar(() => expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1));
+        await esperar(() => expect(result.current.scoreQueue.sending).toBe(false));
+        expect(result.current.scoreQueue.queued).toBe(true);
+        act(() => {
+          vi.advanceTimersByTime(19_000);
+        });
+        expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1);
+        act(() => {
+          vi.advanceTimersByTime(1_000);
+        });
+        await esperar(() => expect(persistSessionBundleChanges).toHaveBeenCalledTimes(2));
+        await esperar(() => expect(result.current.scoreQueue.queued).toBe(false));
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

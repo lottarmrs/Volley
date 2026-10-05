@@ -63,6 +63,8 @@ import { useConnectivity } from './useConnectivity';
 
 type BundleField = keyof SessionBundle;
 
+const DRAIN_RETRY_MS = 20_000;
+
 function resolve<T>(value: SetStateAction<T>, prev: T): T {
   return typeof value === 'function' ? (value as (prev: T) => T)(prev) : value;
 }
@@ -420,6 +422,15 @@ export function useSessions() {
     lastAttempt.current = attempt;
     drain(false);
   }, [online, queued, conflict, onlineAt, drain, sending, queue?.entries.length]);
+
+  useEffect(() => {
+    if (!online || !queued || conflict || sending) return;
+    const id = window.setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      drain(false);
+    }, DRAIN_RETRY_MS);
+    return () => window.clearInterval(id);
+  }, [online, queued, conflict, sending, drain]);
 
   const didCleanup = useRef(false);
   useEffect(() => {

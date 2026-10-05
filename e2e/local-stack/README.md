@@ -18,5 +18,5 @@ mesmo tempo. Nada aqui fala com produção.
 Specs: `jornada-da-pelada` (lista, reserva, pagamento, sorteio, placar acompanhado, histórico),
 `ao-vivo` (latência de cada ponto em três telas), `escala` (36 atletas em 6 times, 6x0 e 5x1) e
 `liga` (6 times de 6 em pontos corridos, uma partida jogada até a classificação) e `sem-sinal`
-(placar marcado sem sinal, recarga sem sinal, envio da fila quando volta e conflito com outra
-tela).
+(placar marcado sem sinal, fechar o app sem sinal e reabrir com sinal, envio da fila quando
+volta e conflito com outra tela).

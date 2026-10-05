@@ -393,20 +393,6 @@ describe('useSessions com conta', () => {
       expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1);
     });
 
-    it('com fila guardada, recarregar sem sinal reabre o placar', async () => {
-      const { result, unmount } = render();
-      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
-      cairSinal();
-      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
-      await waitFor(() => expect(localStorage.getItem('volley.placar.u1')).toContain('p1'));
-      unmount();
-      onlineManager.setOnline(true);
-      vi.mocked(fetchMySessions).mockRejectedValue(new TypeError('Failed to fetch'));
-      const outra = render();
-      await waitFor(() => expect(outra.result.current.activeSession?.id).toBe('s1'));
-      expect(outra.result.current.pointEvents.map((p) => p.id)).toEqual(['p1']);
-    });
-
     it('sem sinal, mudanca que nao e do placar continua recusada', async () => {
       const { result } = render();
       await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));

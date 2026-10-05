@@ -148,23 +148,17 @@ export function useSessions() {
     queryKey: key,
     enabled: online,
     queryFn: async () => {
-      try {
-        const communities = await queryClient.ensureQueryData<Community[]>({
-          queryKey: queryKeys.comunidades(userId ?? ''),
-          queryFn: fetchMyCommunities,
-        });
-        const bundle = await readAfterWrites({
-          fetch: () => fetchMySessions(communities),
-          settled: () => writeChain.current,
-          version: () => writeVersion.current,
-        });
-        const pending = queueRef.current ?? (userId ? loadScoreQueue(userId) : null);
-        return pending ? applyQueue(bundle, pending.entries) : bundle;
-      } catch (error) {
-        const saved = userId ? loadScoreQueue(userId) : null;
-        if (saved && isNetworkError(error)) return applyQueue(saved.base, saved.entries);
-        throw error;
-      }
+      const communities = await queryClient.ensureQueryData<Community[]>({
+        queryKey: queryKeys.comunidades(userId ?? ''),
+        queryFn: fetchMyCommunities,
+      });
+      const bundle = await readAfterWrites({
+        fetch: () => fetchMySessions(communities),
+        settled: () => writeChain.current,
+        version: () => writeVersion.current,
+      });
+      const pending = queueRef.current ?? (userId ? loadScoreQueue(userId) : null);
+      return pending ? applyQueue(bundle, pending.entries) : bundle;
     },
   });
   const remote = query.data ?? emptySessionBundle();

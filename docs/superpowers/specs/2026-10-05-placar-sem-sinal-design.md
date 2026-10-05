@@ -62,8 +62,9 @@ leitura e escrita:
   pontos conhecidos no momento em que o sinal caiu.
 
 É a única exceção à regra "dados da conta não ficam no aparelho" (parte 5 apaga o resto). A fila
-e a foto sobrevivem a fechar o app; reabrir o app com sinal envia os pontos guardados. A foto é
-descartada quando a fila esvazia e a releitura confirma.
+e a foto sobrevivem a fechar o app; reabrir o app com sinal envia os pontos guardados. A foto não
+reabre o placar sem sinal: reabrir o app sem sinal nenhum fica fora desta parte (precisa de service
+worker). A foto é descartada quando a fila esvazia e a releitura confirma.
 
 ### O `writeField`
 
@@ -110,14 +111,17 @@ no aparelho.
 - `scoreQueue.test.ts`: diferença vira entrada só com as três tabelas; `applyQueue` sobre bundle
   relido não volta o placar; desfazer depois de marcar, ambos na fila, termina no estado certo;
   conflito por ponto alheio e por troca de controle; sem conflito quando só há pontos meus.
-- `useSessions`/`useScoreQueue` (`.spec.tsx`): sem sinal o ponto entra na fila e aparece; ao
-  voltar, envia em ordem e esvazia; falha no meio para e retoma; conflito mostra a pergunta e as
-  duas respostas fazem o que dizem; recarregar com fila reabre o placar a partir da foto.
+- `useSessions` (`.spec.tsx`): sem sinal o ponto entra na fila e aparece; ao voltar, envia em
+  ordem e esvazia; falha temporária guarda a fila e tenta de novo a cada 20 s; só a recusa
+  definitiva do servidor descarta; reabrir com sinal só envia depois das comunidades; conflito
+  mostra a pergunta e as duas respostas fazem o que dizem; "enviar mesmo assim" não pergunta de
+  novo; pelada encerrada em outro lugar só oferece descartar.
 - `SessionActiveView.spec.tsx`: faixa com contagem, "Enviando…", encerrar travado com fila,
   aviso de placar parado para quem acompanha.
 - Pilha local (`e2e/local-stack/sem-sinal.spec.ts`): corta a rede do contexto de quem marca,
-  marca pontos, termina um jogo e começa o próximo, recarrega a página sem sinal, volta a rede e
-  confere banco e tela da membro; segundo cenário com outra conta assumindo o placar no meio.
+  marca pontos e desfaz um, fecha o app sem sinal e reabre com sinal, e confere banco e tela da
+  membro; segundo cenário com outra tela de quem organiza marcando enquanto este aparelho está sem
+  sinal, e a pergunta respondida com "Descartar os meus".
 
 ## Fora desta parte
 

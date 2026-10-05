@@ -4,6 +4,9 @@ export const SCORING_READ_ONLY_MESSAGE =
 export const SCORING_OFFLINE_MESSAGE = 'Sem conexão. O placar volta quando o sinal voltar.';
 
 export const SCORING_SENDING_MESSAGE = 'Enviando…';
+export const SCORING_OFFLINE_EMPTY_MESSAGE =
+  'Sem sinal. Os pontos marcados ficam guardados no aparelho.';
+export const SCORING_WAITING_MESSAGE = 'Pontos guardados no aparelho, aguardando para enviar.';
 export const FINISH_NEEDS_SIGNAL_MESSAGE =
   'Encerre quando o sinal voltar e os pontos forem enviados.';
 

@@ -86,6 +86,29 @@ describe('SessionActiveView sem sinal', () => {
     }
   });
 
+  it('sem sinal e sem nada guardado, nao fala em 0 pontos', () => {
+    renderPlacar(true, false, [], fila());
+    expect(
+      screen.getByText('Sem sinal. Os pontos marcados ficam guardados no aparelho.'),
+    ).toBeTruthy();
+    expect(screen.queryByText(/0 pontos/)).toBeNull();
+    expect(
+      screen.getByText('Encerre quando o sinal voltar e os pontos forem enviados.'),
+    ).toBeTruthy();
+  });
+
+  it('com sinal, fila e sem envio em curso, diz que aguarda para enviar', () => {
+    renderPlacar(false, false, [], fila({ pending: 2, queued: true, sending: false }));
+    expect(screen.getByText('Pontos guardados no aparelho, aguardando para enviar.')).toBeTruthy();
+    expect(screen.queryByText('Enviando…')).toBeNull();
+    expect(
+      screen.getByText('Encerre quando o sinal voltar e os pontos forem enviados.'),
+    ).toBeTruthy();
+    for (const botao of screen.getAllByRole('button', { name: /encerrar pelada/i })) {
+      expect((botao as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+
   it('a pergunta do conflito nao fica no placar, vem do app', () => {
     renderPlacar(
       false,

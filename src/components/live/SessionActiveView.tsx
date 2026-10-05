@@ -41,7 +41,9 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   FINISH_NEEDS_SIGNAL_MESSAGE,
   SCORING_READ_ONLY_MESSAGE,
+  SCORING_OFFLINE_EMPTY_MESSAGE,
   SCORING_SENDING_MESSAGE,
+  SCORING_WAITING_MESSAGE,
   staleScoreNotice,
 } from '@app/scoringLock';
 import { pendingLabel } from '@app/scoreQueue';
@@ -261,7 +263,15 @@ export const SessionActiveView = ({
       role="status"
       className="alert alert-warning alert-soft text-sm font-bold flex-col items-start gap-1"
     >
-      <span>{offline ? pendingLabel(fila?.pending ?? 0) : SCORING_SENDING_MESSAGE}</span>
+      <span>
+        {offline
+          ? (fila?.pending ?? 0) > 0
+            ? pendingLabel(fila!.pending)
+            : SCORING_OFFLINE_EMPTY_MESSAGE
+          : fila?.sending
+            ? SCORING_SENDING_MESSAGE
+            : SCORING_WAITING_MESSAGE}
+      </span>
       <span className="font-medium">{FINISH_NEEDS_SIGNAL_MESSAGE}</span>
     </div>
   ) : null;

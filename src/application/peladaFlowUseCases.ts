@@ -7,6 +7,7 @@ import type { RegistrationGateway } from './authorizedFormationGateways';
 import type { SessionCohortCreationGateway } from './sessionCohortCutover';
 import { appOk, productError, type AppResult } from './appResult';
 import { toOnlineError } from './onlineErrors';
+import { unpaidRefusalMessage } from './registrationRefusals';
 
 export type PeladaFlowGateway = SessionCohortCreationGateway &
   Pick<
@@ -170,6 +171,8 @@ export async function closeListAndFinalize(
     });
     return appOk({ rosterRevisionId: finalized.rosterRevisionId });
   } catch (error) {
+    const semPagar = unpaidRefusalMessage(error);
+    if (semPagar) return productError('invalid_input', semPagar);
     return { ok: false, error: toOnlineError(error) };
   }
 }

@@ -51,3 +51,32 @@ test('um so confirmado no singular', () => {
   const passo = peladaNextStep({ ...base, status: 'draft', windowStatus: 'CLOSED', confirmed: 1 });
   assert.equal(passo.line, 'Lista fechada · 1 joga');
 });
+
+test('lista fechada com pagamento pendente nao oferece sortear e diz quantos faltam', () => {
+  const pendente = peladaNextStep({
+    ...base,
+    status: 'draft',
+    windowStatus: 'CLOSED',
+    confirmed: 9,
+    unpaidConfirmed: 9,
+  });
+  assert.equal(pendente.line, 'Lista fechada · 9 sem pagamento');
+  assert.equal(pendente.action, null);
+  assert.equal(pendente.secondary?.kind, 'reabrir_lista');
+  const um = peladaNextStep({
+    ...base,
+    status: 'draft',
+    windowStatus: 'CLOSED',
+    confirmed: 9,
+    unpaidConfirmed: 1,
+  });
+  assert.equal(um.line, 'Lista fechada · 1 sem pagamento');
+  const emDia = peladaNextStep({
+    ...base,
+    status: 'draft',
+    windowStatus: 'CLOSED',
+    confirmed: 9,
+    unpaidConfirmed: 0,
+  });
+  assert.equal(emDia.action?.kind, 'sortear');
+});

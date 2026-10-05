@@ -135,3 +135,20 @@ test('fechar uma lista ja travada so finaliza', async () => {
   assert.equal(resultado.ok, true);
   assert.deepEqual(chamadas, ['read w1', 'finalize 10']);
 });
+
+test('fechar com confirmados sem pagamento explica o que falta', async () => {
+  const { g } = gateway({
+    em: 'lock',
+    erro: {
+      code: '23514',
+      hint: 'REGISTRATION_UNPAID',
+      message: 'Registration has 9 confirmed entries without payment',
+    },
+  });
+  const resultado = await closeListAndFinalize({ windowId: 'w1' }, g);
+  assert.equal(resultado.ok, false);
+  assert.match(
+    resultado.ok === false ? resultado.error.message : '',
+    /^9 confirmados ainda não pagaram\./,
+  );
+});

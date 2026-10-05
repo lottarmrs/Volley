@@ -371,6 +371,11 @@ export function CommunityRegistrationRoute() {
             capacity: board.capacity,
             canManage: board.viewerCanManage,
             gameNumber: jogoAtual?.sequenceNumber,
+            unpaidConfirmed:
+              board.paymentDueAt || board.entries.some((entry) => entry.paidAt)
+                ? board.entries.filter((entry) => entry.status === 'CONFIRMED' && !entry.paidAt)
+                    .length
+                : 0,
           }),
           busy: passoOcupado,
           onAction: (kind: PeladaActionKind) => void agirNoPasso(kind),

@@ -16,6 +16,7 @@ import {
   type AppErrorResult,
   type AppResult,
 } from './appResult';
+import { unpaidRefusalMessage } from './registrationRefusals';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NETWORK_FAILURE = /Failed to fetch|NetworkError|Load failed|fetch failed/i;
@@ -169,6 +170,8 @@ export function classifyAuthorizedFormationFailure(
       'Um atleta saiu do elenco da comunidade. Atualize a seleção e gere de novo.',
     );
   }
+  const semPagar = unpaidRefusalMessage(failure.reason);
+  if (semPagar) return productError('invalid_input', semPagar);
   if (code === '23514') {
     return productError(
       'invalid_input',

@@ -38,6 +38,7 @@ export function peladaNextStep(input: {
   canManage: boolean;
   gameNumber?: number;
   mvpName?: string | null;
+  unpaidConfirmed?: number;
 }): PeladaNextStep {
   const so = (action: PeladaAction) => (input.canManage ? action : null);
   if (input.status === 'cancelled') {
@@ -76,6 +77,15 @@ export function peladaNextStep(input: {
   }
   if (input.windowStatus === 'CLOSED' || input.windowStatus === 'LOCKED') {
     const reabrir = so({ kind: 'reabrir_lista', label: 'Reabrir a lista' });
+    const semPagar = input.unpaidConfirmed ?? 0;
+    if (semPagar > 0) {
+      return {
+        stage: 'lista_fechada',
+        line: `Lista fechada · ${semPagar} sem pagamento`,
+        action: null,
+        ...(reabrir ? { secondary: reabrir } : {}),
+      };
+    }
     return {
       stage: 'lista_fechada',
       line: `Lista fechada · ${input.confirmed} ${input.confirmed === 1 ? 'joga' : 'jogam'}`,

@@ -1,0 +1,357 @@
+{
+  "aviso": "Contas de teste da pilha local (Supabase em Docker, portas 59321+). Nunca usar em producao.",
+  "senha": "Teste-NkBZo6qQjSdg",
+  "contas": [
+    {
+      "nome": "Organizador Teste",
+      "email": "org@volley.test",
+      "papel": "organiza",
+      "totpSecret": "3E2ELWKDNTM23UQTUGTVW2JUVIBPPDXQ"
+    },
+    {
+      "nome": "Ana Teste",
+      "email": "ana@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Bia Teste",
+      "email": "bia@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Caio Teste",
+      "email": "caio@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Duda Teste",
+      "email": "duda@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Eva Teste",
+      "email": "eva@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Fabio Teste",
+      "email": "fabio@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Gil Teste",
+      "email": "gil@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Hugo Teste",
+      "email": "hugo@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Iris Teste",
+      "email": "iris@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Joao Teste",
+      "email": "joao@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Kika Teste",
+      "email": "kika@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 13",
+      "email": "atleta13@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 14",
+      "email": "atleta14@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 15",
+      "email": "atleta15@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 16",
+      "email": "atleta16@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 17",
+      "email": "atleta17@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 18",
+      "email": "atleta18@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 19",
+      "email": "atleta19@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 20",
+      "email": "atleta20@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 21",
+      "email": "atleta21@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 22",
+      "email": "atleta22@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 23",
+      "email": "atleta23@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 24",
+      "email": "atleta24@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 25",
+      "email": "atleta25@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 26",
+      "email": "atleta26@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 27",
+      "email": "atleta27@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 28",
+      "email": "atleta28@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 29",
+      "email": "atleta29@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 30",
+      "email": "atleta30@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 31",
+      "email": "atleta31@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 32",
+      "email": "atleta32@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 33",
+      "email": "atleta33@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 34",
+      "email": "atleta34@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 35",
+      "email": "atleta35@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 36",
+      "email": "atleta36@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 37",
+      "email": "atleta37@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 38",
+      "email": "atleta38@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 39",
+      "email": "atleta39@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 40",
+      "email": "atleta40@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 41",
+      "email": "atleta41@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 42",
+      "email": "atleta42@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 43",
+      "email": "atleta43@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 44",
+      "email": "atleta44@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 45",
+      "email": "atleta45@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 46",
+      "email": "atleta46@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 47",
+      "email": "atleta47@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 48",
+      "email": "atleta48@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 49",
+      "email": "atleta49@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 50",
+      "email": "atleta50@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 51",
+      "email": "atleta51@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 52",
+      "email": "atleta52@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 53",
+      "email": "atleta53@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 54",
+      "email": "atleta54@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 55",
+      "email": "atleta55@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 56",
+      "email": "atleta56@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 57",
+      "email": "atleta57@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 58",
+      "email": "atleta58@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 59",
+      "email": "atleta59@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 60",
+      "email": "atleta60@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 61",
+      "email": "atleta61@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 62",
+      "email": "atleta62@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 63",
+      "email": "atleta63@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 64",
+      "email": "atleta64@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 65",
+      "email": "atleta65@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 66",
+      "email": "atleta66@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 67",
+      "email": "atleta67@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 68",
+      "email": "atleta68@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 69",
+      "email": "atleta69@volley.test",
+      "papel": "membro"
+    },
+    {
+      "nome": "Atleta 70",
+      "email": "atleta70@volley.test",
+      "papel": "membro"
+    }
+  ]
+}

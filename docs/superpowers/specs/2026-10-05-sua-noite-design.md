@@ -75,17 +75,23 @@ recente: duas peladas sem abrir o app mostram só a última.
 - a pendente some depois de vista; pelada com mais de 7 dias não aparece;
 - quem não jogou a pelada não recebe a noite dela.
 
-## Parte 2 — Verificação da progressão (primeira tarefa)
+## Parte 2 — Forma de quem tem conta pelo histórico
 
-O encerramento grava nota e forma na ficha (`play.applyProgression` em `handleFinishSession`).
-Desde 2026-09-28 a ficha de quem tem conta só a própria conta altera. Antes de construir a noite, um
-teste contra Postgres real responde: o organizador grava `formaAtual`/histórico de notas de um
-atleta com conta?
+A nota da noite não depende da ficha: o motor a calcula dos jogos e pontos da pelada
+(`calculateSessionRating`), que são da pelada e já estão online. O que depende da ficha é a
+**forma** (`player.formaAtual.ultimasPartidas`, lida por `autoFormFromHistory`), gravada pelo
+encerramento (`play.applyProgression` em `handleFinishSession`).
 
-- **Grava:** a noite lê nota e forma como o motor lê hoje.
-- **Não grava:** a nota da noite sai de `session_reports` (da pelada, gravado online pelo
-  organizador) e a forma passa a ser calculada pelos relatórios, não pela ficha. A correção vale para
-  o app inteiro e o achado vai para `docs/JORNADA.md`.
+**Confirmado no código (2026-10-05):** `persistPlayer` em `src/hooks/usePlayers.ts` pula qualquer
+atleta de outra conta (`if (player.userId && player.userId !== userId) return null`). A forma de quem
+tem conta só muda quando a própria pessoa encerra uma pelada; para os outros, fica parada.
+
+Correção: para atleta **com conta** (`player.userId`), `buildVutCard` reconstrói
+`formaAtual.ultimasPartidas` pelo histórico — as notas de pelada (`calculateSessionRating`) das
+últimas 10 peladas encerradas em que jogou, em ordem cronológica (o mesmo limite de
+`applySessionRatingToForm`) — e usa esse atleta efetivo em todo o cálculo da carta (selo de forma,
+edição In-Form, conquistas). `formaAtual.valor` (ajuste manual) não muda. Atleta sem conta continua
+lendo a ficha. O achado vai para `docs/JORNADA.md`.
 
 ## Parte 3 — Carta pela avaliação
 
@@ -94,14 +100,15 @@ atleta com conta?
   cópia do atleta com esses atributos, mais o bônus de forma). Sem `skillValues`, usa `atributos`
   como hoje — o modo sem conta não muda.
 - Fundamento sem valor usa a média dos fundamentos avaliados do próprio atleta.
-- Nenhum fundamento avaliado: estado "aguardando avaliação" — OVR `null`, stats `null`, sem tier. A
-  carta mostra "?", "—" e o selo "Aguardando avaliação"; edição, conquistas e estatísticas de jogo
-  continuam.
-- `buildVutCard` repassa `skillValues` pelo contexto (`BuildVutCardContext.skillValues?:
-  Map<playerId, Attributes>`).
-- Hook `useCommunityCardStats(communityId)` (TanStack Query, uma chamada por comunidade, relida pela
-  ponte de tempo real `useCommunityRealtime` quando avaliações mudam) alimenta `PlayersView` →
-  `FutCardModal` e a noite.
+- Nenhum fundamento avaliado: estado "aguardando avaliação" — `FutStats.rated = false` (os números
+  continuam calculados, para não espalhar `null` pelo motor). A carta mostra "?", "—" e o selo
+  "Aguardando avaliação" no lugar do tier; edição, conquistas e estatísticas de jogo continuam.
+- `buildVutCard` repassa os valores pelo contexto (`BuildVutCardContext.skillValues?:
+  Map<string, Partial<Attributes>>`, chave = id do atleta no app). Com o mapa presente e o atleta
+  ausente dele, a carta é "aguardando avaliação".
+- Hook `useCommunityCardStats(communityCloudId)` (TanStack Query, uma chamada por comunidade,
+  `refetchOnWindowFocus`) alimenta `PlayersView` → `FutCardModal` e a noite. As tabelas de avaliação
+  não estão no tempo real e os membros não as leem pela RLS; não se adiciona nada ao canal.
 
 ## Parte 4 — Sua noite
 

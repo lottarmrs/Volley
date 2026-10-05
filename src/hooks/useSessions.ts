@@ -373,9 +373,10 @@ export function useSessions() {
           } catch {
             return;
           }
+          const current = queueRef.current ?? state;
           const result = await drainScoreQueue({
-            state: queueRef.current ?? state,
-            force,
+            state: current,
+            force: force || !!current.forced,
             sessionCloudId: root.cloudId ?? root.id,
             fetchLive: (id) => fetchLiveScoreState(id),
             send: (entry) => {
@@ -572,6 +573,7 @@ export function useSessions() {
       conflict,
       sendAnyway: () => {
         if (!conflict || conflict.sessionEnded) return;
+        if (queueRef.current) keepQueue({ ...queueRef.current, forced: true });
         setConflict(null);
         drain(true);
       },

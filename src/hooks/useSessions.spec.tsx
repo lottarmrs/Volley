@@ -139,6 +139,12 @@ describe('useSessions com conta', () => {
       .mockResolvedValue({ ...emptySessionBundle(), sessions: [emAndamento] });
     vi.mocked(persistSessionBundleChanges).mockReset().mockResolvedValue();
     vi.mocked(fetchMyCommunities).mockReset().mockResolvedValue([]);
+    vi.mocked(fetchLiveScoreState).mockReset().mockResolvedValue({
+      controlledByUserId: 'u1',
+      controllerName: null,
+      pointIds: [],
+      sessionEnded: false,
+    });
   });
 
   it('le as peladas do banco e adota a que a pessoa controla', async () => {
@@ -586,6 +592,36 @@ describe('useSessions com conta', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it('depois de enviar mesmo assim, a falha de rede nao faz perguntar de novo', async () => {
+      vi.mocked(fetchLiveScoreState).mockResolvedValue({
+        controlledByUserId: 'u2',
+        controllerName: 'Bia',
+        pointIds: ['x1'],
+        sessionEnded: false,
+      });
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.scoreQueue.conflict).not.toBeNull());
+      vi.mocked(persistSessionBundleChanges).mockRejectedValueOnce(
+        new TypeError('Failed to fetch'),
+      );
+      act(() => result.current.scoreQueue.sendAnyway());
+      await waitFor(() => expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(result.current.scoreQueue.sending).toBe(false));
+      expect(result.current.scoreQueue.queued).toBe(true);
+      expect(localStorage.getItem('volley.placar.u1')).toContain('"forced":true');
+      cairSinal();
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      expect(result.current.scoreQueue.conflict).toBeNull();
+      expect(fetchLiveScoreState).toHaveBeenCalledTimes(1);
+      expect(persistSessionBundleChanges).toHaveBeenCalledTimes(2);
     });
   });
 });

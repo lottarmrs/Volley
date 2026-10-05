@@ -868,3 +868,30 @@ test('um orcamento explicito substitui o derivado do balanceSpeed', () => {
   assert.equal(budgeted.length, 2);
   assert.ok(budgeted[0].iterations <= 500);
 });
+
+test('a busca para quando deixa de melhorar, em vez de gastar o orcamento inteiro', () => {
+  const snapshots = Array.from({ length: 36 }, (_, i) =>
+    makePlayer('parada' + i, {
+      atributos: {
+        saque: 1 + (i % 9),
+        recepcao: 1 + ((i * 3) % 9),
+        levantamento: 1 + ((i * 5) % 9),
+        ataque: 1 + ((i * 7) % 9),
+        bloqueio: 1 + ((i * 2) % 9),
+        defesa: 1 + ((i * 4) % 9),
+        velocidade: 5,
+        resistencia: 5,
+        leituraDeJogo: 5,
+        regularidade: 5,
+        controleEmocional: 5,
+      },
+    }),
+  ).map((p) => mapPlayerToBalanceSnapshot(p));
+  const resultado = balanceSnapshots(snapshots, 6, { balanceSpeed: 'advanced' } as never);
+  for (const candidato of resultado) {
+    assert.ok(
+      candidato.iterations < 30_000,
+      `a busca rodou ${candidato.iterations} iteracoes num orcamento de 120 mil`,
+    );
+  }
+});

@@ -1072,7 +1072,7 @@ export class SimulatedAnnealingBalancer {
 
     let iterations = 0;
     let iterationsWithoutImprovement = 0;
-    const maxNoImprovement = Math.max(2000, Math.floor(maxIterations * 0.8));
+    const maxNoImprovement = Math.max(2000, Math.min(6000, Math.floor(maxIterations * 0.8)));
     // Emite progresso a cada ~2% das iterações (sem onProgress, nada muda).
     const progressEvery = Math.max(1, Math.floor(maxIterations / 50));
 

@@ -197,3 +197,26 @@ describe('SessionActiveView eventos', () => {
     expect(screen.getAllByText('Desfeito')).toHaveLength(1);
   });
 });
+
+describe('SessionActiveView quem acompanha', () => {
+  it('avisa quando o placar para por mais de 3 minutos', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-05T20:05:00.000Z'));
+    const ultimo: PointEvent = {
+      id: 'p1',
+      sessionId: 's1',
+      gameId: 'g1',
+      sequenceNumber: 1,
+      scoringTeamId: 'ta',
+      concedingTeamId: 'tb',
+      scoreBefore: { teamA: 0, teamB: 0 },
+      scoreAfter: { teamA: 1, teamB: 0 },
+      timestamp: '2026-10-05T20:00:00.000Z',
+    };
+    renderPlacar(false, true, [ultimo]);
+    expect(
+      screen.getByText('Último ponto há 5 min — quem marca pode estar sem sinal'),
+    ).toBeTruthy();
+    vi.useRealTimers();
+  });
+});

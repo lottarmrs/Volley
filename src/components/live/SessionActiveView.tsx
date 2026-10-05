@@ -42,6 +42,7 @@ import {
   FINISH_NEEDS_SIGNAL_MESSAGE,
   SCORING_READ_ONLY_MESSAGE,
   SCORING_SENDING_MESSAGE,
+  staleScoreNotice,
 } from '@app/scoringLock';
 import { conflictMessage, pendingLabel } from '@app/scoreQueue';
 import type { ScreenContract } from '@app/screens/screenContract';
@@ -264,6 +265,28 @@ export const SessionActiveView = ({
       <span className="font-medium">{FINISH_NEEDS_SIGNAL_MESSAGE}</span>
     </div>
   ) : null;
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    if (!readOnly) return;
+    const id = window.setInterval(() => setAgora(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [readOnly]);
+  const ultimoPonto = currentGame
+    ? sessionPoints
+        .filter((p) => p.gameId === currentGame.id)
+        .reduce<string | null>((max, p) => (!max || p.timestamp > max ? p.timestamp : max), null)
+    : null;
+  const parado = staleScoreNotice({
+    readOnly,
+    gameActive: currentGame?.status === 'active',
+    lastPointAt: ultimoPonto,
+    now: agora,
+  });
+  const staleNotice = parado ? (
+    <p role="status" className="text-xs font-bold text-warning">
+      {parado}
+    </p>
+  ) : null;
   const canScore = control.canScore && !locked;
   const blockedReason = readOnly ? SCORING_READ_ONLY_MESSAGE : control.message;
   const conflictDialog = fila?.conflict ? (
@@ -291,6 +314,7 @@ export const SessionActiveView = ({
     return (
       <div className="space-y-3">
         {offlineNotice}
+        {staleNotice}
         <fieldset disabled={locked} className="contents">
           <TournamentActiveView
             activeSession={activeSession}
@@ -466,6 +490,7 @@ export const SessionActiveView = ({
           </div>
         </div>
         {offlineNotice}
+        {staleNotice}
         {conflictDialog}
       </div>
     );
@@ -541,6 +566,7 @@ export const SessionActiveView = ({
       </div>
 
       {offlineNotice}
+      {staleNotice}
       {conflictDialog}
 
       <SessionOwnershipNotice

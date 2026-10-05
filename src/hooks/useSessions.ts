@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useContext,
   useMemo,
@@ -38,10 +39,27 @@ import {
 import { queryKeys } from '../application/queryKeys';
 import { createInvalidationBatcher } from '../application/invalidationBatcher';
 import { readAfterWrites } from '../application/readAfterWrites';
-import { OFFLINE_MESSAGE, toOnlineError } from '../application/onlineErrors';
+import { OFFLINE_MESSAGE, isNetworkError, toOnlineError } from '../application/onlineErrors';
+import {
+  applyQueue,
+  bundlesForEntry,
+  entryFromChange,
+  isScoringChange,
+  nextSeq,
+  pushEntry,
+  queuedPointCount,
+  sliceForSession,
+  startScoreQueue,
+  type ScoreQueueConflict,
+  type ScoreQueueState,
+} from '../application/scoreQueue';
+import { drainScoreQueue } from '../application/scoreQueueDrain';
+import { clearScoreQueue, loadScoreQueue, saveScoreQueue } from '../storage/scoreQueueStore';
+import { fetchLiveScoreState } from '../infra/supabase/liveScoreCloudService';
 import { offlineError, type AppError } from '../application/appResult';
 import { ToastContext } from '../ui/common/useToast';
 import { useOnlineAccount, type OnlineStatus } from './useOnlineList';
+import { useConnectivity } from './useConnectivity';
 
 type BundleField = keyof SessionBundle;
 
@@ -101,19 +119,50 @@ export function useSessions() {
 
   const writeChain = useRef<Promise<void>>(Promise.resolve());
   const writeVersion = useRef(0);
+  const queueRef = useRef<ScoreQueueState | null>(null);
+  const [queue, setQueue] = useState<ScoreQueueState | null>(null);
+  const [conflict, setConflict] = useState<ScoreQueueConflict | null>(null);
+  const [sending, setSending] = useState(false);
+  const liveSessionIdRef = useRef<string | null>(null);
+  const { onlineAt } = useConnectivity();
+
+  useEffect(() => {
+    const saved = userId ? loadScoreQueue(userId) : null;
+    queueRef.current = saved;
+    setQueue(saved);
+  }, [userId]);
+
+  const keepQueue = useCallback(
+    (state: ScoreQueueState | null) => {
+      queueRef.current = state;
+      if (state) saveScoreQueue(state);
+      else if (userId) clearScoreQueue(userId);
+      setQueue(state);
+    },
+    [userId],
+  );
+
   const query = useQuery({
     queryKey: key,
     enabled: online,
     queryFn: async () => {
-      const communities = await queryClient.ensureQueryData<Community[]>({
-        queryKey: queryKeys.comunidades(userId ?? ''),
-        queryFn: fetchMyCommunities,
-      });
-      return readAfterWrites({
-        fetch: () => fetchMySessions(communities),
-        settled: () => writeChain.current,
-        version: () => writeVersion.current,
-      });
+      try {
+        const communities = await queryClient.ensureQueryData<Community[]>({
+          queryKey: queryKeys.comunidades(userId ?? ''),
+          queryFn: fetchMyCommunities,
+        });
+        const bundle = await readAfterWrites({
+          fetch: () => fetchMySessions(communities),
+          settled: () => writeChain.current,
+          version: () => writeVersion.current,
+        });
+        const pending = queueRef.current ?? (userId ? loadScoreQueue(userId) : null);
+        return pending ? applyQueue(bundle, pending.entries) : bundle;
+      } catch (error) {
+        const saved = userId ? loadScoreQueue(userId) : null;
+        if (saved && isNetworkError(error)) return applyQueue(saved.base, saved.entries);
+        throw error;
+      }
     },
   });
   const remote = query.data ?? emptySessionBundle();
@@ -150,38 +199,67 @@ export function useSessions() {
     [queryClient, userId],
   );
 
+  const enqueue = useCallback(
+    (prev: SessionBundle, next: SessionBundle, sessionId: string) => {
+      if (!userId) return;
+      const current =
+        queueRef.current ??
+        startScoreQueue({ userId, sessionId, base: sliceForSession(prev, sessionId) });
+      keepQueue(
+        pushEntry(
+          current,
+          entryFromChange(prev, next, sessionId, nextSeq(current), new Date().toISOString()),
+        ),
+      );
+    },
+    [keepQueue, userId],
+  );
+
   const writeField = useCallback(
     <K extends BundleField>(field: K, value: SetStateAction<SessionBundle[K]>) => {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        report(offlineError(OFFLINE_MESSAGE).error);
-        return;
-      }
+      const semSinal = typeof navigator !== 'undefined' && navigator.onLine === false;
       const prev = queryClient.getQueryData<SessionBundle>(key) ?? emptySessionBundle();
       const nextField = resolve(value, prev[field]);
       if (nextField === prev[field]) return;
       const next = { ...prev, [field]: nextField } as SessionBundle;
+      const sessionId = liveSessionIdRef.current;
+      const scoring =
+        !!sessionId &&
+        (!queueRef.current || queueRef.current.sessionId === sessionId) &&
+        isScoringChange(prev, next, sessionId);
+      if (semSinal && !scoring) {
+        report(offlineError(OFFLINE_MESSAGE).error);
+        return;
+      }
       writeVersion.current += 1;
       void queryClient.cancelQueries({ queryKey: key });
       queryClient.setQueryData(key, next);
       writeChain.current = writeChain.current
-        .then(() =>
-          persistSessionBundleChanges(
+        .then(async () => {
+          const offlineAgora = typeof navigator !== 'undefined' && navigator.onLine === false;
+          if (scoring && sessionId && (queueRef.current || offlineAgora)) {
+            enqueue(prev, next, sessionId);
+            return;
+          }
+          await persistSessionBundleChanges(
             prev,
             next,
             { userId: userId ?? '', communityCloudId },
             defaultSessionWriteGateway,
-          ),
-        )
-        .then(() => {
+          );
           setWriteError(null);
           conferir.current.add([key]);
         })
         .catch((error) => {
+          if (scoring && sessionId && isNetworkError(error)) {
+            enqueue(prev, next, sessionId);
+            return;
+          }
           report(toOnlineError(error));
           void queryClient.invalidateQueries({ queryKey: key });
         });
     },
-    [communityCloudId, key, queryClient, report, userId],
+    [communityCloudId, enqueue, key, queryClient, report, userId],
   );
 
   const setSessions = useCallback(
@@ -241,6 +319,10 @@ export function useSessions() {
         ? null
         : (currentSessions.find((session) => session.id === activeId) ??
           (draftActive?.id === activeId ? draftActive : null));
+  const onlineActiveId = onlineActive?.id ?? null;
+  useLayoutEffect(() => {
+    liveSessionIdRef.current = online ? onlineActiveId : null;
+  }, [online, onlineActiveId]);
   const activeSession = online ? onlineActive : localActiveSession;
 
   const setActiveSession = useCallback(
@@ -270,6 +352,58 @@ export function useSessions() {
     },
     [currentSessions, online, onlineActive, writeField],
   );
+
+  const drain = useCallback(
+    (force: boolean) => {
+      const state = queueRef.current;
+      if (!state || !userId) return;
+      const root = state.base.sessions[0];
+      if (!root) return;
+      setSending(true);
+      writeVersion.current += 1;
+      writeChain.current = writeChain.current
+        .then(async () => {
+          const result = await drainScoreQueue({
+            state: queueRef.current ?? state,
+            force,
+            sessionCloudId: root.cloudId ?? root.id,
+            fetchLive: (id) => fetchLiveScoreState(id),
+            send: (entry) => {
+              const { prev, next } = bundlesForEntry(entry);
+              return persistSessionBundleChanges(
+                prev,
+                next,
+                { userId, communityCloudId },
+                defaultSessionWriteGateway,
+              );
+            },
+            onProgress: keepQueue,
+          });
+          if (result.kind === 'done') {
+            keepQueue(null);
+            void queryClient.invalidateQueries({ queryKey: key });
+          } else if (result.kind === 'conflict') {
+            setConflict(result.conflict);
+          } else if (!result.network) {
+            report(toOnlineError(result.error));
+          }
+        })
+        .catch((error) => report(toOnlineError(error)))
+        .finally(() => setSending(false));
+    },
+    [communityCloudId, keepQueue, key, queryClient, report, userId],
+  );
+
+  const queued = (queue?.entries.length ?? 0) > 0;
+  const lastAttempt = useRef<string | null>(null);
+  useEffect(() => {
+    if (!online || !queued || conflict || sending) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const attempt = `${onlineAt}:${queue?.entries.length ?? 0}`;
+    if (lastAttempt.current === attempt) return;
+    lastAttempt.current = attempt;
+    drain(false);
+  }, [online, queued, conflict, onlineAt, drain, sending, queue?.entries.length]);
 
   const didCleanup = useRef(false);
   useEffect(() => {
@@ -404,5 +538,20 @@ export function useSessions() {
     refresh: () => queryClient.invalidateQueries({ queryKey: key }),
     flush: () => writeChain.current,
     replaceLocal,
+    scoreQueue: {
+      pending: queuedPointCount(queue),
+      queued,
+      sending,
+      conflict,
+      sendAnyway: () => {
+        setConflict(null);
+        drain(true);
+      },
+      discard: () => {
+        setConflict(null);
+        keepQueue(null);
+        void queryClient.invalidateQueries({ queryKey: key });
+      },
+    },
   };
 }

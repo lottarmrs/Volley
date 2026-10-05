@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../storage/localStorageRepository';
 import { makeGame, makeSession } from '../test/fixtures';
 import type { PointEvent } from '../types';
 import { fetchMySessions, emptySessionBundle } from '../application/sessionDataQueries';
 import { persistSessionBundleChanges } from '../application/sessionWrites';
+import { fetchLiveScoreState } from '../infra/supabase/liveScoreCloudService';
 import { useSessions } from './useSessions';
 
 const conta = vi.hoisted(() => ({ userId: null as string | null }));
@@ -30,6 +31,14 @@ vi.mock('../application/sessionDataQueries', async (importOriginal) => {
 vi.mock('../application/sessionWrites', () => ({
   persistSessionBundleChanges: vi.fn(),
   defaultSessionWriteGateway: {},
+}));
+
+vi.mock('../infra/supabase/liveScoreCloudService', () => ({
+  fetchLiveScoreState: vi.fn(async () => ({
+    controlledByUserId: 'u1',
+    controllerName: null,
+    pointIds: [],
+  })),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -162,7 +171,7 @@ describe('useSessions com conta', () => {
     await act(async () => {
       soltar({ ...emptySessionBundle(), sessions: [emAndamento] });
     });
-    expect(result.current.games.map((g) => g.id)).toEqual(['g1']);
+    await waitFor(() => expect(result.current.games.map((g) => g.id)).toEqual(['g1']));
   });
 
   it('releitura espera a gravacao do placar terminar, para o ponto nao voltar', async () => {
@@ -222,7 +231,7 @@ describe('useSessions com conta', () => {
     const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     try {
       act(() => {
-        result.current.setPointEvents([{ id: 'p1', sessionId: 's1' } as PointEvent]);
+        result.current.setPointEvents([{ id: 'p1', sessionId: 's2' } as PointEvent]);
       });
       expect(result.current.pointEvents).toEqual([]);
       expect(result.current.status.offline).toBe(true);
@@ -245,5 +254,144 @@ describe('useSessions com conta', () => {
     const { result } = render();
     await waitFor(() => expect(result.current.status.loading).toBe(false));
     expect(localStorage.getItem(STORAGE_KEYS.sessions)).toBeNull();
+  });
+
+  describe('sem sinal', () => {
+    const ponto = (id: string) => ({ id, sessionId: 's1', gameId: 'g1' }) as PointEvent;
+    let semRede: { mockRestore(): void };
+
+    beforeEach(() => {
+      semRede = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    });
+    afterEach(() => {
+      semRede.mockRestore();
+      onlineManager.setOnline(true);
+    });
+
+    function cairSinal() {
+      semRede.mockRestore();
+      semRede = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+      act(() => {
+        window.dispatchEvent(new Event('offline'));
+      });
+    }
+    function voltarSinal() {
+      semRede.mockRestore();
+      semRede = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+      window.dispatchEvent(new Event('online'));
+    }
+
+    it('o ponto entra na fila, aparece na tela e fica guardado no aparelho', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.pointEvents.map((p) => p.id)).toEqual(['p1']));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+      expect(localStorage.getItem('volley.placar.u1')).toContain('p1');
+    });
+
+    it('ao voltar o sinal envia em ordem, zera e rele', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p2')]));
+      await waitFor(() => expect(result.current.scoreQueue.pending).toBe(2));
+      vi.mocked(fetchMySessions).mockResolvedValue({
+        ...emptySessionBundle(),
+        sessions: [emAndamento],
+        pointEvents: [ponto('p1'), ponto('p2')],
+      });
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      const enviados = vi
+        .mocked(persistSessionBundleChanges)
+        .mock.calls.map(([, depois]) => depois.pointEvents.map((p) => p.id));
+      expect(enviados).toEqual([['p1'], ['p2']]);
+      expect(localStorage.getItem('volley.placar.u1')).toBeNull();
+      expect(result.current.pointEvents.map((p) => p.id)).toEqual(['p1', 'p2']);
+    });
+
+    it('releitura com fila pendente nao volta o placar', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      await act(async () => {
+        await result.current.refresh();
+      });
+      expect(result.current.pointEvents.map((p) => p.id)).toEqual(['p1']);
+    });
+
+    it('conflito pergunta; descartar limpa a fila e rele', async () => {
+      vi.mocked(fetchLiveScoreState).mockResolvedValueOnce({
+        controlledByUserId: 'u2',
+        controllerName: 'Bia',
+        pointIds: ['x1'],
+      });
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      act(() => voltarSinal());
+      await waitFor(() =>
+        expect(result.current.scoreQueue.conflict).toEqual({
+          takenOverBy: 'Bia',
+          foreignPoints: 1,
+          myPoints: 1,
+        }),
+      );
+      expect(persistSessionBundleChanges).not.toHaveBeenCalled();
+      act(() => result.current.scoreQueue.discard());
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      await waitFor(() => expect(result.current.pointEvents).toEqual([]));
+    });
+
+    it('conflito; enviar mesmo assim grava os meus', async () => {
+      vi.mocked(fetchLiveScoreState).mockResolvedValueOnce({
+        controlledByUserId: 'u2',
+        controllerName: 'Bia',
+        pointIds: [],
+      });
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(true));
+      act(() => voltarSinal());
+      await waitFor(() => expect(result.current.scoreQueue.conflict).not.toBeNull());
+      act(() => result.current.scoreQueue.sendAnyway());
+      await waitFor(() => expect(result.current.scoreQueue.queued).toBe(false));
+      expect(persistSessionBundleChanges).toHaveBeenCalledTimes(1);
+    });
+
+    it('com fila guardada, recarregar sem sinal reabre o placar', async () => {
+      const { result, unmount } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() => result.current.setPointEvents((prev) => [...prev, ponto('p1')]));
+      await waitFor(() => expect(localStorage.getItem('volley.placar.u1')).toContain('p1'));
+      unmount();
+      onlineManager.setOnline(true);
+      vi.mocked(fetchMySessions).mockRejectedValue(new TypeError('Failed to fetch'));
+      const outra = render();
+      await waitFor(() => expect(outra.result.current.activeSession?.id).toBe('s1'));
+      expect(outra.result.current.pointEvents.map((p) => p.id)).toEqual(['p1']);
+    });
+
+    it('sem sinal, mudanca que nao e do placar continua recusada', async () => {
+      const { result } = render();
+      await waitFor(() => expect(result.current.activeSession?.id).toBe('s1'));
+      cairSinal();
+      act(() =>
+        result.current.setSessions((prev) => prev.map((s) => ({ ...s, status: 'finished' }))),
+      );
+      await waitFor(() => expect(result.current.status.offline).toBe(true));
+      expect(result.current.scoreQueue.queued).toBe(false);
+    });
   });
 });

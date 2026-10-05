@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@app/queryKeys';
 import { buildAthleteNight, type AthleteNight } from '@app/athleteNight';
@@ -21,7 +21,8 @@ export function useAthleteNight(input: {
 } {
   const { userId, players, communities, history } = input;
   const queryClient = useQueryClient();
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [shown, setShown] = useState<AthleteNight | null>(null);
   const enabled = isSupabaseConfigured && !!userId;
 
   const pending = useQuery({
@@ -38,8 +39,8 @@ export function useAthleteNight(input: {
     ? (communities.find((c) => (c.cloudId ?? c.id) === target.communityId) ?? null)
     : null;
 
-  const night = useMemo(() => {
-    if (!target || dismissed === target.sessionId) return null;
+  const built = useMemo(() => {
+    if (!target || dismissed.includes(target.sessionId)) return null;
     const me = players.find((player) => player.userId === userId);
     const session = history.sessions.find(
       (s) => s.cloudId === target.sessionId || s.id === target.sessionId,
@@ -48,20 +49,30 @@ export function useAthleteNight(input: {
     return buildAthleteNight({ player: me, session, history: { ...history, skillValues } });
   }, [target, dismissed, players, userId, history, skillValues]);
 
-  const seen = useMutation({
+  const { mutate } = useMutation({
     mutationFn: (sessionCloudId: string) => careerCloudService.markNightSeen(sessionCloudId),
     onSettled: () => {
       if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.noite(userId) });
     },
   });
 
+  useEffect(() => {
+    if (built && !shown) setShown(built);
+  }, [built, shown]);
+
+  const targetSessionId = target?.sessionId ?? null;
+
   const markSeen = useCallback(() => {
-    if (target) seen.mutate(target.sessionId);
-  }, [seen, target]);
+    if (targetSessionId) mutate(targetSessionId);
+  }, [mutate, targetSessionId]);
 
   const dismiss = useCallback(() => {
-    if (target) setDismissed(target.sessionId);
-  }, [target]);
+    const ids = [targetSessionId, shown?.sessionId].filter((id): id is string => !!id);
+    setDismissed((current) => [...current, ...ids]);
+    setShown(null);
+  }, [targetSessionId, shown]);
+
+  const night = shown ?? built;
 
   return { night, communityName: community?.name ?? null, markSeen, dismiss };
 }

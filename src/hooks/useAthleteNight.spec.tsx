@@ -81,10 +81,33 @@ describe('useAthleteNight', () => {
     await waitFor(() => expect(markNightSeen).toHaveBeenCalledWith('uuid-s1'));
   });
 
-  it('sem conta nao pergunta ao servidor', () => {
+  it('sem conta nao pergunta ao servidor', async () => {
     renderHook(() => useAthleteNight({ userId: null, players: [], communities, history }), {
       wrapper,
     });
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(fetchPendingNight).not.toHaveBeenCalled();
+  });
+
+  it('depois de marcar vista e a leitura voltar vazia, a noite continua ate dispensar', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    const shown = result.current.night;
+    fetchPendingNight.mockResolvedValue(null);
+    act(() => result.current.markSeen());
+    await waitFor(() => expect(markNightSeen).toHaveBeenCalledWith('uuid-s1'));
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.night).toBe(shown);
+    act(() => result.current.dismiss());
+    expect(result.current.night).toBeNull();
   });
 });

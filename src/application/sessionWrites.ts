@@ -208,7 +208,16 @@ export const defaultSessionWriteGateway: SessionWriteGateway = {
   upsertSession: (session, ownerId) => operationalCloudService.upsertSession(session, ownerId),
   softDelete: (table, cloudId) => operationalCloudService.softDelete(table, cloudId),
   bulkUpsertTeams: (items, ownerId, sessionsById) =>
-    operationalCloudService.bulkUpsertTeams(items, ownerId, sessionsById),
+    operationalCloudService.bulkUpsertTeams(
+      items,
+      ownerId,
+      sessionsById,
+      new Map(
+        items
+          .filter((team) => team.championshipTeamId)
+          .map((team) => [team.championshipTeamId!.toLowerCase(), team.championshipTeamId!]),
+      ),
+    ),
   bulkUpsertGames: (items, ownerId, sessionsById) =>
     operationalCloudService.bulkUpsertGames(items, ownerId, sessionsById),
   bulkUpsertPointEvents: (items, ownerId, sessionsById) =>

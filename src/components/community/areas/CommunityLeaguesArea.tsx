@@ -144,6 +144,7 @@ export function CommunityLeaguesArea({
   const seasonPointEvents = pointEvents.filter((event) => seasonSessionIds.has(event.sessionId));
   const standings = selectedChampionship
     ? getSeasonStandings({
+        championshipTeams: selectedTeams,
         championshipTeamIds: selectedTeams.map((team) => team.id),
         classificationPoints: selectedChampionship.classificationPoints,
         sessionTeams: seasonSessionTeams,

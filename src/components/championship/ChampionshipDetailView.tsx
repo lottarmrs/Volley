@@ -82,6 +82,7 @@ export function ChampionshipDetailView({ championshipId }: { championshipId?: st
   const standings = useMemo(() => {
     if (!championship) return [];
     return getSeasonStandings({
+      championshipTeams: teams,
       championshipTeamIds: teams.map((t) => t.id),
       classificationPoints: championship.classificationPoints,
       sessionTeams: sess?.teams || [],

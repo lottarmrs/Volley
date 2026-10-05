@@ -77,6 +77,7 @@ import {
   ensureNoOtherActiveSession,
   resolveRoundSessionOpening,
 } from '../application/championshipUseCases';
+import { linkMaterializedRound } from '../application/championshipRoundLink';
 import { appOk, productError, type AppResult } from '@app/appResult';
 import { UnsavedGuardHost } from '../components/common/GuardedLink';
 import { startQuickPelada } from '../application/peladaFlowUseCases';
@@ -423,13 +424,20 @@ export function AppShell() {
       if (criada.ok === false) return criada;
       const sessionId = criada.value.sessionId;
       const rodada = bindMaterializedRoundToSession(result.value, sessionId, now);
-      sess.setTeams((current) => [...current, ...rodada.teams]);
+      const timesDaRodada = rodada.teams.map((team) => ({
+        ...team,
+        championshipTeamId:
+          championships.championshipTeams.find((ct) => ct.id === team.championshipTeamId)
+            ?.cloudId ?? undefined,
+      }));
+      sess.setTeams((current) => [...current, ...timesDaRodada]);
       sess.setGames((current) => [...current, rodada.game]);
       sess.setSessions((current) =>
         current.map((item) => (item.id === sessionId ? { ...item, ...rodada.sessionPatch } : item)),
       );
       await sess.flush();
-      championships.markRoundMaterialized(round.id, sessionId);
+      const vinculo = await linkMaterializedRound({ roundCloudId: round.cloudId, sessionId });
+      championships.markRoundMaterialized(round.id, sessionId, vinculo);
       sess.setActiveSession({ ...result.value.session, id: sessionId, status: 'active' });
       navigate(paths.sessaoAtiva(championship.communityId));
       return appOk({ sessionId });

@@ -109,11 +109,16 @@ export function getSeasonStandings(input: {
   };
   sessionTeams: { id: string; championshipTeamId?: string }[];
   games: Game[];
+  championshipTeams?: { id: string; cloudId?: string }[];
 }): TournamentStanding[] {
+  const paraLocal = new Map<string, string>();
+  for (const time of input.championshipTeams ?? []) {
+    if (time.cloudId) paraLocal.set(time.cloudId, time.id);
+  }
   const lookup = new Map(
     input.sessionTeams
       .filter((t): t is { id: string; championshipTeamId: string } => !!t.championshipTeamId)
-      .map((t) => [t.id, t.championshipTeamId]),
+      .map((t) => [t.id, paraLocal.get(t.championshipTeamId) ?? t.championshipTeamId]),
   );
   const remappedGames = remapTeamIdsForChampionship(input.games, lookup);
   return calculateTournamentStandings(
@@ -368,6 +373,7 @@ export function getSeasonAwards(
   topScorers: ReturnType<typeof calculateTopScorers>;
 } {
   const standings = getSeasonStandings({
+    championshipTeams,
     championshipTeamIds,
     classificationPoints,
     sessionTeams,

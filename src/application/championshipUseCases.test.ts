@@ -144,6 +144,33 @@ test('getSeasonStandings aggregates games across multiple sessions using the cha
   assert.equal(team2.losses, 1);
 });
 
+test('a pelada online guarda o id de nuvem do time da liga, e a tabela conta mesmo assim', () => {
+  const standings = getSeasonStandings({
+    championshipTeamIds: ['local-1', 'local-2'],
+    championshipTeams: [
+      { id: 'local-1', cloudId: 'nuvem-1' },
+      { id: 'local-2', cloudId: 'nuvem-2' },
+    ],
+    classificationPoints: { win: 3, loss: 0 },
+    sessionTeams: [
+      { id: 'tA', championshipTeamId: 'nuvem-1' },
+      { id: 'tB', championshipTeamId: 'nuvem-2' },
+    ],
+    games: [
+      makeGame('g1', 's1', {
+        teamAId: 'tA',
+        teamBId: 'tB',
+        winnerTeamId: 'tA',
+        loserTeamId: 'tB',
+        status: 'finished',
+      }),
+    ],
+  });
+  const vencedor = standings.find((s) => s.teamId === 'local-1')!;
+  assert.equal(vencedor.wins, 1);
+  assert.equal(vencedor.classificationPoints, 3);
+});
+
 // ─── materializeRound ──────────────────────────────────────────────────────
 
 function championshipTeam(overrides: Partial<ChampionshipTeam> = {}): ChampionshipTeam {

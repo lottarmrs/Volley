@@ -98,16 +98,17 @@ export function useChampionships() {
     return appOk<CreatedChampionshipAggregate>({ championship, teams, rounds });
   }, []);
 
-  const markRoundMaterialized = useCallback((roundId: string, sessionId: string) => {
-    const now = new Date().toISOString();
-    setChampionshipRounds((current) =>
-      current.map((round) =>
-        round.id === roundId
-          ? { ...round, sessionId, syncStatus: 'pending', updatedAt: now }
-          : round,
-      ),
-    );
-  }, []);
+  const markRoundMaterialized = useCallback(
+    (roundId: string, sessionId: string, syncStatus: 'pending' | 'synced' = 'pending') => {
+      const now = new Date().toISOString();
+      setChampionshipRounds((current) =>
+        current.map((round) =>
+          round.id === roundId ? { ...round, sessionId, syncStatus, updatedAt: now } : round,
+        ),
+      );
+    },
+    [],
+  );
 
   const deleteChampionship = useCallback((championshipId: string) => {
     const now = new Date().toISOString();

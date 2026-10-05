@@ -181,4 +181,12 @@ export const championshipCloudService = {
     if (error) throw error;
     return mapDbToChampionshipRound(data);
   },
+
+  async linkRoundToSession(roundCloudId: string, sessionCloudId: string): Promise<void> {
+    const { error } = await supabase
+      .from('championship_rounds')
+      .update({ session_id: sessionCloudId, updated_at: new Date().toISOString() })
+      .eq('id', roundCloudId);
+    if (error) throw error;
+  },
 };

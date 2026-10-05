@@ -44,7 +44,7 @@ import {
   SCORING_SENDING_MESSAGE,
   staleScoreNotice,
 } from '@app/scoringLock';
-import { conflictMessage, pendingLabel } from '@app/scoreQueue';
+import { pendingLabel } from '@app/scoreQueue';
 import type { ScreenContract } from '@app/screens/screenContract';
 import type { SessionActiveViewModel } from '@app/screens/sessionActiveView/sessionActiveViewModel';
 import type { SessionActiveViewIntent } from '@app/screens/sessionActiveView/sessionActiveViewIntents';
@@ -289,26 +289,6 @@ export const SessionActiveView = ({
   ) : null;
   const canScore = control.canScore && !locked;
   const blockedReason = readOnly ? SCORING_READ_ONLY_MESSAGE : control.message;
-  const conflictDialog = fila?.conflict ? (
-    <div className="modal modal-open" role="dialog" aria-labelledby="fila-conflito-titulo">
-      <div className="modal-box max-w-md space-y-5">
-        <h3 id="fila-conflito-titulo" className="text-lg font-black text-base-content">
-          Pontos guardados no aparelho
-        </h3>
-        <p className="text-sm leading-relaxed text-base-content/70">
-          {conflictMessage(fila.conflict)}
-        </p>
-        <div className="modal-action">
-          <button type="button" className="btn btn-ghost text-error" onClick={fila.discard}>
-            Descartar os meus
-          </button>
-          <button type="button" className="btn btn-primary" onClick={fila.sendAnyway}>
-            Enviar os meus mesmo assim
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   if (activeSession.type === 'tournament' && tournamentStandings) {
     return (
@@ -349,7 +329,6 @@ export const SessionActiveView = ({
             games={games}
           />
         </fieldset>
-        {conflictDialog}
       </div>
     );
   }
@@ -491,7 +470,6 @@ export const SessionActiveView = ({
         </div>
         {offlineNotice}
         {staleNotice}
-        {conflictDialog}
       </div>
     );
   }
@@ -522,7 +500,6 @@ export const SessionActiveView = ({
             Voltar ao Menu
           </button>
         </div>
-        {conflictDialog}
       </div>
     );
   }
@@ -567,7 +544,6 @@ export const SessionActiveView = ({
 
       {offlineNotice}
       {staleNotice}
-      {conflictDialog}
 
       <SessionOwnershipNotice
         control={control}

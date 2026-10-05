@@ -32,6 +32,7 @@ import type { ShellApi } from './shellContext';
 
 import { usePlayers } from '../hooks/usePlayers';
 import { useSession } from '../ui/common/useSession';
+import { ScoreQueueConflictDialog } from '../components/live/ScoreQueueConflictDialog';
 import { useSessionWizard } from '../hooks/useSessionWizard';
 import { useCommunities } from '../hooks/useCommunities';
 import { useCommunityPermissions } from '../hooks/useCommunityPermissions';
@@ -871,6 +872,12 @@ export function AppShell() {
           </AnimatePresence>
         </main>
       </div>
+
+      <ScoreQueueConflictDialog
+        conflict={sess.scoreQueue.conflict}
+        onSendAnyway={sess.scoreQueue.sendAnyway}
+        onDiscard={sess.scoreQueue.discard}
+      />
 
       {revealQueue.length > 0 && (
         <VutRevealModal

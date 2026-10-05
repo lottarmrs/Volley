@@ -86,29 +86,26 @@ describe('SessionActiveView sem sinal', () => {
     }
   });
 
+  it('a pergunta do conflito nao fica no placar, vem do app', () => {
+    renderPlacar(
+      false,
+      false,
+      [],
+      fila({
+        pending: 1,
+        queued: true,
+        conflict: { takenOverBy: 'Bia', foreignPoints: 1, myPoints: 1, sessionEnded: false },
+      }),
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('com sinal e sem fila, nada trava', () => {
     renderPlacar(false, false, [], fila());
     expect(screen.queryByText(/sem sinal/i)).toBeNull();
     for (const botao of screen.getAllByRole('button', { name: /encerrar pelada/i })) {
       expect((botao as HTMLButtonElement).disabled).toBe(false);
     }
-  });
-
-  it('conflito pergunta e cada botao faz o que diz', () => {
-    const q = fila({
-      pending: 4,
-      queued: true,
-      conflict: { takenOverBy: 'Bia', foreignPoints: 3, myPoints: 4, sessionEnded: false },
-    });
-    renderPlacar(false, false, [], q);
-    const dialogo = screen.getByRole('dialog');
-    expect(dialogo.textContent).toContain(
-      'Enquanto você estava sem sinal, Bia assumiu o placar e marcou 3 pontos. Você tem 4 pontos guardados.',
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar os meus mesmo assim' }));
-    expect(q.sendAnyway).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Descartar os meus' }));
-    expect(q.discard).toHaveBeenCalledTimes(1);
   });
 });
 

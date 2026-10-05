@@ -80,14 +80,19 @@ worker). A foto é descartada quando a fila esvazia e a releitura confirma.
 Hook novo `useScoreQueue` (montado pelo `useSessions`), disparado pelo `onlineAt` do
 `useConnectivity`, antes da releitura que o `useScoringOffline` já faz:
 
-1. Busca só a sessão (controle) e os pontos desta pelada.
+1. Garante as comunidades lidas; busca só a sessão (controle, status, apagada) e os pontos desta
+   pelada.
 2. Sem conflito: envia as entradas em ordem pelo `defaultSessionWriteGateway`, dentro do
-   `writeChain`, removendo cada uma depois de gravada; uma falha de rede para o envio e espera o
-   próximo `online`. Ao zerar, relê.
-3. Com conflito: mostra a pergunta (modal no placar) — "Enquanto você estava sem sinal, Bia
-   assumiu o placar e marcou 3 pontos. Você tem 4 pontos guardados." — com **Enviar os meus mesmo
-   assim** (envia como no passo 2; no placar do jogo, a última gravação vale) e **Descartar os
-   meus** (limpa a fila e a foto, relê).
+   `writeChain`, removendo cada uma depois de gravada. Só a recusa definitiva do servidor (42501,
+   códigos 22/23, PGRST1/PGRST2) descarta a fila, com aviso e releitura; qualquer outra falha
+   guarda a fila e tenta de novo a cada 20 s enquanto houver sinal. Ao zerar, relê.
+3. Com conflito: mostra a pergunta (modal do app, em qualquer tela) — "Enquanto você estava sem
+   sinal, Bia assumiu o placar e marcou 3 pontos. Você tem 4 pontos guardados." — com **Enviar os
+   meus mesmo assim** (envia como no passo 2, e os envios seguintes não perguntam de novo; no
+   placar do jogo, a última gravação vale) e **Descartar os meus** (limpa a fila e a foto, relê).
+   Se a pelada foi encerrada, cancelada ou apagada em outro lugar, a pergunta é "A pelada foi
+   encerrada enquanto você estava sem sinal. Você tem N pontos guardados." e só oferece
+   **Descartar os meus**.
 
 ### Telas
 

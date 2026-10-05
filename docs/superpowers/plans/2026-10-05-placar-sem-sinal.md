@@ -58,7 +58,7 @@ runner + tsx (`.test.ts`), Playwright contra a pilha local (`e2e/local-stack`).
 | `src/hooks/useSessions.ts` | Fila no `writeField`, leitura "banco + fila", envio ao voltar o sinal, `scoreQueue` exposto |
 | `src/hooks/useSessions.spec.tsx` | Cenários com fila |
 | `src/application/scoringLock.ts` | Textos novos, `staleScoreNotice` |
-| `src/application/scoringLock.test.ts` | (existe? se não, criar) testes de `staleScoreNotice` |
+| `src/application/scoringLock.test.ts` | testes de `staleScoreNotice` |
 | `src/application/screens/sessionActiveView/sessionActiveViewContract.ts` | Campo `scoreQueue` |
 | `src/components/live/SessionActiveView.tsx` | Faixa, encerrar travado, pergunta de conflito, aviso de placar parado |
 | `src/components/live/SessionActiveView.spec.tsx` | Cenários da tela |
@@ -1724,7 +1724,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/application/scoringLock.ts`
-- Test: `src/application/scoringLock.test.ts` (criar se não existir)
+- Test: `src/application/scoringLock.test.ts` (já existe: acrescentar os testes, sem repetir os imports)
 - Modify: `src/components/live/SessionActiveView.tsx`, `src/components/live/SessionActiveView.spec.tsx`
 
 **Interfaces:**

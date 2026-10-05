@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AuthSessionState } from '@app/authSession';
 import type { AuthClient } from '@app/authClient';
 import { paths } from '@app/appRoutes';
@@ -456,6 +456,13 @@ describe('AppRouter — pessoas', () => {
 
 describe('AppRouter — desempenho', () => {
   const community = { id: 'c1', name: 'Panelinha' };
+
+  beforeAll(async () => {
+    await Promise.all([
+      import('../components/history/HistoryView'),
+      import('../components/ranking/RankingModule'),
+    ]);
+  }, 30_000);
 
   it('abre no Ranking por padrão', async () => {
     seedLocalDb({ communities: [community] });

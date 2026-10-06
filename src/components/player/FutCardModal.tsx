@@ -275,7 +275,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     return { counts, bestKind, lastSpecial };
   }, [cardData.edition.kind, games, player.id, players, pointEvents, sessions, teams]);
 
-  const ratingsHistory = player.formaAtual?.ultimasPartidas ?? [];
+  const ratingsHistory = cardData.player.formaAtual?.ultimasPartidas ?? [];
   const previousRating =
     ratingsHistory.length >= 2 ? ratingsHistory[ratingsHistory.length - 2] : null;
   const currentRating =
@@ -285,7 +285,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
       ? ratingsHistory.slice(0, -1).reduce((sum, value) => sum + value, 0) /
         (ratingsHistory.length - 1)
       : null;
-  const currentAvg = autoFormFromHistory(player);
+  const currentAvg = autoFormFromHistory(cardData.player);
   const formDelta =
     previousAvg !== null && currentAvg !== null
       ? Math.round((currentAvg - previousAvg) * 100) / 100
@@ -319,9 +319,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
 
     if (includeHistory) {
       text += `── HISTÓRICO ──────────\n`;
-      const ratings = player.formaAtual?.ultimasPartidas ?? [];
+      const ratings = cardData.player.formaAtual?.ultimasPartidas ?? [];
       text += `📈 Notas: ${ratings.length > 0 ? ratings.join(', ') : 'Sem notas registradas'}\n`;
-      const avg = autoFormFromHistory(player);
+      const avg = autoFormFromHistory(cardData.player);
       text += `📊 Média: ${avg !== null ? avg.toFixed(2) : '—'} | Tendência: ${avg && avg >= 7.0 ? '↗️' : '➡️'}\n\n`;
     }
 

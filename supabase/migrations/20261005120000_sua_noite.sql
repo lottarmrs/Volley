@@ -4,8 +4,9 @@
 --    fundamento de cada atleta do elenco. Cobertura e contagem continuam so na aba Avaliacao
 --    (get_community_player_skill_profile, que nao muda).
 -- 2. A noite do atleta: a pelada mais recente que ele jogou (career_events.session_played) nos
---    ultimos 7 dias e ainda nao viu. O "ja vi" fica no servidor para dois aparelhos nao
---    revelarem a mesma noite.
+--    ultimos 7 dias, se ainda nao a viu. Vista a mais recente, as anteriores nao voltam; no
+--    empate de horario vale a pelada criada por ultimo. O "ja vi" fica no servidor para dois
+--    aparelhos nao revelarem a mesma noite.
 
 create or replace function public.get_community_card_stats(p_community_id uuid)
 returns table (player_id uuid, dimension_key text, value numeric)
@@ -88,22 +89,27 @@ stable
 security definer
 set search_path = ''
 as $$
-  select e.session_id, e.community_id, e.occurred_at
-    from public.career_events e
-    join public.players p
-      on p.id = e.player_id
-     and p.user_id = (select auth.uid())
-     and p.deleted_at is null
-   where e.type = 'session_played'
-     and e.session_id is not null
-     and e.occurred_at >= pg_catalog.now() - interval '7 days'
-     and not exists (
-       select 1 from public.athlete_night_views v
-        where v.player_id = e.player_id
-          and v.session_id = e.session_id
-     )
-   order by e.occurred_at desc
-   limit 1;
+  with latest as (
+    select e.player_id, e.session_id, e.community_id, e.occurred_at
+      from public.career_events e
+      join public.players p
+        on p.id = e.player_id
+       and p.user_id = (select auth.uid())
+       and p.deleted_at is null
+      join public.sessions s
+        on s.id = e.session_id
+     where e.type = 'session_played'
+       and e.occurred_at >= pg_catalog.now() - interval '7 days'
+     order by e.occurred_at desc, s.created_at desc
+     limit 1
+  )
+  select l.session_id, l.community_id, l.occurred_at
+    from latest l
+   where not exists (
+     select 1 from public.athlete_night_views v
+      where v.player_id = l.player_id
+        and v.session_id = l.session_id
+   );
 $$;
 
 revoke all on function public.get_my_pending_night() from public, anon;

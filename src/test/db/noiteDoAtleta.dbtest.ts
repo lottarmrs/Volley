@@ -176,6 +176,39 @@ if (!isTestDatabaseConfigured()) {
     );
   });
 
+  test('vista a mais recente, a anterior nao volta', async () => {
+    const c = await cena();
+    const ana = await membro(c, 'ana-anterior');
+    await peladaJogada(c.comunidade, c.dono.userId, ana.fichaId, 3);
+    const recente = await peladaJogada(c.comunidade, c.dono.userId, ana.fichaId, 1);
+    await como(ana.userId, SEEN, [recente]);
+    const { rows } = await como(ana.userId, PENDING);
+    assert.equal(rows.length, 0);
+  });
+
+  test('no mesmo instante, vale a pelada criada por ultimo', async () => {
+    const c = await cena();
+    const ana = await membro(c, 'ana-empate');
+    const velha = await peladaJogada(c.comunidade, c.dono.userId, ana.fichaId);
+    const nova = await peladaJogada(c.comunidade, c.dono.userId, ana.fichaId);
+    await client.query(
+      `update public.sessions
+          set created_at = case when id = $1 then now() else now() - interval '1 hour' end
+        where id in ($1, $2)`,
+      [nova, velha],
+    );
+    await client.query(
+      `update public.career_events set occurred_at = date_trunc('day', now())
+        where session_id in ($1, $2)`,
+      [nova, velha],
+    );
+    const { rows } = await como<{ session_id: string }>(ana.userId, PENDING);
+    assert.deepEqual(
+      rows.map((row) => row.session_id),
+      [nova],
+    );
+  });
+
   test('quem nao jogou nao tem a noite nem marca a de outro', async () => {
     const c = await cena();
     const ana = await membro(c, 'ana-jogou');

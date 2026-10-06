@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Community } from '@shared/types';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
+import { calculatePositionOverall } from '@logic/calculations';
 import { makePlayer } from '../../test/fixtures';
 import { PlayersView } from './PlayersView';
 
@@ -112,6 +113,26 @@ describe('PlayersView', () => {
     });
     renderView([outro], { canEvaluate: false, currentUserId: 'u-outro', cloudId: 'cc1' });
     fireEvent.click(screen.getByText('Bruno Lima'));
-    expect(screen.getAllByText('92').length).toBeGreaterThan(0);
+    const carta = screen
+      .getByRole('button', { name: /fechar o card do atleta/i })
+      .closest('.modal-box') as HTMLElement;
+    expect(within(carta).getAllByText('92').length).toBeGreaterThan(0);
+  });
+
+  it('na lista, atleta sem avaliacao mostra ? no geral e esconde os gerais por posicao', () => {
+    const semAvaliacao = makePlayer('p3', {
+      nome: 'Caio Reis',
+      communityIds: ['c1'],
+      cloudId: 'cp3',
+      userId: 'u-caio',
+    });
+    renderView([semAvaliacao], { canEvaluate: false, currentUserId: 'u-outro', cloudId: 'cc1' });
+    const item = screen.getByText('Caio Reis').closest('.card') as HTMLElement;
+    expect(within(item).getByText('?')).toBeTruthy();
+    const posicoes = ['levantador', 'oposto', 'ponteiro', 'central', 'libero', 'all-rounder'];
+    for (const posicao of posicoes) {
+      const antigo = calculatePositionOverall(semAvaliacao, posicao as never);
+      expect(within(item).queryByText(String(antigo))).toBeNull();
+    }
   });
 });

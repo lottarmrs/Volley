@@ -135,7 +135,8 @@ export const PlayerItem: React.FC<{
   onToggle?: () => void;
   onViewVutCard?: (player: Player) => void;
   isFrequent?: boolean;
-}> = ({ player, isSelected, onToggle, onViewVutCard, isFrequent = false }) => {
+  rated?: boolean;
+}> = ({ player, isSelected, onToggle, onViewVutCard, isFrequent = false, rated = true }) => {
   const overall = calculatePositionOverall(player, player.posicaoPrincipal);
   const rawOverall = calculatePositionOverall(
     { ...player, formaAtual: { ...player.formaAtual, valor: 0 } },
@@ -179,7 +180,7 @@ export const PlayerItem: React.FC<{
   // formaAtual chega como {} para jogador criado junto com a conta; sem o ?? 0 isto
   // vira NaN e vaza para o style/DOM como largura de barra.
   const formPct = Math.round((((player.formaAtual?.valor ?? 0) + 5) / 10) * 100);
-  const formDelta = overall - rawOverall;
+  const formDelta = rated ? overall - rawOverall : 0;
   const tierLabel =
     overall > 75 ? 'ELITE' : overall > 60 ? 'COMP' : overall > 45 ? 'SOCIAL' : 'BASE';
   const tierColor =
@@ -260,7 +261,7 @@ export const PlayerItem: React.FC<{
           <div className="text-right shrink-0">
             <div className="flex items-baseline gap-0.5 justify-end">
               <span className="text-xl font-black font-mono text-accent leading-none">
-                {overall}
+                {rated ? overall : '?'}
               </span>
               {formDelta !== 0 && (
                 <span
@@ -291,9 +292,11 @@ export const PlayerItem: React.FC<{
             </span>
           )}
           {/* Tier */}
-          <span className={`badge ${tierColor} badge-xs font-bold uppercase font-mono`}>
-            {tierLabel}
-          </span>
+          {rated && (
+            <span className={`badge ${tierColor} badge-xs font-bold uppercase font-mono`}>
+              {tierLabel}
+            </span>
+          )}
 
           {/* Position badges */}
           <span className="badge badge-neutral badge-xs font-bold uppercase font-mono">
@@ -361,23 +364,25 @@ export const PlayerItem: React.FC<{
         </div>
 
         {/* ── Overall by top positions ─────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-2">
-          {positionOveralls.map(({ pos, rating }) => (
-            <div
-              key={pos}
-              className="bg-base-300/40 rounded-lg px-2 py-1.5 flex items-center justify-between border border-base-300/60"
-            >
-              <span className="text-[8px] font-bold uppercase tracking-wide text-base-content/50 font-mono">
-                {positionAbbreviations[pos]}
-              </span>
-              <span
-                className={`text-[11px] font-black font-mono ${pos === player.posicaoPrincipal ? 'text-accent' : 'text-base-content/60'}`}
+        {rated && (
+          <div className="grid grid-cols-2 gap-2">
+            {positionOveralls.map(({ pos, rating }) => (
+              <div
+                key={pos}
+                className="bg-base-300/40 rounded-lg px-2 py-1.5 flex items-center justify-between border border-base-300/60"
               >
-                {rating}
-              </span>
-            </div>
-          ))}
-        </div>
+                <span className="text-[8px] font-bold uppercase tracking-wide text-base-content/50 font-mono">
+                  {positionAbbreviations[pos]}
+                </span>
+                <span
+                  className={`text-[11px] font-black font-mono ${pos === player.posicaoPrincipal ? 'text-accent' : 'text-base-content/60'}`}
+                >
+                  {rating}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Form Observation ────────────────────────────────────────── */}
         {player.formaAtual.observacao && (

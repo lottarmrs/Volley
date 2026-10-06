@@ -56,4 +56,13 @@ describe('PlayerItem', () => {
 
     expect(container.innerHTML).not.toMatch(/NaN/);
   });
+
+  it('sem avaliacao mostra ? no geral e esconde tier e gerais por posicao', () => {
+    const atleta = makePlayer('p1', { nome: 'Caio Reis' });
+    const { container } = render(<PlayerItem player={atleta} rated={false} />);
+
+    expect(screen.getByText('?')).toBeTruthy();
+    expect(screen.queryByText(/^(ELITE|COMP|SOCIAL|BASE)$/)).toBeNull();
+    expect(container.querySelector('.grid.grid-cols-2')).toBeNull();
+  });
 });

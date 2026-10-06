@@ -9,7 +9,7 @@
 > `mark_my_night_seen`, `get_my_pending_night`; testes em `noiteDoAtleta.dbtest.ts`). Para
 > publicar: aplicar a migration no Supabase do Panelinha primeiro, depois merge e push (push =
 > deploy na Vercel), só com o ok do usuário. Próximas fatias: "Minha carta" no perfil; metas entre
-> peladas. Limites e achados em `docs/JORNADA.md` (1.10, 10.5, 10.6).
+> peladas. Limites e achados em `docs/JORNADA.md` (1.11, 10.5, 10.6).
 >
 > **2026-09-30 — projeto tempo real, parte 2 (peladas e histórico online).** Branch
 > `exec/peladas-online` (worktree `C:\Volley-peladas`), **publicada em 2026-10-01** com as migrations

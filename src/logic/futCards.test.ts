@@ -15,6 +15,7 @@ import {
   BuildVutCardContext,
 } from './futCards';
 import { PartnershipMatrix } from './partnershipHistory';
+import { calculateSessionRating } from './rating';
 
 const createPlayer = (
   id: string,
@@ -332,7 +333,19 @@ test('formHistoryFromSessions: notas das peladas encerradas, em ordem, no maximo
   const sessions: Session[] = [];
   const teams: Team[] = [];
   const games: Game[] = [];
-  for (let i = 0; i < 12; i++) {
+  const pointEvents: PointEvent[] = [];
+  const jogo = (i: number | string, scoreA: number, scoreB: number) =>
+    ({
+      id: `g${i}`,
+      sessionId: `s${i}`,
+      teamAId: `ta${i}`,
+      teamBId: `tb${i}`,
+      scoreA,
+      scoreB,
+      winnerTeamId: scoreA > scoreB ? `ta${i}` : `tb${i}`,
+      status: 'finished',
+    }) as unknown as Game;
+  for (let i = 11; i >= 0; i--) {
     const sid = `s${i}`;
     sessions.push({
       id: sid,
@@ -342,27 +355,42 @@ test('formHistoryFromSessions: notas das peladas encerradas, em ordem, no maximo
     } as unknown as Session);
     teams.push({ id: `ta${i}`, sessionId: sid, name: 'A', playerIds: ['p1'] } as unknown as Team);
     teams.push({ id: `tb${i}`, sessionId: sid, name: 'B', playerIds: ['p2'] } as unknown as Team);
-    games.push({
-      id: `g${i}`,
-      sessionId: sid,
-      teamAId: `ta${i}`,
-      teamBId: `tb${i}`,
-      scoreA: 25,
-      scoreB: 20,
-      winnerTeamId: `ta${i}`,
-      status: 'finished',
-    } as unknown as Game);
+    games.push(i % 2 === 0 ? jogo(i, 25, 10 + i) : jogo(i, 15 + i, 25));
+    for (let k = 0; k < i; k++) {
+      pointEvents.push({
+        id: `pt${i}-${k}`,
+        sessionId: sid,
+        gameId: `g${i}`,
+        playerId: 'p1',
+        pointType: 'winner',
+      } as unknown as PointEvent);
+    }
   }
   sessions.push({
-    id: 'aberta',
+    id: 'saberta',
     name: 'aberta',
     date: '2026-07-01',
     status: 'active',
   } as unknown as Session);
+  teams.push({ id: 'taaberta', sessionId: 'saberta', name: 'A', playerIds: ['p1'] } as never);
+  teams.push({ id: 'tbaberta', sessionId: 'saberta', name: 'B', playerIds: ['p2'] } as never);
+  games.push(jogo('aberta', 25, 0));
 
-  const hist = formHistoryFromSessions(player, { sessions, teams, games, pointEvents: [] });
-  assert.equal(hist.length, 10);
-  assert.ok(hist.every((nota) => typeof nota === 'number'));
+  const notaDa = (i: number | string) =>
+    calculateSessionRating({
+      player,
+      sessionGames: games.filter((game) => game.sessionId === `s${i}`),
+      sessionPoints: pointEvents.filter((point) => point.sessionId === `s${i}`),
+      teams: teams.filter((team) => team.sessionId === `s${i}`),
+    });
+  const esperado = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => notaDa(i));
+  assert.ok(new Set(esperado).size > 2);
+  assert.notEqual(notaDa('aberta'), null);
+  assert.notEqual(notaDa('aberta'), notaDa(11));
+
+  const hist = formHistoryFromSessions(player, { sessions, teams, games, pointEvents });
+  assert.deepEqual(hist, esperado);
+  assert.equal(hist[hist.length - 1], notaDa(11));
 });
 
 test('buildVutCard: atleta com conta tem a forma reconstruida pelo historico', () => {

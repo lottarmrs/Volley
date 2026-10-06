@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import { generateFutStats } from '@logic/futCards';
 import { useAthleteNight } from './useAthleteNight';
 
 const fetchPendingNight = vi.fn();
@@ -28,7 +29,16 @@ const ana = {
 } as never;
 
 const history = {
-  sessions: [{ id: 's1', cloudId: 'uuid-s1', name: 's1', date: '2026-10-04', status: 'finished' }],
+  sessions: [
+    {
+      id: 's1',
+      cloudId: 'uuid-s1',
+      communityId: 'c1',
+      name: 's1',
+      date: '2026-10-04',
+      status: 'finished',
+    },
+  ],
   teams: [
     { id: 't1', sessionId: 's1', name: 'A', playerIds: ['ana'] },
     { id: 't2', sessionId: 's1', name: 'B', playerIds: ['bia'] },
@@ -41,13 +51,16 @@ const history = {
 
 const communities = [{ id: 'c1', cloudId: 'uuid-c1', name: 'Vôlei de Terça' }] as never;
 
+let client: QueryClient;
+
 function wrapper({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
 describe('useAthleteNight', () => {
   beforeEach(() => {
-    cardStats = undefined;
+    cardStats = new Map();
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     fetchPendingNight.mockReset();
     markNightSeen.mockReset().mockResolvedValue(undefined);
   });
@@ -60,6 +73,8 @@ describe('useAthleteNight', () => {
     );
     await waitFor(() => expect(result.current.night?.sessionId).toBe('s1'));
     expect(result.current.communityName).toBe('Vôlei de Terça');
+    expect(result.current.communityId).toBe('c1');
+    expect(result.current.sessionDate).toBe('2026-10-04');
   });
 
   it('sem pendente, sem noite', async () => {
@@ -108,35 +123,35 @@ describe('useAthleteNight', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(result.current.night).toBe(shown);
+    expect(result.current.night).toEqual(shown);
     act(() => result.current.dismiss());
     expect(result.current.night).toBeNull();
   });
 
-  it('a noite se atualiza quando os numeros da carta chegam depois da primeira montagem', async () => {
+  it('a noite so aparece depois que os numeros da carta chegam', async () => {
+    cardStats = undefined;
     fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
     const { result, rerender } = renderHook(
       () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
       { wrapper },
     );
-    await waitFor(() => expect(result.current.night).not.toBeNull());
-    const first = result.current.night;
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.night).toBeNull();
     cardStats = new Map([['ana', { saque: 99 }]]);
     rerender();
-    await waitFor(() => expect(result.current.night).not.toBe(first));
-    expect(JSON.stringify(result.current.night?.card)).not.toBe(JSON.stringify(first?.card));
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    expect(result.current.night?.card.stats.rated).toBe(true);
+    expect(result.current.night?.card.stats).toEqual(generateFutStats(ana, { saque: 99 }));
   });
 
   it('dispensada com o pendente ja vazio, nao reabre se o servidor devolver a mesma noite', async () => {
     fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
-    const client = new QueryClient();
     const { result } = renderHook(
       () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
-      {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <QueryClientProvider client={client}>{children}</QueryClientProvider>
-        ),
-      },
+      { wrapper },
     );
     await waitFor(() => expect(result.current.night).not.toBeNull());
     fetchPendingNight.mockResolvedValue(null);

@@ -908,15 +908,13 @@ export function AppShell() {
         <AthleteNightReveal
           night={athleteNight.night}
           communityName={athleteNight.communityName ?? ''}
-          sessionDate={
-            sess.sessions.find((s) => s.id === athleteNight.night?.sessionId)?.date ?? ''
-          }
+          sessionDate={athleteNight.sessionDate}
           onOpened={athleteNight.markSeen}
           onClose={athleteNight.dismiss}
           onViewCard={() => {
-            const session = sess.sessions.find((s) => s.id === athleteNight.night?.sessionId);
+            const communityId = athleteNight.communityId;
             athleteNight.dismiss();
-            if (session?.communityId) navigate(paths.pessoas(session.communityId));
+            if (communityId) navigate(paths.pessoas(communityId));
           }}
         />
       )}

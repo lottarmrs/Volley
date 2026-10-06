@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@app/queryKeys';
 import { buildAthleteNight, type AthleteNight } from '@app/athleteNight';
@@ -8,6 +8,8 @@ import type { Community, Player } from '@shared/types';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { useCommunityCardStats } from './useCommunityCardStats';
 
+type Held = { userId: string; sessionId: string; communityId: string };
+
 export function useAthleteNight(input: {
   userId: string | null;
   players: Player[];
@@ -16,13 +18,15 @@ export function useAthleteNight(input: {
 }): {
   night: AthleteNight | null;
   communityName: string | null;
+  communityId: string | null;
+  sessionDate: string;
   markSeen: () => void;
   dismiss: () => void;
 } {
   const { userId, players, communities, history } = input;
   const queryClient = useQueryClient();
+  const [held, setHeld] = useState<Held | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
-  const shown = useRef<{ night: AthleteNight; cloudSessionId: string } | null>(null);
   const enabled = isSupabaseConfigured && !!userId;
 
   const pending = useQuery({
@@ -33,23 +37,33 @@ export function useAthleteNight(input: {
   });
 
   const target = enabled ? (pending.data ?? null) : null;
-  const skillValues = useCommunityCardStats(target?.communityId ?? null, players);
+  const heldNow = held && held.userId === userId ? held : null;
+  const candidate: Held | null =
+    heldNow ??
+    (target && userId && !dismissed.includes(`${userId}:${target.sessionId}`)
+      ? { userId, sessionId: target.sessionId, communityId: target.communityId }
+      : null);
+  const candidateSessionId = candidate?.sessionId ?? null;
+  const candidateCommunityId = candidate?.communityId ?? null;
 
-  const targetSessionId = target?.sessionId ?? null;
-
-  const community = target
-    ? (communities.find((c) => (c.cloudId ?? c.id) === target.communityId) ?? null)
-    : null;
+  const skillValues = useCommunityCardStats(candidateCommunityId, players);
 
   const built = useMemo(() => {
-    if (!target || dismissed.includes(target.sessionId)) return null;
+    if (!candidateSessionId || !skillValues) return null;
     const me = players.find((player) => player.userId === userId);
     const session = history.sessions.find(
-      (s) => s.cloudId === target.sessionId || s.id === target.sessionId,
+      (s) => s.cloudId === candidateSessionId || s.id === candidateSessionId,
     );
     if (!me || !session) return null;
-    return buildAthleteNight({ player: me, session, history: { ...history, skillValues } });
-  }, [target, dismissed, players, userId, history, skillValues]);
+    const night = buildAthleteNight({ player: me, session, history: { ...history, skillValues } });
+    return night ? { night, session } : null;
+  }, [candidateSessionId, skillValues, players, userId, history]);
+
+  if (built && candidate && heldNow?.sessionId !== candidate.sessionId) setHeld(candidate);
+
+  const community = candidateCommunityId
+    ? (communities.find((c) => (c.cloudId ?? c.id) === candidateCommunityId) ?? null)
+    : null;
 
   const { mutate } = useMutation({
     mutationFn: (sessionCloudId: string) => careerCloudService.markNightSeen(sessionCloudId),
@@ -58,28 +72,23 @@ export function useAthleteNight(input: {
     },
   });
 
-  useEffect(() => {
-    shown.current = null;
-    setDismissed([]);
-  }, [userId]);
-
-  useEffect(() => {
-    if (built && targetSessionId) shown.current = { night: built, cloudSessionId: targetSessionId };
-  }, [built, targetSessionId]);
-
   const markSeen = useCallback(() => {
-    if (targetSessionId) mutate(targetSessionId);
-  }, [mutate, targetSessionId]);
+    if (candidateSessionId) mutate(candidateSessionId);
+  }, [mutate, candidateSessionId]);
 
   const dismiss = useCallback(() => {
-    const ids = [targetSessionId, shown.current?.cloudSessionId].filter((id): id is string => !!id);
-    setDismissed((current) => [...current, ...ids]);
-    shown.current = null;
-  }, [targetSessionId]);
+    if (userId && candidateSessionId) {
+      setDismissed((current) => [...current, `${userId}:${candidateSessionId}`]);
+    }
+    setHeld(null);
+  }, [userId, candidateSessionId]);
 
-  /* eslint-disable react-hooks/refs */
-  const night = built ?? shown.current?.night ?? null;
-
-  return { night, communityName: community?.name ?? null, markSeen, dismiss };
-  /* eslint-enable react-hooks/refs */
+  return {
+    night: built?.night ?? null,
+    communityName: community?.name ?? null,
+    communityId: built?.session.communityId ?? null,
+    sessionDate: built?.session.date ?? '',
+    markSeen,
+    dismiss,
+  };
 }

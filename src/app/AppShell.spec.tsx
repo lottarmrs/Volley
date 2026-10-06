@@ -15,6 +15,8 @@ import type { Player } from '@shared/types';
 const nightState = {
   night: null as AthleteNight | null,
   communityName: 'Vôlei de Terça',
+  communityId: 'c1',
+  sessionDate: '2026-10-04',
   markSeen: vi.fn(),
   dismiss: vi.fn(),
 };

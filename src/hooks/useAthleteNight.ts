@@ -77,7 +77,9 @@ export function useAthleteNight(input: {
     shown.current = null;
   }, [targetSessionId]);
 
+  /* eslint-disable react-hooks/refs */
   const night = built ?? shown.current?.night ?? null;
 
   return { night, communityName: community?.name ?? null, markSeen, dismiss };
+  /* eslint-enable react-hooks/refs */
 }

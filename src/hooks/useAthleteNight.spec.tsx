@@ -156,4 +156,17 @@ describe('useAthleteNight', () => {
     });
     expect(result.current.night).toBeNull();
   });
+
+  it('trocar de conta limpa a noite que estava aberta', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    let userId: string | null = 'conta-ana';
+    const { result, rerender } = renderHook(
+      () => useAthleteNight({ userId, players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    userId = null;
+    rerender();
+    await waitFor(() => expect(result.current.night).toBeNull());
+  });
 });

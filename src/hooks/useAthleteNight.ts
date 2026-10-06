@@ -59,6 +59,11 @@ export function useAthleteNight(input: {
   });
 
   useEffect(() => {
+    shown.current = null;
+    setDismissed([]);
+  }, [userId]);
+
+  useEffect(() => {
     if (built && targetSessionId) shown.current = { night: built, cloudSessionId: targetSessionId };
   }, [built, targetSessionId]);
 

@@ -69,7 +69,9 @@ import {
   buildImportedBackupPersistencePlan,
   prepareImportedBackup,
 } from '../application/backupUseCases';
-import { buildVutRevealItems } from '../application/vutRevealUseCases';
+import { buildVutRevealItems, shouldQueueOrganizerReveal } from '../application/vutRevealUseCases';
+import { useAthleteNight } from '../hooks/useAthleteNight';
+import { AthleteNightReveal } from '../components/player/AthleteNightReveal';
 import { planStartupCloudDownload } from '../application/cloudSyncStartupUseCases';
 import {
   bindMaterializedRoundToSession,
@@ -113,6 +115,23 @@ export function AppShell() {
   const whatsAppLists = useWhatsAppListTemplates();
   const championships = useChampionships();
   const operationalPhase = derivePhase(sess.activeSession, sess.games);
+  const history = useMemo(
+    () => ({
+      sessions: sess.sessions,
+      teams: sess.teams,
+      games: sess.games,
+      pointEvents: sess.pointEvents,
+      players: play.players,
+      sessionReports: sess.sessionReports,
+    }),
+    [sess.sessions, sess.teams, sess.games, sess.pointEvents, play.players, sess.sessionReports],
+  );
+  const athleteNight = useAthleteNight({
+    userId: comm.online ? (auth.user?.id ?? null) : null,
+    players: play.players,
+    communities: comm.communities,
+    history,
+  });
   const [currentDeviceId] = useState(getOrCreateDeviceId);
 
   const activeSessionOwnerId = sess.activeSession?.communityId ?? null;
@@ -560,33 +579,36 @@ export function AppShell() {
         finishedAt: new Date().toISOString(),
       });
 
-      // 1. Build cards BEFORE session finish (current session not finished)
-      const buildCtxBefore = {
-        sessions: sess.sessions,
-        teams: sess.teams,
-        games: sess.games,
-        pointEvents: sess.pointEvents,
-        players: play.players,
-        sessionReports: sess.sessionReports,
-      };
+      let itemsToReveal: RevealItem[] = [];
+      if (shouldQueueOrganizerReveal(comm.online)) {
+        // 1. Build cards BEFORE session finish (current session not finished)
+        const buildCtxBefore = {
+          sessions: sess.sessions,
+          teams: sess.teams,
+          games: sess.games,
+          pointEvents: sess.pointEvents,
+          players: play.players,
+          sessionReports: sess.sessionReports,
+        };
 
-      // 2. Build cards AFTER the use case applies progression, rating and report updates.
+        // 2. Build cards AFTER the use case applies progression, rating and report updates.
 
-      const buildCtxAfter = {
-        sessions: result.updatedSessions,
-        teams: sess.teams,
-        games: result.updatedGames,
-        pointEvents: sess.pointEvents,
-        players: result.updatedPlayers,
-        sessionReports: result.updatedReports,
-      };
+        const buildCtxAfter = {
+          sessions: result.updatedSessions,
+          teams: sess.teams,
+          games: result.updatedGames,
+          pointEvents: sess.pointEvents,
+          players: result.updatedPlayers,
+          sessionReports: result.updatedReports,
+        };
 
-      const itemsToReveal: RevealItem[] = buildVutRevealItems({
-        participants: result.participants,
-        updatedPlayers: result.updatedPlayers,
-        beforeContext: buildCtxBefore,
-        afterContext: buildCtxAfter,
-      });
+        itemsToReveal = buildVutRevealItems({
+          participants: result.participants,
+          updatedPlayers: result.updatedPlayers,
+          beforeContext: buildCtxBefore,
+          afterContext: buildCtxAfter,
+        });
+      }
 
       // 4. Update states
       void play.applyProgression(result.updatedPlayers);
@@ -735,7 +757,10 @@ export function AppShell() {
       <ToastViewport toasts={toasts.toasts} onDismiss={toasts.dismiss} />
       <input id="sidebar-drawer" type="checkbox" className="drawer-toggle" />
 
-      <div className="drawer-content flex flex-col min-h-screen min-w-0 bg-base-100 text-base-content">
+      <div
+        inert={!!athleteNight.night}
+        className="drawer-content flex flex-col min-h-screen min-w-0 bg-base-100 text-base-content"
+      >
         {pendingDeliveryNotice && (
           <button
             type="button"
@@ -879,6 +904,23 @@ export function AppShell() {
         onDiscard={sess.scoreQueue.discard}
       />
 
+      {athleteNight.night && (
+        <AthleteNightReveal
+          night={athleteNight.night}
+          communityName={athleteNight.communityName ?? ''}
+          sessionDate={
+            sess.sessions.find((s) => s.id === athleteNight.night?.sessionId)?.date ?? ''
+          }
+          onOpened={athleteNight.markSeen}
+          onClose={athleteNight.dismiss}
+          onViewCard={() => {
+            const session = sess.sessions.find((s) => s.id === athleteNight.night?.sessionId);
+            athleteNight.dismiss();
+            if (session?.communityId) navigate(paths.pessoas(session.communityId));
+          }}
+        />
+      )}
+
       {revealQueue.length > 0 && (
         <VutRevealModal
           isOpen={revealQueue.length > 0}
@@ -887,7 +929,7 @@ export function AppShell() {
         />
       )}
 
-      <div className="drawer-side z-30">
+      <div inert={!!athleteNight.night} className="drawer-side z-30">
         <label
           htmlFor="sidebar-drawer"
           aria-label="close sidebar"

@@ -55,3 +55,7 @@ export function buildVutRevealItems(input: {
 
   return buildVutRevealItemsFromCards(cardPairs);
 }
+
+export function shouldQueueOrganizerReveal(online: boolean): boolean {
+  return !online;
+}

@@ -253,6 +253,12 @@ export const AthleteNightReveal: React.FC<AthleteNightRevealProps> = ({
   const [compartilhando, setCompartilhando] = useState(false);
   const [falhou, setFalhou] = useState(false);
   const avisou = useRef(false);
+  useEffect(() => {
+    const anterior = document.activeElement;
+    return () => {
+      if (anterior instanceof HTMLElement && document.contains(anterior)) anterior.focus();
+    };
+  }, []);
   const abrirRef = useRef<HTMLButtonElement>(null);
   const proximoRef = useRef<HTMLButtonElement>(null);
   const compartilharRef = useRef<HTMLButtonElement>(null);

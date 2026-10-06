@@ -171,4 +171,15 @@ describe('AthleteNightReveal', () => {
     clicar(/próximo/i);
     expect(screen.getByText('Primeira Vitória')).toBeDefined();
   });
+
+  it('ao fechar, devolve o foco ao que estava focado antes de abrir', () => {
+    const gatilho = document.createElement('button');
+    document.body.appendChild(gatilho);
+    gatilho.focus();
+    const { unmount } = abrir();
+    expect(document.activeElement).not.toBe(gatilho);
+    unmount();
+    expect(document.activeElement).toBe(gatilho);
+    gatilho.remove();
+  });
 });

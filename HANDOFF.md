@@ -1,5 +1,13 @@
 # HANDOFF — Panelinha
 
+> **2026-10-07 — fatia "Minha carta".** Branch `exec/minha-carta` (worktree `C:\Volley-carta`),
+> ainda **não publicada**, **sem migration** (usa `get_community_card_stats` da fatia anterior).
+> Meu perfil → aba "Minha carta": baralho em leque com uma carta por comunidade, álbum de
+> conquistas e coleção de edições (MVP, Maestro, Muralha); `/perfil?comunidade=<id>`. Saíram do
+> perfil todos os números inventados. "Ver minha carta" (fim de Sua noite) e "Ver em Minha carta"
+> abrem a carta certa. Limites em `docs/JORNADA.md` (1.12, 1.13). PR depois do ok do usuário.
+> Próxima fatia: metas e desafios entre peladas.
+>
 > **2026-10-05 — fatia "Sua noite".** Branch `exec/sua-noite`, worktree `C:\Volley-noite`, ainda
 > **não publicada**. Depois de jogar, o atleta com conta abre o app e vê a própria noite em
 > capítulos de tela cheia (pacote, carta, números, conquistas novas, quase lá, fim); conta como

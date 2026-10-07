@@ -15,7 +15,7 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
   browser,
 }) => {
   await encerrarTudoEmAndamento();
-  const { atletas } = await elencoDaComunidade();
+  const { comunidadeId, atletas } = await elencoDaComunidade();
   const ana = atletas.find((a) => a.nome.startsWith('Ana'));
   expect(ana).toBeDefined();
   const jogam = [ana!, ...atletas.filter((a) => a !== ana).slice(0, 17)];
@@ -87,12 +87,17 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
       .toBe(1);
   });
 
-  await test.step('fechar e reabrir o app: a noite nao volta', async () => {
+  await test.step('Ver minha carta abre o perfil na carta da comunidade', async () => {
     await pAna
       .getByRole('dialog', { name: 'Sua noite' })
-      .getByRole('button', { name: 'Fechar' })
+      .getByRole('button', { name: 'Ver minha carta' })
       .click();
+    await expect(pAna).toHaveURL(new RegExp(`/perfil[?]comunidade=${comunidadeId}$`));
+    await expect(pAna.getByRole('region', { name: 'Minha carta' })).toContainText('Pelada Local');
     await expect(pAna.getByRole('dialog', { name: 'Sua noite' })).toHaveCount(0);
+  });
+
+  await test.step('reabrir o app: a noite nao volta', async () => {
     await pAna.reload();
     await pAna.waitForLoadState('networkidle');
     await pAna.waitForTimeout(3000);

@@ -56,6 +56,7 @@ Em toda etapa, quatro famílias, nesta ordem:
 | 1.8 | O atleta vê a própria avaliação? | ✅ **Desde 2026-09-29, na carta.** Tocar em si mesmo em Pessoas abre a carta com a aba "Avaliação": média por fundamento nesta comunidade, sem dizer quem deu cada nota. Quem avalia vê a de todos; os demais membros, só a carta. `perfilDoAtleta.dbtest.ts` (`o atleta le a propria avaliacao e nao a de outro`), `PlayersView.spec.tsx`. |
 | 1.9 | Quem troca a foto de um atleta? | ✅ **Com conta, só a própria conta**, em Minha ficha; **convidado**, dono ou admin da comunidade, em Gestão → Convidados. Nos dois casos vale na hora — não há mais aprovação. `perfilDoAtleta.dbtest.ts`. |
 | 1.10 | O que é "presença frequente"? | ✅ **Calculada, desde 2026-09-29:** esteve em pelo menos metade das até 6 últimas peladas encerradas da comunidade (`isFrequentInCommunity`, `community.test.ts`). Ninguém marca. Limite: quem não lê as peladas da comunidade (o membro, até a P17) não vê ninguém como frequente. |
+| 1.11 | Quem vê os números da carta? | ✅ Desde 2026-10-05, qualquer membro ativo: OVR e 6 stats saem da avaliação da comunidade (`get_community_card_stats`, `noiteDoAtleta.dbtest.ts`). Sem dimensão avaliada a carta mostra "?" / "—" / "Aguardando avaliação" (também no texto de exportar e compartilhar). A aba Avaliação, com cobertura, segue só para quem avalia e o próprio atleta. |
 
 ---
 
@@ -229,6 +230,10 @@ horário e local) e a lista de peladas da comunidade também.
 | 10.2 | Encerrar faz o quê no servidor? | ✅ Cancela jogos abertos, encerra pelo comando e o gatilho `zz_regenerate_career_on_session_finish` recalcula a carreira (`peladasServidor.dbtest.ts`). |
 | 10.3 | Quem apaga histórico e convidado? | ✅ O dono da comunidade, no servidor. |
 | 10.4 | Pelada do modelo novo aceita edição direta? | ✅ **Não:** a raiz só muda por comandos (agendar, iniciar, encerrar, cancelar, `set_target_session_details`). Times, jogos, pontos e relatórios quem organiza grava direto. |
+| 10.5 | O atleta vê a própria noite? | ✅ Desde 2026-10-05, no próprio celular, ao abrir o app depois de jogar (até 7 dias; só a última, `get_my_pending_night`). "Sua noite" tem capítulos em tela cheia (pacote, carta, números, conquistas novas, quase lá, fim), com "Pular"; conta como vista ao abrir o pacote (`athlete_night_views`, `mark_my_night_seen`). Aparece em qualquer tela para conta online (`AppShell`). Sem conta, a fila continua no aparelho do organizador. |
+| 10.6 | A forma de quem tem conta é gravada no encerramento? | ❌ **Achado:** não era. `persistPlayer` em `usePlayers.ts` ignora jogadores de outras contas, então o encerramento do organizador nunca a escrevia. Desde 2026-10-05 a carta a reconstrói pelo histórico (últimas 10 peladas encerradas). |
+
+Limites conhecidos de "Sua noite": "Subiu de tier" quase não acontece (o tier segue a avaliação, não a noite); o progresso de "Quase lá" em conquistas de dois critérios reflete um só (barra limitada a 95%); a lista de Pessoas ainda mostra o OVR legado de quem não tem avaliação, enquanto a carta mostra "?".
 
 ❓ `AvatarApprovalInbox` não tem tela; o conjunto de candidatos publicado não tem leitor.
 

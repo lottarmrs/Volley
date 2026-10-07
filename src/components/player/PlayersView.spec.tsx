@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Community } from '@shared/types';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
+import { calculatePositionOverall } from '@logic/calculations';
 import { makePlayer } from '../../test/fixtures';
 import { PlayersView } from './PlayersView';
+
+vi.mock('../../hooks/useCommunityCardStats', () => ({
+  useCommunityCardStats: () => new Map([['p2', { ataque: 9, saque: 9, defesa: 9 }]]),
+}));
 
 const community = { id: 'c1', name: 'Panelinha' } as Community;
 
@@ -98,5 +103,36 @@ describe('PlayersView', () => {
       abrir();
       expect(screen.queryAllByRole('button', { name: /avaliação/i })).toHaveLength(0);
     });
+  });
+  it('membro comum ve o OVR da avaliacao na carta de outro atleta', () => {
+    const outro = makePlayer('p2', {
+      nome: 'Bruno Lima',
+      communityIds: ['c1'],
+      cloudId: 'cp2',
+      userId: 'u-bruno',
+    });
+    renderView([outro], { canEvaluate: false, currentUserId: 'u-outro', cloudId: 'cc1' });
+    fireEvent.click(screen.getByText('Bruno Lima'));
+    const carta = screen
+      .getByRole('button', { name: /fechar o card do atleta/i })
+      .closest('.modal-box') as HTMLElement;
+    expect(within(carta).getAllByText('92').length).toBeGreaterThan(0);
+  });
+
+  it('na lista, atleta sem avaliacao mostra ? no geral e esconde os gerais por posicao', () => {
+    const semAvaliacao = makePlayer('p3', {
+      nome: 'Caio Reis',
+      communityIds: ['c1'],
+      cloudId: 'cp3',
+      userId: 'u-caio',
+    });
+    renderView([semAvaliacao], { canEvaluate: false, currentUserId: 'u-outro', cloudId: 'cc1' });
+    const item = screen.getByText('Caio Reis').closest('.card') as HTMLElement;
+    expect(within(item).getByText('?')).toBeTruthy();
+    const posicoes = ['levantador', 'oposto', 'ponteiro', 'central', 'libero', 'all-rounder'];
+    for (const posicao of posicoes) {
+      const antigo = calculatePositionOverall(semAvaliacao, posicao as never);
+      expect(within(item).queryByText(String(antigo))).toBeNull();
+    }
   });
 });

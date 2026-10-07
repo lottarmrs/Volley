@@ -1,5 +1,4 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { toPng } from 'html-to-image';
 import {
   X,
   Copy,
@@ -23,7 +22,7 @@ import { CommunitySkillProfileResult } from './CommunitySkillProfilePanel';
 import { CareerTimeline } from './CareerTimeline';
 import { usePlayerCareer } from '../../hooks/usePlayerCareer';
 import { careerStatsFromTotals } from '../../logic/career';
-import { Player, Session, Team, Game, PointEvent } from '../../types';
+import { Attributes, Player, Session, Team, Game, PointEvent } from '../../types';
 import {
   buildVutCard,
   VutCard,
@@ -34,6 +33,7 @@ import {
 import { autoFormFromHistory, calculateSessionRating } from '../../logic/rating';
 import { calculatePlayerStats } from '../../logic/statistics';
 import { calculateSessionRecognition } from '../../logic/match';
+import { shareCardImage } from '../../logic/shareCardImage';
 
 interface FutCardModalProps {
   isOpen: boolean;
@@ -46,6 +46,7 @@ interface FutCardModalProps {
   pointEvents: PointEvent[];
   communityId?: string | null;
   canSeeEvaluation?: boolean;
+  skillValues?: Map<string, Partial<Attributes>>;
 }
 
 type MobileTab =
@@ -124,6 +125,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   pointEvents,
   communityId = null,
   canSeeEvaluation = false,
+  skillValues,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [includeHistory, setIncludeHistory] = useState(true);
@@ -168,8 +170,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
       pointEvents,
       players,
       sessionReports: [],
+      skillValues,
     });
-  }, [player, players, sessions, teams, games, pointEvents]);
+  }, [player, players, sessions, teams, games, pointEvents, skillValues]);
 
   // Technical stats calculated
   const playerStats = calculatePlayerStats(player, games, pointEvents, teams, sessions);
@@ -272,7 +275,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     return { counts, bestKind, lastSpecial };
   }, [cardData.edition.kind, games, player.id, players, pointEvents, sessions, teams]);
 
-  const ratingsHistory = player.formaAtual?.ultimasPartidas ?? [];
+  const ratingsHistory = cardData.player.formaAtual?.ultimasPartidas ?? [];
   const previousRating =
     ratingsHistory.length >= 2 ? ratingsHistory[ratingsHistory.length - 2] : null;
   const currentRating =
@@ -282,7 +285,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
       ? ratingsHistory.slice(0, -1).reduce((sum, value) => sum + value, 0) /
         (ratingsHistory.length - 1)
       : null;
-  const currentAvg = autoFormFromHistory(player);
+  const currentAvg = autoFormFromHistory(cardData.player);
   const formDelta =
     previousAvg !== null && currentAvg !== null
       ? Math.round((currentAvg - previousAvg) * 100) / 100
@@ -292,14 +295,17 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   const textExport = useMemo(() => {
     let text = `🏐 CARTA VUT — ${player.nome.toUpperCase()}\n`;
     text += `━━━━━━━━━━━━━━━━━━━\n`;
-    text += `📊 OVR: ${cardData.stats.ovr} | Tier: ${cardData.stats.tier.toUpperCase()} | Posição: ${cardData.posLabel}\n`;
+    text += cardData.stats.rated
+      ? `📊 OVR: ${cardData.stats.ovr} | Tier: ${cardData.stats.tier.toUpperCase()} | Posição: ${cardData.posLabel}\n`
+      : `📊 OVR: ? | Posição: ${cardData.posLabel}\n`;
     text += `🤚 Mão: ${cardData.stats.hand} | ⭐ Versatilidade: ${cardData.stats.versatility}/5\n`;
     const formVal = cardData.formBadge.value;
     text += `🟢 Forma: ${formVal !== null ? formVal.toFixed(1) : '—'} (${cardData.edition.label} ${cardData.edition.emoji})\n\n`;
 
     text += `── ATRIBUTOS ──────────\n`;
-    text += `ATQ ${cardData.stats.atq} | BLO ${cardData.stats.blo} | SAQ ${cardData.stats.saq}\n`;
-    text += `LEV ${cardData.stats.lev} | DEF ${cardData.stats.def} | FÍS ${cardData.stats.fis}\n\n`;
+    const num = (value: number) => (cardData.stats.rated ? value : '—');
+    text += `ATQ ${num(cardData.stats.atq)} | BLO ${num(cardData.stats.blo)} | SAQ ${num(cardData.stats.saq)}\n`;
+    text += `LEV ${num(cardData.stats.lev)} | DEF ${num(cardData.stats.def)} | FÍS ${num(cardData.stats.fis)}\n\n`;
 
     text += `── QUÍMICA ────────────\n`;
     if (cardData.chemistry.length > 0) {
@@ -313,9 +319,9 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
 
     if (includeHistory) {
       text += `── HISTÓRICO ──────────\n`;
-      const ratings = player.formaAtual?.ultimasPartidas ?? [];
+      const ratings = cardData.player.formaAtual?.ultimasPartidas ?? [];
       text += `📈 Notas: ${ratings.length > 0 ? ratings.join(', ') : 'Sem notas registradas'}\n`;
-      const avg = autoFormFromHistory(player);
+      const avg = autoFormFromHistory(cardData.player);
       text += `📊 Média: ${avg !== null ? avg.toFixed(2) : '—'} | Tendência: ${avg && avg >= 7.0 ? '↗️' : '➡️'}\n\n`;
     }
 
@@ -470,37 +476,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
     if (!cardRef.current) return;
     setExporting(true);
     try {
-      // Ensure fonts are ready
-      await document.fonts.ready;
-
-      // Generate PNG with higher pixel ratio for crispness
-      const dataUrl = await toPng(cardRef.current, {
-        pixelRatio: 2.5,
-        cacheBust: true,
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-        },
-      });
-
-      // Try web share if sharing files is supported, otherwise fallback to download
-      const filename = `vut-${player.nome.toLowerCase().replace(/\s+/g, '-')}.png`;
-
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], filename, { type: 'image/png' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Carta VUT — ${player.nome}`,
-          text: `Confira minha carta no Volley Ultimate Team!`,
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = dataUrl;
-        link.click();
-      }
+      await shareCardImage(cardRef.current, player.nome);
     } catch (err) {
       console.error('Failed to export image', err);
     } finally {
@@ -740,8 +716,8 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
         {[
           {
             label: 'OVR atual',
-            value: cardData.stats.ovr,
-            desc: cardData.stats.tier.toUpperCase(),
+            value: cardData.stats.rated ? cardData.stats.ovr : '?',
+            desc: cardData.stats.rated ? cardData.stats.tier.toUpperCase() : 'Aguardando avaliação',
           },
           {
             label: 'Ultima nota',
@@ -933,7 +909,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           {
             label: 'Card individual',
             icon: <ImageIcon className="w-4 h-4" />,
-            text: `${player.nome} - Carta VUT\nOVR ${cardData.stats.ovr} | ${cardData.posLabel} | ${cardData.edition.label}\nMoldura: ${equippedFrame.name}`,
+            text: `${player.nome} - Carta VUT\nOVR ${cardData.stats.rated ? cardData.stats.ovr : '?'} | ${cardData.posLabel} | ${cardData.edition.label}\nMoldura: ${equippedFrame.name}`,
           },
           {
             label: 'Resumo atleta',

@@ -5,7 +5,16 @@
  * A carta é uma representação visual de dados que já existem.
  */
 
-import { Player, Position, Session, Team, PointEvent, Game, SessionReport } from '../types';
+import {
+  Attributes,
+  Player,
+  Position,
+  Session,
+  Team,
+  PointEvent,
+  Game,
+  SessionReport,
+} from '../types';
 import { calculatePositionOverall, getPlayerRecommendation } from './calculations';
 import { autoFormFromHistory, calculateSessionRating, calculateMatchRating } from './rating';
 import { calculateSessionRecognition } from './match';
@@ -94,6 +103,7 @@ export interface FutStats {
   tier: VutTier;
   versatility: number; // 1–5
   hand: 'R' | 'L';
+  rated: boolean;
 }
 
 export interface VutCard {
@@ -166,11 +176,75 @@ export function tierFromOvr(ovr: number): VutTier {
   return 'bronze';
 }
 
-/** Calculate the 6 macro stats + OVR + tier + versatility + hand. */
-export function generateFutStats(player: Player): FutStats {
-  const { atributos } = player;
+const ATTRIBUTE_KEYS: (keyof Attributes)[] = [
+  'saque',
+  'recepcao',
+  'levantamento',
+  'ataque',
+  'bloqueio',
+  'defesa',
+  'velocidade',
+  'resistencia',
+  'leituraDeJogo',
+  'regularidade',
+  'controleEmocional',
+];
 
-  const ovr = Math.min(99, calculatePositionOverall(player, player.posicaoPrincipal));
+export function applySkillValues(
+  player: Player,
+  values: Partial<Attributes> | undefined,
+): { player: Player; rated: boolean } {
+  const avaliados = ATTRIBUTE_KEYS.filter((key) => Number.isFinite(values?.[key]));
+  if (!values || avaliados.length === 0) return { player, rated: false };
+  const media =
+    avaliados.reduce((soma, key) => soma + (values[key] as number), 0) / avaliados.length;
+  const atributos = {} as Attributes;
+  for (const key of ATTRIBUTE_KEYS) {
+    atributos[key] = Number.isFinite(values[key]) ? (values[key] as number) : media;
+  }
+  return { player: { ...player, atributos }, rated: true };
+}
+
+export function formHistoryFromSessions(
+  player: Player,
+  ctx: Pick<BuildVutCardContext, 'sessions' | 'teams' | 'games' | 'pointEvents'>,
+  max = 10,
+): number[] {
+  const encerradas = ctx.sessions
+    .filter((session) => session.status === 'finished')
+    .sort((a, b) =>
+      a.date === b.date
+        ? String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''))
+        : String(a.date).localeCompare(String(b.date)),
+    );
+  const notas: number[] = [];
+  for (const session of encerradas) {
+    const teams = ctx.teams.filter((team) => team.sessionId === session.id);
+    if (!teams.some((team) => team.playerIds.includes(player.id))) continue;
+    const nota = calculateSessionRating({
+      player,
+      sessionGames: ctx.games.filter((game) => game.sessionId === session.id),
+      sessionPoints: ctx.pointEvents.filter((point) => point.sessionId === session.id),
+      teams,
+    });
+    if (nota != null) notas.push(nota);
+  }
+  return notas.slice(-max);
+}
+
+/** Calculate the 6 macro stats + OVR + tier + versatility + hand. */
+export function generateFutStats(
+  player: Player,
+  skillValues?: Partial<Attributes> | null,
+): FutStats {
+  const applied =
+    skillValues === undefined
+      ? { player, rated: true }
+      : applySkillValues(player, skillValues ?? undefined);
+  const effective = applied.player;
+  const { atributos } = effective;
+
+  const ovr = Math.min(99, calculatePositionOverall(effective, effective.posicaoPrincipal));
 
   const atq = toFut(atributos.ataque);
   const blo = toFut(atributos.bloqueio);
@@ -182,7 +256,7 @@ export function generateFutStats(player: Player): FutStats {
   const tier = tierFromOvr(ovr);
 
   // Versatility: count positions with rating within `versatilityGap` of the best.
-  const rec = getPlayerRecommendation(player);
+  const rec = getPlayerRecommendation(effective);
   const bestRating = rec.allPositions[0].rating;
   const versatility = Math.max(
     1,
@@ -192,9 +266,9 @@ export function generateFutStats(player: Player): FutStats {
     ),
   );
 
-  const hand = player.maoDominante === 'esquerda' ? 'L' : 'R';
+  const hand = effective.maoDominante === 'esquerda' ? 'L' : 'R';
 
-  return { ovr, atq, blo, saq, lev, def, fis, tier, versatility, hand };
+  return { ovr, atq, blo, saq, lev, def, fis, tier, versatility, hand, rated: applied.rated };
 }
 
 // ─── Form badge ─────────────────────────────────────────────────────────────
@@ -315,6 +389,7 @@ export interface BuildVutCardContext {
   sessionReports: SessionReport[];
   /** Pre-built to avoid re-computing per card. */
   partnershipMatrix?: PartnershipMatrix;
+  skillValues?: Map<string, Partial<Attributes>>;
 }
 
 const DEFAULT_FRAME: CardFrame = {
@@ -325,8 +400,18 @@ const DEFAULT_FRAME: CardFrame = {
 };
 
 /** Build the complete VUT card for a player. Expensive — call on-demand, memoize. */
-export function buildVutCard(player: Player, ctx: BuildVutCardContext): VutCard {
-  const stats = generateFutStats(player);
+export function buildVutCard(original: Player, ctx: BuildVutCardContext): VutCard {
+  const player = original.userId
+    ? {
+        ...original,
+        formaAtual: {
+          ...original.formaAtual,
+          ultimasPartidas: formHistoryFromSessions(original, ctx),
+        },
+      }
+    : original;
+  const skill = ctx.skillValues ? (ctx.skillValues.get(player.id) ?? null) : undefined;
+  const stats = generateFutStats(player, skill);
   // Mantem o fallback 'ALL' que ja existia para posicao desconhecida; a unica mudanca
   // e nao indexar o mapa com null.
   const posLabel = (player.posicaoPrincipal ? POS_LABELS[player.posicaoPrincipal] : null) || 'ALL';

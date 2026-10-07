@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildVutRevealItemsFromCards } from './vutRevealUseCases';
+import { buildVutRevealItemsFromCards, shouldQueueOrganizerReveal } from './vutRevealUseCases';
 import type { VutCard } from '../logic/futCards';
 
 function makeCard(overrides: Partial<VutCard> = {}): VutCard {
@@ -52,4 +52,9 @@ test('buildVutRevealItemsFromCards ignores cards without new reveal reasons', ()
   ]);
 
   assert.deepEqual(items, []);
+});
+
+test('com conta online o organizador nao monta fila; sem conta monta', () => {
+  assert.equal(shouldQueueOrganizerReveal(true), false);
+  assert.equal(shouldQueueOrganizerReveal(false), true);
 });

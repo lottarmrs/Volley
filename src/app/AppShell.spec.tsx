@@ -8,6 +8,50 @@ import { ToastProvider } from '../ui/common/ToastProvider';
 import { SessionProvider } from '../ui/common/SessionProvider';
 import { SessionContext, type SessionContextValue } from '../ui/common/useSession';
 import { useSessions } from '../hooks/useSessions';
+import { buildVutCard } from '@logic/futCards';
+import type { AthleteNight } from '@app/athleteNight';
+import type { Player } from '@shared/types';
+
+const nightState = {
+  night: null as AthleteNight | null,
+  communityName: 'Vôlei de Terça',
+  communityId: 'c1',
+  sessionDate: '2026-10-04',
+  markSeen: vi.fn(),
+  dismiss: vi.fn(),
+};
+vi.mock('../hooks/useAthleteNight', () => ({ useAthleteNight: () => nightState }));
+
+const atleta = {
+  id: 'ana',
+  nome: 'Ana Souza',
+  apelido: 'Ana',
+  posicaoPrincipal: 'ponteiro',
+  maoDominante: 'direita',
+  atributos: {},
+  formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
+  status: { lesionado: false, limitacaoFisica: null },
+} as unknown as Player;
+
+const NOITE_DE_EXEMPLO: AthleteNight = {
+  sessionId: 's1',
+  card: buildVutCard(atleta, {
+    sessions: [],
+    teams: [],
+    games: [],
+    pointEvents: [],
+    players: [atleta],
+    sessionReports: [],
+  }),
+  specialEdition: false,
+  newAchievements: [],
+  nearAchievements: [],
+  tierUp: false,
+  games: 4,
+  wins: 3,
+  points: 12,
+  rating: 7.4,
+};
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({
@@ -116,5 +160,25 @@ describe('AppShell com pontos guardados em conflito', () => {
     expect(scoreQueue.sendAnyway).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Descartar os meus' }));
     expect(scoreQueue.discard).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AppShell com a noite do atleta', () => {
+  it('sem noite, nada aparece', () => {
+    nightState.night = null;
+    renderAppShell('/painel');
+    expect(screen.queryByRole('dialog', { name: 'Sua noite' })).toBeNull();
+    expect(screen.getByText('Conteudo do Painel').closest('[inert]')).toBeNull();
+  });
+
+  it('com noite, aparece em qualquer tela, o resto fica inerte e abrir marca como vista', () => {
+    nightState.night = NOITE_DE_EXEMPLO;
+    nightState.markSeen.mockClear();
+    renderAppShell('/painel');
+    expect(screen.getByRole('dialog', { name: 'Sua noite' })).toBeDefined();
+    expect(screen.getByText('Conteudo do Painel').closest('[inert]')).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Sua noite' }).closest('[inert]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /abrir/i }));
+    expect(nightState.markSeen).toHaveBeenCalledTimes(1);
   });
 });

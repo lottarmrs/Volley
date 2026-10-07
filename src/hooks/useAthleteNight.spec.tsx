@@ -1,0 +1,187 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { generateFutStats } from '@logic/futCards';
+import { useAthleteNight } from './useAthleteNight';
+
+const fetchPendingNight = vi.fn();
+const markNightSeen = vi.fn();
+vi.mock('@infra/supabase/careerCloudService', () => ({
+  careerCloudService: {
+    fetchPendingNight: () => fetchPendingNight(),
+    markNightSeen: (id: string) => markNightSeen(id),
+  },
+}));
+let cardStats: Map<string, Record<string, number>> | undefined;
+vi.mock('./useCommunityCardStats', () => ({ useCommunityCardStats: () => cardStats }));
+vi.mock('../lib/supabaseClient', () => ({ isSupabaseConfigured: true, supabase: {} }));
+
+const ana = {
+  id: 'ana',
+  cloudId: 'uuid-ana',
+  userId: 'conta-ana',
+  nome: 'Ana',
+  posicaoPrincipal: 'ponteiro',
+  maoDominante: 'direita',
+  atributos: {},
+  formaAtual: { valor: 0, observacao: '', ultimasPartidas: [] },
+} as never;
+
+const history = {
+  sessions: [
+    {
+      id: 's1',
+      cloudId: 'uuid-s1',
+      communityId: 'c1',
+      name: 's1',
+      date: '2026-10-04',
+      status: 'finished',
+    },
+  ],
+  teams: [
+    { id: 't1', sessionId: 's1', name: 'A', playerIds: ['ana'] },
+    { id: 't2', sessionId: 's1', name: 'B', playerIds: ['bia'] },
+  ],
+  games: [],
+  pointEvents: [],
+  players: [ana],
+  sessionReports: [],
+} as never;
+
+const communities = [{ id: 'c1', cloudId: 'uuid-c1', name: 'Vôlei de Terça' }] as never;
+
+let client: QueryClient;
+
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+describe('useAthleteNight', () => {
+  beforeEach(() => {
+    cardStats = new Map();
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    fetchPendingNight.mockReset();
+    markNightSeen.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('monta a noite pendente da pelada que o atleta jogou', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night?.sessionId).toBe('s1'));
+    expect(result.current.communityName).toBe('Vôlei de Terça');
+    expect(result.current.communityId).toBe('c1');
+    expect(result.current.sessionDate).toBe('2026-10-04');
+  });
+
+  it('sem pendente, sem noite', async () => {
+    fetchPendingNight.mockResolvedValue(null);
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalled());
+    expect(result.current.night).toBeNull();
+  });
+
+  it('marcar vista chama o servidor com o id de nuvem da pelada', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    act(() => result.current.markSeen());
+    await waitFor(() => expect(markNightSeen).toHaveBeenCalledWith('uuid-s1'));
+  });
+
+  it('sem conta nao pergunta ao servidor', async () => {
+    renderHook(() => useAthleteNight({ userId: null, players: [], communities, history }), {
+      wrapper,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchPendingNight).not.toHaveBeenCalled();
+  });
+
+  it('depois de marcar vista e a leitura voltar vazia, a noite continua ate dispensar', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    const shown = result.current.night;
+    fetchPendingNight.mockResolvedValue(null);
+    act(() => result.current.markSeen());
+    await waitFor(() => expect(markNightSeen).toHaveBeenCalledWith('uuid-s1'));
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.night).toEqual(shown);
+    act(() => result.current.dismiss());
+    expect(result.current.night).toBeNull();
+  });
+
+  it('a noite so aparece depois que os numeros da carta chegam', async () => {
+    cardStats = undefined;
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result, rerender } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.night).toBeNull();
+    cardStats = new Map([['ana', { saque: 99 }]]);
+    rerender();
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    expect(result.current.night?.card.stats.rated).toBe(true);
+    expect(result.current.night?.card.stats).toEqual(generateFutStats(ana, { saque: 99 }));
+  });
+
+  it('dispensada com o pendente ja vazio, nao reabre se o servidor devolver a mesma noite', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    const { result } = renderHook(
+      () => useAthleteNight({ userId: 'conta-ana', players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    fetchPendingNight.mockResolvedValue(null);
+    act(() => result.current.markSeen());
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => result.current.dismiss());
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['noite', 'conta-ana'] });
+    });
+    await waitFor(() => expect(fetchPendingNight).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.night).toBeNull();
+  });
+
+  it('trocar de conta limpa a noite que estava aberta', async () => {
+    fetchPendingNight.mockResolvedValue({ sessionId: 'uuid-s1', communityId: 'uuid-c1' });
+    let userId: string | null = 'conta-ana';
+    const { result, rerender } = renderHook(
+      () => useAthleteNight({ userId, players: [ana], communities, history }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.night).not.toBeNull());
+    userId = null;
+    rerender();
+    await waitFor(() => expect(result.current.night).toBeNull());
+  });
+});

@@ -1,5 +1,16 @@
 # HANDOFF — Panelinha
 
+> **2026-10-05 — fatia "Sua noite".** Branch `exec/sua-noite`, worktree `C:\Volley-noite`, ainda
+> **não publicada**. Depois de jogar, o atleta com conta abre o app e vê a própria noite em
+> capítulos de tela cheia (pacote, carta, números, conquistas novas, quase lá, fim); conta como
+> vista ao abrir o pacote. Os números da carta vêm da avaliação da comunidade, visíveis a qualquer
+> membro ativo; sem avaliação a carta mostra "?". Migration
+> `20261005120000_sua_noite` (`get_community_card_stats`, `athlete_night_views`,
+> `mark_my_night_seen`, `get_my_pending_night`; testes em `noiteDoAtleta.dbtest.ts`). Para
+> publicar: aplicar a migration no Supabase do Panelinha primeiro, depois merge e push (push =
+> deploy na Vercel), só com o ok do usuário. Próximas fatias: "Minha carta" no perfil; metas entre
+> peladas. Limites e achados em `docs/JORNADA.md` (1.11, 10.5, 10.6).
+>
 > **2026-09-30 — projeto tempo real, parte 2 (peladas e histórico online).** Branch
 > `exec/peladas-online` (worktree `C:\Volley-peladas`), **publicada em 2026-10-01** com as migrations
 > `peladas_online` e `peladas_servidor`, seguida de quatro correções achadas na conferência no ar

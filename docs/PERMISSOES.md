@@ -30,6 +30,7 @@ O cliente **nunca consulta responsabilidades**: nem `useCommunityPermissions` ne
 | A2 | Um admin ou moderador **sem** a responsabilidade vê ações de quem organiza? | ✅ **Resolvido em 2026-09-30.** Sem `ORGANIZER`, as ações de pelada ficam desabilitadas para qualquer cargo, porque a interface segue `session.manage`. |
 | A3 | Quem vê "Avaliar atleta"? | ✅ **Resolvido em 2026-09-25.** Dono e admin avaliam pelo cargo, e quem administra designa outros avaliadores (`EVALUATOR`) em Gestão → Membros. A área Avaliação pergunta ao servidor (`useCommunityCapabilities` → `current_user_has_community_capability`), não ao cargo. Spec `2026-09-25-avaliacao-da-comunidade-design.md`. |
 | A4 | O cargo legado `organizador` ainda aparece? | Não é mais atribuível (`ASSIGNABLE_COMMUNITY_MEMBER_ROLES`), mas quem já o tem continua com `canCreateSession`. |
+| A5 | Quem vê a média por fundamento do atleta? | ✅ **Mudou em 2026-10-05:** a média por dimensão virou pública dentro da comunidade, para qualquer membro ativo (`get_community_card_stats`, só médias). Cobertura e contagem de avaliações seguem restritas a quem avalia e ao próprio atleta. A noite do atleta (`get_my_pending_night`, `mark_my_night_seen`) só devolve e grava o que é da própria conta. |
 
 ---
 

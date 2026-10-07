@@ -49,7 +49,11 @@ function pelada(sid: string, communityId: string, date: string) {
   };
 }
 
-const peladas = [pelada('s1', 'c1', '2026-09-01'), pelada('s2', 'c2', '2026-09-20')];
+const peladas = [
+  pelada('s1', 'c1', '2026-09-01'),
+  pelada('s3', 'c1', '2026-08-15'),
+  pelada('s2', 'c2', '2026-09-20'),
+];
 const history = {
   sessions: peladas.map((p) => p.session),
   teams: peladas.flatMap((p) => p.teams),
@@ -79,7 +83,7 @@ test('uma carta por comunidade do elenco, ordenada pela ultima pelada jogada', (
 });
 
 test('o historico de uma carta nao vaza para outra', () => {
-  const [c2, c1] = buildMyCards({
+  const cartas = buildMyCards({
     player: ana,
     communities: comunidades,
     history,
@@ -89,17 +93,13 @@ test('o historico de uma carta nao vaza para outra', () => {
       ['c3', new Map()],
     ]),
   });
-  assert.equal(c1.community.id, 'c1');
-  assert.equal(c2.community.id, 'c2');
+  const c1 = cartas.find((c) => c.community.id === 'c1')!;
+  const c2 = cartas.find((c) => c.community.id === 'c2')!;
   assert.equal(c1.lastPlayedAt, '2026-09-01');
   assert.equal(c2.lastPlayedAt, '2026-09-20');
-  assert.deepEqual(
-    [c1, c2].map(
-      (c) =>
-        c.achievements.unlocked.length + c.achievements.near.length + c.achievements.locked.length,
-    ),
-    [c1.card.achievements.length, c2.card.achievements.length],
-  );
+  const cria = (c: typeof c1) => c.card.achievements.find((a) => a.id === 'shared_cria')!;
+  assert.equal(cria(c1).current, 2);
+  assert.equal(cria(c2).current, 1);
 });
 
 test('comunidade sem pelada: album sem desbloqueadas e sem perto; sem avaliacao: carta "?"', () => {
@@ -123,6 +123,7 @@ test('comunidade sem pelada: album sem desbloqueadas e sem perto; sem avaliacao:
     ['shared_selecao'],
   );
   assert.equal(aberta.editions.length, 0);
+  assert.equal(aberta.card.achievements.find((a) => a.id === 'shared_cria')!.current, 0);
   assert.equal(aberta.card.stats.rated, false);
   assert.equal(aberta.loading, false);
 });

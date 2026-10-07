@@ -3,7 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { BrowserRouter } from 'react-router';
 import { UserProfileView } from './UserProfileView';
-import type { Player, Community, UserProfile } from '../../types';
+import type { Player, UserProfile } from '../../types';
+import { CARTAS_TRES } from '@/preview/minhacartaFixtures';
 
 const mockPlayer: Player = {
   id: 'p1',
@@ -61,16 +62,6 @@ const mockProfile: UserProfile = {
   updatedAt: '2026-08-01T00:00:00.000Z',
 };
 
-const mockCommunities: Community[] = [
-  {
-    id: 'c1',
-    name: 'Panelinha de Sexta',
-    joinCode: 'PAN123',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-08-01T00:00:00.000Z',
-  },
-];
-
 describe('UserProfileView', () => {
   it('renders hero athlete card with jersey number, position sigla, and overall rating', () => {
     render(
@@ -79,7 +70,6 @@ describe('UserProfileView', () => {
           user={{ email: 'matheus@example.com' }}
           profile={mockProfile}
           player={mockPlayer}
-          communities={mockCommunities}
           onExportBackup={vi.fn()}
           onImportBackup={vi.fn()}
           onRestoreDemoPlayers={vi.fn()}
@@ -100,7 +90,6 @@ describe('UserProfileView', () => {
           user={{ email: 'matheus@example.com' }}
           profile={mockProfile}
           player={mockPlayer}
-          communities={mockCommunities}
           onExportBackup={vi.fn()}
           onImportBackup={vi.fn()}
           onRestoreDemoPlayers={vi.fn()}
@@ -120,7 +109,6 @@ describe('UserProfileView', () => {
           user={{ email: 'matheus@example.com' }}
           profile={mockProfile}
           player={mockPlayer}
-          communities={mockCommunities}
           myCards={{ cards: [], selectedCommunityId: null, onSelect: vi.fn() }}
           onExportBackup={vi.fn()}
           onImportBackup={vi.fn()}
@@ -148,6 +136,36 @@ describe('UserProfileView', () => {
     }
   });
 
+  it('com cartas reais, nada inventado aparece ao lado delas', () => {
+    render(
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={mockPlayer}
+          myCards={{ cards: CARTAS_TRES, selectedCommunityId: 'terca', onSelect: vi.fn() }}
+        />
+      </BrowserRouter>,
+    );
+
+    expect(screen.getByRole('region', { name: 'Minha carta' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Vôlei de Terça' })).toBeTruthy();
+    for (const texto of [
+      'Sacador de Elite',
+      'Rei da Quadra',
+      'Paredão Insuperável',
+      /Minhas Comunidades/i,
+      'Rating OVR',
+      'Aproveitamento',
+      /Atributos de Vôlei/i,
+      /Conquistas & Medalhas/i,
+    ]) {
+      expect(screen.queryByText(texto)).toBeNull();
+    }
+    expect(screen.queryByText('68%')).toBeNull();
+    expect(screen.queryByText('4V')).toBeNull();
+  });
+
   it('com conta, sem backup nem demonstracao: a aba de dados some', () => {
     render(
       <BrowserRouter>
@@ -155,7 +173,6 @@ describe('UserProfileView', () => {
           user={{ email: 'matheus@example.com' }}
           profile={mockProfile}
           player={mockPlayer}
-          communities={mockCommunities}
         />
       </BrowserRouter>,
     );

@@ -228,11 +228,18 @@ export function PerfilRoute() {
 
   const minhaFicha = currentPlayer ?? linkedPlayer;
   const [searchParams, setSearchParams] = useSearchParams();
-  const skillValuesByCommunity = useCardStatsForCommunities(comm.communities, play.players);
+  const jogadores = useMemo(
+    () =>
+      minhaFicha && !play.players.some((p) => p.id === minhaFicha.id)
+        ? [...play.players, minhaFicha]
+        : play.players,
+    [play.players, minhaFicha],
+  );
+  const skillValuesByCommunity = useCardStatsForCommunities(comm.communities, jogadores);
   const { sessions, teams, games, pointEvents, sessionReports } = shell.sess;
   const history = useMemo(
-    () => ({ sessions, teams, games, pointEvents, players: play.players, sessionReports }),
-    [sessions, teams, games, pointEvents, play.players, sessionReports],
+    () => ({ sessions, teams, games, pointEvents, players: jogadores, sessionReports }),
+    [sessions, teams, games, pointEvents, jogadores, sessionReports],
   );
   const cards = useMemo(
     () =>
@@ -272,7 +279,6 @@ export function PerfilRoute() {
         user={auth.user}
         profile={profile}
         player={minhaFicha}
-        communities={comm.communities}
         myCards={{
           cards,
           selectedCommunityId,

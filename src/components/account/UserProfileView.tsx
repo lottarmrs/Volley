@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { User, Activity, Settings, Cloud, CheckCircle2 } from 'lucide-react';
-import type { Player, Community, UserProfile, Position } from '../../types';
+import type { Player, UserProfile, Position } from '../../types';
 import { SettingsModule } from '../settings/SettingsModule';
 import { Link } from 'react-router';
 import type { MyCard } from '@app/myCards';
@@ -21,7 +21,6 @@ export interface UserProfileViewProps {
     | (UserProfile & { username?: string; avatar_url?: string; display_name?: string })
     | null;
   player?: Player | null;
-  communities?: Community[];
   myCards?: {
     cards: MyCard[];
     selectedCommunityId: string | null;

@@ -206,7 +206,11 @@ const CartaDoLeque: React.FC<{
         transformOrigin: `50% ${altura / 2 + geo.raio}px`,
       }}
     >
-      <motion.div className="relative h-full w-full" style={{ scale: sozinha ? 1 : scale }}>
+      <motion.div
+        aria-hidden={frente ? undefined : true}
+        className="relative h-full w-full"
+        style={{ scale: sozinha ? 1 : scale }}
+      >
         {carta.loading ? (
           <Esqueleto />
         ) : (
@@ -574,13 +578,14 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
   const cartaRef = useRef<HTMLDivElement>(null);
   const [compartilhando, setCompartilhando] = useState(false);
   const [falhouEm, setFalhouEm] = useState<string | null>(null);
-  const [edicao, setEdicao] = useState<EditionEntry | null>(null);
-  const fecharEdicao = useCallback(() => setEdicao(null), []);
+  const [aberta, setAberta] = useState<{ comunidade: string; entrada: EditionEntry } | null>(null);
+  const fecharEdicao = useCallback(() => setAberta(null), []);
   const encontrada = cards.findIndex((c) => c.community.id === selectedCommunityId);
   const indice = encontrada < 0 ? 0 : encontrada;
   const total = cards.length;
   const sozinha = total === 1;
   const carta = cards[indice];
+  const edicao = aberta && aberta.comunidade === carta?.community.id ? aberta.entrada : null;
 
   const largo = largura >= 640;
   const escala = sozinha
@@ -628,6 +633,7 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
         luz.set(1);
       };
     }
+    giro.stop();
     const giroAnimado = animate(giro, indice, { duration: DURATION.overlay, ease: EASE_ARRIVE });
     return () => giroAnimado.stop();
   }, [indice, reduzir, giro, luz]);
@@ -653,6 +659,7 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
   };
 
   const comecarArrasto = () => {
+    giro.stop();
     base.current = giro.get();
     arrastou.current = true;
   };
@@ -670,7 +677,10 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
     else if (fracao < -0.5 || (impulso < -1.2 && fracao < -0.08)) alvo = indice - 1;
     alvo = Math.max(0, Math.min(total - 1, alvo));
     if (alvo !== indice) escolher(alvo);
-    else if (!reduzir) animate(giro, indice, { duration: DURATION.state, ease: EASE_ARRIVE });
+    else if (!reduzir) {
+      giro.stop();
+      animate(giro, indice, { duration: DURATION.state, ease: EASE_ARRIVE });
+    }
     setTimeout(() => {
       arrastou.current = false;
     }, 0);
@@ -766,9 +776,9 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
           <button
             type="button"
             aria-label="Carta anterior"
-            disabled={indice === 0}
+            aria-disabled={indice === 0}
             onClick={() => escolher(indice - 1)}
-            className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/5 text-white outline-offset-2 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/5"
+            className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/5 text-white outline-offset-2 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-white/5"
           >
             <ChevronLeft className="h-5 w-5" aria-hidden />
           </button>
@@ -787,15 +797,20 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
           <button
             type="button"
             aria-label="Próxima carta"
-            disabled={indice === total - 1}
+            aria-disabled={indice === total - 1}
             onClick={() => escolher(indice + 1)}
-            className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/5 text-white outline-offset-2 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/5"
+            className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/5 text-white outline-offset-2 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-white/5"
           >
             <ChevronRight className="h-5 w-5" aria-hidden />
           </button>
         </div>
       )}
 
+      <p aria-live="polite" className="sr-only">
+        {carta.loading
+          ? `${carta.community.name} · montando a carta`
+          : `${carta.community.name} · ${conquistas.unlocked.length} de ${totalDeConquistas} conquistas`}
+      </p>
       <motion.div
         key={carta.community.id}
         initial={{ opacity: 0 }}
@@ -854,7 +869,10 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
         </div>
 
         <Album carta={carta} colunas={colunas} />
-        <Colecao carta={carta} onAbrir={setEdicao} />
+        <Colecao
+          carta={carta}
+          onAbrir={(entrada) => setAberta({ comunidade: carta.community.id, entrada })}
+        />
       </motion.div>
 
       {edicao && (

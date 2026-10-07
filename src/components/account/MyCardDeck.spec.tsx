@@ -54,15 +54,19 @@ describe('MyCardDeck', () => {
   it('as setas pedem a carta vizinha e travam nas pontas', () => {
     const { onSelect, trocar } = montar(CARTAS_TRES, 'terca');
     expect(
-      (screen.getByRole('button', { name: 'Carta anterior' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+      screen.getByRole('button', { name: 'Carta anterior' }).getAttribute('aria-disabled'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Carta anterior' }));
+    expect(onSelect).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Próxima carta' }));
     expect(onSelect).toHaveBeenCalledWith('quinta');
 
     trocar('parque');
     expect(
-      (screen.getByRole('button', { name: 'Próxima carta' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+      screen.getByRole('button', { name: 'Próxima carta' }).getAttribute('aria-disabled'),
+    ).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima carta' }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Carta anterior' }));
     expect(onSelect).toHaveBeenLastCalledWith('quinta');
   });
@@ -138,6 +142,25 @@ describe('MyCardDeck', () => {
     montar(CARTAS_SEM_PELADA, 'aberta');
     expect(within(colecao()).getByText(/Nenhuma edição especial ainda/)).toBeTruthy();
     expect(screen.getByText(/ainda sem pelada/i)).toBeTruthy();
+  });
+
+  it('cartas de lado ficam fora da leitura, a troca é anunciada', () => {
+    const { trocar } = montar(CARTAS_TRES, 'terca');
+    const regiao = screen.getByRole('region', { name: 'Minha carta' });
+    const lado = within(regiao).getByRole('group', { name: 'Quinta na Areia' });
+    expect(lado.querySelector('[aria-hidden="true"]')).toBeTruthy();
+    trocar('quinta');
+    const aviso = regiao.querySelector('[aria-live="polite"]');
+    expect(aviso?.textContent).toContain('Quinta na Areia');
+    expect(aviso?.textContent).toContain('de 22 conquistas');
+  });
+
+  it('a edição aberta fecha quando a carta muda', () => {
+    const { trocar } = montar(CARTAS_TRES, 'quinta');
+    fireEvent.click(within(colecao()).getByRole('button', { name: /Muralha/ }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    trocar('terca');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('uma comunidade só: carta sozinha, sem setas', () => {

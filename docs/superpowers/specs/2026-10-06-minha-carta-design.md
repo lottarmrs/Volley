@@ -136,6 +136,39 @@ pelada, uma sem avaliação, nenhuma comunidade), ok do usuário antes de ligar 
 herdado (DESIGN.md); sem fonte, paleta ou material novo. `motion/react`; com "reduzir movimento",
 só opacidade.
 
+### 2.6 Duas páginas: o leque e o perfil de atleta (decisão do usuário, 2026-10-07)
+
+Depois de ver o leque, o usuário trouxe como referência a tela "Perfil de atleta" do modo carreira
+do EA FC e decidiu: "Minha carta" tem **duas páginas**.
+
+- **Página 1 — o leque** (`/perfil?comunidade=<id>`): só a seleção da carta. Leque, legenda (nome
+  da comunidade, "N de M conquistas", última noite), **Compartilhar**, "Abrir comunidade" e o botão
+  **"Ver perfil de atleta"**; tocar na carta da frente faz o mesmo. **O álbum e a coleção saem de
+  baixo do leque** e passam a morar só na página 2 (substitui os itens 2 e 3 da seção 2.1).
+- **Página 2 — o perfil de atleta** (`/perfil?comunidade=<id>&vista=atleta`): o painel daquela
+  comunidade, no estilo da referência traduzido para o mundo do app. Abrir empilha no histórico (o
+  voltar do aparelho retorna ao leque); o botão **"Mostrar minha carta"** volta ao leque na mesma
+  carta (`replace`).
+  - **Esquerda:** a foto da ficha (ou as iniciais, sem foto) e a carta pequena com edição e tier.
+  - **Cabeçalho:** OVR grande, posição (LEV, PON…), nome e apelido; linha "forma ±N" (diferença
+    da forma recente para a média, ou "—" sem histórico) e as estrelas de versatilidade.
+  - **Status:** Fase (pela forma das últimas peladas: péssima, regular, boa, em alta; "sem jogos"
+    sem histórico), Condição (saudável/lesionado pela ficha), Edição atual (MVP, Maestro, Muralha,
+    In-Form ou "base") e Mão dominante.
+  - **Grade:** Comunidade, Peladas jogadas, Vitórias e aproveitamento, Pontos, Última noite, Altura.
+  - **Fundamentos:** os 11 fundamentos da avaliação naquela comunidade na escala da carta (`toFut`);
+    fundamento sem nota "—"; sem avaliação, o selo "Aguardando avaliação". **Sem** variação (+1/−1):
+    não guardamos a avaliação ao longo do tempo.
+  - **Abas:** Visão geral (status, grade, fundamentos resumidos), Fundamentos (os 11 com barra),
+    Conquistas (o álbum da seção 2.1, item 2) e Edições (a coleção, item 3).
+- O que a referência mostra e o app não sabe **não aparece**: moral, preparo físico, potencial,
+  contrato, salário, valor de mercado, variação de atributos.
+- Dados novos em `MyCard`: `jogo: { peladas, jogos, vitorias, aproveitamento, pontos }` (pelo
+  histórico da comunidade, `calculatePlayerStats`) e `fundamentos: Partial<Attributes> | null` (os
+  valores da avaliação daquela comunidade; `null` sem avaliação).
+- Visual: a referência do usuário fixa a direção (não há nova rodada de estruturas); bancada e ok
+  do usuário antes de ligar.
+
 ## Parte 3 — Ligações
 
 - "Ver minha carta" (fim de "Sua noite", `AppShell`) dispensa a noite e navega para

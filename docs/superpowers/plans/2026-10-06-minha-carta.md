@@ -675,3 +675,72 @@ git commit -m "feat: numeros da carta de varias comunidades de uma vez"
 - [ ] **Step 2: e2e** — em `e2e/local-stack/sua-noite.spec.ts`, depois de "Pular", clicar "Ver minha carta" e afirmar que a URL é `/perfil?comunidade=<id da Pelada Local>` e que a região "Minha carta" mostra "Pelada Local". (A execução do e2e é feita pelo controlador na pilha local.)
 - [ ] **Step 3: Verificação na ordem da CI** — `npm run typecheck`, `npm run lint:eslint` (só erros; os de scripts ignorados em `.superpowers/` não contam), `npm run format:check`, `npm test`, `npm run build`.
 - [ ] **Step 4: Commit** `docs: Minha carta na jornada e no handoff` (+ o e2e).
+
+---
+
+## Adendo (2026-10-07) — duas páginas: leque e perfil de atleta
+
+Spec: seção 2.6. O leque fica só com a seleção; o álbum e a coleção mudam para a página 2, um
+painel no estilo "Perfil de atleta" do EA FC (referência do usuário), com abas.
+
+### Task 8: Dados do painel e peças compartilhadas
+
+**Files:**
+- Modify: `src/application/myCards.ts`, `src/application/myCards.test.ts`
+- Create: `src/components/account/myCardParts.tsx` (Album, Selo, Regra, Colecao, EdicaoAberta e os helpers `TOM_DO_TIER`, `TOM_DA_EDICAO`, `RARIDADE`, `formatarData`, `faltam`, `progresso`, movidos de `MyCardDeck.tsx` sem mudar comportamento)
+- Modify: `src/components/account/MyCardDeck.tsx` (passa a importar as peças)
+
+**Interfaces:**
+- Produces, em `MyCard`:
+  ```ts
+  jogo: { peladas: number; jogos: number; vitorias: number; aproveitamento: number; pontos: number };
+  fundamentos: Partial<Attributes> | null;
+  ```
+  `peladas` = peladas encerradas daquela comunidade em que o atleta jogou; `jogos`, `vitorias`,
+  `aproveitamento` (0–100, inteiro) e `pontos` de `calculatePlayerStats(player, games, pointEvents,
+  teams, sessions)` sobre o histórico da comunidade (`gamesPlayed`, `wins`, `winRate`,
+  `totalPoints`). `fundamentos` = a entrada do atleta no mapa da comunidade, ou `null` sem ela.
+- `myCardParts.tsx` exporta `Album`, `Colecao`, `EdicaoAberta` com as mesmas props de hoje.
+
+- [ ] **Step 1:** em `myCards.test.ts`, afirmar `jogo` (c1 com 2 peladas e 2 jogos vencidos → `{ peladas: 2, jogos: 2, vitorias: 2, aproveitamento: 100, pontos: 0 }`; c3 sem pelada → tudo 0) e `fundamentos` (`{ ataque: 8 }` para c1 com o mapa; `null` para c3 com `new Map()`). Rodar e ver falhar.
+- [ ] **Step 2:** implementar em `buildMyCards`. Rodar e ver passar.
+- [ ] **Step 3:** mover as peças para `myCardParts.tsx` sem mudar comportamento; `MyCardDeck.spec.tsx` continua passando sem alteração de asserção.
+- [ ] **Step 4:** `npm run lint`, `npx eslint` nos arquivos tocados, `npm test`. Commit `feat: dados do perfil de atleta e pecas da carta separadas`.
+
+### Task 9: O perfil de atleta (design + componente)
+
+**Files:**
+- Create: `src/components/account/AthleteProfilePanel.tsx`, `src/components/account/AthleteProfilePanel.spec.tsx`, `preview/perfilatleta.html`, `preview/perfilatleta.tsx`
+- Reference: a referência do usuário (descrita na spec 2.6), `direcao-perfilatleta.md` no workspace de execução, `myCardParts.tsx`, `FutCard.tsx`, `AthleteNightReveal.tsx` (tipografia e luz)
+
+**Interfaces:**
+- Consumes: `MyCard` (com `jogo` e `fundamentos`), `Album`, `Colecao`, `EdicaoAberta`, `toFut` (`@logic/futCards`).
+- Produces:
+  ```ts
+  export interface AthleteProfilePanelProps {
+    card: MyCard;
+    player: Player;
+    onShowCard: () => void;
+  }
+  export function AthleteProfilePanel(props: AthleteProfilePanelProps): JSX.Element;
+  ```
+  Contrato acessível: região `aria-label="Perfil de atleta"`; `h2` com o nome; abas (`role="tablist"`) "Visão geral", "Fundamentos", "Conquistas", "Edições"; botão "Mostrar minha carta"; textos de status "Fase", "Condição", "Edição atual", "Mão dominante"; grade "Comunidade", "Peladas", "Vitórias", "Pontos", "Última noite", "Altura"; sem avaliação: "Aguardando avaliação" e "—" nos fundamentos; nunca "Moral", "Preparo", "Potencial", "Contrato", "Salário", "Valor de mercado".
+
+- [ ] **Step 1:** spec do componente (cartas de `preview/minhacartaFixtures.ts`): mostra OVR, posição e nome; Fase e Condição pelos dados; grade com `jogo`; fundamentos em escala `toFut`; sem avaliação → "Aguardando avaliação" e "—"; abas trocam o conteúdo (Conquistas mostra "N de M", Edições mostra a coleção); "Mostrar minha carta" chama `onShowCard`; nenhum dos rótulos proibidos aparece; carta `loading` → `aria-busy` e nenhum número. Rodar e ver falhar.
+- [ ] **Step 2:** implementar o painel e a bancada (exemplos: com edição MVP, sem avaliação, sem pelada, lesionado, sem foto). Ler `craft-floor.md` antes; detector `impeccable detect` uma vez no fim.
+- [ ] **Step 3:** specs, `npm run lint`, `npx eslint`, `npm test`; capturas 375×812 e 1280×800 com e sem movimento reduzido. Commit `feat: perfil de atleta com abas`. **Esperar o ok visual do usuário.**
+
+### Task 10: Ligar as duas páginas
+
+**Files:**
+- Modify: `src/components/account/MyCardDeck.tsx` (+ spec), `src/components/account/UserProfileView.tsx` (+ spec), `src/app/routes/globalRoutes.tsx`, `src/app/routes/perfilRoute.spec.tsx`, `e2e/local-stack/sua-noite.spec.ts`
+
+**Interfaces:**
+- `MyCardDeck` ganha `onOpenProfile: (communityId: string) => void`; perde o álbum e a coleção abaixo do leque; ganha o botão "Ver perfil de atleta" (e tocar na carta da frente chama o mesmo).
+- `UserProfileView.myCards` ganha `view: 'carta' | 'atleta'`, `onOpenProfile`, `onShowCard`; com `view === 'atleta'` renderiza `AthleteProfilePanel` da carta selecionada no lugar do leque.
+- `PerfilRoute`: `vista` vem de `?vista=atleta`; `onOpenProfile(id)` grava `?comunidade=id&vista=atleta` com **push**; `onShowCard()` grava `?comunidade=id` com **replace**.
+
+- [ ] **Step 1:** specs que falham — `MyCardDeck.spec`: não há "Álbum de conquistas" nem "Coleção de edições" na página do leque; "Ver perfil de atleta" chama `onOpenProfile` com o id da carta da frente. `perfilRoute.spec`: "Ver perfil de atleta" leva a `?comunidade=<id>&vista=atleta` (PUSH) e mostra a região "Perfil de atleta"; "Mostrar minha carta" volta a `?comunidade=<id>` (REPLACE) e mostra o leque; `?vista=atleta` direto abre o painel.
+- [ ] **Step 2:** implementar. `npm run lint`, `npx eslint`, `npm test`.
+- [ ] **Step 3:** e2e — depois de "Ver minha carta", clicar "Ver perfil de atleta", afirmar a região "Perfil de atleta" e "Pelada Local", clicar "Mostrar minha carta" e afirmar a região "Minha carta" (o controlador roda na pilha local).
+- [ ] **Step 4:** `docs/JORNADA.md` (1.12 passa a citar as duas páginas). Commit `feat: Minha carta em duas paginas, leque e perfil de atleta`.

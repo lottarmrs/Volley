@@ -98,5 +98,6 @@ export function alturaEmMetros(alturaCm: number | undefined): string {
 }
 
 export function iniciaisDe(nome: string | undefined): string {
-  return nome ? nome.substring(0, 2).toUpperCase() : 'AT';
+  const limpo = nome?.trim();
+  return limpo ? limpo.substring(0, 2).toUpperCase() : '?';
 }

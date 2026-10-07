@@ -432,206 +432,210 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
   };
 
   return (
-    <section
-      ref={medirRef}
-      aria-label="Perfil de atleta"
-      aria-busy={carta.loading ? true : undefined}
-      className="relative isolate w-full overflow-x-clip bg-[linear-gradient(160deg,#14171c_0%,#0b0c0e_58%)] pb-14 text-white selection:bg-white/25"
-    >
-      <Veu key={`${carta.community.id}-${tom}`} tom={tom} />
-      <div className="mx-auto grid w-full max-w-6xl px-4 lg:grid-cols-[minmax(0,0.38fr)_minmax(0,1fr)] lg:gap-x-12 lg:px-8">
-        <div className="lg:col-start-1 lg:row-span-2 lg:row-start-2">
-          <Retrato carta={carta} player={player} tom={tom} escala={escala} cartaRef={cartaRef} />
-        </div>
-
-        <motion.div
-          className="relative z-10 -mt-14 sm:-mt-16 lg:col-start-2 lg:row-start-2 lg:mt-10"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={CHEGADA}
-        >
-          <div className="flex items-center gap-3 sm:gap-5">
-            <Losango carta={carta} tom={tom} />
-            <div className="min-w-0">
-              <p
-                className="font-mono text-sm font-bold uppercase tracking-[0.18em]"
-                style={{ color: `color-mix(in srgb, ${tom} 70%, #ffffff)` }}
-              >
-                {card.posLabel}
-              </p>
-              <h2 className="mt-1 text-balance break-words pt-[0.08em] text-[clamp(2.125rem,8.5vw,4.25rem)] font-black uppercase italic leading-[0.9] tracking-[-0.035em]">
-                {player.nome}
-              </h2>
-              {apelido && apelido !== player.nome && (
-                <p className="mt-1.5 font-mono text-sm text-white/70">{apelido}</p>
-              )}
-            </div>
+    <>
+      <section
+        ref={medirRef}
+        aria-label="Perfil de atleta"
+        aria-busy={carta.loading ? true : undefined}
+        className="relative isolate w-full overflow-x-clip bg-[linear-gradient(160deg,#14171c_0%,#0b0c0e_58%)] pb-14 text-white selection:bg-white/25"
+      >
+        <Veu key={`${carta.community.id}-${tom}`} tom={tom} />
+        <div className="mx-auto grid w-full max-w-6xl px-4 lg:grid-cols-[minmax(0,0.38fr)_minmax(0,1fr)] lg:gap-x-12 lg:px-8">
+          <div className="lg:col-start-1 lg:row-span-2 lg:row-start-2">
+            <Retrato carta={carta} player={player} tom={tom} escala={escala} cartaRef={cartaRef} />
           </div>
 
-          <p className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[0.8125rem] uppercase tracking-[0.12em] text-white/70 tabular-nums">
-            {carta.loading ? (
-              <span>montando a carta…</span>
-            ) : (
-              <>
-                <span>
-                  geral <b className="text-white">{card.stats.rated ? card.stats.ovr : '—'}</b>
-                </span>
-                <span aria-hidden className="text-white/30">
-                  /
-                </span>
-                <span>
-                  forma <b className="text-white">{formaRecente(card)}</b>
-                </span>
-                {card.stats.rated && (
-                  <>
-                    <span aria-hidden className="text-white/30">
-                      /
-                    </span>
-                    <Estrelas quantas={card.stats.versatility} tom={tom} />
-                  </>
-                )}
-              </>
-            )}
-          </p>
-          {!carta.loading && (
-            <p className="mt-3 max-w-[52ch] text-[0.9375rem] leading-relaxed text-white/80">
-              {frase(carta)}
-            </p>
-          )}
-
-          <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:[&>button]:w-auto">
-            <button
-              type="button"
-              onClick={compartilhar}
-              disabled={carta.loading || compartilhando}
-              aria-busy={compartilhando}
-              aria-label="Compartilhar"
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-primary px-6 text-sm font-black uppercase italic tracking-[0.12em] text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)] outline-offset-2 transition-colors duration-150 hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-            >
-              <Share2 className="h-4 w-4" aria-hidden />
-              {compartilhando ? 'Gerando imagem…' : 'Compartilhar'}
-            </button>
-            <button
-              type="button"
-              onClick={onShowCard}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-white/15 bg-white/5 px-5 text-sm font-bold text-white outline-offset-2 transition-colors duration-150 hover:border-white/30 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Layers className="h-4 w-4" aria-hidden />
-              Mostrar minha carta
-            </button>
-          </div>
-          {falhou && (
-            <p role="alert" className="mt-3 text-sm text-white/80">
-              Não deu para gerar a imagem. Tente de novo.
-            </p>
-          )}
-        </motion.div>
-
-        <div
-          role="tablist"
-          aria-label="Seções do perfil"
-          className="mt-10 flex overflow-x-auto border-b border-white/10 [scrollbar-width:none] sm:gap-1 lg:col-span-2 lg:row-start-1 lg:mt-6"
-        >
-          {ABAS.map((a, i) => {
-            const ativa = a.id === aba;
-            return (
-              <button
-                key={a.id}
-                ref={(el) => {
-                  abasRef.current[i] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`${id}-aba-${a.id}`}
-                aria-selected={ativa}
-                aria-controls={`${id}-painel`}
-                tabIndex={ativa ? 0 : -1}
-                onClick={() => setAba(a.id)}
-                onKeyDown={(evento) => teclaNaAba(evento, i)}
-                className={`relative h-12 flex-1 shrink-0 whitespace-nowrap px-1 text-[0.6875rem] font-black uppercase italic tracking-[0.02em] outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:bg-white/10 sm:flex-none sm:px-4 sm:text-[0.8125rem] sm:tracking-[0.08em] ${
-                  ativa ? 'text-white' : 'text-white/60 hover:text-white/90'
-                }`}
-              >
-                {a.nome}
-                {ativa && (
-                  <motion.span
-                    aria-hidden
-                    layoutId={`${id}-sublinhado`}
-                    className="absolute inset-x-1 -bottom-px h-[3px] rounded-full sm:inset-x-4"
-                    style={{ background: tom }}
-                    transition={{ duration: DURATION.state, ease: EASE_ARRIVE }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div
-          role="tabpanel"
-          id={`${id}-painel`}
-          aria-labelledby={`${id}-aba-${aba}`}
-          tabIndex={0}
-          className="mt-6 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-primary lg:col-start-2 lg:row-start-3 lg:mt-10"
-        >
           <motion.div
-            key={aba}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: DURATION.state, ease: EASE_ARRIVE }}
+            className="relative z-10 -mt-14 sm:-mt-16 lg:col-start-2 lg:row-start-2 lg:mt-10"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={CHEGADA}
           >
-            {aba === 'geral' && (
-              <div className="grid gap-x-12 gap-y-10 xl:grid-cols-[minmax(0,1fr)_17rem]">
-                <div className="min-w-0 xl:col-span-2">
-                  <Status carta={carta} player={player} />
-                </div>
-                <div className="min-w-0">
-                  <Grade carta={carta} player={player} />
-                </div>
-                <div>
-                  <Titulo
-                    extra={
-                      <button
-                        type="button"
-                        onClick={() => irPara(1)}
-                        className="whitespace-nowrap text-xs font-bold text-white/70 underline decoration-white/30 underline-offset-4 outline-offset-2 transition-colors duration-150 hover:text-white focus-visible:outline-2 focus-visible:outline-primary"
-                      >
-                        Ver com barras
-                      </button>
-                    }
-                  >
-                    Fundamentos
-                  </Titulo>
-                  <ListaDeFundamentos carta={carta} tom={tom} barras={false} />
-                </div>
-              </div>
-            )}
-            {aba === 'fundamentos' && (
-              <div className="max-w-3xl">
-                <Titulo>Fundamentos</Titulo>
-                <p className="mb-6 max-w-[60ch] text-sm leading-relaxed text-white/70">
-                  Na escala da carta, pela avaliação em {carta.community.name}.
+            <div className="flex items-center gap-3 sm:gap-5">
+              <Losango carta={carta} tom={tom} />
+              <div className="min-w-0">
+                <p
+                  className="font-mono text-sm font-bold uppercase tracking-[0.18em]"
+                  style={{ color: `color-mix(in srgb, ${tom} 70%, #ffffff)` }}
+                >
+                  {card.posLabel}
                 </p>
-                <ListaDeFundamentos carta={carta} tom={tom} barras />
+                <h2 className="mt-1 text-balance break-words pt-[0.08em] text-[clamp(2.125rem,8.5vw,4.25rem)] font-black uppercase italic leading-[0.9] tracking-[-0.035em]">
+                  {player.nome}
+                </h2>
+                {apelido && apelido !== player.nome && (
+                  <p className="mt-1.5 font-mono text-sm text-white/70">{apelido}</p>
+                )}
               </div>
+            </div>
+
+            <p className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[0.8125rem] uppercase tracking-[0.12em] text-white/70 tabular-nums">
+              {carta.loading ? (
+                <span>montando a carta…</span>
+              ) : (
+                <>
+                  <span>
+                    geral <b className="text-white">{card.stats.rated ? card.stats.ovr : '—'}</b>
+                  </span>
+                  <span aria-hidden className="text-white/30">
+                    /
+                  </span>
+                  <span
+                    title="Forma: última nota menos a média recente"
+                    aria-label={`forma ${formaRecente(card)}, última nota menos a média recente`}
+                  >
+                    forma <b className="text-white">{formaRecente(card)}</b>
+                  </span>
+                  {card.stats.rated && (
+                    <>
+                      <span aria-hidden className="text-white/30">
+                        /
+                      </span>
+                      <Estrelas quantas={card.stats.versatility} tom={tom} />
+                    </>
+                  )}
+                </>
+              )}
+            </p>
+            {!carta.loading && (
+              <p className="mt-3 max-w-[52ch] text-[0.9375rem] leading-relaxed text-white/80">
+                {frase(carta)}
+              </p>
             )}
-            {aba === 'conquistas' && (
-              <div className="[&>section]:mt-0">
-                <Album carta={carta} colunas={colunas} />
-              </div>
-            )}
-            {aba === 'edicoes' && (
-              <div className="[&>section]:mt-0">
-                <Colecao carta={carta} onAbrir={setAberta} />
-              </div>
+
+            <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:[&>button]:w-auto">
+              <button
+                type="button"
+                onClick={compartilhar}
+                disabled={carta.loading || compartilhando}
+                aria-busy={compartilhando}
+                aria-label="Compartilhar"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-primary px-6 text-sm font-black uppercase italic tracking-[0.12em] text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)] outline-offset-2 transition-colors duration-150 hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+              >
+                <Share2 className="h-4 w-4" aria-hidden />
+                {compartilhando ? 'Gerando imagem…' : 'Compartilhar'}
+              </button>
+              <button
+                type="button"
+                onClick={onShowCard}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-white/15 bg-white/5 px-5 text-sm font-bold text-white outline-offset-2 transition-colors duration-150 hover:border-white/30 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <Layers className="h-4 w-4" aria-hidden />
+                Mostrar minha carta
+              </button>
+            </div>
+            {falhou && (
+              <p role="alert" className="mt-3 text-sm text-white/80">
+                Não deu para gerar a imagem. Tente de novo.
+              </p>
             )}
           </motion.div>
-        </div>
-      </div>
 
+          <div
+            role="tablist"
+            aria-label="Seções do perfil"
+            className="mt-10 flex overflow-x-auto border-b border-white/10 [scrollbar-width:none] sm:gap-1 lg:col-span-2 lg:row-start-1 lg:mt-6"
+          >
+            {ABAS.map((a, i) => {
+              const ativa = a.id === aba;
+              return (
+                <button
+                  key={a.id}
+                  ref={(el) => {
+                    abasRef.current[i] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`${id}-aba-${a.id}`}
+                  aria-selected={ativa}
+                  aria-controls={`${id}-painel`}
+                  tabIndex={ativa ? 0 : -1}
+                  onClick={() => setAba(a.id)}
+                  onKeyDown={(evento) => teclaNaAba(evento, i)}
+                  className={`relative h-12 flex-1 shrink-0 whitespace-nowrap px-1 text-[0.6875rem] font-black uppercase italic tracking-[0.02em] outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:bg-white/10 sm:flex-none sm:px-4 sm:text-[0.8125rem] sm:tracking-[0.08em] ${
+                    ativa ? 'text-white' : 'text-white/60 hover:text-white/90'
+                  }`}
+                >
+                  {a.nome}
+                  {ativa && (
+                    <motion.span
+                      aria-hidden
+                      layoutId={`${id}-sublinhado`}
+                      className="absolute inset-x-1 -bottom-px h-[3px] rounded-full sm:inset-x-4"
+                      style={{ background: tom }}
+                      transition={{ duration: DURATION.state, ease: EASE_ARRIVE }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            role="tabpanel"
+            id={`${id}-painel`}
+            aria-labelledby={`${id}-aba-${aba}`}
+            tabIndex={0}
+            className="mt-6 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-primary lg:col-start-2 lg:row-start-3 lg:mt-10"
+          >
+            <motion.div
+              key={aba}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: DURATION.state, ease: EASE_ARRIVE }}
+            >
+              {aba === 'geral' && (
+                <div className="grid gap-x-12 gap-y-10 xl:grid-cols-[minmax(0,1fr)_17rem]">
+                  <div className="min-w-0 xl:col-span-2">
+                    <Status carta={carta} player={player} />
+                  </div>
+                  <div className="min-w-0">
+                    <Grade carta={carta} player={player} />
+                  </div>
+                  <div>
+                    <Titulo
+                      extra={
+                        <button
+                          type="button"
+                          onClick={() => irPara(1)}
+                          className="whitespace-nowrap text-xs font-bold text-white/70 underline decoration-white/30 underline-offset-4 outline-offset-2 transition-colors duration-150 hover:text-white focus-visible:outline-2 focus-visible:outline-primary"
+                        >
+                          Ver com barras
+                        </button>
+                      }
+                    >
+                      Fundamentos
+                    </Titulo>
+                    <ListaDeFundamentos carta={carta} tom={tom} barras={false} />
+                  </div>
+                </div>
+              )}
+              {aba === 'fundamentos' && (
+                <div className="max-w-3xl">
+                  <Titulo>Fundamentos</Titulo>
+                  <p className="mb-6 max-w-[60ch] text-sm leading-relaxed text-white/70">
+                    Na escala da carta, pela avaliação em {carta.community.name}.
+                  </p>
+                  <ListaDeFundamentos carta={carta} tom={tom} barras />
+                </div>
+              )}
+              {aba === 'conquistas' && (
+                <div className="[&>section]:mt-0">
+                  <Album carta={carta} colunas={colunas} />
+                </div>
+              )}
+              {aba === 'edicoes' && (
+                <div className="[&>section]:mt-0">
+                  <Colecao carta={carta} onAbrir={setAberta} />
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </div>
+      </section>
       {aberta && !carta.loading && (
         <EdicaoAberta carta={carta} entrada={aberta} reduzir={reduzir} onFechar={fecharEdicao} />
       )}
-    </section>
+    </>
   );
 }

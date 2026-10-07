@@ -13,6 +13,7 @@ import {
   formHistoryFromSessions,
   EditionContext,
   BuildVutCardContext,
+  editionHistory,
 } from './futCards';
 import { PartnershipMatrix } from './partnershipHistory';
 import { calculateSessionRating } from './rating';
@@ -427,4 +428,97 @@ test('buildVutCard: atleta com conta tem a forma reconstruida pelo historico', (
   });
   assert.notEqual(card.formBadge.value, null);
   assert.equal(card.player.formaAtual.ultimasPartidas.length, 1);
+});
+
+function noite(
+  sid: string,
+  date: string,
+  status: 'finished' | 'active',
+  pontosDaAna: number,
+  pontosDaBia: number,
+) {
+  const session = {
+    id: sid,
+    name: sid,
+    date,
+    status,
+    createdAt: `${date}T20:00:00Z`,
+  } as unknown as Session;
+  const teams = [
+    { id: `${sid}-a`, sessionId: sid, name: 'A', playerIds: ['ana'] },
+    { id: `${sid}-b`, sessionId: sid, name: 'B', playerIds: ['bia'] },
+  ] as unknown as Team[];
+  const vencedor = pontosDaAna >= pontosDaBia ? `${sid}-a` : `${sid}-b`;
+  const games = [
+    {
+      id: `${sid}-g`,
+      sessionId: sid,
+      teamAId: `${sid}-a`,
+      teamBId: `${sid}-b`,
+      scoreA: pontosDaAna,
+      scoreB: pontosDaBia,
+      winnerTeamId: vencedor,
+      status: 'finished',
+    },
+  ] as unknown as Game[];
+  const ponto = (playerId: string, time: string, outro: string, n: number) =>
+    ({
+      id: `${sid}-${playerId}-${n}`,
+      sessionId: sid,
+      gameId: `${sid}-g`,
+      sequenceNumber: n,
+      pointType: 'winner',
+      skill: 'ataque',
+      playerId,
+      scoringTeamId: time,
+      concedingTeamId: outro,
+      scoreBefore: { teamA: 0, teamB: 0 },
+      scoreAfter: { teamA: 0, teamB: 0 },
+      timestamp: `${date}T20:00:00.000Z`,
+    }) as unknown as PointEvent;
+  const pointEvents = [
+    ...Array.from({ length: pontosDaAna }, (_, i) => ponto('ana', `${sid}-a`, `${sid}-b`, i + 1)),
+    ...Array.from({ length: pontosDaBia }, (_, i) => ponto('bia', `${sid}-b`, `${sid}-a`, 100 + i)),
+  ];
+  return { session, teams, games, pointEvents };
+}
+
+function historicoDe(noites: ReturnType<typeof noite>[]): BuildVutCardContext {
+  return {
+    sessions: noites.map((n) => n.session),
+    teams: noites.flatMap((n) => n.teams),
+    games: noites.flatMap((n) => n.games),
+    pointEvents: noites.flatMap((n) => n.pointEvents),
+    players: [createPlayer('ana', 'ponteiro'), createPlayer('bia', 'ponteiro')],
+    sessionReports: [],
+  };
+}
+
+test('editionHistory: uma entrada por noite de edicao especial, mais recente primeiro', () => {
+  const ana = createPlayer('ana', 'ponteiro');
+  const ctx = historicoDe([
+    noite('s1', '2026-06-01', 'finished', 15, 5),
+    noite('s2', '2026-06-08', 'finished', 15, 5),
+  ]);
+  const hist = editionHistory(ana, ctx);
+  assert.deepEqual(
+    hist.map((e) => [e.sessionId, e.date]),
+    [
+      ['s2', '2026-06-08'],
+      ['s1', '2026-06-01'],
+    ],
+  );
+  assert.ok(hist.every((e) => ['mvp', 'maestro', 'muralha'].includes(e.edition.kind)));
+});
+
+test('editionHistory: noite sem edicao, pelada nao encerrada e in_form nao entram', () => {
+  const ana = {
+    ...createPlayer('ana', 'ponteiro'),
+    formaAtual: { valor: 0, observacao: '', ultimasPartidas: [9, 9, 9, 9, 9] },
+  } as Player;
+  const ctx = historicoDe([
+    noite('s1', '2026-06-01', 'finished', 2, 15),
+    noite('s2', '2026-06-08', 'active', 15, 2),
+  ]);
+  assert.deepEqual(editionHistory(ana, ctx), []);
 });

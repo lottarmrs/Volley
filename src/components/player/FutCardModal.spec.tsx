@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render as renderRaw, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Attributes, Game, Session, Team } from '@shared/types';
 import { formHistoryFromSessions } from '@logic/futCards';
 import { makePlayer } from '../../test/fixtures';
 import { FutCardModal } from './FutCardModal';
+
+const render = (ui: ReactElement) => renderRaw(<MemoryRouter>{ui}</MemoryRouter>);
 
 vi.mock('../../hooks/usePlayerCareer', () => ({
   usePlayerCareer: () => ({ status: 'idle' }),
@@ -25,6 +29,7 @@ function renderCarta(props: {
   communityId?: string | null;
   canSeeEvaluation?: boolean;
   skillValues?: Map<string, Partial<Attributes>>;
+  myCardHref?: string;
 }) {
   const player = makePlayer('p1', { cloudId: props.cloudId });
   return render(
@@ -40,6 +45,7 @@ function renderCarta(props: {
       communityId={props.communityId}
       canSeeEvaluation={props.canSeeEvaluation}
       skillValues={props.skillValues}
+      myCardHref={props.myCardHref}
     />,
   );
 }
@@ -63,6 +69,20 @@ describe('FutCardModal, aba Avaliação', () => {
     renderCarta({ communityId: 'cc1', canSeeEvaluation: true });
     expect(screen.queryAllByRole('button', { name: /avaliação/i })).toHaveLength(0);
     expect(screen.queryAllByRole('tab', { name: /avaliação/i })).toHaveLength(0);
+  });
+});
+
+describe('FutCardModal, link para Minha carta', () => {
+  it('com myCardHref mostra o link para a carta da comunidade', () => {
+    renderCarta({ myCardHref: '/perfil?comunidade=c1' });
+    const links = screen.getAllByRole('link', { name: 'Ver em Minha carta' });
+    expect(links.length).toBeGreaterThan(0);
+    expect(links[0].getAttribute('href')).toBe('/perfil?comunidade=c1');
+  });
+
+  it('sem myCardHref nao ha o link', () => {
+    renderCarta({});
+    expect(screen.queryAllByRole('link', { name: 'Ver em Minha carta' })).toHaveLength(0);
   });
 });
 

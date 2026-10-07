@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import type { Community } from '@shared/types';
 import { buildPlayersViewContract } from '@app/screens/playersView/playersViewContract';
 import { calculatePositionOverall } from '@logic/calculations';
@@ -18,22 +19,24 @@ function renderView(
 ) {
   const onBack = vi.fn();
   render(
-    <PlayersView
-      contract={buildPlayersViewContract({
-        roster: {
-          community: roster.cloudId ? { ...community, cloudId: roster.cloudId } : community,
-          canEvaluate: roster.canEvaluate,
-          currentUserId: roster.currentUserId,
-        },
-        players,
-        communities: [community],
-        games: [],
-        pointEvents: [],
-        teams: [],
-        sessions: [],
-        onBack,
-      })}
-    />,
+    <MemoryRouter>
+      <PlayersView
+        contract={buildPlayersViewContract({
+          roster: {
+            community: roster.cloudId ? { ...community, cloudId: roster.cloudId } : community,
+            canEvaluate: roster.canEvaluate,
+            currentUserId: roster.currentUserId,
+          },
+          players,
+          communities: [community],
+          games: [],
+          pointEvents: [],
+          teams: [],
+          sessions: [],
+          onBack,
+        })}
+      />
+    </MemoryRouter>,
   );
   return { onBack };
 }
@@ -104,6 +107,23 @@ describe('PlayersView', () => {
       expect(screen.queryAllByRole('button', { name: /avaliação/i })).toHaveLength(0);
     });
   });
+  describe('link para Minha carta', () => {
+    const ana = makePlayer('p1', { nome: 'Ana Souza', communityIds: ['c1'], userId: 'u-ana' });
+
+    it('na propria carta aponta para o perfil da comunidade', () => {
+      renderView([ana], { currentUserId: 'u-ana' });
+      fireEvent.click(screen.getByText('Ana Souza'));
+      const links = screen.getAllByRole('link', { name: 'Ver em Minha carta' });
+      expect(links[0].getAttribute('href')).toBe('/perfil?comunidade=c1');
+    });
+
+    it('na carta de outro atleta nao aparece', () => {
+      renderView([ana], { currentUserId: 'u-outro' });
+      fireEvent.click(screen.getByText('Ana Souza'));
+      expect(screen.queryAllByRole('link', { name: 'Ver em Minha carta' })).toHaveLength(0);
+    });
+  });
+
   it('membro comum ve o OVR da avaliacao na carta de outro atleta', () => {
     const outro = makePlayer('p2', {
       nome: 'Bruno Lima',

@@ -5,6 +5,7 @@ import type { ScreenContract } from '@app/screens/screenContract';
 import type { PlayersViewModel } from '@app/screens/playersView/playersViewModel';
 import type { PlayersViewIntent } from '@app/screens/playersView/playersViewIntents';
 import { applySkillValues } from '@logic/futCards';
+import { paths } from '@app/appRoutes';
 import { useCommunityCardStats } from '../../hooks/useCommunityCardStats';
 import { PlayerItem } from './PlayerComponents';
 import { FutCardModal } from './FutCardModal';
@@ -178,6 +179,11 @@ export const PlayersView = ({
           pointEvents={pointEvents}
           skillValues={skillValues}
           communityId={roster?.community.cloudId ?? null}
+          myCardHref={
+            roster && selectedVutPlayer.userId && selectedVutPlayer.userId === roster.currentUserId
+              ? paths.minhaCarta(roster.community.id)
+              : undefined
+          }
           canSeeEvaluation={Boolean(
             roster &&
             (roster.canEvaluate ||

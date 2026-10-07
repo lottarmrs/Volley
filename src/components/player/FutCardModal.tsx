@@ -17,6 +17,7 @@ import {
   History,
   ClipboardCheck,
 } from 'lucide-react';
+import { Link } from 'react-router';
 import { FutCard } from './FutCard';
 import { CommunitySkillProfileResult } from './CommunitySkillProfilePanel';
 import { CareerTimeline } from './CareerTimeline';
@@ -47,6 +48,7 @@ interface FutCardModalProps {
   communityId?: string | null;
   canSeeEvaluation?: boolean;
   skillValues?: Map<string, Partial<Attributes>>;
+  myCardHref?: string;
 }
 
 type MobileTab =
@@ -126,6 +128,7 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
   communityId = null,
   canSeeEvaluation = false,
   skillValues,
+  myCardHref,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [includeHistory, setIncludeHistory] = useState(true);
@@ -1034,6 +1037,11 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
           <p className="text-[10px] text-base-content/50 uppercase font-bold tracking-widest mt-0.5">
             {player.apelido || player.nome} · {equippedFrame.name}
           </p>
+          {myCardHref && (
+            <Link to={myCardHref} className="link link-primary mt-1 inline-block text-xs font-bold">
+              Ver em Minha carta
+            </Link>
+          )}
         </div>
 
         {/* ─── MOBILE TAB BAR ────────────────────────────── */}
@@ -1090,6 +1098,14 @@ export const FutCardModal: React.FC<FutCardModalProps> = ({
                   {equippedFrame.name} ({equippedFrame.rarity.toUpperCase()})
                 </span>
               </p>
+              {myCardHref && (
+                <Link
+                  to={myCardHref}
+                  className="link link-primary mt-1 inline-block text-xs font-bold"
+                >
+                  Ver em Minha carta
+                </Link>
+              )}
             </div>
 
             {renderQuickSummary()}

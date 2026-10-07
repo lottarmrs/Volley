@@ -7,6 +7,7 @@ import {
   type EditionEntry,
   type VutCard,
 } from '@logic/futCards';
+import { calculatePlayerStats } from '@logic/statistics';
 
 export interface MyCard {
   community: Community;
@@ -14,6 +15,14 @@ export interface MyCard {
   achievements: { unlocked: Achievement[]; near: Achievement[]; locked: Achievement[] };
   editions: EditionEntry[];
   lastPlayedAt: string | null;
+  jogo: {
+    peladas: number;
+    jogos: number;
+    vitorias: number;
+    aproveitamento: number;
+    pontos: number;
+  };
+  fundamentos: Partial<Attributes> | null;
   loading: boolean;
 }
 
@@ -43,6 +52,28 @@ function ultimaJogada(player: Player, history: History): string | null {
   return datas.length ? datas[datas.length - 1] : null;
 }
 
+function numerosDeJogo(player: Player, history: History): MyCard['jogo'] {
+  const peladas = history.sessions.filter(
+    (s) =>
+      s.status === 'finished' &&
+      history.teams.some((t) => t.sessionId === s.id && t.playerIds.includes(player.id)),
+  ).length;
+  const stats = calculatePlayerStats(
+    player,
+    history.games,
+    history.pointEvents,
+    history.teams,
+    history.sessions,
+  );
+  return {
+    peladas,
+    jogos: stats.gamesPlayed,
+    vitorias: stats.wins,
+    aproveitamento: Math.round(stats.winRate),
+    pontos: stats.totalPoints,
+  };
+}
+
 export function buildMyCards(input: {
   player: Player;
   communities: Community[];
@@ -67,6 +98,8 @@ export function buildMyCards(input: {
       achievements: { unlocked, near, locked },
       editions: editionHistory(player, historico),
       lastPlayedAt: ultimaJogada(player, historico),
+      jogo: numerosDeJogo(player, historico),
+      fundamentos: skillValues?.get(player.id) ?? null,
       loading: skillValuesByCommunity.has(community.id) && skillValues === undefined,
     };
   });

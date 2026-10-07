@@ -137,3 +137,22 @@ test('numeros ainda nao chegaram: carta carregando', () => {
   });
   assert.equal(cartas.find((c) => c.community.id === 'c1')!.loading, true);
 });
+
+test('jogo e fundamentos: numeros da comunidade, sem vazar de outra', () => {
+  const cartas = buildMyCards({
+    player: ana,
+    communities: comunidades,
+    history,
+    skillValuesByCommunity: new Map([
+      ['c1', new Map([['ana', { ataque: 8 }]])],
+      ['c2', new Map()],
+      ['c3', new Map()],
+    ]),
+  });
+  const c1 = cartas.find((c) => c.community.id === 'c1')!;
+  const c3 = cartas.find((c) => c.community.id === 'c3')!;
+  assert.deepEqual(c1.jogo, { peladas: 2, jogos: 2, vitorias: 2, aproveitamento: 100, pontos: 0 });
+  assert.deepEqual(c1.fundamentos, { ataque: 8 });
+  assert.deepEqual(c3.jogo, { peladas: 0, jogos: 0, vitorias: 0, aproveitamento: 0, pontos: 0 });
+  assert.equal(c3.fundamentos, null);
+});

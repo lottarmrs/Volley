@@ -91,7 +91,6 @@ describe('UserProfileView', () => {
     expect(screen.getByText('#11')).toBeTruthy();
     expect(screen.getByText('PON')).toBeTruthy();
     expect(screen.getByText('Atacante de Força')).toBeTruthy();
-    expect(screen.getByText('Panelinha de Sexta')).toBeTruthy();
   });
 
   it('switches between Performance tab and Settings tab', () => {
@@ -114,6 +113,41 @@ describe('UserProfileView', () => {
 
     expect(screen.getByText(/Dados & Backup/i)).toBeTruthy();
   });
+  it('a aba chama Minha carta e nenhum numero inventado aparece', () => {
+    render(
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={mockPlayer}
+          communities={mockCommunities}
+          myCards={{ cards: [], selectedCommunityId: null, onSelect: vi.fn() }}
+          onExportBackup={vi.fn()}
+          onImportBackup={vi.fn()}
+          onRestoreDemoPlayers={vi.fn()}
+        />
+      </BrowserRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: /Minha carta/i })).toBeTruthy();
+    expect(screen.getByRole('region', { name: /Minha carta/i })).toBeTruthy();
+    for (const texto of [
+      'Sacador de Elite',
+      'Rei da Quadra',
+      'Paredão Insuperável',
+      /Minhas Comunidades/i,
+      'Partidas',
+      'Aproveitamento',
+      'Sequência',
+      'Rating OVR',
+      /Atributos de Vôlei/i,
+      /Conquistas & Medalhas/i,
+      /OVR/,
+    ]) {
+      expect(screen.queryByText(texto)).toBeNull();
+    }
+  });
+
   it('com conta, sem backup nem demonstracao: a aba de dados some', () => {
     render(
       <BrowserRouter>

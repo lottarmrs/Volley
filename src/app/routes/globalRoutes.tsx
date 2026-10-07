@@ -1,5 +1,7 @@
-import { lazy, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { lazy, useMemo, useState } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { buildMyCards } from '@app/myCards';
+import { useCardStatsForCommunities } from '@hooks/useCardStatsForCommunities';
 import { applyAthleteDraftToPlayer } from '@app/athleteProfileUseCases';
 import { useMyLinkedPlayer } from '@hooks/useMyLinkedPlayer';
 import type { Player } from '@shared/types';
@@ -225,6 +227,30 @@ export function PerfilRoute() {
   );
 
   const minhaFicha = currentPlayer ?? linkedPlayer;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const skillValuesByCommunity = useCardStatsForCommunities(comm.communities, play.players);
+  const { sessions, teams, games, pointEvents, sessionReports } = shell.sess;
+  const history = useMemo(
+    () => ({ sessions, teams, games, pointEvents, players: play.players, sessionReports }),
+    [sessions, teams, games, pointEvents, play.players, sessionReports],
+  );
+  const cards = useMemo(
+    () =>
+      minhaFicha
+        ? buildMyCards({
+            player: minhaFicha,
+            communities: comm.communities,
+            history,
+            skillValuesByCommunity,
+          })
+        : [],
+    [minhaFicha, comm.communities, history, skillValuesByCommunity],
+  );
+  const comunidadePedida = searchParams.get('comunidade');
+  const selectedCommunityId =
+    cards.find((c) => c.community.id === comunidadePedida)?.community.id ??
+    cards[0]?.community.id ??
+    null;
   const mostrarErroDaBusca = !!auth.user && !minhaFicha && erro;
   const mostrarMinhaFicha = !!auth.user && !mostrarErroDaBusca && (!!minhaFicha || !buscado);
 
@@ -247,6 +273,11 @@ export function PerfilRoute() {
         profile={profile}
         player={minhaFicha}
         communities={comm.communities}
+        myCards={{
+          cards,
+          selectedCommunityId,
+          onSelect: (id) => setSearchParams({ comunidade: id }, { replace: true }),
+        }}
         {...(play.online
           ? {}
           : {

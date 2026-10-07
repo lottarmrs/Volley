@@ -47,4 +47,21 @@ describe('useCardStatsForCommunities', () => {
     expect(result.current.get('local')?.size).toBe(0);
     expect(fetchCardStats).not.toHaveBeenCalled();
   });
+
+  it('mantem a mesma referencia quando nada muda e recalcula quando os jogadores mudam', async () => {
+    fetchCardStats.mockResolvedValue([{ playerId: 'uuid-ana', dimensionKey: 'ataque', value: 8 }]);
+    const comunidades = [{ id: 'c1', cloudId: 'uuid-c1', name: 'Terça' }] as never;
+    const { result, rerender } = renderHook(
+      ({ jogadores }) => useCardStatsForCommunities(comunidades, jogadores),
+      { wrapper, initialProps: { jogadores: players } },
+    );
+    await waitFor(() => expect(result.current.get('c1')?.get('ana')).toEqual({ ataque: 8 }));
+    const antes = result.current;
+    rerender({ jogadores: players });
+    expect(result.current).toBe(antes);
+    rerender({ jogadores: [{ id: 'bia', cloudId: 'uuid-ana' }] as never });
+    expect(result.current).not.toBe(antes);
+    expect(result.current.get('c1')?.get('bia')).toEqual({ ataque: 8 });
+    expect(result.current.get('c1')?.get('ana')).toBeUndefined();
+  });
 });

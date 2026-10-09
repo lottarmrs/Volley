@@ -638,3 +638,14 @@ test('player mapper nao envia os campos de ficha de uma ficha com conta, nem o s
   assert.equal(convidado.gender, player.genero);
   assert.deepEqual(convidado.status, player.status);
 });
+
+test('mapDbToPlayer traz a mao dominante no dominio em portugues', () => {
+  const mao = (dominant_hand: unknown) =>
+    mapDbToPlayer({ id: 'p', name: 'Ana', dominant_hand }).maoDominante;
+  assert.equal(mao('direita'), 'direita');
+  assert.equal(mao('esquerda'), 'esquerda');
+  assert.equal(mao('right'), 'direita');
+  assert.equal(mao('Left'), 'esquerda');
+  assert.equal(mao(null), undefined);
+  assert.equal(mao('ambidestro'), undefined);
+});

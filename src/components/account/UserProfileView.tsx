@@ -7,6 +7,7 @@ import { Link } from 'react-router';
 import type { MyCard } from '@app/myCards';
 import { AthleteProfilePanel } from './AthleteProfilePanel';
 import { MyCardDeck } from './MyCardDeck';
+import { maoDe } from './athleteProfileTones';
 
 const POSITION_SIGLAS: Record<Position, string> = {
   levantador: 'LEV',
@@ -130,8 +131,8 @@ export function UserProfileView({
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2 justify-center sm:justify-start text-[11px] font-bold text-base-content/70">
                   {archetype && <span className="badge badge-ghost badge-sm">{archetype}</span>}
-                  {player?.maoDominante && (
-                    <span className="capitalize text-text-muted">• Mao {player.maoDominante}</span>
+                  {player && maoDe(player) !== '—' && (
+                    <span className="capitalize text-text-muted">• {maoDe(player)}</span>
                   )}
                   {player?.alturaCm && (
                     <span className="text-text-muted">• {player.alturaCm} cm</span>

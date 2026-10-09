@@ -31,6 +31,15 @@ export function mapPlayerToDb(local: Player, ownerId: string) {
   };
 }
 
+function maoDominanteDoBanco(valor: unknown): Player['maoDominante'] | undefined {
+  const mao = String(valor ?? '')
+    .trim()
+    .toLowerCase();
+  if (mao === 'direita' || mao === 'right') return 'direita';
+  if (mao === 'esquerda' || mao === 'left') return 'esquerda';
+  return undefined;
+}
+
 export function mapDbToPlayer(db: any): Player {
   return {
     id: db.local_id || db.id,
@@ -43,7 +52,7 @@ export function mapDbToPlayer(db: any): Player {
     apelido: db.nickname || '',
     genero: db.gender,
     alturaCm: db.height !== null && db.height !== undefined ? Number(db.height) : undefined,
-    maoDominante: db.dominant_hand,
+    maoDominante: maoDominanteDoBanco(db.dominant_hand) as Player['maoDominante'],
     posicaoPrincipal: db.primary_position,
     posicoesSecundarias: db.secondary_positions || [],
     ativo: db.active,

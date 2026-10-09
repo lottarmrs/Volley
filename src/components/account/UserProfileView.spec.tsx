@@ -63,6 +63,40 @@ const mockProfile: UserProfile = {
 };
 
 describe('UserProfileView', () => {
+  it('mostra a mao dominante como Destro ou Canhoto, sem o valor cru', () => {
+    const { rerender } = render(
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={mockPlayer}
+        />
+      </BrowserRouter>,
+    );
+    expect(screen.getByText(/destro/i)).toBeTruthy();
+    expect(screen.queryByText(/Mao /)).toBeNull();
+    rerender(
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={{ ...mockPlayer, maoDominante: 'esquerda' }}
+        />
+      </BrowserRouter>,
+    );
+    expect(screen.getByText(/canhoto/i)).toBeTruthy();
+    rerender(
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={{ ...mockPlayer, maoDominante: 'ambos' as never }}
+        />
+      </BrowserRouter>,
+    );
+    expect(screen.queryByText(/destro|canhoto|ambos/i)).toBeNull();
+  });
+
   it('renders hero athlete card with jersey number, position sigla, and overall rating', () => {
     render(
       <BrowserRouter>

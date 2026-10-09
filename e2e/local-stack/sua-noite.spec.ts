@@ -30,11 +30,15 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
     rotacao: '6x0',
   });
 
-  await test.step('um jogo ate 15 e a pelada encerra', async () => {
+  await test.step('dois jogos ate 15, para os tres times jogarem, e a pelada encerra', async () => {
     await pOrg.getByRole('button', { name: /começar primeira partida/i }).click();
     await expect(pOrg.getByText(/jogo 1 — em andamento/i)).toBeVisible({ timeout: 15_000 });
     await marcarPonto(pOrg, 15);
     await expect(pOrg.getByText(/jogo 1 — finalizado/i)).toBeVisible({ timeout: 15_000 });
+    await pOrg.getByRole('button', { name: /iniciar próximo jogo/i }).click();
+    await expect(pOrg.getByText(/jogo 2 — em andamento/i)).toBeVisible({ timeout: 15_000 });
+    await marcarPonto(pOrg, 15);
+    await expect(pOrg.getByText(/jogo 2 — finalizado/i)).toBeVisible({ timeout: 15_000 });
     await pOrg
       .getByRole('button', { name: /encerrar pelada/i })
       .first()

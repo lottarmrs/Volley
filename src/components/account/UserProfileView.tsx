@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useReducedMotionConfig } from 'motion/react';
 import { User, Activity, Settings, Cloud, CheckCircle2 } from 'lucide-react';
 import type { Player, UserProfile, Position } from '../../types';
 import { SettingsModule } from '../settings/SettingsModule';
@@ -49,6 +50,20 @@ export function UserProfileView({
     onExportBackup && onImportBackup && onRestoreDemoPlayers
       ? { onExportBackup, onImportBackup, onRestoreDemoPlayers }
       : null;
+
+  const reduzir = !!useReducedMotionConfig();
+  const cartasRef = useRef<HTMLDivElement>(null);
+  const vista = myCards?.view;
+  const vistaAnterior = useRef(vista);
+
+  useEffect(() => {
+    if (vistaAnterior.current === vista) return;
+    vistaAnterior.current = vista;
+    const regiao = cartasRef.current;
+    if (!regiao) return;
+    regiao.scrollIntoView({ block: 'start', behavior: reduzir ? 'auto' : 'smooth' });
+    regiao.querySelector<HTMLElement>('section h2')?.focus({ preventScroll: true });
+  }, [vista, reduzir]);
 
   const archetype = player?.perfil?.arquetipo;
   const atletaCard =
@@ -176,7 +191,7 @@ export function UserProfileView({
 
       {/* 3. CONTEÚDO DAS ABAS */}
       {activeTab === 'perfil' || !dataTools ? (
-        <div>
+        <div ref={cartasRef} className="scroll-mt-24">
           {myCards &&
             (atletaCard && player ? (
               <AthleteProfilePanel

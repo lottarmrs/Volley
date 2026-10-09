@@ -1,4 +1,4 @@
-import { StrictMode, useState, type FC } from 'react';
+import { StrictMode, useState, type FC, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'motion/react';
 import '@fontsource-variable/inter/wght.css';
@@ -89,23 +89,46 @@ const EXEMPLOS: Exemplo[] = [
 
 const parametros = new URLSearchParams(window.location.search);
 
+const Casca: FC<{ children: ReactNode }> = ({ children }) => (
+  <div className="flex min-h-screen">
+    <aside
+      aria-hidden
+      className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-base-300 bg-base-200 lg:block"
+    />
+    <div className="flex min-w-0 flex-1 flex-col">
+      <header className="sticky top-0 z-20 flex h-[72px] items-center border-b border-base-300 bg-base-200 px-4 text-lg font-black uppercase sm:px-8">
+        Meu perfil
+      </header>
+      <main className="w-full max-w-[1440px] flex-1 p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-4xl">{children}</div>
+      </main>
+    </div>
+  </div>
+);
+
 export const Bancada: FC = () => {
   const [exemploId, setExemploId] = useState(parametros.get('exemplo') ?? EXEMPLOS[0].id);
   const exemplo = EXEMPLOS.find((e) => e.id === exemploId) ?? EXEMPLOS[0];
   const [reduzir, setReduzir] = useState(parametros.get('reduzir') === '1');
   const [registro, setRegistro] = useState<string | null>(null);
+  const [casca, setCasca] = useState(parametros.get('casca') === '1');
   const limpo = parametros.get('limpo') === '1';
 
   return (
     <div className="min-h-screen bg-base-100 pb-28 text-base-content">
       <MotionConfig reducedMotion={reduzir ? 'always' : 'user'}>
-        <div key={exemplo.id}>
-          <AthleteProfilePanel
-            card={exemplo.carta}
-            player={exemplo.jogador}
-            onShowCard={() => setRegistro('onShowCard()')}
-          />
-        </div>
+        {(() => {
+          const painel = (
+            <div key={exemplo.id}>
+              <AthleteProfilePanel
+                card={exemplo.carta}
+                player={exemplo.jogador}
+                onShowCard={() => setRegistro('onShowCard()')}
+              />
+            </div>
+          );
+          return casca ? <Casca>{painel}</Casca> : painel;
+        })()}
       </MotionConfig>
 
       {!limpo && (
@@ -138,6 +161,15 @@ export const Bancada: FC = () => {
               onChange={(e) => setReduzir(e.target.checked)}
             />
             Reduzir movimento
+          </label>
+          <label className="flex h-11 items-center gap-2 rounded-[10px] border border-white/10 bg-base-200 px-3 text-sm font-bold">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm checkbox-primary"
+              checked={casca}
+              onChange={(e) => setCasca(e.target.checked)}
+            />
+            Dentro do app
           </label>
           <span className="w-full px-2 font-mono text-[11px] text-white/60 sm:w-auto">
             {registro ?? 'nenhuma chamada'}

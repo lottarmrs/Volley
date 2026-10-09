@@ -394,7 +394,10 @@ export function MyCardDeck({
         className="mx-auto w-full max-w-5xl px-4"
       >
         <div className="mt-6 flex flex-col items-center text-center">
-          <h2 className="line-clamp-2 max-w-[20ch] text-balance pt-[0.12em] text-[clamp(1.875rem,8vw,3rem)] font-black uppercase italic leading-[0.95] tracking-[-0.035em]">
+          <h2
+            tabIndex={-1}
+            className="outline-none line-clamp-2 max-w-[20ch] text-balance pt-[0.12em] text-[clamp(1.875rem,8vw,3rem)] font-black uppercase italic leading-[0.95] tracking-[-0.035em]"
+          >
             {carta.community.name}
           </h2>
           <p className="mt-3 font-mono text-xs uppercase tracking-[0.14em] text-white/70 tabular-nums">

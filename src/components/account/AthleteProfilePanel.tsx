@@ -1,5 +1,5 @@
 import '@fontsource-variable/inter/wght-italic.css';
-import React, { useCallback, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { motion, useReducedMotionConfig } from 'motion/react';
 import {
   Activity,
@@ -79,7 +79,7 @@ const Losango: React.FC<{ carta: MyCard; tom: string }> = ({ carta, tom }) => {
     <div
       role="img"
       aria-label={rotulo}
-      className="relative grid h-[4.75rem] w-[4.75rem] shrink-0 place-items-center sm:h-[5.5rem] sm:w-[5.5rem]"
+      className="relative grid h-[4.75rem] w-[4.75rem] shrink-0 place-items-center @xl:h-[5.5rem] @xl:w-[5.5rem]"
     >
       <span
         aria-hidden
@@ -88,7 +88,7 @@ const Losango: React.FC<{ carta: MyCard; tom: string }> = ({ carta, tom }) => {
       />
       <span
         aria-hidden
-        className="relative font-mono text-[1.75rem] font-extrabold leading-none tabular-nums sm:text-[2rem]"
+        className="relative font-mono text-[1.75rem] font-extrabold leading-none tabular-nums @xl:text-[2rem]"
       >
         {carta.loading ? <Carregando largura="w-9" /> : stats.rated ? stats.ovr : '?'}
       </span>
@@ -110,13 +110,13 @@ const Retrato: React.FC<{
       ? 'linear-gradient(180deg, transparent 0%, #0b0c0e 16%, #0b0c0e 54%, transparent 96%), linear-gradient(90deg, transparent 0%, #0b0c0e 14%, #0b0c0e 66%, transparent 100%)'
       : 'linear-gradient(180deg, #0b0c0e 52%, transparent 96%), linear-gradient(90deg, #0b0c0e 62%, transparent 100%)';
   return (
-    <div className="relative -mx-4 h-[20rem] sm:h-[24rem] lg:mx-0 lg:mt-6 lg:h-[36rem]">
+    <div className="relative -mx-4 h-[20rem] @xl:h-[24rem] @3xl:mx-0 @3xl:mt-6 @3xl:h-[28rem] @5xl:h-[36rem]">
       {foto ? (
         <motion.img
           src={foto}
           alt=""
           onError={() => setFalhou(true)}
-          className="absolute inset-y-0 left-0 h-full w-[82%] object-cover object-top lg:w-full"
+          className="absolute inset-y-0 left-0 h-full w-[82%] object-cover object-top @3xl:w-full"
           style={{ maskImage: mascara, maskComposite: 'intersect', WebkitMaskImage: mascara }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -125,7 +125,7 @@ const Retrato: React.FC<{
       ) : (
         <motion.span
           aria-hidden
-          className="absolute -left-1 top-2 select-none pr-4 text-[11rem] font-black italic leading-none tracking-[-0.04em] sm:text-[14rem] lg:top-6 lg:text-[17rem]"
+          className="absolute -left-1 top-2 select-none pr-4 text-[11rem] font-black italic leading-none tracking-[-0.04em] @xl:text-[14rem] @3xl:top-6 @3xl:text-[12rem] @5xl:text-[17rem]"
           style={{
             color: `color-mix(in srgb, ${tom} 20%, transparent)`,
           }}
@@ -137,7 +137,7 @@ const Retrato: React.FC<{
         </motion.span>
       )}
       <div
-        className="absolute bottom-16 right-4 drop-shadow-[0_14px_24px_rgba(0,0,0,0.55)] sm:bottom-20 lg:bottom-4 lg:right-0"
+        className="absolute bottom-16 right-4 drop-shadow-[0_14px_24px_rgba(0,0,0,0.55)] @xl:bottom-20 @3xl:bottom-4 @3xl:right-0"
         style={{ width: CARTA_L * escala, height: CARTA_A * escala }}
       >
         {carta.loading ? (
@@ -200,7 +200,7 @@ const ItemDeStatus: React.FC<{
 );
 
 const Status: React.FC<{ carta: MyCard; player: Player }> = ({ carta, player }) => (
-  <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[16px] border border-white/10 bg-white/10 md:grid-cols-4">
+  <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[16px] border border-white/10 bg-white/10 @[40rem]:grid-cols-4">
     <ItemDeStatus
       rotulo="Fase"
       icone={Activity}
@@ -230,7 +230,9 @@ const Celula: React.FC<{ rotulo: string; children: React.ReactNode }> = ({ rotul
 );
 
 const Numero: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span className="font-mono text-[1.375rem] font-bold leading-none tabular-nums">{children}</span>
+  <span className="font-mono text-[clamp(1.125rem,7cqw,1.375rem)] font-bold leading-none tabular-nums">
+    {children}
+  </span>
 );
 
 const Detalhe: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -242,7 +244,7 @@ const Grade: React.FC<{ carta: MyCard; player: Player }> = ({ carta, player }) =
   const valor = (conteudo: React.ReactNode) =>
     carta.loading ? <Carregando largura="w-14" /> : conteudo;
   return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-5 @[30rem]:grid-cols-3">
       <Celula rotulo="Comunidade">
         <span className="line-clamp-2 text-[0.9375rem] font-bold leading-snug">
           {carta.community.name}
@@ -305,7 +307,7 @@ const ListaDeFundamentos: React.FC<{ carta: MyCard; tom: string; barras: boolean
         aria-label="Fundamentos na escala da carta"
         className={
           barras
-            ? 'grid gap-x-10 gap-y-4 sm:grid-cols-2'
+            ? 'grid gap-x-10 gap-y-4 @xl:grid-cols-2'
             : 'flex flex-col divide-y divide-white/[0.07]'
         }
       >
@@ -353,7 +355,7 @@ const Titulo: React.FC<{ children: React.ReactNode; extra?: React.ReactNode }> =
   children,
   extra,
 }) => (
-  <div className="mb-3 flex items-baseline justify-between gap-4 border-b border-white/10 pb-3">
+  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b border-white/10 pb-3">
     <h3 className="text-[1.375rem] font-black uppercase italic leading-none tracking-[-0.02em]">
       {children}
     </h3>
@@ -379,6 +381,17 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
   const escala = largo ? 0.52 : largura >= 640 ? 0.44 : 0.36;
   const colunas = largura >= 1024 ? 5 : largura >= 560 ? 4 : 3;
   const apelido = player.apelido?.trim();
+
+  const abaVista = useRef(aba);
+  useEffect(() => {
+    if (abaVista.current === aba) return;
+    abaVista.current = aba;
+    abasRef.current[ABAS.findIndex((a) => a.id === aba)]?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: reduzir ? 'auto' : 'smooth',
+    });
+  }, [aba, reduzir]);
 
   const irPara = (indice: number) => {
     const alvo = (indice + ABAS.length) % ABAS.length;
@@ -421,21 +434,21 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
         ref={medirRef}
         aria-label="Perfil de atleta"
         aria-busy={carta.loading ? true : undefined}
-        className="relative isolate w-full overflow-x-clip bg-[linear-gradient(160deg,#14171c_0%,#0b0c0e_58%)] pb-14 text-white selection:bg-white/25"
+        className="@container relative isolate w-full overflow-x-clip bg-[linear-gradient(160deg,#14171c_0%,#0b0c0e_58%)] pb-14 text-white selection:bg-white/25"
       >
         <Veu key={`${carta.community.id}-${tom}`} tom={tom} />
-        <div className="mx-auto grid w-full max-w-6xl px-4 lg:grid-cols-[minmax(0,0.38fr)_minmax(0,1fr)] lg:gap-x-12 lg:px-8">
-          <div className="lg:col-start-1 lg:row-span-2 lg:row-start-2">
+        <div className="mx-auto grid w-full max-w-6xl px-4 @3xl:grid-cols-[minmax(0,0.38fr)_minmax(0,1fr)] @3xl:gap-x-10 @3xl:px-8 @5xl:gap-x-12">
+          <div className="@3xl:col-start-1 @3xl:row-span-2 @3xl:row-start-2">
             <Retrato carta={carta} player={player} tom={tom} escala={escala} cartaRef={cartaRef} />
           </div>
 
           <motion.div
-            className="relative z-10 -mt-14 sm:-mt-16 lg:col-start-2 lg:row-start-2 lg:mt-10"
+            className="relative z-10 -mt-14 @xl:-mt-16 @3xl:col-start-2 @3xl:row-start-2 @3xl:mt-10"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={CHEGADA}
           >
-            <div className="flex items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-3 @xl:gap-5">
               <Losango carta={carta} tom={tom} />
               <div className="min-w-0">
                 <p
@@ -444,7 +457,10 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
                 >
                   {card.posLabel}
                 </p>
-                <h2 className="mt-1 text-balance break-words pt-[0.08em] text-[clamp(2.125rem,8.5vw,4.25rem)] font-black uppercase italic leading-[0.9] tracking-[-0.035em]">
+                <h2
+                  tabIndex={-1}
+                  className="outline-none mt-1 text-balance break-words pt-[0.08em] text-[clamp(2.125rem,8.5cqw,4.25rem)] font-black uppercase italic leading-[0.9] tracking-[-0.035em]"
+                >
                   {player.nome}
                 </h2>
                 {apelido && apelido !== player.nome && (
@@ -487,7 +503,7 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
               </p>
             )}
 
-            <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:[&>button]:w-auto">
+            <div className="mt-6 grid gap-2 @xl:flex @xl:flex-wrap @xl:items-center @xl:[&>button]:w-auto">
               <button
                 type="button"
                 onClick={compartilhar}
@@ -518,7 +534,7 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
           <div
             role="tablist"
             aria-label="Seções do perfil"
-            className="mt-10 flex overflow-x-auto border-b border-white/10 [scrollbar-width:none] sm:gap-1 lg:col-span-2 lg:row-start-1 lg:mt-6"
+            className="mt-10 flex overflow-x-auto border-b border-white/10 [scrollbar-width:none] @xl:gap-1 @3xl:col-span-2 @3xl:row-start-1 @3xl:mt-6"
           >
             {ABAS.map((a, i) => {
               const ativa = a.id === aba;
@@ -530,22 +546,30 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
                   }}
                   type="button"
                   role="tab"
+                  aria-label={a.nome}
                   id={`${id}-aba-${a.id}`}
                   aria-selected={ativa}
                   aria-controls={`${id}-painel`}
                   tabIndex={ativa ? 0 : -1}
                   onClick={() => setAba(a.id)}
                   onKeyDown={(evento) => teclaNaAba(evento, i)}
-                  className={`relative h-12 flex-1 shrink-0 whitespace-nowrap px-1 text-[0.6875rem] font-black uppercase italic tracking-[0.02em] outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:bg-white/10 sm:flex-none sm:px-4 sm:text-[0.8125rem] sm:tracking-[0.08em] ${
+                  className={`relative h-12 min-w-11 flex-auto shrink-0 whitespace-nowrap px-1 text-[0.6875rem] font-black uppercase italic tracking-[0.02em] outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:bg-white/10 @xl:flex-none @xl:px-4 @xl:text-[0.8125rem] @xl:tracking-[0.08em] ${
                     ativa ? 'text-white' : 'text-white/60 hover:text-white/90'
                   }`}
                 >
-                  {a.nome}
+                  {a.curto === a.nome ? (
+                    a.nome
+                  ) : (
+                    <>
+                      <span className="@xl:hidden">{a.curto}</span>
+                      <span className="hidden @xl:inline">{a.nome}</span>
+                    </>
+                  )}
                   {ativa && (
                     <motion.span
                       aria-hidden
                       layoutId={`${id}-sublinhado`}
-                      className="absolute inset-x-1 -bottom-px h-[3px] rounded-full sm:inset-x-4"
+                      className="absolute inset-x-1 -bottom-px h-[3px] rounded-full @xl:inset-x-4"
                       style={{ background: tom }}
                       transition={{ duration: DURATION.state, ease: EASE_ARRIVE }}
                     />
@@ -560,7 +584,7 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
             id={`${id}-painel`}
             aria-labelledby={`${id}-aba-${aba}`}
             tabIndex={0}
-            className="mt-6 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-primary lg:col-start-2 lg:row-start-3 lg:mt-10"
+            className="@container mt-6 min-w-0 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-primary @3xl:col-start-2 @3xl:row-start-3 @3xl:mt-10"
           >
             <motion.div
               key={aba}
@@ -569,11 +593,11 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
               transition={{ duration: DURATION.state, ease: EASE_ARRIVE }}
             >
               {aba === 'geral' && (
-                <div className="grid gap-x-12 gap-y-10 xl:grid-cols-[minmax(0,1fr)_17rem]">
-                  <div className="min-w-0 xl:col-span-2">
+                <div className="grid gap-x-12 gap-y-10 @[44rem]:grid-cols-[minmax(0,1fr)_17rem]">
+                  <div className="@container min-w-0 @[44rem]:col-span-2">
                     <Status carta={carta} player={player} />
                   </div>
-                  <div className="min-w-0">
+                  <div className="@container min-w-0">
                     <Grade carta={carta} player={player} />
                   </div>
                   <div>

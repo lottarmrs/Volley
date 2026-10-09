@@ -95,6 +95,7 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
   beforeEach(() => {
     vinculada.player = null;
     estatisticas.chamadas = [];
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   it('sem ?comunidade= mostra a primeira carta e nao escreve a URL', async () => {
@@ -135,6 +136,20 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
     expect(await screen.findByRole('region', { name: 'Perfil de atleta' })).toBeTruthy();
     expect(sonda()).toBe('/perfil?comunidade=c-b&vista=atleta|PUSH');
     expect(screen.queryByRole('region', { name: 'Minha carta' })).toBeNull();
+  });
+
+  it('trocar de vista leva o foco ao titulo da nova vista e rola ate ela', async () => {
+    montarShell([EU]);
+    renderizar('/perfil?comunidade=c-b');
+    await frente();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver perfil de atleta' }));
+    const painel = await screen.findByRole('region', { name: 'Perfil de atleta' });
+    expect(document.activeElement).toBe(painel.querySelector('h2'));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar minha carta' }));
+    await frente();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 2, name: 'Beta' }));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
   it('Mostrar minha carta volta ao leque na mesma carta com replace', async () => {

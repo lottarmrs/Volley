@@ -5,11 +5,11 @@ import { TOM_DA_EDICAO } from './myCardTones';
 
 export type Aba = 'geral' | 'fundamentos' | 'conquistas' | 'edicoes';
 
-export const ABAS: { id: Aba; nome: string }[] = [
-  { id: 'geral', nome: 'Visão geral' },
-  { id: 'fundamentos', nome: 'Fundamentos' },
-  { id: 'conquistas', nome: 'Conquistas' },
-  { id: 'edicoes', nome: 'Edições' },
+export const ABAS: { id: Aba; nome: string; curto: string }[] = [
+  { id: 'geral', nome: 'Visão geral', curto: 'Geral' },
+  { id: 'fundamentos', nome: 'Fundamentos', curto: 'Fundamentos' },
+  { id: 'conquistas', nome: 'Conquistas', curto: 'Conquistas' },
+  { id: 'edicoes', nome: 'Edições', curto: 'Edições' },
 ];
 
 export const FUNDAMENTOS: { chave: keyof Attributes; nome: string }[] = [

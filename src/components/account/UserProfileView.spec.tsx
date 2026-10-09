@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRouter } from 'react-router';
 import { UserProfileView } from './UserProfileView';
 import type { Player, UserProfile } from '../../types';
@@ -195,5 +195,55 @@ describe('UserProfileView', () => {
     expect(screen.queryByText(/Dados & Backup/i)).toBeNull();
     expect(screen.queryByText(/Último sync/i)).toBeNull();
     expect(screen.getByText('Matheus')).toBeTruthy();
+  });
+  describe('trocar entre o leque e o perfil de atleta', () => {
+    const rolar = vi.fn();
+    beforeEach(() => {
+      rolar.mockClear();
+      Element.prototype.scrollIntoView = rolar;
+    });
+
+    const tela = (view: 'carta' | 'atleta') => (
+      <BrowserRouter>
+        <UserProfileView
+          user={{ email: 'matheus@example.com' }}
+          profile={mockProfile}
+          player={mockPlayer}
+          myCards={{
+            cards: CARTAS_TRES,
+            selectedCommunityId: 'terca',
+            onSelect: vi.fn(),
+            view,
+            onOpenProfile: vi.fn(),
+            onShowCard: vi.fn(),
+          }}
+        />
+      </BrowserRouter>
+    );
+
+    it('abrir a pagina nao rouba o foco nem rola', () => {
+      render(tela('atleta'));
+      expect(document.activeElement).toBe(document.body);
+      expect(rolar).not.toHaveBeenCalled();
+    });
+
+    it('ir ao perfil de atleta rola ate o topo dele e leva o foco ao nome', () => {
+      const { rerender } = render(tela('carta'));
+      rerender(tela('atleta'));
+      const titulo = screen.getByRole('heading', { level: 2, name: 'Matheus Silva' });
+      expect(document.activeElement).toBe(titulo);
+      expect(rolar).toHaveBeenCalledTimes(1);
+      expect(rolar.mock.contexts[0]).toBe(
+        screen.getByRole('region', { name: 'Perfil de atleta' }).parentElement,
+      );
+    });
+
+    it('voltar a carta rola ate o leque e leva o foco ao titulo da carta', () => {
+      const { rerender } = render(tela('atleta'));
+      rerender(tela('carta'));
+      const titulo = screen.getByRole('heading', { level: 2, name: 'Vôlei de Terça' });
+      expect(document.activeElement).toBe(titulo);
+      expect(rolar).toHaveBeenCalledTimes(1);
+    });
   });
 });

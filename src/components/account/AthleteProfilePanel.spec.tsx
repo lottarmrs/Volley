@@ -44,7 +44,10 @@ const fundamento = (nome: string) =>
 const PROIBIDOS = ['Moral', 'Preparo', 'Potencial', 'Contrato', 'Salário', 'Valor de mercado'];
 
 describe('AthleteProfilePanel', () => {
-  beforeEach(() => vi.mocked(shareCardImage).mockClear());
+  beforeEach(() => {
+    vi.mocked(shareCardImage).mockClear();
+    Element.prototype.scrollIntoView = vi.fn();
+  });
 
   it('mostra OVR, posição e nome do atleta', () => {
     const { painel } = montar(TERCA);
@@ -130,7 +133,7 @@ describe('AthleteProfilePanel', () => {
     const abas = screen.getByRole('tablist');
     const nomes = within(abas)
       .getAllByRole('tab')
-      .map((t) => t.textContent);
+      .map((t) => t.getAttribute('aria-label'));
     expect(nomes).toEqual(['Visão geral', 'Fundamentos', 'Conquistas', 'Edições']);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Conquistas' }));
@@ -155,6 +158,24 @@ describe('AthleteProfilePanel', () => {
     );
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Visão geral' }), { key: 'ArrowLeft' });
     expect(screen.getByRole('tab', { name: 'Edições' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('a aba escolhida rola para dentro da faixa, sem rolar ao abrir', () => {
+    const rolar = vi.fn();
+    Element.prototype.scrollIntoView = rolar;
+    montar(TERCA);
+    expect(rolar).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Visão geral' }), { key: 'End' });
+    const edicoes = screen.getByRole('tab', { name: 'Edições' });
+    expect(rolar).toHaveBeenCalledTimes(1);
+    expect(rolar.mock.contexts[0]).toBe(edicoes);
+    expect(rolar.mock.calls[0][0]).toMatchObject({ block: 'nearest', inline: 'nearest' });
+  });
+
+  it('na faixa estreita a primeira aba encurta para Geral e o nome inteiro segue acessível', () => {
+    montar(TERCA);
+    const geral = screen.getByRole('tab', { name: 'Visão geral' });
+    expect(within(geral).getByText('Geral').className).toContain('@xl:hidden');
   });
 
   it('aba Fundamentos lista os onze', () => {

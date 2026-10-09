@@ -33,9 +33,11 @@ describe('useCardStatsForCommunities', () => {
     const { result } = renderHook(() => useCardStatsForCommunities(comunidades, players), {
       wrapper,
     });
-    expect(result.current.get('c1')).toBeUndefined();
-    await waitFor(() => expect(result.current.get('c1')?.get('ana')).toEqual({ ataque: 8 }));
-    expect(result.current.get('c2')?.size).toBe(0);
+    expect(result.current.valores.get('c1')).toBeUndefined();
+    await waitFor(() =>
+      expect(result.current.valores.get('c1')?.get('ana')).toEqual({ ataque: 8 }),
+    );
+    expect(result.current.valores.get('c2')?.size).toBe(0);
     expect(fetchCardStats).toHaveBeenCalledTimes(2);
   });
 
@@ -44,7 +46,7 @@ describe('useCardStatsForCommunities', () => {
       () => useCardStatsForCommunities([{ id: 'local', name: 'Local' }] as never, players),
       { wrapper },
     );
-    expect(result.current.get('local')?.size).toBe(0);
+    expect(result.current.valores.get('local')?.size).toBe(0);
     expect(fetchCardStats).not.toHaveBeenCalled();
   });
 
@@ -55,13 +57,40 @@ describe('useCardStatsForCommunities', () => {
       ({ jogadores }) => useCardStatsForCommunities(comunidades, jogadores),
       { wrapper, initialProps: { jogadores: players } },
     );
-    await waitFor(() => expect(result.current.get('c1')?.get('ana')).toEqual({ ataque: 8 }));
-    const antes = result.current;
+    await waitFor(() =>
+      expect(result.current.valores.get('c1')?.get('ana')).toEqual({ ataque: 8 }),
+    );
+    const antes = result.current.valores;
     rerender({ jogadores: players });
-    expect(result.current).toBe(antes);
+    expect(result.current.valores).toBe(antes);
     rerender({ jogadores: [{ id: 'bia', cloudId: 'uuid-ana' }] as never });
-    expect(result.current).not.toBe(antes);
-    expect(result.current.get('c1')?.get('bia')).toEqual({ ataque: 8 });
-    expect(result.current.get('c1')?.get('ana')).toBeUndefined();
+    expect(result.current.valores).not.toBe(antes);
+    expect(result.current.valores.get('c1')?.get('bia')).toEqual({ ataque: 8 });
+    expect(result.current.valores.get('c1')?.get('ana')).toBeUndefined();
+  });
+
+  it('erro na consulta vira erro da comunidade, nao carregando, e tentar de novo refaz so ela', async () => {
+    fetchCardStats.mockImplementation(async (id: string) => {
+      if (id === 'uuid-c1') throw new Error('falhou');
+      return [];
+    });
+    const comunidades = [
+      { id: 'c1', cloudId: 'uuid-c1', name: 'Terça' },
+      { id: 'c2', cloudId: 'uuid-c2', name: 'Quinta' },
+    ] as never;
+    const { result } = renderHook(() => useCardStatsForCommunities(comunidades, players), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.erros.has('c1')).toBe(true));
+    expect(result.current.erros.has('c2')).toBe(false);
+    expect(result.current.valores.get('c2')?.size).toBe(0);
+    expect(fetchCardStats).toHaveBeenCalledTimes(2);
+    fetchCardStats.mockResolvedValue([{ playerId: 'uuid-ana', dimensionKey: 'ataque', value: 8 }]);
+    result.current.tentarDeNovo('c1');
+    await waitFor(() =>
+      expect(result.current.valores.get('c1')?.get('ana')).toEqual({ ataque: 8 }),
+    );
+    expect(result.current.erros.has('c1')).toBe(false);
+    expect(fetchCardStats).toHaveBeenCalledTimes(3);
   });
 });

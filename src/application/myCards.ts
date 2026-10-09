@@ -24,6 +24,7 @@ export interface MyCard {
   };
   fundamentos: Partial<Attributes> | null;
   loading: boolean;
+  erro: boolean;
 }
 
 type History = Omit<BuildVutCardContext, 'skillValues' | 'partnershipMatrix'>;
@@ -91,8 +92,9 @@ export function buildMyCards(input: {
   communities: Community[];
   history: History;
   skillValuesByCommunity: Map<string, Map<string, Partial<Attributes>> | undefined>;
+  erros?: Set<string>;
 }): MyCard[] {
-  const { player, communities, history, skillValuesByCommunity } = input;
+  const { player, communities, history, skillValuesByCommunity, erros } = input;
   const minhas = communities.filter((c) => (player.communityIds ?? []).includes(c.id));
   const cartas = minhas.map((community) => {
     const historico = daComunidade(history, community.id);
@@ -112,7 +114,11 @@ export function buildMyCards(input: {
       lastPlayedAt: ultimaJogada(player, historico),
       jogo: numerosDeJogo(player, historico),
       fundamentos: skillValues?.get(player.id) ?? null,
-      loading: skillValuesByCommunity.has(community.id) && skillValues === undefined,
+      loading:
+        skillValuesByCommunity.has(community.id) &&
+        skillValues === undefined &&
+        !erros?.has(community.id),
+      erro: !!erros?.has(community.id) && skillValues === undefined,
     };
   });
   return cartas.sort((a, b) => {

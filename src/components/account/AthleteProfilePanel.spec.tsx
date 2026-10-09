@@ -214,4 +214,34 @@ describe('AthleteProfilePanel', () => {
       true,
     );
   });
+
+  it('numeros que nao chegaram: diz que nao deu, tenta de novo, sem "?" e sem numero', () => {
+    const onRetry = vi.fn();
+    render(
+      <MemoryRouter>
+        <AthleteProfilePanel
+          card={{ ...CARREGANDO, loading: false, erro: true }}
+          player={{ ...ANA, alturaCm: 178 }}
+          onShowCard={vi.fn()}
+          onRetry={onRetry}
+        />
+      </MemoryRouter>,
+    );
+    const painel = screen.getByRole('region', { name: 'Perfil de atleta' });
+    expect(painel.getAttribute('aria-busy')).toBeNull();
+    expect(painel.textContent).not.toMatch(/\d|\?/);
+    expect(screen.queryByLabelText('Geral aguardando avaliação')).toBeNull();
+    expect(screen.getByText('Não deu para carregar os números')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Compartilhar' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem avaliação, a linha de status mostra geral ? como o losango', () => {
+    const { painel } = montar(SEM_NOTA);
+    expect(painel.textContent).toMatch(/geral \?/i);
+    expect(painel.textContent).not.toMatch(/geral —/i);
+  });
 });

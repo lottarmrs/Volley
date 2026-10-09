@@ -1,5 +1,5 @@
 import { lazy, useMemo, useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { buildMyCards } from '@app/myCards';
 import { useCardStatsForCommunities } from '@hooks/useCardStatsForCommunities';
 import { applyAthleteDraftToPlayer } from '@app/athleteProfileUseCases';
@@ -228,6 +228,8 @@ export function PerfilRoute() {
 
   const minhaFicha = currentPlayer ?? linkedPlayer;
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const jogadores = useMemo(
     () =>
       minhaFicha && !play.players.some((p) => p.id === minhaFicha.id)
@@ -235,7 +237,11 @@ export function PerfilRoute() {
         : play.players,
     [play.players, minhaFicha],
   );
-  const skillValuesByCommunity = useCardStatsForCommunities(comm.communities, jogadores);
+  const {
+    valores: skillValuesByCommunity,
+    erros: errosDosNumeros,
+    tentarDeNovo: tentarNumerosDeNovo,
+  } = useCardStatsForCommunities(comm.communities, jogadores);
   const { sessions, teams, games, pointEvents, sessionReports } = shell.sess;
   const history = useMemo(
     () => ({ sessions, teams, games, pointEvents, players: jogadores, sessionReports }),
@@ -249,10 +255,17 @@ export function PerfilRoute() {
             communities: comm.communities,
             history,
             skillValuesByCommunity,
+            erros: errosDosNumeros,
           })
         : [],
-    [minhaFicha, comm.communities, history, skillValuesByCommunity],
+    [minhaFicha, comm.communities, history, skillValuesByCommunity, errosDosNumeros],
   );
+  const carregando =
+    comm.status.loading ||
+    shell.sess.status.loading ||
+    play.status.loading ||
+    (!minhaFicha && !buscado);
+  const doLeque = !!(location.state as { doLeque?: boolean } | null)?.doLeque;
   const comunidadePedida = searchParams.get('comunidade');
   const selectedCommunityId =
     cards.find((c) => c.community.id === comunidadePedida)?.community.id ??
@@ -285,11 +298,20 @@ export function PerfilRoute() {
           selectedCommunityId,
           onSelect: (id) => setSearchParams({ comunidade: id }, { replace: true }),
           view: vista,
-          onOpenProfile: (id) => setSearchParams({ comunidade: id, vista: 'atleta' }),
-          onShowCard: () =>
+          carregando,
+          naComunidade: comm.communities.length > 0,
+          onRetry: tentarNumerosDeNovo,
+          onOpenProfile: (id) =>
+            setSearchParams({ comunidade: id, vista: 'atleta' }, { state: { doLeque: true } }),
+          onShowCard: () => {
+            if (doLeque) {
+              navigate(-1);
+              return;
+            }
             setSearchParams(selectedCommunityId ? { comunidade: selectedCommunityId } : {}, {
               replace: true,
-            }),
+            });
+          },
         }}
         {...(play.online
           ? {}

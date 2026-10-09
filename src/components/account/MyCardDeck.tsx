@@ -24,6 +24,9 @@ export interface MyCardDeckProps {
   selectedCommunityId: string | null;
   onSelect: (communityId: string) => void;
   onOpenProfile: (communityId: string) => void;
+  onRetry?: (communityId: string) => void;
+  carregando?: boolean;
+  naComunidade?: boolean;
 }
 
 const RESPIRO = 36;
@@ -61,9 +64,11 @@ const Feixes: React.FC<{ tom: string }> = ({ tom }) => (
   </div>
 );
 
-const Esqueleto: React.FC = () => (
+const Esqueleto: React.FC<{ parado?: boolean }> = ({ parado = false }) => (
   <div className="vut-card-shield h-full w-full bg-white/10 p-[2px]">
-    <div className="vut-card-shield relative h-full w-full bg-[linear-gradient(170deg,#1e222a_0%,#14171c_55%,#0b0c0e_100%)] motion-safe:animate-pulse">
+    <div
+      className={`vut-card-shield relative h-full w-full bg-[linear-gradient(170deg,#1e222a_0%,#14171c_55%,#0b0c0e_100%)] ${parado ? '' : 'motion-safe:animate-pulse'}`}
+    >
       <span className="absolute left-[7%] top-[10%] h-[11%] w-[14%] rounded-md bg-white/10" />
       <span className="absolute left-[25%] top-[12%] h-[44%] w-[50%] rounded-[40%] bg-white/[0.06]" />
       <span className="absolute left-[22%] top-[58%] h-[4%] w-[56%] rounded-full bg-white/10" />
@@ -123,8 +128,8 @@ const CartaDoLeque: React.FC<{
         className="relative h-full w-full"
         style={{ scale: sozinha ? 1 : scale }}
       >
-        {carta.loading ? (
-          <Esqueleto />
+        {carta.loading || carta.erro ? (
+          <Esqueleto parado={carta.erro} />
         ) : (
           <CartaNaEscala
             card={carta.card}
@@ -149,6 +154,9 @@ export function MyCardDeck({
   selectedCommunityId,
   onSelect,
   onOpenProfile,
+  onRetry,
+  carregando = false,
+  naComunidade = false,
 }: MyCardDeckProps) {
   const reduzir = !!useReducedMotionConfig();
   const [medirRef, largura] = useElementWidth(375);
@@ -260,7 +268,7 @@ export function MyCardDeck({
   };
 
   const compartilhar = async () => {
-    if (!carta || carta.loading || !cartaRef.current || compartilhando) return;
+    if (!carta || carta.loading || carta.erro || !cartaRef.current || compartilhando) return;
     setCompartilhando(true);
     setFalhouEm(null);
     try {
@@ -273,12 +281,35 @@ export function MyCardDeck({
     }
   };
 
+  if (carregando) {
+    return (
+      <section
+        ref={medirRef}
+        aria-label="Minha carta"
+        aria-busy="true"
+        className="relative w-full overflow-x-clip pb-10 text-white"
+      >
+        <div
+          className="relative mx-auto"
+          style={{ marginTop: RESPIRO, width: CARTA_L * escala, height: altura }}
+        >
+          <Esqueleto />
+        </div>
+        <p className="sr-only">Carregando sua carta…</p>
+      </section>
+    );
+  }
+
   if (total === 0) {
     return (
       <section aria-label="Minha carta" className="mx-auto w-full max-w-xl px-4 py-8">
         <EmptyState
           icon={Layers}
-          title="Sua carta nasce quando você entra numa comunidade"
+          title={
+            naComunidade
+              ? 'Sua carta nasce quando sua ficha estiver no elenco de uma comunidade'
+              : 'Sua carta nasce quando você entra numa comunidade'
+          }
           description="Cada comunidade em que você joga te dá uma carta, com álbum de conquistas e as edições especiais das suas noites."
         >
           <Link
@@ -384,7 +415,9 @@ export function MyCardDeck({
       <p aria-live="polite" className="sr-only">
         {carta.loading
           ? `${carta.community.name} · montando a carta`
-          : `${carta.community.name} · ${conquistas.unlocked.length} de ${totalDeConquistas} conquistas`}
+          : carta.erro
+            ? `${carta.community.name} · não deu para carregar os números`
+            : `${carta.community.name} · ${conquistas.unlocked.length} de ${totalDeConquistas} conquistas`}
       </p>
       <motion.div
         key={carta.community.id}
@@ -403,6 +436,18 @@ export function MyCardDeck({
           <p className="mt-3 font-mono text-xs uppercase tracking-[0.14em] text-white/70 tabular-nums">
             {carta.loading ? (
               'montando a carta…'
+            ) : carta.erro ? (
+              <>
+                <span>Não deu para carregar os números</span>
+                <span aria-hidden>{' · '}</span>
+                <button
+                  type="button"
+                  onClick={() => onRetry?.(carta.community.id)}
+                  className="font-mono uppercase tracking-[0.14em] text-white underline decoration-white/40 underline-offset-4 outline-offset-2 hover:decoration-white focus-visible:outline-2 focus-visible:outline-primary"
+                >
+                  Tentar de novo
+                </button>
+              </>
             ) : (
               <>
                 <span className="block sm:inline">
@@ -423,7 +468,7 @@ export function MyCardDeck({
             <button
               type="button"
               onClick={compartilhar}
-              disabled={carta.loading || compartilhando}
+              disabled={carta.loading || carta.erro || compartilhando}
               aria-busy={compartilhando}
               aria-label="Compartilhar"
               className="flex h-12 items-center justify-center gap-2 rounded-[10px] bg-primary px-7 text-sm font-black uppercase italic tracking-[0.12em] text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)] outline-offset-2 transition-colors duration-150 hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"

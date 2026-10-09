@@ -214,3 +214,21 @@ test('estava num time, mas o time nao jogou jogo encerrado: a pelada nao conta',
     ['c2', 'c1', 'c3'],
   );
 });
+
+test('numeros da avaliacao falharam: carta com erro, nao carregando', () => {
+  const cartas = buildMyCards({
+    player: ana,
+    communities: comunidades,
+    history,
+    skillValuesByCommunity: new Map([
+      ['c1', undefined],
+      ['c2', new Map()],
+      ['c3', new Map()],
+    ]),
+    erros: new Set(['c1']),
+  });
+  const c1 = cartas.find((c) => c.community.id === 'c1')!;
+  assert.equal(c1.erro, true);
+  assert.equal(c1.loading, false);
+  assert.equal(cartas.find((c) => c.community.id === 'c2')!.erro, false);
+});

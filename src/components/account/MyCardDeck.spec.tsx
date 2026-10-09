@@ -156,4 +156,72 @@ describe('MyCardDeck', () => {
     expect(shareCardImage).toHaveBeenCalledTimes(1);
     expect(vi.mocked(shareCardImage).mock.calls[0][1]).toBe('Ana Souza');
   });
+
+  it('numeros que nao chegaram: a carta diz que nao deu e tenta de novo, sem "?" e sem numero', () => {
+    const comErro = CARTAS_CARREGANDO.map((c) =>
+      c.community.id === 'carregando' ? { ...c, loading: false, erro: true } : c,
+    );
+    const onRetry = vi.fn();
+    render(
+      <MemoryRouter>
+        <MyCardDeck
+          cards={comErro}
+          selectedCommunityId="carregando"
+          onSelect={vi.fn()}
+          onOpenProfile={vi.fn()}
+          onRetry={onRetry}
+        />
+      </MemoryRouter>,
+    );
+    const regiao = screen.getByRole('region', { name: 'Minha carta' });
+    const carta = within(regiao).getByRole('group', { name: 'Vôlei da Firma' });
+    expect(carta.getAttribute('aria-busy')).toBeNull();
+    expect(carta.textContent).not.toMatch(/\d|\?/);
+    expect(screen.getByText('Não deu para carregar os números')).toBeTruthy();
+    expect(screen.queryByText('montando a carta…')).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'Compartilhar' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+    expect(onRetry).toHaveBeenCalledWith('carregando');
+  });
+
+  it('carregando o baralho: esqueleto do tamanho da carta, ocupado, sem texto de vazio nem numero', () => {
+    render(
+      <MemoryRouter>
+        <MyCardDeck
+          cards={[]}
+          selectedCommunityId={null}
+          onSelect={vi.fn()}
+          onOpenProfile={vi.fn()}
+          carregando
+        />
+      </MemoryRouter>,
+    );
+    const regiao = screen.getByRole('region', { name: 'Minha carta' });
+    expect(regiao.getAttribute('aria-busy')).toBe('true');
+    expect(regiao.textContent).not.toMatch(/\d/);
+    expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
+  });
+
+  it('membro sem ficha no elenco: a carta nasce quando a ficha estiver no elenco', () => {
+    render(
+      <MemoryRouter>
+        <MyCardDeck
+          cards={[]}
+          selectedCommunityId={null}
+          onSelect={vi.fn()}
+          onOpenProfile={vi.fn()}
+          naComunidade
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByText('Sua carta nasce quando sua ficha estiver no elenco de uma comunidade'),
+    ).toBeTruthy();
+    expect(screen.queryByText('Sua carta nasce quando você entra numa comunidade')).toBeNull();
+    expect(screen.getByRole('link', { name: /comunidades/i }).getAttribute('href')).toBe(
+      '/comunidades',
+    );
+  });
 });

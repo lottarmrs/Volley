@@ -40,6 +40,7 @@ export interface AthleteProfilePanelProps {
   card: MyCard;
   player: Player;
   onShowCard: () => void;
+  onRetry?: () => void;
 }
 
 const CHEGADA = { duration: DURATION.overlay, ease: EASE_ARRIVE };
@@ -363,7 +364,13 @@ const Titulo: React.FC<{ children: React.ReactNode; extra?: React.ReactNode }> =
   </div>
 );
 
-export function AthleteProfilePanel({ card: carta, player, onShowCard }: AthleteProfilePanelProps) {
+export function AthleteProfilePanel({
+  card: recebida,
+  player,
+  onShowCard,
+  onRetry,
+}: AthleteProfilePanelProps) {
+  const carta = recebida.erro ? { ...recebida, loading: true } : recebida;
   const reduzir = !!useReducedMotionConfig();
   const id = useId();
   const [medirRef, largura] = useElementWidth(375);
@@ -433,7 +440,7 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
       <section
         ref={medirRef}
         aria-label="Perfil de atleta"
-        aria-busy={carta.loading ? true : undefined}
+        aria-busy={recebida.loading ? true : undefined}
         className="@container relative isolate w-full overflow-x-clip bg-[linear-gradient(160deg,#14171c_0%,#0b0c0e_58%)] pb-14 text-white selection:bg-white/25"
       >
         <Veu key={`${carta.community.id}-${tom}`} tom={tom} />
@@ -470,12 +477,26 @@ export function AthleteProfilePanel({ card: carta, player, onShowCard }: Athlete
             </div>
 
             <p className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[0.8125rem] uppercase tracking-[0.12em] text-white/70 tabular-nums">
-              {carta.loading ? (
+              {recebida.erro ? (
+                <>
+                  <span>Não deu para carregar os números</span>
+                  <span aria-hidden className="text-white/30">
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="uppercase tracking-[0.12em] text-white underline decoration-white/40 underline-offset-4 outline-offset-2 hover:decoration-white focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    Tentar de novo
+                  </button>
+                </>
+              ) : carta.loading ? (
                 <span>montando a carta…</span>
               ) : (
                 <>
                   <span>
-                    geral <b className="text-white">{card.stats.rated ? card.stats.ovr : '—'}</b>
+                    geral <b className="text-white">{card.stats.rated ? card.stats.ovr : '?'}</b>
                   </span>
                   <span aria-hidden className="text-white/30">
                     /

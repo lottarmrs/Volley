@@ -5,7 +5,7 @@ import type { Community, Player } from '@shared/types';
 import { makePlayer } from '../../test/fixtures';
 
 const shell = vi.hoisted(() => ({ current: null as unknown as Record<string, unknown> }));
-const vinculada = vi.hoisted(() => ({ player: null as Player | null }));
+const vinculada = vi.hoisted(() => ({ player: null as Player | null, buscado: true }));
 const estatisticas = vi.hoisted(() => ({ chamadas: [] as Player[][] }));
 
 vi.mock('../shellContext', () => ({
@@ -16,7 +16,7 @@ vi.mock('../auth/useAuthSession', () => ({ useAuthSession: () => ({ account: nul
 vi.mock('@hooks/useMyLinkedPlayer', () => ({
   useMyLinkedPlayer: () => ({
     linkedPlayer: vinculada.player,
-    buscado: true,
+    buscado: vinculada.buscado,
     erro: false,
     tentarDeNovo: vi.fn(),
     setLinkedPlayer: vi.fn(),
@@ -25,7 +25,11 @@ vi.mock('@hooks/useMyLinkedPlayer', () => ({
 vi.mock('@hooks/useCardStatsForCommunities', () => ({
   useCardStatsForCommunities: (comunidades: Community[], jogadores: Player[]) => {
     estatisticas.chamadas.push(jogadores);
-    return new Map(comunidades.map((c) => [c.id, new Map()]));
+    return {
+      valores: new Map(comunidades.map((c) => [c.id, new Map()])),
+      erros: new Set<string>(),
+      tentarDeNovo: vi.fn(),
+    };
   },
 }));
 vi.mock('../../components/account/MyAthleteProfile', () => ({
@@ -51,12 +55,24 @@ const COMUNIDADES = [
 
 const EU = makePlayer('eu', { userId: 'u1', communityIds: ['c-a', 'c-b', 'c-g'] });
 
-function montarShell(players: Player[]) {
+const PRONTO = { loading: false, readError: null };
+
+function montarShell(
+  players: Player[],
+  carregando: { comm?: boolean; play?: boolean; sess?: boolean } = {},
+  communities: Community[] = COMUNIDADES,
+) {
   shell.current = {
     auth: { user: { id: 'u1', email: 'eu@example.com' }, profile: null },
-    play: { players, online: true, replacePlayer: vi.fn() },
-    comm: { communities: COMUNIDADES },
+    play: {
+      players,
+      online: true,
+      replacePlayer: vi.fn(),
+      status: { ...PRONTO, loading: !!carregando.play },
+    },
+    comm: { communities, status: { ...PRONTO, loading: !!carregando.comm } },
     sess: {
+      status: { ...PRONTO, loading: !!carregando.sess },
       sessions: [],
       teams: [],
       games: [],
@@ -70,7 +86,7 @@ function Sonda() {
   const location = useLocation();
   const tipo = useNavigationType();
   return (
-    <output data-testid="sonda">
+    <output data-testid="sonda" data-chave={location.key}>
       {location.pathname}
       {location.search}|{tipo}
     </output>
@@ -94,6 +110,7 @@ const sonda = () => screen.getByTestId('sonda').textContent;
 describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
   beforeEach(() => {
     vinculada.player = null;
+    vinculada.buscado = true;
     estatisticas.chamadas = [];
     Element.prototype.scrollIntoView = vi.fn();
   });
@@ -152,7 +169,19 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
-  it('Mostrar minha carta volta ao leque na mesma carta com replace', async () => {
+  it('abrir o perfil e voltar pelo botao deixa o historico como antes de abrir', async () => {
+    montarShell([EU]);
+    renderizar('/perfil?comunidade=c-b');
+    await frente();
+    const antes = screen.getByTestId('sonda').getAttribute('data-chave');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver perfil de atleta' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mostrar minha carta' }));
+    expect(await frente()).toBe('Beta');
+    expect(sonda()).toBe('/perfil?comunidade=c-b|POP');
+    expect(screen.getByTestId('sonda').getAttribute('data-chave')).toBe(antes);
+  });
+
+  it('Mostrar minha carta sem ter vindo do leque volta com replace', async () => {
     montarShell([EU]);
     renderizar('/perfil?comunidade=c-b&vista=atleta');
     fireEvent.click(await screen.findByRole('button', { name: 'Mostrar minha carta' }));
@@ -184,5 +213,56 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
     renderizar('/perfil');
     await frente();
     expect(estatisticas.chamadas[estatisticas.chamadas.length - 1]).toBe(elenco);
+  });
+
+  for (const [nome, carregando] of [
+    ['sessoes', { sess: true }],
+    ['comunidades', { comm: true }],
+    ['elenco', { play: true }],
+  ] as const) {
+    it(`${nome} carregando: esqueleto ocupado, sem texto de vazio e sem numero`, async () => {
+      montarShell([EU], carregando);
+      renderizar('/perfil');
+      const regiao = await screen.findByRole('region', { name: 'Minha carta' });
+      expect(regiao.getAttribute('aria-busy')).toBe('true');
+      expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
+      expect(screen.queryByText(/ainda sem pelada/)).toBeNull();
+      expect(regiao.textContent).not.toMatch(/\d/);
+    });
+  }
+
+  it('ficha ainda nao buscada: esqueleto, nao "Sua carta nasce"', async () => {
+    montarShell([]);
+    vinculada.buscado = false;
+    renderizar('/perfil');
+    const regiao = await screen.findByRole('region', { name: 'Minha carta' });
+    expect(regiao.getAttribute('aria-busy')).toBe('true');
+    expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
+  });
+
+  it('carregando com ?vista=atleta: o painel espera', async () => {
+    montarShell([EU], { sess: true });
+    renderizar('/perfil?comunidade=c-b&vista=atleta');
+    const regiao = await screen.findByRole('region', { name: 'Minha carta' });
+    expect(regiao.getAttribute('aria-busy')).toBe('true');
+    expect(screen.queryByRole('region', { name: 'Perfil de atleta' })).toBeNull();
+  });
+
+  it('membro sem ficha no elenco: a carta nasce quando a ficha estiver no elenco', async () => {
+    montarShell([]);
+    renderizar('/perfil');
+    expect(
+      await screen.findByText(
+        'Sua carta nasce quando sua ficha estiver no elenco de uma comunidade',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('sem comunidade: a carta nasce quando entra numa comunidade', async () => {
+    montarShell([], {}, []);
+    renderizar('/perfil');
+    expect(
+      await screen.findByText('Sua carta nasce quando você entra numa comunidade'),
+    ).toBeTruthy();
   });
 });

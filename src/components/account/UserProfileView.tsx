@@ -30,6 +30,9 @@ export interface UserProfileViewProps {
     view: 'carta' | 'atleta';
     onOpenProfile: (communityId: string) => void;
     onShowCard: () => void;
+    carregando?: boolean;
+    naComunidade?: boolean;
+    onRetry?: (communityId: string) => void;
   };
   onExportBackup?: () => void;
   onImportBackup?: (file: File) => void;
@@ -67,7 +70,7 @@ export function UserProfileView({
 
   const archetype = player?.perfil?.arquetipo;
   const atletaCard =
-    myCards?.view === 'atleta'
+    myCards?.view === 'atleta' && !myCards.carregando
       ? (myCards.cards.find((c) => c.community.id === myCards.selectedCommunityId) ??
         myCards.cards[0] ??
         null)
@@ -198,6 +201,7 @@ export function UserProfileView({
                 card={atletaCard}
                 player={player}
                 onShowCard={myCards.onShowCard}
+                onRetry={() => myCards.onRetry?.(atletaCard.community.id)}
               />
             ) : (
               <MyCardDeck
@@ -205,6 +209,9 @@ export function UserProfileView({
                 selectedCommunityId={myCards.selectedCommunityId}
                 onSelect={myCards.onSelect}
                 onOpenProfile={myCards.onOpenProfile}
+                onRetry={myCards.onRetry}
+                carregando={myCards.carregando}
+                naComunidade={myCards.naComunidade}
               />
             ))}
         </div>

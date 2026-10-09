@@ -8,10 +8,16 @@ import type { Attributes, Community, Player } from '@shared/types';
 
 type CardRows = Awaited<ReturnType<typeof communitySkillProfileCloudService.fetchCardStats>>;
 
+export interface CardStatsForCommunities {
+  valores: Map<string, Map<string, Partial<Attributes>> | undefined>;
+  erros: Set<string>;
+  tentarDeNovo: (communityId: string) => void;
+}
+
 export function useCardStatsForCommunities(
   communities: Community[],
   players: Player[],
-): Map<string, Map<string, Partial<Attributes>> | undefined> {
+): CardStatsForCommunities {
   const queries = (isSupabaseConfigured ? communities.filter((c) => !!c.cloudId) : []).map(
     (community) => ({
       queryKey: queryKeys.numerosDaCarta(community.cloudId as string),
@@ -21,14 +27,24 @@ export function useCardStatsForCommunities(
   );
   const combine = useCallback(
     (results: UseQueryResult<CardRows>[]) => {
-      const mapa = new Map<string, Map<string, Partial<Attributes>> | undefined>();
-      for (const community of communities) mapa.set(community.id, new Map());
+      const valores = new Map<string, Map<string, Partial<Attributes>> | undefined>();
+      const erros = new Set<string>();
+      const refazer = new Map<string, () => unknown>();
+      for (const community of communities) valores.set(community.id, new Map());
       const comNuvem = isSupabaseConfigured ? communities.filter((c) => !!c.cloudId) : [];
       comNuvem.forEach((community, i) => {
-        const linhas = results[i]?.data;
-        mapa.set(community.id, linhas ? toSkillValuesMap(linhas, players) : undefined);
+        const resultado = results[i];
+        const linhas = resultado?.data;
+        valores.set(community.id, linhas ? toSkillValuesMap(linhas, players) : undefined);
+        if (!resultado) return;
+        refazer.set(community.id, resultado.refetch);
+        if (!linhas && (resultado.isError || resultado.fetchStatus === 'paused'))
+          erros.add(community.id);
       });
-      return mapa;
+      const tentarDeNovo = (communityId: string) => {
+        void refazer.get(communityId)?.();
+      };
+      return { valores, erros, tentarDeNovo };
     },
     [communities, players],
   );

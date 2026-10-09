@@ -244,4 +244,27 @@ describe('AthleteProfilePanel', () => {
     expect(painel.textContent).toMatch(/geral \?/i);
     expect(painel.textContent).not.toMatch(/geral —/i);
   });
+
+  it('a edição aberta prende o foco, Esc fecha e o foco volta para quem abriu', () => {
+    montar(TERCA);
+    fireEvent.click(screen.getByRole('tab', { name: 'Edições' }));
+    const abrir = screen.getAllByRole('button', { name: /noite de/ })[0];
+    abrir.focus();
+    fireEvent.click(abrir);
+    const dialogo = screen.getByRole('dialog');
+    const fechar = within(dialogo).getByRole('button', { name: 'Fechar' });
+    expect(document.activeElement).toBe(fechar);
+    const tab = fireEvent.keyDown(fechar, { key: 'Tab' });
+    expect(tab).toBe(false);
+    expect(dialogo.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true });
+    expect(dialogo.contains(document.activeElement)).toBe(true);
+    const fora = screen.getByRole('button', { name: 'Mostrar minha carta' });
+    fora.focus();
+    fireEvent.keyDown(fora, { key: 'Tab' });
+    expect(dialogo.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(abrir);
+  });
 });

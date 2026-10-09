@@ -221,6 +221,7 @@ export const EdicaoAberta: React.FC<{
   onFechar: () => void;
 }> = ({ carta, entrada, reduzir, onFechar }) => {
   const fecharRef = useRef<HTMLButtonElement>(null);
+  const dialogoRef = useRef<HTMLDivElement>(null);
   const tom = TOM_DA_EDICAO[entrada.edition.kind] ?? '#f97316';
   const data = formatarData(entrada.date);
   const [escala, setEscala] = useState(1);
@@ -232,7 +233,33 @@ export const EdicaoAberta: React.FC<{
     medir();
     window.addEventListener('resize', medir);
     const tecla = (evento: KeyboardEvent) => {
-      if (evento.key === 'Escape') onFechar();
+      if (evento.key === 'Escape') {
+        onFechar();
+        return;
+      }
+      if (evento.key !== 'Tab') return;
+      const dialogo = dialogoRef.current;
+      if (!dialogo) return;
+      const focaveis: HTMLElement[] = Array.from(
+        dialogo.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focaveis.length === 0) return;
+      const primeiro = focaveis[0];
+      const ultimo = focaveis[focaveis.length - 1];
+      const atual = document.activeElement;
+      const dentro = atual instanceof Node && dialogo.contains(atual);
+      if (!dentro) {
+        evento.preventDefault();
+        (evento.shiftKey ? ultimo : primeiro).focus();
+      } else if (evento.shiftKey && atual === primeiro) {
+        evento.preventDefault();
+        ultimo.focus();
+      } else if (!evento.shiftKey && atual === ultimo) {
+        evento.preventDefault();
+        primeiro.focus();
+      }
     };
     document.addEventListener('keydown', tecla);
     return () => {
@@ -253,6 +280,7 @@ export const EdicaoAberta: React.FC<{
       }}
     >
       <motion.div
+        ref={dialogoRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${entrada.edition.label} de ${data}`}

@@ -83,7 +83,7 @@ async function main() {
         gender: i % 3 === 0 ? 'F' : 'M',
         primary_position: POSICOES[i % POSICOES.length],
         height: 165 + (i % 25),
-        dominant_hand: 'right',
+        dominant_hand: 'direita',
         attributes: atributos,
       })
       .eq('id', atleta.id);

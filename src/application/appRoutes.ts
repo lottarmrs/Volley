@@ -19,6 +19,7 @@ export const paths = {
   comunidades: '/comunidades',
   perfil: '/perfil',
   perfilSync: '/perfil/sync',
+  minhaCarta: (communityId: string) => `/perfil?comunidade=${communityId}`,
   plataforma: '/plataforma',
   sessaoAtivaSemComunidade: '/sessao/ativa',
   comunidade: (communityId: string) => `/comunidades/${communityId}`,

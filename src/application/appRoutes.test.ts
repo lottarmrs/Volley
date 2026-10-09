@@ -25,6 +25,7 @@ test('paths monta as rotas globais e as aninhadas de comunidade', () => {
   assert.equal(paths.comunidades, '/comunidades');
   assert.equal(paths.perfil, '/perfil');
   assert.equal(paths.perfilSync, '/perfil/sync');
+  assert.equal(paths.minhaCarta('c1'), '/perfil?comunidade=c1');
   assert.equal(paths.plataforma, '/plataforma');
   assert.equal(paths.sessaoAtivaSemComunidade, '/sessao/ativa');
   assert.equal(paths.comunidade('c1'), '/comunidades/c1');

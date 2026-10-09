@@ -914,7 +914,7 @@ export function AppShell() {
           onViewCard={() => {
             const communityId = athleteNight.communityId;
             athleteNight.dismiss();
-            if (communityId) navigate(paths.pessoas(communityId));
+            if (communityId) navigate(paths.minhaCarta(communityId));
           }}
         />
       )}

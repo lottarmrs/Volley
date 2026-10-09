@@ -1,0 +1,130 @@
+import type { Attributes, Community, Player } from '@shared/types';
+import {
+  buildVutCard,
+  editionHistory,
+  type Achievement,
+  type BuildVutCardContext,
+  type EditionEntry,
+  type VutCard,
+} from '@logic/futCards';
+import { calculatePlayerStats } from '@logic/statistics';
+
+export interface MyCard {
+  community: Community;
+  card: VutCard;
+  achievements: { unlocked: Achievement[]; near: Achievement[]; locked: Achievement[] };
+  editions: EditionEntry[];
+  lastPlayedAt: string | null;
+  jogo: {
+    peladas: number;
+    jogos: number;
+    vitorias: number;
+    aproveitamento: number;
+    pontos: number;
+  };
+  fundamentos: Partial<Attributes> | null;
+  loading: boolean;
+  erro: boolean;
+}
+
+type History = Omit<BuildVutCardContext, 'skillValues' | 'partnershipMatrix'>;
+
+function daComunidade(history: History, communityId: string): History {
+  const sessions = history.sessions.filter((s) => s.communityId === communityId);
+  const ids = new Set(sessions.map((s) => s.id));
+  return {
+    ...history,
+    sessions,
+    teams: history.teams.filter((t) => ids.has(t.sessionId)),
+    games: history.games.filter((g) => ids.has(g.sessionId)),
+    pointEvents: history.pointEvents.filter((p) => ids.has(p.sessionId)),
+    sessionReports: history.sessionReports.filter((r) => ids.has(r.sessionId)),
+  };
+}
+
+function jogouNaPelada(player: Player, history: History, sessionId: string): boolean {
+  const times = new Set(
+    history.teams
+      .filter((t) => t.sessionId === sessionId && t.playerIds.includes(player.id))
+      .map((t) => t.id),
+  );
+  return history.games.some(
+    (g) =>
+      g.sessionId === sessionId &&
+      g.status === 'finished' &&
+      (times.has(g.teamAId) || times.has(g.teamBId)),
+  );
+}
+
+function peladasJogadas(player: Player, history: History) {
+  return history.sessions.filter(
+    (s) => s.status === 'finished' && jogouNaPelada(player, history, s.id),
+  );
+}
+
+function ultimaJogada(player: Player, history: History): string | null {
+  const datas = peladasJogadas(player, history)
+    .map((s) => s.date)
+    .sort();
+  return datas.length ? datas[datas.length - 1] : null;
+}
+
+function numerosDeJogo(player: Player, history: History): MyCard['jogo'] {
+  const peladas = peladasJogadas(player, history).length;
+  const stats = calculatePlayerStats(
+    player,
+    history.games,
+    history.pointEvents,
+    history.teams,
+    history.sessions,
+  );
+  return {
+    peladas,
+    jogos: stats.gamesPlayed,
+    vitorias: stats.wins,
+    aproveitamento: Math.round(stats.winRate),
+    pontos: stats.totalPoints,
+  };
+}
+
+export function buildMyCards(input: {
+  player: Player;
+  communities: Community[];
+  history: History;
+  skillValuesByCommunity: Map<string, Map<string, Partial<Attributes>> | undefined>;
+  erros?: Set<string>;
+}): MyCard[] {
+  const { player, communities, history, skillValuesByCommunity, erros } = input;
+  const minhas = communities.filter((c) => (player.communityIds ?? []).includes(c.id));
+  const cartas = minhas.map((community) => {
+    const historico = daComunidade(history, community.id);
+    const skillValues = skillValuesByCommunity.get(community.id);
+    const card = buildVutCard(player, { ...historico, skillValues: skillValues ?? new Map() });
+    const unlocked = card.achievements.filter((a) => a.unlocked);
+    const near = card.achievements
+      .filter((a) => !a.unlocked && a.target > 0 && a.current > 0)
+      .sort((a, b) => b.current / b.target - a.current / a.target);
+    const nearIds = new Set(near.map((a) => a.id));
+    const locked = card.achievements.filter((a) => !a.unlocked && !nearIds.has(a.id));
+    return {
+      community,
+      card,
+      achievements: { unlocked, near, locked },
+      editions: editionHistory(player, historico),
+      lastPlayedAt: ultimaJogada(player, historico),
+      jogo: numerosDeJogo(player, historico),
+      fundamentos: skillValues?.get(player.id) ?? null,
+      loading:
+        skillValuesByCommunity.has(community.id) &&
+        skillValues === undefined &&
+        !erros?.has(community.id),
+      erro: !!erros?.has(community.id) && skillValues === undefined,
+    };
+  });
+  return cartas.sort((a, b) => {
+    if (a.lastPlayedAt && b.lastPlayedAt) return b.lastPlayedAt.localeCompare(a.lastPlayedAt);
+    if (a.lastPlayedAt) return -1;
+    if (b.lastPlayedAt) return 1;
+    return a.community.name.localeCompare(b.community.name, 'pt-BR');
+  });
+}

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { AppShell } from './AppShell';
 import { ToastProvider } from '../ui/common/ToastProvider';
 import { SessionProvider } from '../ui/common/SessionProvider';
@@ -81,6 +81,11 @@ vi.mock('../hooks/useCommunities', () => ({
   }),
 }));
 
+function LocalizacaoAtual() {
+  const location = useLocation();
+  return <div data-testid="rota">{`${location.pathname}${location.search}`}</div>;
+}
+
 function renderAppShell(initialPath = '/painel') {
   return render(
     <QueryClientProvider client={new QueryClient()}>
@@ -90,6 +95,7 @@ function renderAppShell(initialPath = '/painel') {
             <Routes>
               <Route element={<AppShell />}>
                 <Route path="/painel" element={<div>Conteudo do Painel</div>} />
+                <Route path="/perfil" element={<LocalizacaoAtual />} />
               </Route>
             </Routes>
           </MemoryRouter>
@@ -180,5 +186,16 @@ describe('AppShell com a noite do atleta', () => {
     expect(screen.getByRole('dialog', { name: 'Sua noite' }).closest('[inert]')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /abrir/i }));
     expect(nightState.markSeen).toHaveBeenCalledTimes(1);
+  });
+
+  it('ver minha carta fecha a noite e abre o perfil na comunidade da noite', () => {
+    nightState.night = NOITE_DE_EXEMPLO;
+    nightState.dismiss.mockClear();
+    renderAppShell('/painel');
+    fireEvent.click(screen.getByRole('button', { name: /abrir/i }));
+    fireEvent.click(screen.getByRole('button', { name: /pular/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ver minha carta/i }));
+    expect(nightState.dismiss).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('rota').textContent).toBe('/perfil?comunidade=c1');
   });
 });

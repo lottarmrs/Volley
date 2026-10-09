@@ -1,0 +1,112 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { useCardStatsForCommunities } from './useCardStatsForCommunities';
+
+const fetchCardStats = vi.fn();
+vi.mock('@infra/supabase/communitySkillProfileCloudService', () => ({
+  communitySkillProfileCloudService: { fetchCardStats: (id: string) => fetchCardStats(id) },
+}));
+vi.mock('../lib/supabaseClient', () => ({ isSupabaseConfigured: true, supabase: {} }));
+
+const players = [{ id: 'ana', cloudId: 'uuid-ana' }] as never;
+let client: QueryClient;
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+describe('useCardStatsForCommunities', () => {
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    fetchCardStats.mockReset();
+  });
+
+  it('uma consulta por comunidade com cloudId, e o mapa por id do app', async () => {
+    fetchCardStats.mockImplementation(async (id: string) =>
+      id === 'uuid-c1' ? [{ playerId: 'uuid-ana', dimensionKey: 'ataque', value: 8 }] : [],
+    );
+    const comunidades = [
+      { id: 'c1', cloudId: 'uuid-c1', name: 'Terça' },
+      { id: 'c2', cloudId: 'uuid-c2', name: 'Quinta' },
+    ] as never;
+    const { result } = renderHook(() => useCardStatsForCommunities(comunidades, players), {
+      wrapper,
+    });
+    expect(result.current.valores.get('c1')).toBeUndefined();
+    await waitFor(() =>
+      expect(result.current.valores.get('c1')?.get('ana')).toEqual({ ataque: 8 }),
+    );
+    expect(result.current.valores.get('c2')?.size).toBe(0);
+    expect(fetchCardStats).toHaveBeenCalledTimes(2);
+  });
+
+  it('comunidade sem cloudId vira mapa vazio, sem consulta', () => {
+    const { result } = renderHook(
+      () => useCardStatsForCommunities([{ id: 'local', name: 'Local' }] as never, players),
+      { wrapper },
+    );
+    expect(result.current.valores.get('local')?.size).toBe(0);
+    expect(fetchCardStats).not.toHaveBeenCalled();
+  });
+
+  it('mantem a mesma referencia quando nada muda e recalcula quando os jogadores mudam', async () => {
+    fetchCardStats.mockResolvedValue([{ playerId: 'uuid-ana', dimensionKey: 'ataque', value: 8 }]);
+    const comunidades = [{ id: 'c1', cloudId: 'uuid-c1', name: 'Terça' }] as never;
+    const { result, rerender } = renderHook(
+      ({ jogadores }) => useCardStatsForCommunities(comunidades, jogadores),
+      { wrapper, initialProps: { jogadores: players } },
+    );
+    await waitFor(() =>
+      expect(result.current.valores.get('c1')?.get('ana')).toEqual({ ataque: 8 }),
+    );
+    const antes = result.current.valores;
+    rerender({ jogadores: players });
+    expect(result.current.valores).toBe(antes);
+    rerender({ jogadores: [{ id: 'bia', cloudId: 'uuid-ana' }] as never });
+    expect(result.current.valores).not.toBe(antes);
+    expect(result.current.valores.get('c1')?.get('bia')).toEqual({ ataque: 8 });
+    expect(result.current.valores.get('c1')?.get('ana')).toBeUndefined();
+  });
+
+  it('erro na consulta vira erro da comunidade, nao carregando, e tentar de novo refaz so ela', async () => {
+    fetchCardStats.mockImplementation(async (id: string) => {
+      if (id === 'uuid-c1') throw new Error('falhou');
+      return [];
+    });
+    const comunidades = [
+      { id: 'c1', cloudId: 'uuid-c1', name: 'Terça' },
+      { id: 'c2', cloudId: 'uuid-c2', name: 'Quinta' },
+    ] as never;
+    const { result } = renderHook(() => useCardStatsForCommunities(comunidades, players), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.erros.has('c1')).toBe(true));
+    expect(result.current.erros.has('c2')).toBe(false);
+    expect(result.current.valores.get('c2')?.size).toBe(0);
+    expect(fetchCardStats).toHaveBeenCalledTimes(2);
+    fetchCardStats.mockResolvedValue([{ playerId: 'uuid-ana', dimensionKey: 'ataque', value: 8 }]);
+    result.current.tentarDeNovo('c1');
+    await waitFor(() =>
+      expect(result.current.valores.get('c1')?.get('ana')).toEqual({ ataque: 8 }),
+    );
+    expect(result.current.erros.has('c1')).toBe(false);
+    expect(fetchCardStats).toHaveBeenCalledTimes(3);
+  });
+
+  it('tentar de novo tira a comunidade do erro enquanto a nova consulta roda', async () => {
+    fetchCardStats.mockRejectedValueOnce(new Error('falhou'));
+    const comunidades = [{ id: 'c1', cloudId: 'uuid-c1', name: 'Terça' }] as never;
+    const { result } = renderHook(() => useCardStatsForCommunities(comunidades, players), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.erros.has('c1')).toBe(true));
+    let liberar: (linhas: never[]) => void = () => {};
+    fetchCardStats.mockReturnValue(new Promise<never[]>((resolve) => (liberar = resolve)));
+    act(() => result.current.tentarDeNovo('c1'));
+    await waitFor(() => expect(result.current.erros.has('c1')).toBe(false));
+    expect(result.current.valores.get('c1')).toBeUndefined();
+    liberar([]);
+    await waitFor(() => expect(result.current.valores.get('c1')?.size).toBe(0));
+  });
+});

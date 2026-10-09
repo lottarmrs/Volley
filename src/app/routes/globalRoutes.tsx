@@ -1,5 +1,7 @@
-import { lazy, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { lazy, useMemo, useState } from 'react';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { buildMyCards } from '@app/myCards';
+import { useCardStatsForCommunities } from '@hooks/useCardStatsForCommunities';
 import { applyAthleteDraftToPlayer } from '@app/athleteProfileUseCases';
 import { useMyLinkedPlayer } from '@hooks/useMyLinkedPlayer';
 import type { Player } from '@shared/types';
@@ -214,6 +216,7 @@ export function ComunidadesRoute() {
 export function PerfilRoute() {
   const shell = useShell();
   const { auth, play, comm } = shell;
+  const online = onlineDataState(shell);
   const { account } = useAuthSession();
   const [editing, setEditing] = useState(false);
   const current = account?.username ?? null;
@@ -225,8 +228,74 @@ export function PerfilRoute() {
   );
 
   const minhaFicha = currentPlayer ?? linkedPlayer;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const jogadores = useMemo(
+    () =>
+      minhaFicha && !play.players.some((p) => p.id === minhaFicha.id)
+        ? [...play.players, minhaFicha]
+        : play.players,
+    [play.players, minhaFicha],
+  );
+  const {
+    valores: skillValuesByCommunity,
+    erros: errosDosNumeros,
+    tentarDeNovo: tentarNumerosDeNovo,
+  } = useCardStatsForCommunities(comm.communities, jogadores);
+  const { sessions, teams, games, pointEvents, sessionReports } = shell.sess;
+  const history = useMemo(
+    () => ({ sessions, teams, games, pointEvents, players: jogadores, sessionReports }),
+    [sessions, teams, games, pointEvents, jogadores, sessionReports],
+  );
+  const cards = useMemo(
+    () =>
+      minhaFicha
+        ? buildMyCards({
+            player: minhaFicha,
+            communities: comm.communities,
+            history,
+            skillValuesByCommunity,
+            erros: errosDosNumeros,
+          })
+        : [],
+    [minhaFicha, comm.communities, history, skillValuesByCommunity, errosDosNumeros],
+  );
+  const carregando =
+    comm.status.loading ||
+    shell.sess.status.loading ||
+    play.status.loading ||
+    (!minhaFicha && !buscado);
+  const doLeque = !!(location.state as { doLeque?: boolean } | null)?.doLeque;
+  const comunidadePedida = searchParams.get('comunidade');
+  const selectedCommunityId =
+    cards.find((c) => c.community.id === comunidadePedida)?.community.id ??
+    cards[0]?.community.id ??
+    null;
+  const vista = searchParams.get('vista') === 'atleta' ? 'atleta' : 'carta';
   const mostrarErroDaBusca = !!auth.user && !minhaFicha && erro;
   const mostrarMinhaFicha = !!auth.user && !mostrarErroDaBusca && (!!minhaFicha || !buscado);
+
+  const leituraErro = online.readError ? (
+    <OnlineReadError error={online.readError} onRetry={online.retry} />
+  ) : null;
+  const jaCarregou = !!minhaFicha && comm.communities.length > 0 && sessions.length > 0;
+  const avisoDaCarta =
+    online.readError && !jaCarregou ? (
+      leituraErro
+    ) : mostrarErroDaBusca ? (
+      <div className="card card-border bg-base-200">
+        <div className="card-body gap-2">
+          <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
+          <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
+          <div className="card-actions">
+            <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
+              Tentar de novo
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : undefined;
 
   function atualizarMinhaFicha(atualizada: Player) {
     if (currentPlayer) {
@@ -246,7 +315,28 @@ export function PerfilRoute() {
         user={auth.user}
         profile={profile}
         player={minhaFicha}
-        communities={comm.communities}
+        myCards={{
+          cards,
+          selectedCommunityId,
+          onSelect: (id) => setSearchParams({ comunidade: id }, { replace: true }),
+          view: vista,
+          carregando,
+          naComunidade: comm.communities.length > 0,
+          aviso: avisoDaCarta,
+          banner: online.readError && jaCarregou ? leituraErro : undefined,
+          onRetry: tentarNumerosDeNovo,
+          onOpenProfile: (id) =>
+            setSearchParams({ comunidade: id, vista: 'atleta' }, { state: { doLeque: true } }),
+          onShowCard: () => {
+            if (doLeque) {
+              navigate(-1);
+              return;
+            }
+            setSearchParams(selectedCommunityId ? { comunidade: selectedCommunityId } : {}, {
+              replace: true,
+            });
+          },
+        }}
         {...(play.online
           ? {}
           : {
@@ -255,19 +345,6 @@ export function PerfilRoute() {
               onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
             })}
       />
-      {mostrarErroDaBusca && (
-        <div className="card card-border bg-base-200">
-          <div className="card-body gap-2">
-            <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
-            <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
-            <div className="card-actions">
-              <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
-                Tentar de novo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {mostrarMinhaFicha && (
         <MyAthleteProfile
           player={minhaFicha}

@@ -335,6 +335,42 @@ export function resolvePlayerEdition(player: Player, ctx: EditionContext | null)
   return EDITION_BASE;
 }
 
+export interface EditionEntry {
+  sessionId: string;
+  date: string;
+  edition: VutEdition;
+}
+
+const COLECIONAVEIS = new Set<VutEditionKind>(['mvp', 'maestro', 'muralha']);
+
+export function editionHistory(player: Player, ctx: BuildVutCardContext): EditionEntry[] {
+  const encerradas = ctx.sessions
+    .filter((session) => session.status === 'finished')
+    .sort((a, b) =>
+      a.date === b.date
+        ? String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''))
+        : String(b.date).localeCompare(String(a.date)),
+    );
+  const entradas: EditionEntry[] = [];
+  for (const session of encerradas) {
+    const teams = ctx.teams.filter((team) => team.sessionId === session.id);
+    if (!teams.some((team) => team.playerIds.includes(player.id))) continue;
+    const participantes = new Set(teams.flatMap((team) => team.playerIds));
+    const edition = resolvePlayerEdition(player, {
+      lastSessionPoints: ctx.pointEvents.filter((point) => point.sessionId === session.id),
+      lastSessionGames: ctx.games.filter(
+        (game) => game.sessionId === session.id && game.status === 'finished',
+      ),
+      lastSessionTeams: teams,
+      participants: ctx.players.filter((candidate) => participantes.has(candidate.id)),
+    });
+    if (COLECIONAVEIS.has(edition.kind)) {
+      entradas.push({ sessionId: session.id, date: session.date, edition });
+    }
+  }
+  return entradas;
+}
+
 function checkInForm(player: Player): boolean {
   const hist = player.formaAtual?.ultimasPartidas ?? [];
   if (hist.length < VUT_CONSTANTS.inFormStreak) return false;

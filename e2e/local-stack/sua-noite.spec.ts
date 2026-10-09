@@ -15,7 +15,7 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
   browser,
 }) => {
   await encerrarTudoEmAndamento();
-  const { atletas } = await elencoDaComunidade();
+  const { comunidadeId, atletas } = await elencoDaComunidade();
   const ana = atletas.find((a) => a.nome.startsWith('Ana'));
   expect(ana).toBeDefined();
   const jogam = [ana!, ...atletas.filter((a) => a !== ana).slice(0, 17)];
@@ -30,11 +30,15 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
     rotacao: '6x0',
   });
 
-  await test.step('um jogo ate 15 e a pelada encerra', async () => {
+  await test.step('dois jogos ate 15, para os tres times jogarem, e a pelada encerra', async () => {
     await pOrg.getByRole('button', { name: /começar primeira partida/i }).click();
     await expect(pOrg.getByText(/jogo 1 — em andamento/i)).toBeVisible({ timeout: 15_000 });
     await marcarPonto(pOrg, 15);
     await expect(pOrg.getByText(/jogo 1 — finalizado/i)).toBeVisible({ timeout: 15_000 });
+    await pOrg.getByRole('button', { name: /iniciar próximo jogo/i }).click();
+    await expect(pOrg.getByText(/jogo 2 — em andamento/i)).toBeVisible({ timeout: 15_000 });
+    await marcarPonto(pOrg, 15);
+    await expect(pOrg.getByText(/jogo 2 — finalizado/i)).toBeVisible({ timeout: 15_000 });
     await pOrg
       .getByRole('button', { name: /encerrar pelada/i })
       .first()
@@ -87,12 +91,26 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
       .toBe(1);
   });
 
-  await test.step('fechar e reabrir o app: a noite nao volta', async () => {
+  await test.step('Ver minha carta abre o perfil na carta da comunidade', async () => {
     await pAna
       .getByRole('dialog', { name: 'Sua noite' })
-      .getByRole('button', { name: 'Fechar' })
+      .getByRole('button', { name: 'Ver minha carta' })
       .click();
+    await expect(pAna).toHaveURL(new RegExp(`/perfil[?]comunidade=${comunidadeId}$`));
+    await expect(pAna.getByRole('region', { name: 'Minha carta' })).toContainText('Pelada Local');
     await expect(pAna.getByRole('dialog', { name: 'Sua noite' })).toHaveCount(0);
+  });
+
+  await test.step('Ver perfil de atleta abre a segunda pagina e Mostrar minha carta volta', async () => {
+    await pAna.getByRole('button', { name: 'Ver perfil de atleta' }).click();
+    await expect(pAna.getByRole('region', { name: 'Perfil de atleta' })).toContainText(
+      'Pelada Local',
+    );
+    await pAna.getByRole('button', { name: 'Mostrar minha carta' }).click();
+    await expect(pAna.getByRole('region', { name: 'Minha carta' })).toBeVisible();
+  });
+
+  await test.step('reabrir o app: a noite nao volta', async () => {
     await pAna.reload();
     await pAna.waitForLoadState('networkidle');
     await pAna.waitForTimeout(3000);

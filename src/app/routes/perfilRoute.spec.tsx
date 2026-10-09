@@ -315,4 +315,13 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
     expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
   });
+
+  it('falha em segundo plano com dados ja carregados: carta continua e o aviso aparece acima', async () => {
+    montarShell([EU], {}, COMUNIDADES, { sess: true });
+    (shell.current.sess as { sessions: unknown[] }).sessions = [{ id: 's1' }];
+    renderizar('/perfil');
+    expect(await frente()).toBe('Alfa');
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+    expect(screen.getByText('Não deu para carregar. Tente de novo.')).toBeTruthy();
+  });
 });

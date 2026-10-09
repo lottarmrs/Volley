@@ -276,21 +276,26 @@ export function PerfilRoute() {
   const mostrarErroDaBusca = !!auth.user && !minhaFicha && erro;
   const mostrarMinhaFicha = !!auth.user && !mostrarErroDaBusca && (!!minhaFicha || !buscado);
 
-  const avisoDaCarta = online.readError ? (
+  const leituraErro = online.readError ? (
     <OnlineReadError error={online.readError} onRetry={online.retry} />
-  ) : mostrarErroDaBusca ? (
-    <div className="card card-border bg-base-200">
-      <div className="card-body gap-2">
-        <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
-        <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
-        <div className="card-actions">
-          <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
-            Tentar de novo
-          </button>
+  ) : null;
+  const jaCarregou = !!minhaFicha && comm.communities.length > 0 && sessions.length > 0;
+  const avisoDaCarta =
+    online.readError && !jaCarregou ? (
+      leituraErro
+    ) : mostrarErroDaBusca ? (
+      <div className="card card-border bg-base-200">
+        <div className="card-body gap-2">
+          <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
+          <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
+          <div className="card-actions">
+            <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
+              Tentar de novo
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  ) : undefined;
+    ) : undefined;
 
   function atualizarMinhaFicha(atualizada: Player) {
     if (currentPlayer) {
@@ -318,6 +323,7 @@ export function PerfilRoute() {
           carregando,
           naComunidade: comm.communities.length > 0,
           aviso: avisoDaCarta,
+          banner: online.readError && jaCarregou ? leituraErro : undefined,
           onRetry: tentarNumerosDeNovo,
           onOpenProfile: (id) =>
             setSearchParams({ comunidade: id, vista: 'atleta' }, { state: { doLeque: true } }),

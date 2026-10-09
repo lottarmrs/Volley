@@ -33,6 +33,7 @@ export interface UserProfileViewProps {
     carregando?: boolean;
     naComunidade?: boolean;
     aviso?: ReactNode;
+    banner?: ReactNode;
     onRetry?: (communityId: string) => void;
   };
   onExportBackup?: () => void;
@@ -196,6 +197,7 @@ export function UserProfileView({
       {/* 3. CONTEÚDO DAS ABAS */}
       {activeTab === 'perfil' || !dataTools ? (
         <div ref={cartasRef} className="scroll-mt-24">
+          {myCards?.banner}
           {myCards &&
             (myCards.aviso ? (
               myCards.aviso

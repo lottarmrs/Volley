@@ -156,3 +156,61 @@ test('jogo e fundamentos: numeros da comunidade, sem vazar de outra', () => {
   assert.deepEqual(c3.jogo, { peladas: 0, jogos: 0, vitorias: 0, aproveitamento: 0, pontos: 0 });
   assert.equal(c3.fundamentos, null);
 });
+
+test('estava num time, mas o time nao jogou jogo encerrado: a pelada nao conta', () => {
+  const banco = {
+    id: 's4',
+    communityId: 'c3',
+    name: 's4',
+    date: '2026-09-30',
+    status: 'finished',
+  } as unknown as Session;
+  const timesDoBanco = [
+    { id: 's4-a', sessionId: 's4', name: 'A', playerIds: ['ana'] },
+    { id: 's4-b', sessionId: 's4', name: 'B', playerIds: ['bia'] },
+    { id: 's4-c', sessionId: 's4', name: 'C', playerIds: ['cris'] },
+  ] as unknown as Team[];
+  const jogosDoBanco = [
+    {
+      id: 's4-g1',
+      sessionId: 's4',
+      teamAId: 's4-b',
+      teamBId: 's4-c',
+      scoreA: 15,
+      scoreB: 10,
+      winnerTeamId: 's4-b',
+      status: 'finished',
+    },
+    {
+      id: 's4-g2',
+      sessionId: 's4',
+      teamAId: 's4-a',
+      teamBId: 's4-b',
+      scoreA: 0,
+      scoreB: 0,
+      status: 'in_progress',
+    },
+  ] as unknown as Game[];
+  const cartas = buildMyCards({
+    player: ana,
+    communities: comunidades,
+    history: {
+      ...history,
+      sessions: [...history.sessions, banco],
+      teams: [...history.teams, ...timesDoBanco],
+      games: [...history.games, ...jogosDoBanco],
+    },
+    skillValuesByCommunity: new Map([
+      ['c1', new Map()],
+      ['c2', new Map()],
+      ['c3', new Map()],
+    ]),
+  });
+  const c3 = cartas.find((c) => c.community.id === 'c3')!;
+  assert.equal(c3.jogo.peladas, 0);
+  assert.equal(c3.lastPlayedAt, null);
+  assert.deepEqual(
+    cartas.map((c) => c.community.id),
+    ['c2', 'c1', 'c3'],
+  );
+});

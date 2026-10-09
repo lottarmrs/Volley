@@ -41,23 +41,35 @@ function daComunidade(history: History, communityId: string): History {
   };
 }
 
+function jogouNaPelada(player: Player, history: History, sessionId: string): boolean {
+  const times = new Set(
+    history.teams
+      .filter((t) => t.sessionId === sessionId && t.playerIds.includes(player.id))
+      .map((t) => t.id),
+  );
+  return history.games.some(
+    (g) =>
+      g.sessionId === sessionId &&
+      g.status === 'finished' &&
+      (times.has(g.teamAId) || times.has(g.teamBId)),
+  );
+}
+
+function peladasJogadas(player: Player, history: History) {
+  return history.sessions.filter(
+    (s) => s.status === 'finished' && jogouNaPelada(player, history, s.id),
+  );
+}
+
 function ultimaJogada(player: Player, history: History): string | null {
-  const datas = history.sessions
-    .filter((s) => s.status === 'finished')
-    .filter((s) =>
-      history.teams.some((t) => t.sessionId === s.id && t.playerIds.includes(player.id)),
-    )
+  const datas = peladasJogadas(player, history)
     .map((s) => s.date)
     .sort();
   return datas.length ? datas[datas.length - 1] : null;
 }
 
 function numerosDeJogo(player: Player, history: History): MyCard['jogo'] {
-  const peladas = history.sessions.filter(
-    (s) =>
-      s.status === 'finished' &&
-      history.teams.some((t) => t.sessionId === s.id && t.playerIds.includes(player.id)),
-  ).length;
+  const peladas = peladasJogadas(player, history).length;
   const stats = calculatePlayerStats(
     player,
     history.games,

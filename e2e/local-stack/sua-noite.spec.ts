@@ -97,6 +97,15 @@ test('a Ana joga, quem organiza encerra e a noite aparece no celular dela uma ve
     await expect(pAna.getByRole('dialog', { name: 'Sua noite' })).toHaveCount(0);
   });
 
+  await test.step('Ver perfil de atleta abre a segunda pagina e Mostrar minha carta volta', async () => {
+    await pAna.getByRole('button', { name: 'Ver perfil de atleta' }).click();
+    await expect(pAna.getByRole('region', { name: 'Perfil de atleta' })).toContainText(
+      'Pelada Local',
+    );
+    await pAna.getByRole('button', { name: 'Mostrar minha carta' }).click();
+    await expect(pAna.getByRole('region', { name: 'Minha carta' })).toBeVisible();
+  });
+
   await test.step('reabrir o app: a noite nao volta', async () => {
     await pAna.reload();
     await pAna.waitForLoadState('networkidle');

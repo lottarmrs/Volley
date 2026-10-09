@@ -109,7 +109,14 @@ describe('UserProfileView', () => {
           user={{ email: 'matheus@example.com' }}
           profile={mockProfile}
           player={mockPlayer}
-          myCards={{ cards: [], selectedCommunityId: null, onSelect: vi.fn() }}
+          myCards={{
+            cards: [],
+            selectedCommunityId: null,
+            onSelect: vi.fn(),
+            view: 'carta',
+            onOpenProfile: vi.fn(),
+            onShowCard: vi.fn(),
+          }}
           onExportBackup={vi.fn()}
           onImportBackup={vi.fn()}
           onRestoreDemoPlayers={vi.fn()}
@@ -143,7 +150,14 @@ describe('UserProfileView', () => {
           user={{ email: 'matheus@example.com' }}
           profile={mockProfile}
           player={mockPlayer}
-          myCards={{ cards: CARTAS_TRES, selectedCommunityId: 'terca', onSelect: vi.fn() }}
+          myCards={{
+            cards: CARTAS_TRES,
+            selectedCommunityId: 'terca',
+            onSelect: vi.fn(),
+            view: 'carta',
+            onOpenProfile: vi.fn(),
+            onShowCard: vi.fn(),
+          }}
         />
       </BrowserRouter>,
     );

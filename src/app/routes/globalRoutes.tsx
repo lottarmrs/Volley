@@ -258,6 +258,7 @@ export function PerfilRoute() {
     cards.find((c) => c.community.id === comunidadePedida)?.community.id ??
     cards[0]?.community.id ??
     null;
+  const vista = searchParams.get('vista') === 'atleta' ? 'atleta' : 'carta';
   const mostrarErroDaBusca = !!auth.user && !minhaFicha && erro;
   const mostrarMinhaFicha = !!auth.user && !mostrarErroDaBusca && (!!minhaFicha || !buscado);
 
@@ -283,6 +284,12 @@ export function PerfilRoute() {
           cards,
           selectedCommunityId,
           onSelect: (id) => setSearchParams({ comunidade: id }, { replace: true }),
+          view: vista,
+          onOpenProfile: (id) => setSearchParams({ comunidade: id, vista: 'atleta' }),
+          onShowCard: () =>
+            setSearchParams(selectedCommunityId ? { comunidade: selectedCommunityId } : {}, {
+              replace: true,
+            }),
         }}
         {...(play.online
           ? {}

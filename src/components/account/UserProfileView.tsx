@@ -4,6 +4,7 @@ import type { Player, UserProfile, Position } from '../../types';
 import { SettingsModule } from '../settings/SettingsModule';
 import { Link } from 'react-router';
 import type { MyCard } from '@app/myCards';
+import { AthleteProfilePanel } from './AthleteProfilePanel';
 import { MyCardDeck } from './MyCardDeck';
 
 const POSITION_SIGLAS: Record<Position, string> = {
@@ -25,6 +26,9 @@ export interface UserProfileViewProps {
     cards: MyCard[];
     selectedCommunityId: string | null;
     onSelect: (communityId: string) => void;
+    view: 'carta' | 'atleta';
+    onOpenProfile: (communityId: string) => void;
+    onShowCard: () => void;
   };
   onExportBackup?: () => void;
   onImportBackup?: (file: File) => void;
@@ -47,6 +51,12 @@ export function UserProfileView({
       : null;
 
   const archetype = player?.perfil?.arquetipo;
+  const atletaCard =
+    myCards?.view === 'atleta'
+      ? (myCards.cards.find((c) => c.community.id === myCards.selectedCommunityId) ??
+        myCards.cards[0] ??
+        null)
+      : null;
 
   return (
     <div className="space-y-6 pb-12 max-w-4xl mx-auto select-none">
@@ -166,7 +176,23 @@ export function UserProfileView({
 
       {/* 3. CONTEÚDO DAS ABAS */}
       {activeTab === 'perfil' || !dataTools ? (
-        <div>{myCards && <MyCardDeck {...myCards} />}</div>
+        <div>
+          {myCards &&
+            (atletaCard && player ? (
+              <AthleteProfilePanel
+                card={atletaCard}
+                player={player}
+                onShowCard={myCards.onShowCard}
+              />
+            ) : (
+              <MyCardDeck
+                cards={myCards.cards}
+                selectedCommunityId={myCards.selectedCommunityId}
+                onSelect={myCards.onSelect}
+                onOpenProfile={myCards.onOpenProfile}
+              />
+            ))}
+        </div>
       ) : (
         /* ABA CONFIGURAÇÕES & BACKUP */
         <div className="space-y-6">

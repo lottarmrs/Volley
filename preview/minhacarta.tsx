@@ -69,6 +69,7 @@ export const Bancada: FC = () => {
                 setSelecionada(id);
                 setRegistro(`onSelect(${id})`);
               }}
+              onOpenProfile={(id) => setRegistro(`onOpenProfile(${id})`)}
             />
           </div>
         </MotionConfig>

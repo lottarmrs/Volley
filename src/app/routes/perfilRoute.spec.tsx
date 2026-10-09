@@ -127,6 +127,33 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
     expect(sonda()).toBe('/perfil?comunidade=c-b|REPLACE');
   });
 
+  it('Ver perfil de atleta empilha ?vista=atleta e mostra o painel', async () => {
+    montarShell([EU]);
+    renderizar('/perfil?comunidade=c-b');
+    await frente();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver perfil de atleta' }));
+    expect(await screen.findByRole('region', { name: 'Perfil de atleta' })).toBeTruthy();
+    expect(sonda()).toBe('/perfil?comunidade=c-b&vista=atleta|PUSH');
+    expect(screen.queryByRole('region', { name: 'Minha carta' })).toBeNull();
+  });
+
+  it('Mostrar minha carta volta ao leque na mesma carta com replace', async () => {
+    montarShell([EU]);
+    renderizar('/perfil?comunidade=c-b&vista=atleta');
+    fireEvent.click(await screen.findByRole('button', { name: 'Mostrar minha carta' }));
+    expect(await frente()).toBe('Beta');
+    expect(sonda()).toBe('/perfil?comunidade=c-b|REPLACE');
+    expect(screen.queryByRole('region', { name: 'Perfil de atleta' })).toBeNull();
+  });
+
+  it('?vista=atleta direto abre o painel da carta pedida', async () => {
+    montarShell([EU]);
+    renderizar('/perfil?comunidade=c-g&vista=atleta');
+    const regiao = await screen.findByRole('region', { name: 'Perfil de atleta' });
+    expect(regiao.textContent).toContain('Gama');
+    expect(sonda()).toBe('/perfil?comunidade=c-g&vista=atleta|POP');
+  });
+
   it('atleta vinculado fora do elenco entra nos numeros e no historico', async () => {
     montarShell([makePlayer('outro', { communityIds: ['c-a'] })]);
     vinculada.player = EU;

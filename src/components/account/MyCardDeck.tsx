@@ -1,5 +1,5 @@
 import '@fontsource-variable/inter/wght-italic.css';
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import {
   animate,
@@ -10,39 +10,23 @@ import {
   type MotionValue,
   type PanInfo,
 } from 'motion/react';
-import { ArrowUpRight, ChevronLeft, ChevronRight, Layers, Share2 } from 'lucide-react';
+import { ArrowUpRight, ChevronLeft, ChevronRight, IdCard, Layers, Share2 } from 'lucide-react';
 import type { MyCard } from '@app/myCards';
-import type { EditionEntry } from '@logic/futCards';
 import { shareCardImage } from '@logic/shareCardImage';
+import { useElementWidth } from '@hooks/useElementWidth';
 import { EmptyState } from '@ui/EmptyState';
 import { DURATION, EASE_ARRIVE } from '@ui/motion';
-import { Album, CartaNaEscala, Colecao, EdicaoAberta } from './myCardParts';
+import { CartaNaEscala } from './myCardParts';
 import { CARTA_A, CARTA_L, formatarData, tomDa } from './myCardTones';
 
 export interface MyCardDeckProps {
   cards: MyCard[];
   selectedCommunityId: string | null;
   onSelect: (communityId: string) => void;
+  onOpenProfile: (communityId: string) => void;
 }
 
 const RESPIRO = 36;
-
-function useLargura(padrao: number) {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  const [largura, setLargura] = useState(padrao);
-  useLayoutEffect(() => {
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const medir = () => {
-      const { width } = el.getBoundingClientRect();
-      if (width) setLargura(width);
-    };
-    medir();
-    const observador = new ResizeObserver(medir);
-    observador.observe(el);
-    return () => observador.disconnect();
-  }, [el]);
-  return [setEl, largura] as const;
-}
 
 const Feixes: React.FC<{ tom: string }> = ({ tom }) => (
   <div
@@ -121,7 +105,7 @@ const CartaDoLeque: React.FC<{
       aria-label={carta.community.name}
       aria-busy={carta.loading ? true : undefined}
       aria-current={frente ? 'true' : undefined}
-      onClick={frente ? undefined : onEscolher}
+      onClick={onEscolher}
       className={`absolute left-1/2 ${frente ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
       style={{
         top: RESPIRO,
@@ -160,20 +144,22 @@ const CartaDoLeque: React.FC<{
   );
 };
 
-export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckProps) {
+export function MyCardDeck({
+  cards,
+  selectedCommunityId,
+  onSelect,
+  onOpenProfile,
+}: MyCardDeckProps) {
   const reduzir = !!useReducedMotionConfig();
-  const [medirRef, largura] = useLargura(375);
+  const [medirRef, largura] = useElementWidth(375);
   const cartaRef = useRef<HTMLDivElement>(null);
   const [compartilhando, setCompartilhando] = useState(false);
   const [falhouEm, setFalhouEm] = useState<string | null>(null);
-  const [aberta, setAberta] = useState<{ comunidade: string; entrada: EditionEntry } | null>(null);
-  const fecharEdicao = useCallback(() => setAberta(null), []);
   const encontrada = cards.findIndex((c) => c.community.id === selectedCommunityId);
   const indice = encontrada < 0 ? 0 : encontrada;
   const total = cards.length;
   const sozinha = total === 1;
   const carta = cards[indice];
-  const edicao = aberta && aberta.comunidade === carta?.community.id ? aberta.entrada : null;
 
   const largo = largura >= 640;
   const escala = sozinha
@@ -192,7 +178,6 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
     raio,
     passoGraus: (Math.asin(Math.min(0.9, passoPx / raio)) * 180) / Math.PI,
   };
-  const colunas = largura >= 960 ? 6 : largura >= 560 ? 4 : 3;
 
   const giro = useMotionValue(indice);
   const luz = useMotionValue(1);
@@ -235,7 +220,7 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
   );
 
   const tecla = (evento: React.KeyboardEvent<HTMLElement>) => {
-    if (sozinha || edicao) return;
+    if (sozinha) return;
     if ((evento.target as HTMLElement).closest('[data-sem-giro]')) return;
     if (evento.key === 'ArrowRight') {
       evento.preventDefault();
@@ -353,7 +338,9 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
             sozinha={sozinha}
             cartaRef={cartaRef}
             onEscolher={() => {
-              if (!arrastou.current) escolher(i);
+              if (arrastou.current) return;
+              if (i === indice) onOpenProfile(c.community.id);
+              else escolher(i);
             }}
           />
         ))}
@@ -449,23 +436,21 @@ export function MyCardDeck({ cards, selectedCommunityId, onSelect }: MyCardDeckP
               <ArrowUpRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
+          <button
+            type="button"
+            onClick={() => onOpenProfile(carta.community.id)}
+            className="mt-2 flex h-12 items-center justify-center gap-2 rounded-[10px] border border-white/15 bg-white/5 px-6 text-sm font-black uppercase italic tracking-[0.12em] text-white outline-offset-2 transition-colors duration-150 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <IdCard className="h-4 w-4" aria-hidden />
+            Ver perfil de atleta
+          </button>
           {falhouEm === carta.community.id && (
             <p role="alert" className="mt-3 text-sm text-white/80">
               Não deu para gerar a imagem. Tente de novo.
             </p>
           )}
         </div>
-
-        <Album carta={carta} colunas={colunas} />
-        <Colecao
-          carta={carta}
-          onAbrir={(entrada) => setAberta({ comunidade: carta.community.id, entrada })}
-        />
       </motion.div>
-
-      {edicao && (
-        <EdicaoAberta carta={carta} entrada={edicao} reduzir={reduzir} onFechar={fecharEdicao} />
-      )}
     </section>
   );
 }

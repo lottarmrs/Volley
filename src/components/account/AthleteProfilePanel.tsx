@@ -1,5 +1,5 @@
 import '@fontsource-variable/inter/wght-italic.css';
-import React, { useCallback, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useId, useRef, useState } from 'react';
 import { motion, useReducedMotionConfig } from 'motion/react';
 import {
   Activity,
@@ -17,6 +17,7 @@ import type { Player } from '@shared/types';
 import { tierFromOvr, type EditionEntry } from '@logic/futCards';
 import { shareCardImage } from '@logic/shareCardImage';
 import { DURATION, EASE_ARRIVE } from '@ui/motion';
+import { useElementWidth } from '@hooks/useElementWidth';
 import { Album, CartaNaEscala, Colecao, EdicaoAberta } from './myCardParts';
 import { CARTA_A, CARTA_L, TOM_DO_TIER, formatarData, tomDa } from './myCardTones';
 import {
@@ -42,23 +43,6 @@ export interface AthleteProfilePanelProps {
 }
 
 const CHEGADA = { duration: DURATION.overlay, ease: EASE_ARRIVE };
-
-function useLargura(padrao: number) {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  const [largura, setLargura] = useState(padrao);
-  useLayoutEffect(() => {
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const medir = () => {
-      const { width } = el.getBoundingClientRect();
-      if (width) setLargura(width);
-    };
-    medir();
-    const observador = new ResizeObserver(medir);
-    observador.observe(el);
-    return () => observador.disconnect();
-  }, [el]);
-  return [setEl, largura] as const;
-}
 
 const Carregando: React.FC<{ largura?: string }> = ({ largura = 'w-16' }) => (
   <span
@@ -380,7 +364,7 @@ const Titulo: React.FC<{ children: React.ReactNode; extra?: React.ReactNode }> =
 export function AthleteProfilePanel({ card: carta, player, onShowCard }: AthleteProfilePanelProps) {
   const reduzir = !!useReducedMotionConfig();
   const id = useId();
-  const [medirRef, largura] = useLargura(375);
+  const [medirRef, largura] = useElementWidth(375);
   const [aba, setAba] = useState<Aba>('geral');
   const abasRef = useRef<(HTMLButtonElement | null)[]>([]);
   const cartaRef = useRef<HTMLDivElement>(null);

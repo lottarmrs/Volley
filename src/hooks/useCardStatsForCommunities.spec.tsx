@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useCardStatsForCommunities } from './useCardStatsForCommunities';
@@ -92,5 +92,21 @@ describe('useCardStatsForCommunities', () => {
     );
     expect(result.current.erros.has('c1')).toBe(false);
     expect(fetchCardStats).toHaveBeenCalledTimes(3);
+  });
+
+  it('tentar de novo tira a comunidade do erro enquanto a nova consulta roda', async () => {
+    fetchCardStats.mockRejectedValueOnce(new Error('falhou'));
+    const comunidades = [{ id: 'c1', cloudId: 'uuid-c1', name: 'Terça' }] as never;
+    const { result } = renderHook(() => useCardStatsForCommunities(comunidades, players), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.erros.has('c1')).toBe(true));
+    let liberar: (linhas: never[]) => void = () => {};
+    fetchCardStats.mockReturnValue(new Promise<never[]>((resolve) => (liberar = resolve)));
+    act(() => result.current.tentarDeNovo('c1'));
+    await waitFor(() => expect(result.current.erros.has('c1')).toBe(false));
+    expect(result.current.valores.get('c1')).toBeUndefined();
+    liberar([]);
+    await waitFor(() => expect(result.current.valores.get('c1')?.size).toBe(0));
   });
 });

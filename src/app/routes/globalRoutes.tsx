@@ -216,6 +216,7 @@ export function ComunidadesRoute() {
 export function PerfilRoute() {
   const shell = useShell();
   const { auth, play, comm } = shell;
+  const online = onlineDataState(shell);
   const { account } = useAuthSession();
   const [editing, setEditing] = useState(false);
   const current = account?.username ?? null;
@@ -275,6 +276,22 @@ export function PerfilRoute() {
   const mostrarErroDaBusca = !!auth.user && !minhaFicha && erro;
   const mostrarMinhaFicha = !!auth.user && !mostrarErroDaBusca && (!!minhaFicha || !buscado);
 
+  const avisoDaCarta = online.readError ? (
+    <OnlineReadError error={online.readError} onRetry={online.retry} />
+  ) : mostrarErroDaBusca ? (
+    <div className="card card-border bg-base-200">
+      <div className="card-body gap-2">
+        <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
+        <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
+        <div className="card-actions">
+          <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
+            Tentar de novo
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : undefined;
+
   function atualizarMinhaFicha(atualizada: Player) {
     if (currentPlayer) {
       play.replacePlayer(atualizada);
@@ -300,6 +317,7 @@ export function PerfilRoute() {
           view: vista,
           carregando,
           naComunidade: comm.communities.length > 0,
+          aviso: avisoDaCarta,
           onRetry: tentarNumerosDeNovo,
           onOpenProfile: (id) =>
             setSearchParams({ comunidade: id, vista: 'atleta' }, { state: { doLeque: true } }),
@@ -321,19 +339,6 @@ export function PerfilRoute() {
               onRestoreDemoPlayers: play.handleRestoreDemoPlayers,
             })}
       />
-      {mostrarErroDaBusca && (
-        <div className="card card-border bg-base-200">
-          <div className="card-body gap-2">
-            <h2 className="text-base font-black uppercase tracking-tight">Minha ficha</h2>
-            <p className="text-sm text-error">Não foi possível carregar sua ficha.</p>
-            <div className="card-actions">
-              <button type="button" className="btn btn-sm" onClick={tentarDeNovo}>
-                Tentar de novo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {mostrarMinhaFicha && (
         <MyAthleteProfile
           player={minhaFicha}

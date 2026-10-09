@@ -5,7 +5,7 @@ import type { Community, Player } from '@shared/types';
 import { makePlayer } from '../../test/fixtures';
 
 const shell = vi.hoisted(() => ({ current: null as unknown as Record<string, unknown> }));
-const vinculada = vi.hoisted(() => ({ player: null as Player | null, buscado: true }));
+const vinculada = vi.hoisted(() => ({ player: null as Player | null, buscado: true, erro: false }));
 const estatisticas = vi.hoisted(() => ({ chamadas: [] as Player[][] }));
 
 vi.mock('../shellContext', () => ({
@@ -17,7 +17,7 @@ vi.mock('@hooks/useMyLinkedPlayer', () => ({
   useMyLinkedPlayer: () => ({
     linkedPlayer: vinculada.player,
     buscado: vinculada.buscado,
-    erro: false,
+    erro: vinculada.erro,
     tentarDeNovo: vi.fn(),
     setLinkedPlayer: vi.fn(),
   }),
@@ -55,12 +55,14 @@ const COMUNIDADES = [
 
 const EU = makePlayer('eu', { userId: 'u1', communityIds: ['c-a', 'c-b', 'c-g'] });
 
+const ERRO = { kind: 'technical', code: 'technical_error', message: 'falhou', recoverable: true };
 const PRONTO = { loading: false, readError: null };
 
 function montarShell(
   players: Player[],
   carregando: { comm?: boolean; play?: boolean; sess?: boolean } = {},
   communities: Community[] = COMUNIDADES,
+  falhas: { comm?: boolean; play?: boolean; sess?: boolean } = {},
 ) {
   shell.current = {
     auth: { user: { id: 'u1', email: 'eu@example.com' }, profile: null },
@@ -68,11 +70,22 @@ function montarShell(
       players,
       online: true,
       replacePlayer: vi.fn(),
-      status: { ...PRONTO, loading: !!carregando.play },
+      refreshRoster: vi.fn(),
+      status: { ...PRONTO, loading: !!carregando.play, readError: falhas.play ? ERRO : null },
     },
-    comm: { communities, status: { ...PRONTO, loading: !!carregando.comm } },
+    comm: {
+      communities,
+      refresh: vi.fn(),
+      status: {
+        ...PRONTO,
+        loading: !!carregando.comm,
+        readError: falhas.comm ? ERRO : null,
+      },
+    },
+    communityRules: { status: PRONTO, refresh: vi.fn() },
     sess: {
-      status: { ...PRONTO, loading: !!carregando.sess },
+      refresh: vi.fn(),
+      status: { ...PRONTO, loading: !!carregando.sess, readError: falhas.sess ? ERRO : null },
       sessions: [],
       teams: [],
       games: [],
@@ -111,6 +124,7 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
   beforeEach(() => {
     vinculada.player = null;
     vinculada.buscado = true;
+    vinculada.erro = false;
     estatisticas.chamadas = [];
     Element.prototype.scrollIntoView = vi.fn();
   });
@@ -264,5 +278,41 @@ describe('PerfilRoute: Minha carta', { timeout: 15000 }, () => {
     expect(
       await screen.findByText('Sua carta nasce quando você entra numa comunidade'),
     ).toBeTruthy();
+  });
+
+  it('leitura de comunidades falhou: mostra o erro com retry e nao afirma nada', async () => {
+    montarShell([EU], {}, [], { comm: true });
+    renderizar('/perfil');
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+    expect(screen.getByText('Não deu para carregar. Tente de novo.')).toBeTruthy();
+    expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
+    expect(screen.queryByText(/ainda sem pelada/)).toBeNull();
+    expect(screen.queryByText(/Peladas/)).toBeNull();
+  });
+
+  it('leitura de peladas falhou: mostra o erro e nenhuma carta zerada', async () => {
+    montarShell([EU], {}, COMUNIDADES, { sess: true });
+    renderizar('/perfil');
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Alfa' })).toBeNull();
+    expect(screen.queryByText(/ainda sem pelada/)).toBeNull();
+    expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
+  });
+
+  it('leitura do elenco falhou com ?vista=atleta: nada de painel zerado', async () => {
+    montarShell([EU], {}, COMUNIDADES, { play: true });
+    renderizar('/perfil?comunidade=c-b&vista=atleta');
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Perfil de atleta' })).toBeNull();
+    expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
+  });
+
+  it('busca da ficha falhou: o deck nao diz "Sua carta nasce" e o erro da ficha aparece', async () => {
+    montarShell([]);
+    vinculada.erro = true;
+    renderizar('/perfil');
+    expect(await screen.findByText('Não foi possível carregar sua ficha.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+    expect(screen.queryByText(/Sua carta nasce/)).toBeNull();
   });
 });

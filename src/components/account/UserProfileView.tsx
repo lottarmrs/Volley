@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
 import { User, Activity, Settings, Cloud, CheckCircle2 } from 'lucide-react';
 import type { Player, UserProfile, Position } from '../../types';
@@ -32,6 +32,7 @@ export interface UserProfileViewProps {
     onShowCard: () => void;
     carregando?: boolean;
     naComunidade?: boolean;
+    aviso?: ReactNode;
     onRetry?: (communityId: string) => void;
   };
   onExportBackup?: () => void;
@@ -70,7 +71,7 @@ export function UserProfileView({
 
   const archetype = player?.perfil?.arquetipo;
   const atletaCard =
-    myCards?.view === 'atleta' && !myCards.carregando
+    myCards?.view === 'atleta' && !myCards.carregando && !myCards.aviso
       ? (myCards.cards.find((c) => c.community.id === myCards.selectedCommunityId) ??
         myCards.cards[0] ??
         null)
@@ -196,7 +197,9 @@ export function UserProfileView({
       {activeTab === 'perfil' || !dataTools ? (
         <div ref={cartasRef} className="scroll-mt-24">
           {myCards &&
-            (atletaCard && player ? (
+            (myCards.aviso ? (
+              myCards.aviso
+            ) : atletaCard && player ? (
               <AthleteProfilePanel
                 card={atletaCard}
                 player={player}
